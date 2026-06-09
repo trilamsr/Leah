@@ -11,6 +11,7 @@ import (
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
 	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/reviewer"
 )
 
 const version = "0.0.1-mvp5"
@@ -38,7 +39,18 @@ func main() {
 			os.Exit(2)
 		}
 		runShip(os.Args[2], os.Args[3])
-	case "review", "status":
+	case "review":
+		if len(os.Args) < 4 {
+			fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
+			os.Exit(2)
+		}
+		var prNum int
+		if _, err := fmt.Sscanf(os.Args[3], "%d", &prNum); err != nil {
+			fmt.Fprintln(os.Stderr, "pr# must be an integer")
+			os.Exit(2)
+		}
+		runReview(os.Args[2], prNum)
+	case "status":
 		fmt.Fprintf(os.Stderr, "subcommand %q not yet implemented\n", cmd)
 		os.Exit(2)
 	default:
@@ -114,6 +126,61 @@ func runShip(repo, intent string) {
 		fmt.Fprintf(os.Stderr, "leah ship: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func runReview(repo string, prNum int) {
+	ctx := context.Background()
+
+	auditPath := filepath.Join(stateDir(), "audit.jsonl")
+	a := &audit.Logger{Path: auditPath}
+
+	sysPrompt, err := os.ReadFile("reviewer-prompts/independent-reviewer.md")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "read reviewer prompt: %v\n", err)
+		os.Exit(1)
+	}
+
+	sub, err := reviewer.NewAnthropicSubagent()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	r := &reviewer.Reviewer{Subagent: sub, SystemPrompt: string(sysPrompt)}
+
+	gh := ghclient.New()
+	pr, err := gh.ViewPR(ctx, repo, prNum,
+		[]string{"number", "title", "body", "headRefName", "url"})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "view pr: %v\n", err)
+		os.Exit(1)
+	}
+
+	diffOut, err := ghclient.ShellExec{}.Run(ctx,
+		[]string{"gh", "pr", "diff", fmt.Sprintf("%d", prNum), "--repo", repo})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fetch diff: %v\n", err)
+		os.Exit(1)
+	}
+
+	body, _ := pr["body"].(string)
+	v, err := r.Review(ctx, diffOut, body)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "review: %v\n", err)
+		_ = a.Append(audit.Entry{Kind: "review", BlastRadius: 3, Outcome: "failed", Detail: err.Error()})
+		os.Exit(1)
+	}
+
+	fmt.Println(v.Body)
+	fmt.Println()
+	fmt.Println("Verdict:", v.Recommendation, " Agent-id:", v.AgentID)
+
+	_ = a.Append(audit.Entry{
+		Kind:        "review",
+		ArgsHash:    fmt.Sprintf("pr-%d", prNum),
+		BlastRadius: 3,
+		Outcome:     "success",
+		Detail:      v.Recommendation + " " + v.AgentID,
+	})
 }
 
 func stateDir() string {
