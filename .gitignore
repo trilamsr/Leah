@@ -18,3 +18,7 @@
 
 # Specs kept local-only (personal-use design details)
 /docs/specs/
+
+# Secrets — never commit
+.env
+.env.local
