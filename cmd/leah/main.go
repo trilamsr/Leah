@@ -71,6 +71,26 @@ func main() {
 			fmt.Fprintf(os.Stderr, "leah status: %v\n", err)
 			os.Exit(1)
 		}
+	case "contact":
+		runContact(os.Args[2:])
+	case "project":
+		runProject(os.Args[2:])
+	case "decision":
+		runDecision(os.Args[2:])
+	case "ctx":
+		runCtx(os.Args[2:])
+	case "mistake":
+		runMistake(os.Args[2:])
+	case "retro":
+		runRetro(os.Args[2:])
+	case "patterns":
+		runPatterns(os.Args[2:])
+	case "self-build":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: leah self-build \"<intent>\"")
+			os.Exit(2)
+		}
+		runSelfBuild(os.Args[2])
 	default:
 		usage()
 		os.Exit(2)
@@ -242,9 +262,17 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "usage: leah <command> [args...]")
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "commands:")
-	fmt.Fprintln(os.Stderr, "  ask \"<query>\"        direct query to Reasoner")
-	fmt.Fprintln(os.Stderr, "  ship <repo> \"<intent>\"  file regatta issue + watch + narrate")
-	fmt.Fprintln(os.Stderr, "  review <repo> <pr#>   independent reviewer subagent on PR")
-	fmt.Fprintln(os.Stderr, "  status [--json]      recent activity from audit log")
-	fmt.Fprintln(os.Stderr, "  version              show version")
+	fmt.Fprintln(os.Stderr, "  ask \"<query>\"             direct query to Reasoner")
+	fmt.Fprintln(os.Stderr, "  ship <repo> \"<intent>\"    file regatta issue + watch + narrate")
+	fmt.Fprintln(os.Stderr, "  review <repo> <pr#>       independent reviewer subagent on PR")
+	fmt.Fprintln(os.Stderr, "  status [--json]           recent activity from audit log")
+	fmt.Fprintln(os.Stderr, "  contact <add|list|show>   manage contacts (memory)")
+	fmt.Fprintln(os.Stderr, "  project <add|list|show>   manage projects (memory)")
+	fmt.Fprintln(os.Stderr, "  decision <add|list|show>  log + recall decisions (memory)")
+	fmt.Fprintln(os.Stderr, "  ctx <new|switch|show|history|list>  context manager")
+	fmt.Fprintln(os.Stderr, "  mistake add --audit-id <id> --root-cause <tag> --prevention <text>")
+	fmt.Fprintln(os.Stderr, "  retro [--week YYYY-WW]    weekly retro markdown")
+	fmt.Fprintln(os.Stderr, "  patterns [--weekly]       skill-candidate clusters from audit")
+	fmt.Fprintln(os.Stderr, "  self-build \"<intent>\"     dispatch a regatta self-build PR")
+	fmt.Fprintln(os.Stderr, "  version                   show version")
 }

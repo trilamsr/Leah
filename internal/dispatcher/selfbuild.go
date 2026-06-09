@@ -48,6 +48,12 @@ type SelfBuild struct {
 	// for tests; production CLI wiring sets it.
 	PromptPath string
 
+	// AttestationQuestionsPath points at prompts/self-build-attestations.txt
+	// (one question per line). SelfBuild picks one at random + appends an
+	// operator-attestation block to the issue body. Empty disables the gate
+	// — useful in tests; production CLI wiring sets it.
+	AttestationQuestionsPath string
+
 	// RepoOverride MUST be empty; any non-empty value triggers ErrSelfBuildRepoLocked.
 	RepoOverride string
 
