@@ -54,10 +54,20 @@ func main() {
 	registry := obs.NewRegistry()
 	_ = os.MkdirAll(filepath.Join(sd, "panics"), 0o700)
 
+	// Voice opt-in: LEAH_VOICE_ENABLED=1 wires VoiceNotify alongside Desktop
+	// via Fanout. Default OFF — terminal-state transitions stay silent until
+	// operator opts in (avoids unexpected TTS on every PR merge).
+	nf := buildNotifier()
+	if os.Getenv("LEAH_VOICE_ENABLED") == "1" {
+		_, _ = fmt.Fprintln(os.Stdout, "leah-daemon: voice notifier enabled (LEAH_VOICE_ENABLED=1)")
+	} else {
+		_, _ = fmt.Fprintln(os.Stdout, "leah-daemon: voice notifier disabled (set LEAH_VOICE_ENABLED=1 to enable)")
+	}
+
 	loop := daemonloop.New(
 		rc,
 		watchdog.New(),
-		notify.NewDesktop(),
+		nf,
 		a,
 		os.Stdout,
 		pollEvery,
@@ -301,6 +311,18 @@ func daemonAttestationScanner() func(context.Context, string) ([]selflearn.Attes
 		}
 		return out, nil
 	}
+}
+
+// buildNotifier returns the composition root for daemon notifications.
+// Always includes Desktop; appends VoiceNotify when LEAH_VOICE_ENABLED=1.
+// Fanout dispatches to every wrapped notifier and joins errors so a TTS
+// chain failure cannot suppress the desktop banner.
+func buildNotifier() daemonloop.Notifier {
+	desktop := notify.NewDesktop()
+	if os.Getenv("LEAH_VOICE_ENABLED") != "1" {
+		return desktop
+	}
+	return &notify.Fanout{Notifiers: []notify.Notifier{desktop, notify.NewVoice()}}
 }
 
 func stateDir() string {
