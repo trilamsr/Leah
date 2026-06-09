@@ -168,6 +168,25 @@ Restore drill quarterly:
 | watcher exits after 60min with no notification | regatta agent didn't reach terminal state | check `regatta agents list --json` directly |
 | `osascript: ...` errors | macOS notification permission denied | System Settings → Notifications → Terminal (or wherever leah runs) → Allow |
 
+## Always-on daemon
+
+`leah-daemon` polls regatta state every 30s + notifies on terminal agent transitions (`merged` / `escalated` / `failed` / `stuck` / `killed`). Runs independent of CLI commands. Cold-start seeds state without notifying (avoids restart-flood); heartbeats `LEAH_HEALTHCHECK_URL` per tick (skipped silently if unset).
+
+### Run manually
+
+    go build -o leah-daemon ./cmd/leah-daemon
+    ./leah-daemon                              # foreground, 30s poll
+    LEAH_DAEMON_POLL_SECONDS=10 ./leah-daemon  # 10s poll
+
+### launchd install (macOS)
+
+    install -m 0755 leah-daemon /usr/local/bin/leah-daemon
+    cp scripts/leah.plist ~/Library/LaunchAgents/com.tri.leah.plist
+    # Edit plist EnvironmentVariables to inject LEAH_HEALTHCHECK_URL + LEAH_STATE_DIR
+    launchctl load ~/Library/LaunchAgents/com.tri.leah.plist
+
+Stop with `launchctl unload ~/Library/LaunchAgents/com.tri.leah.plist`. Logs at `/tmp/leah.stdout.log` + `/tmp/leah.stderr.log`.
+
 ## What's NOT in MVP-5
 
 These exist in spec but deferred. See `docs/specs/2026-06-09-leah-phase-x-multi-operator-roadmap.md` for full list + reopen triggers.
@@ -182,7 +201,7 @@ These exist in spec but deferred. See `docs/specs/2026-06-09-leah-phase-x-multi-
 
 ## Architecture
 
-10 internal packages:
+11 internal packages:
 
 - `internal/audit` — JSONL append-only logger
 - `internal/budget` — per-process $ ceiling (atomic Charge)
@@ -194,8 +213,9 @@ These exist in spec but deferred. See `docs/specs/2026-06-09-leah-phase-x-multi-
 - `internal/dispatcher` — Ask / Ship / Status orchestration
 - `internal/reviewer` — independent reviewer subagent + PostReview canonical-ID gate
 - `internal/watchdog` — healthchecks.io heartbeat
+- `internal/daemonloop` — always-on regatta-state poll + terminal-transition notifier
 
-CLI surface: `cmd/leah/main.go`.
+CLI surface: `cmd/leah/main.go`. Daemon: `cmd/leah-daemon/main.go`.
 
 Prompts: `prompts/` (Reasoner) + `reviewer-prompts/` (subagent — separate dir per independence-principle).
 
