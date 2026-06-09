@@ -9,6 +9,11 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
+const (
+	inputCostPerToken  = 3.0 / 1_000_000
+	outputCostPerToken = 15.0 / 1_000_000
+)
+
 type AnthropicSubagent struct {
 	sdk   anthropic.Client
 	model string
@@ -27,7 +32,7 @@ func NewAnthropicSubagent() (*AnthropicSubagent, error) {
 	return &AnthropicSubagent{sdk: c, model: model}, nil
 }
 
-func (a *AnthropicSubagent) Run(ctx context.Context, system, input string) (string, error) {
+func (a *AnthropicSubagent) Run(ctx context.Context, system, input string) (string, float64, error) {
 	resp, err := a.sdk.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(a.model),
 		MaxTokens: 4096,
@@ -37,7 +42,7 @@ func (a *AnthropicSubagent) Run(ctx context.Context, system, input string) (stri
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("anthropic subagent: %w", err)
+		return "", 0, fmt.Errorf("anthropic subagent: %w", err)
 	}
 	text := ""
 	for _, blk := range resp.Content {
@@ -45,5 +50,7 @@ func (a *AnthropicSubagent) Run(ctx context.Context, system, input string) (stri
 			text += blk.Text
 		}
 	}
-	return text, nil
+	cost := float64(resp.Usage.InputTokens)*inputCostPerToken +
+		float64(resp.Usage.OutputTokens)*outputCostPerToken
+	return text, cost, nil
 }

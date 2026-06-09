@@ -150,6 +150,7 @@ func runReview(repo string, prNum int) {
 
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath}
+	b := budget.New()
 
 	sysPrompt, err := os.ReadFile(filepath.Join(reviewerPromptDir(), "independent-reviewer.md"))
 	if err != nil {
@@ -162,7 +163,7 @@ func runReview(repo string, prNum int) {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	r := &reviewer.Reviewer{Subagent: sub, SystemPrompt: string(sysPrompt)}
+	r := &reviewer.Reviewer{Subagent: sub, Budget: b, SystemPrompt: string(sysPrompt)}
 
 	gh := ghclient.New()
 	pr, err := gh.ViewPR(ctx, repo, prNum,
@@ -196,6 +197,7 @@ func runReview(repo string, prNum int) {
 		ArgsHash:    fmt.Sprintf("pr-%d", prNum),
 		BlastRadius: 3,
 		Outcome:     "success",
+		CostDollars: b.Spent(),
 		Detail:      v.Recommendation + " " + v.AgentID,
 	})
 }

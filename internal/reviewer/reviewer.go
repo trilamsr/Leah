@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/trilam/leah/internal/budget"
 )
 
 type Subagent interface {
-	Run(ctx context.Context, systemPrompt, input string) (string, error)
+	Run(ctx context.Context, systemPrompt, input string) (text string, costUSD float64, err error)
 }
 
 type Reviewer struct {
 	Subagent     Subagent
+	Budget       *budget.Budget // optional; if nil, cost not charged
 	SystemPrompt string
 }
 
@@ -29,9 +32,14 @@ var (
 
 func (r *Reviewer) Review(ctx context.Context, diff, linkedIssue string) (Verdict, error) {
 	input := "Linked issue body:\n" + linkedIssue + "\n\n---\n\nDiff:\n" + diff
-	resp, err := r.Subagent.Run(ctx, r.SystemPrompt, input)
+	resp, cost, err := r.Subagent.Run(ctx, r.SystemPrompt, input)
 	if err != nil {
 		return Verdict{}, fmt.Errorf("reviewer subagent: %w", err)
+	}
+	if r.Budget != nil {
+		if chargeErr := r.Budget.Charge(cost); chargeErr != nil {
+			return Verdict{}, chargeErr
+		}
 	}
 	v := Verdict{Body: strings.TrimSpace(resp)}
 

@@ -4,19 +4,22 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/trilam/leah/internal/budget"
 )
 
 type fakeSubagent struct {
 	gotPrompt string
 	gotInput  string
 	resp      string
+	respCost  float64
 	respErr   error
 }
 
-func (f *fakeSubagent) Run(ctx context.Context, systemPrompt, input string) (string, error) {
+func (f *fakeSubagent) Run(ctx context.Context, systemPrompt, input string) (string, float64, error) {
 	f.gotPrompt = systemPrompt
 	f.gotInput = input
-	return f.resp, f.respErr
+	return f.resp, f.respCost, f.respErr
 }
 
 func TestReviewParsesVerdictAndAgentID(t *testing.T) {
@@ -80,5 +83,20 @@ func TestReviewRejectsMissingAgentID(t *testing.T) {
 	_, err := r.Review(context.Background(), "diff", "issue")
 	if err == nil || !strings.Contains(err.Error(), "agent-id") {
 		t.Errorf("want missing-agent-id error, got %v", err)
+	}
+}
+
+func TestReviewBlocksOnBudgetExceeded(t *testing.T) {
+	sa := &fakeSubagent{
+		resp: `Reviewer-recommendation: APPROVE
+Reviewer-agent-id: a1234567890abcdef
+`,
+		respCost: 10.0,
+	}
+	b := &budget.Budget{Ceiling: 1.0}
+	r := &Reviewer{Subagent: sa, Budget: b, SystemPrompt: "x"}
+	_, err := r.Review(context.Background(), "diff", "issue")
+	if err == nil || !strings.Contains(err.Error(), "budget exceeded") {
+		t.Errorf("want budget exceeded error, got %v", err)
 	}
 }

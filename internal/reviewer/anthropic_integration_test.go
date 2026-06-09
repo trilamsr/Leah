@@ -24,11 +24,14 @@ Summary: ok
 Reviewer-recommendation: APPROVE
 Reviewer-agent-id: cavecrew-reviewer-test-2026-06-09
 `
-	resp, err := sa.Run(context.Background(), prompt, "trivial diff")
+	resp, cost, err := sa.Run(context.Background(), prompt, "trivial diff")
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if !strings.Contains(resp, "cavecrew-reviewer-test-2026-06-09") {
 		t.Errorf("response missing id: %q", resp)
+	}
+	if cost <= 0 {
+		t.Errorf("cost should be > 0, got %v", cost)
 	}
 }
