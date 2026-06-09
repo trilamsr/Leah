@@ -1,0 +1,60 @@
+package reasoner
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
+)
+
+const (
+	defaultModel = "claude-sonnet-4-6"
+	// Sonnet 4.6 pricing as of 2026-06; update if model changes
+	inputCostPerToken  = 3.0 / 1_000_000  // $3/M input
+	outputCostPerToken = 15.0 / 1_000_000 // $15/M output
+)
+
+type AnthropicClient struct {
+	sdk   anthropic.Client
+	model string
+}
+
+func NewAnthropicClient() (*AnthropicClient, error) {
+	key := os.Getenv("ANTHROPIC_API_KEY")
+	if key == "" {
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set")
+	}
+	c := anthropic.NewClient(option.WithAPIKey(key))
+	model := defaultModel
+	if v := os.Getenv("LEAH_MODEL"); v != "" {
+		model = v
+	}
+	return &AnthropicClient{sdk: c, model: model}, nil
+}
+
+func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (string, float64, error) {
+	resp, err := c.sdk.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.Model(c.model),
+		MaxTokens: 4096,
+		System: []anthropic.TextBlockParam{
+			{Text: system},
+		},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(user)),
+		},
+	})
+	if err != nil {
+		return "", 0, fmt.Errorf("anthropic api: %w", err)
+	}
+	text := ""
+	for _, blk := range resp.Content {
+		if blk.Type == "text" {
+			text += blk.Text
+		}
+	}
+	cost := float64(resp.Usage.InputTokens)*inputCostPerToken +
+		float64(resp.Usage.OutputTokens)*outputCostPerToken
+	return text, cost, nil
+}
