@@ -87,27 +87,27 @@ type SelfBuild struct {
 // RepoOverride is set, ErrSelfBuildClarify if Reasoner aborts.
 func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 	if s.RepoOverride != "" {
-		s.appendAudit("repo override rejected: " + s.RepoOverride)
+		s.appendAudit(intent, "repo override rejected: "+s.RepoOverride)
 		return ErrSelfBuildRepoLocked
 	}
 
 	spec, err := s.Reasoner.Ask(ctx,
 		"Intent:\n"+intent+"\n\nDraft the Leah-feature-spec per the self-build system prompt you were given.")
 	if err != nil {
-		s.appendAuditFail("reasoner: " + err.Error())
+		s.appendAuditFail(intent, "reasoner: "+err.Error())
 		return err
 	}
 
 	// Clarify-abort: Reasoner returned questions instead of a spec. Print + bail.
 	if isClarifyResponse(spec) {
 		_, _ = fmt.Fprintln(s.Out, spec)
-		s.appendAuditClarify()
+		s.appendAuditClarify(intent)
 		return ErrSelfBuildClarify
 	}
 
 	question, err := s.pickAttestationQuestion()
 	if err != nil {
-		s.appendAuditFail("attestation: " + err.Error())
+		s.appendAuditFail(intent, "attestation: "+err.Error())
 		return err
 	}
 	specWithAttestation := spec
@@ -142,7 +142,7 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 	if err := inner.Run(ctx, intent); err != nil {
 		return err
 	}
-	s.appendAuditSuccess()
+	s.appendAuditSuccess(intent)
 	return nil
 }
 
@@ -193,10 +193,15 @@ func (s *SelfBuild) promptSHA() string {
 	return hex.EncodeToString(sum[:8])
 }
 
-func (s *SelfBuild) appendAudit(detail string) {
+// appendAudit, appendAuditFail, appendAuditClarify, appendAuditSuccess all
+// thread the original operator intent through argsHash() so the row's
+// args_hash matches Ship.Run's hash for the same dispatch. selflearn.rowKey
+// = (Kind, ArgsHash, Timestamp); a blank hash collapses every self-build
+// run into one resolver key (Wave2-5 retro H1).
+func (s *SelfBuild) appendAudit(intent, detail string) {
 	_ = s.Audit.Append(audit.Entry{
 		Kind:        "self-build",
-		ArgsHash:    "",
+		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "rejected",
 		CostDollars: s.Budget.Spent(),
@@ -204,9 +209,10 @@ func (s *SelfBuild) appendAudit(detail string) {
 	})
 }
 
-func (s *SelfBuild) appendAuditFail(detail string) {
+func (s *SelfBuild) appendAuditFail(intent, detail string) {
 	_ = s.Audit.Append(audit.Entry{
 		Kind:        "self-build",
+		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "failed",
 		CostDollars: s.Budget.Spent(),
@@ -214,9 +220,10 @@ func (s *SelfBuild) appendAuditFail(detail string) {
 	})
 }
 
-func (s *SelfBuild) appendAuditClarify() {
+func (s *SelfBuild) appendAuditClarify(intent string) {
 	_ = s.Audit.Append(audit.Entry{
 		Kind:        "self-build",
+		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "clarify",
 		CostDollars: s.Budget.Spent(),
@@ -224,7 +231,7 @@ func (s *SelfBuild) appendAuditClarify() {
 	})
 }
 
-func (s *SelfBuild) appendAuditSuccess() {
+func (s *SelfBuild) appendAuditSuccess(intent string) {
 	detail := "prompt_sha=" + s.promptSHA()
 	if s.lastQuestion != "" {
 		// Question text can contain quotes / commas; truncate to keep audit
@@ -237,6 +244,7 @@ func (s *SelfBuild) appendAuditSuccess() {
 	}
 	_ = s.Audit.Append(audit.Entry{
 		Kind:        "self-build",
+		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "dispatched",
 		CostDollars: s.Budget.Spent(),

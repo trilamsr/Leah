@@ -278,6 +278,108 @@ func TestSelfBuild_PromptSHAEmptyWhenFileMissing(t *testing.T) {
 	}
 }
 
+// TestSelfBuild_PopulatesArgsHash asserts every self-build audit row carries
+// a non-empty args_hash matching sha256[:8] of the intent — selflearn.rowKey
+// uses (Kind, ArgsHash, Timestamp) for dedup, so a blank hash collapses all
+// self-build runs into a single resolver key (H1 from Wave2-5 retro audit).
+func TestSelfBuild_PopulatesArgsHash(t *testing.T) {
+	const intent = "add --json flag to leah status"
+	want := argsHash(intent)
+
+	cases := []struct {
+		name       string
+		setup      func(dir string) *SelfBuild
+		wantOutcome string
+	}{
+		{
+			name: "success",
+			setup: func(dir string) *SelfBuild {
+				return &SelfBuild{
+					Reasoner: &fakeShipReasoner{resp: validSpec},
+					GH:       &fakeGh{createURL: "https://github.com/trilamsr/Leah/issues/1"},
+					Audit:    &audit.Logger{Path: dir + "/audit.jsonl"},
+					Budget:   &budget.Budget{Ceiling: 5.0},
+					Out:      &bytes.Buffer{},
+					TmpDir:   dir,
+				}
+			},
+			wantOutcome: `"outcome":"dispatched"`,
+		},
+		{
+			name: "reasoner-failed",
+			setup: func(dir string) *SelfBuild {
+				return &SelfBuild{
+					Reasoner: errReasoner{},
+					GH:       &fakeGh{},
+					Audit:    &audit.Logger{Path: dir + "/audit.jsonl"},
+					Budget:   &budget.Budget{Ceiling: 5.0},
+					Out:      &bytes.Buffer{},
+					TmpDir:   dir,
+				}
+			},
+			wantOutcome: `"outcome":"failed"`,
+		},
+		{
+			name: "clarify",
+			setup: func(dir string) *SelfBuild {
+				return &SelfBuild{
+					Reasoner: &fakeShipReasoner{resp: "## Clarifying questions\n\n- which pkg?\n"},
+					GH:       &fakeGh{},
+					Audit:    &audit.Logger{Path: dir + "/audit.jsonl"},
+					Budget:   &budget.Budget{Ceiling: 5.0},
+					Out:      &bytes.Buffer{},
+					TmpDir:   dir,
+				}
+			},
+			wantOutcome: `"outcome":"clarify"`,
+		},
+		{
+			name: "rejected-override",
+			setup: func(dir string) *SelfBuild {
+				return &SelfBuild{
+					Reasoner:     &fakeShipReasoner{resp: validSpec},
+					GH:           &fakeGh{},
+					Audit:        &audit.Logger{Path: dir + "/audit.jsonl"},
+					Budget:       &budget.Budget{Ceiling: 5.0},
+					Out:          &bytes.Buffer{},
+					TmpDir:       dir,
+					RepoOverride: "trilam/regatta",
+				}
+			},
+			wantOutcome: `"outcome":"rejected"`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			sb := tc.setup(dir)
+			_ = sb.Run(context.Background(), intent)
+			data, _ := os.ReadFile(dir + "/audit.jsonl")
+			// Every self-build row in the file MUST carry args_hash=want.
+			// (Some flows write multiple rows: e.g. success path writes ship + self-build.)
+			lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+			sawSelfBuild := false
+			for _, line := range lines {
+				if !strings.Contains(line, `"kind":"self-build"`) {
+					continue
+				}
+				sawSelfBuild = true
+				if !strings.Contains(line, `"args_hash":"`+want+`"`) {
+					t.Errorf("self-build row missing args_hash=%s: %s", want, line)
+				}
+			}
+			if !sawSelfBuild {
+				t.Fatalf("no self-build row found in audit log: %s", data)
+			}
+			// Sanity: the outcome we expect is in the log.
+			if !strings.Contains(string(data), tc.wantOutcome) {
+				t.Errorf("missing expected outcome %s in audit: %s", tc.wantOutcome, data)
+			}
+		})
+	}
+}
+
 func TestSelfBuildClarifyAbortFilesNoIssue(t *testing.T) {
 	dir := t.TempDir()
 	clarify := "## Clarifying questions\n\n- Which package?\n- What's the observable acceptance?\n"
