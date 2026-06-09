@@ -3,6 +3,7 @@ package voice
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -291,6 +292,29 @@ func TestOpenAIEmptyTextNoop(t *testing.T) {
 	}
 	if len(fe.runs) != 0 {
 		t.Errorf("empty input made calls: %v", fe.runs)
+	}
+}
+
+// TestKokoroEmptyWavErrorIncludesFullPath asserts the empty-wav error
+// returned by KokoroTTS.Speak includes the full temp-file path so the
+// operator can find the missing wav (audit L5 — filepath.Base stripped
+// the directory the caller needed to investigate).
+func TestKokoroEmptyWavErrorIncludesFullPath(t *testing.T) {
+	fe := newFakeExec()
+	// kokoro returns success but never writes the wav; afplay never gets
+	// reached because the size==0 check fires first.
+	k := &KokoroTTS{Exec: fe}
+	err := k.Speak(context.Background(), "hello")
+	if err == nil {
+		t.Fatal("expected empty-wav error")
+	}
+	if !strings.Contains(err.Error(), "empty wav") {
+		t.Errorf("error missing 'empty wav': %v", err)
+	}
+	// Path must start with the temp dir (a directory component), not just
+	// the basename.
+	if !strings.Contains(err.Error(), string(os.PathSeparator)) {
+		t.Errorf("error missing directory component: %v", err)
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
 // KokoroTTS shells out to the `kokoro` CLI to synthesize a wav file, then
@@ -39,7 +38,9 @@ func (k *KokoroTTS) Speak(ctx context.Context, text string) error {
 	}
 	// Sanity check — kokoro should have written the file.
 	if fi, err := os.Stat(path); err != nil || fi.Size() == 0 {
-		return fmt.Errorf("kokoro: empty wav at %s", filepath.Base(path))
+		// Full path (not basename) — caller needs the directory to
+		// investigate why kokoro produced nothing (audit L5).
+		return fmt.Errorf("kokoro: empty wav at %s", path)
 	}
 	if _, err := k.Exec.Run(ctx, "afplay", path); err != nil {
 		return fmt.Errorf("kokoro afplay: %w", err)
