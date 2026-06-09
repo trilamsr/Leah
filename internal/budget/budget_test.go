@@ -1,6 +1,9 @@
 package budget
 
 import (
+	"bytes"
+	"log/slog"
+	"strings"
 	"testing"
 )
 
@@ -32,6 +35,32 @@ func TestChargeAccumulatesAndBlocksAboveCeiling(t *testing.T) {
 	// 1.00 reached; next charge should fail
 	if err := b.Charge(0.01); err == nil {
 		t.Fatalf("expected budget exceeded error")
+	}
+}
+
+// TestChargeEmitsObsLogs asserts Charge emits budget.charge on success +
+// budget.exceeded on rejection (Wave2-K obs instrumentation contract).
+// Swaps slog.Default for the duration; restores on exit.
+func TestChargeEmitsObsLogs(t *testing.T) {
+	prev := slog.Default()
+	defer slog.SetDefault(prev)
+
+	var buf bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	b := &Budget{Ceiling: 1.0}
+	if err := b.Charge(0.5); err != nil {
+		t.Fatalf("charge: %v", err)
+	}
+	if err := b.Charge(2.0); err == nil {
+		t.Fatalf("expected exceeded")
+	}
+	out := buf.String()
+	if !strings.Contains(out, `"msg":"budget.charge"`) {
+		t.Errorf("missing charge event: %s", out)
+	}
+	if !strings.Contains(out, `"msg":"budget.exceeded"`) {
+		t.Errorf("missing exceeded event: %s", out)
 	}
 }
 

@@ -2,6 +2,7 @@ package budget
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"sync"
@@ -42,10 +43,25 @@ func (e *ExceededError) Error() string {
 
 func (b *Budget) Charge(dollars float64) error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	if b.spent+dollars > b.Ceiling {
-		return &ExceededError{Spent: b.spent, Attempted: dollars, Ceiling: b.Ceiling}
+		spent, ceiling := b.spent, b.Ceiling
+		b.mu.Unlock()
+		slog.Error("budget.exceeded",
+			"package", "budget",
+			"spent_dollars", spent,
+			"attempted_dollars", dollars,
+			"ceiling_dollars", ceiling,
+		)
+		return &ExceededError{Spent: spent, Attempted: dollars, Ceiling: ceiling}
 	}
 	b.spent += dollars
+	spent := b.spent
+	b.mu.Unlock()
+	slog.Info("budget.charge",
+		"package", "budget",
+		"charged_dollars", dollars,
+		"spent_dollars", spent,
+		"ceiling_dollars", b.Ceiling,
+	)
 	return nil
 }

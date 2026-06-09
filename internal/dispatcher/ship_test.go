@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/ghclient"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
@@ -86,6 +88,36 @@ func TestShipDraftsBodyFilesIssueAuditsCorrectly(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `"blast_radius":3`) {
 		t.Errorf("audit missing blast_radius=3: %q", data)
+	}
+}
+
+// TestShipEmitsObsLogsAt4Stages asserts the dispatcher emits draft.start,
+// write.complete, and issue.created INFO events (Wave2-K obs
+// instrumentation contract — 4th stage watch.start is gated on Watch=true
+// and exercised in the watch tests).
+func TestShipEmitsObsLogsAt4Stages(t *testing.T) {
+	var buf bytes.Buffer
+	lg := slog.New(slog.NewJSONHandler(&buf, nil))
+	ctx := obs.WithLogger(context.Background(), lg)
+
+	dir := t.TempDir()
+	ship := &Ship{
+		Reasoner: &fakeShipReasoner{resp: "body"},
+		GH:       &fakeGh{createURL: "https://x"},
+		Audit:    &audit.Logger{Path: dir + "/a.jsonl"},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		Repo:     "t/r",
+		Title:    "[FIX] x",
+		TmpDir:   dir,
+	}
+	if err := ship.Run(ctx, "x"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	for _, want := range []string{"dispatcher.draft.start", "dispatcher.write.complete", "dispatcher.issue.created"} {
+		if !strings.Contains(buf.String(), `"msg":"`+want+`"`) {
+			t.Errorf("missing %s in: %s", want, buf.String())
+		}
 	}
 }
 

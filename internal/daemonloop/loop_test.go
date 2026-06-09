@@ -3,6 +3,7 @@ package daemonloop
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
@@ -36,6 +38,35 @@ type fakeNf struct{ calls []string }
 func (f *fakeNf) Notify(ctx context.Context, title, body string) error {
 	f.calls = append(f.calls, title+":"+body)
 	return nil
+}
+
+// TestTickEmitsObsLogOnTransition asserts the daemonloop tick emits the
+// daemon.transition INFO event with agent_id / from / to / pr attrs
+// (Wave2-K obs instrumentation contract).
+func TestTickEmitsObsLogOnTransition(t *testing.T) {
+	var buf bytes.Buffer
+	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ctx := obs.WithLogger(context.Background(), lg)
+
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{
+		{{ID: "a1", State: "running", PR: 0}},
+		{{ID: "a1", State: "merged", PR: 42}},
+	}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	l.tick(ctx)
+	l.tick(ctx)
+
+	out := buf.String()
+	if !strings.Contains(out, `"msg":"daemon.tick"`) {
+		t.Errorf("missing daemon.tick: %s", out)
+	}
+	if !strings.Contains(out, `"msg":"daemon.transition"`) {
+		t.Errorf("missing daemon.transition: %s", out)
+	}
+	if !strings.Contains(out, `"to":"merged"`) {
+		t.Errorf("missing to=merged attr: %s", out)
+	}
 }
 
 func TestLoopColdStartDoesNotNotify(t *testing.T) {

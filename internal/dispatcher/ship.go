@@ -14,6 +14,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/ghclient"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
@@ -58,10 +59,13 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		return fmt.Errorf("ulid: %w", err)
 	}
 	actionID := ulidVal.String()
+	lg := obs.LoggerFromCtx(ctx).With("package", "dispatcher", "action_id", actionID)
 
+	lg.Info("dispatcher.draft.start")
 	bodyDraft, err := s.Reasoner.Ask(ctx,
 		"Intent:\n"+intent+"\n\nDraft the regatta issue body per the template you were given.")
 	if err != nil {
+		lg.Error("dispatcher.draft.error", "err", err.Error())
 		s.auditFail("draft body: "+err.Error(), intent)
 		return err
 	}
@@ -71,9 +75,11 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 
 	bodyFile := filepath.Join(s.TmpDir, "leah-ship-"+actionID+".md")
 	if err := os.WriteFile(bodyFile, []byte(body), 0o600); err != nil {
+		lg.Error("dispatcher.write.error", "path", bodyFile, "err", err.Error())
 		s.auditFail("write body file: "+err.Error(), intent)
 		return err
 	}
+	lg.Info("dispatcher.write.complete", "path", bodyFile, "body_bytes", len(body))
 
 	title := s.Title
 	if title == "" {
@@ -87,9 +93,11 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		Labels:   []string{"ready-for-agent"},
 	})
 	if err != nil {
+		lg.Error("dispatcher.issue.error", "repo", s.Repo, "err", err.Error())
 		s.auditFail("gh issue create: "+err.Error(), intent)
 		return err
 	}
+	lg.Info("dispatcher.issue.created", "url", url, "title", title)
 
 	if err := s.Audit.Append(audit.Entry{
 		Kind:        "ship",
@@ -105,6 +113,7 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 	_, _ = fmt.Fprintln(s.Out, url)
 
 	if s.Watch {
+		lg.Info("dispatcher.watch.start", "poll_every", s.PollEvery.String(), "max_polls", s.MaxPolls)
 		s.watch(ctx)
 	}
 	return nil

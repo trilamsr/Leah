@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
@@ -88,11 +89,14 @@ func (l *Loop) Run(ctx context.Context) error {
 }
 
 func (l *Loop) tick(ctx context.Context) {
+	lg := obs.LoggerFromCtx(ctx).With("package", "daemonloop")
+	lg.Debug("daemon.tick")
 	if l.Heartbeat != nil {
 		_ = l.Heartbeat.Ping(ctx)
 	}
 	agents, err := l.Regatta.List(ctx)
 	if err != nil {
+		lg.Error("daemon.regatta.list_error", "err", err.Error())
 		_, _ = fmt.Fprintf(l.Out, "leah-daemon: regatta list error: %v\n", err)
 		// Fall through to weekly tick — regatta unreachability MUST NOT
 		// gate weekly self-learn/patterns/retro work.
@@ -202,6 +206,13 @@ func (l *Loop) notifyTransition(ctx context.Context, id, from, to string, agents
 	}
 	title := "Leah"
 	body := fmt.Sprintf("agent %s: %s → %s (PR #%d)", id, from, to, pr)
+	obs.LoggerFromCtx(ctx).Info("daemon.transition",
+		"package", "daemonloop",
+		"agent_id", id,
+		"from", from,
+		"to", to,
+		"pr", pr,
+	)
 	_ = l.Notify.Notify(ctx, title, body)
 	_ = l.Audit.Append(audit.Entry{
 		Kind:        "daemon.transition",
