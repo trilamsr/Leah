@@ -51,8 +51,15 @@ func main() {
 		}
 		runReview(os.Args[2], prNum)
 	case "status":
-		fmt.Fprintf(os.Stderr, "subcommand %q not yet implemented\n", cmd)
-		os.Exit(2)
+		s := &dispatcher.Status{
+			AuditPath: filepath.Join(stateDir(), "audit.jsonl"),
+			Out:       os.Stdout,
+			Limit:     20,
+		}
+		if err := s.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "leah status: %v\n", err)
+			os.Exit(1)
+		}
 	default:
 		usage()
 		os.Exit(2)
