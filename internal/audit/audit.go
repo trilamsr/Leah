@@ -32,7 +32,7 @@ func (l *Logger) Append(e Entry) error {
 	if err != nil {
 		return fmt.Errorf("open audit log: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	buf, err := json.Marshal(e)
 	if err != nil {
 		return fmt.Errorf("marshal entry: %w", err)

@@ -122,7 +122,7 @@ func runShip(repo, intent string) {
 		fmt.Fprintf(os.Stderr, "tmp dir: %v\n", err)
 		os.Exit(1)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 
 	ship := &dispatcher.Ship{
 		Reasoner:  r,

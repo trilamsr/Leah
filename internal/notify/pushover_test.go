@@ -16,7 +16,7 @@ func TestPushoverPostsExpectedForm(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		got, _ = url.ParseQuery(string(body))
 		w.WriteHeader(200)
-		w.Write([]byte(`{"status":1}`))
+		_, _ = w.Write([]byte(`{"status":1}`))
 	}))
 	defer srv.Close()
 

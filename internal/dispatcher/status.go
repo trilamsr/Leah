@@ -21,12 +21,12 @@ func (s *Status) Run() error {
 	f, err := os.Open(s.AuditPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			fmt.Fprintln(s.Out, "no activity")
+			_, _ = fmt.Fprintln(s.Out, "no activity")
 			return nil
 		}
 		return fmt.Errorf("open audit: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var entries []audit.Entry
 	scanner := bufio.NewScanner(f)
@@ -43,7 +43,7 @@ func (s *Status) Run() error {
 	}
 
 	if len(entries) == 0 {
-		fmt.Fprintln(s.Out, "no activity")
+		_, _ = fmt.Fprintln(s.Out, "no activity")
 		return nil
 	}
 
@@ -53,7 +53,7 @@ func (s *Status) Run() error {
 	}
 	start := len(entries) - limit
 	for _, e := range entries[start:] {
-		fmt.Fprintf(s.Out, "%s  %-7s  BR=%d  %s  %s\n",
+		_, _ = fmt.Fprintf(s.Out, "%s  %-7s  BR=%d  %s  %s\n",
 			e.Timestamp, e.Kind, e.BlastRadius, e.Outcome, e.Detail)
 	}
 	return nil

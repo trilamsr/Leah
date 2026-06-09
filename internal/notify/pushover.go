@@ -49,7 +49,7 @@ func (p *Pushover) Notify(ctx context.Context, title, body string) error {
 	if err != nil {
 		return fmt.Errorf("pushover: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("pushover status %d: %s", resp.StatusCode, body)

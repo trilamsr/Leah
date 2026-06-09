@@ -99,10 +99,10 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		CostDollars: s.Budget.Spent(),
 		Detail:      url,
 	}); err != nil {
-		fmt.Fprintf(s.Out, "warning: audit append failed: %v\n", err)
+		_, _ = fmt.Fprintf(s.Out, "warning: audit append failed: %v\n", err)
 	}
 
-	fmt.Fprintln(s.Out, url)
+	_, _ = fmt.Fprintln(s.Out, url)
 
 	if s.Watch {
 		s.watch(ctx)
@@ -123,7 +123,7 @@ func (s *Ship) watch(ctx context.Context) {
 		if s.Regatta != nil {
 			agents, err := s.Regatta.List(ctx)
 			if err != nil {
-				fmt.Fprintf(s.Out, "regatta list error: %v\n", err)
+				_, _ = fmt.Fprintf(s.Out, "regatta list error: %v\n", err)
 			}
 			for _, a := range agents {
 				if a.State == "merged" || a.State == "escalated" || a.State == "failed" {

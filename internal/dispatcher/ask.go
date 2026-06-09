@@ -38,9 +38,9 @@ func (a *Ask) Run(ctx context.Context, query string) error {
 	}
 	entry.Outcome = "success"
 	if writeErr := a.Audit.Append(entry); writeErr != nil {
-		fmt.Fprintf(a.Out, "warning: audit append failed: %v\n", writeErr)
+		_, _ = fmt.Fprintf(a.Out, "warning: audit append failed: %v\n", writeErr)
 	}
-	fmt.Fprintln(a.Out, text)
+	_, _ = fmt.Fprintln(a.Out, text)
 	return nil
 }
 

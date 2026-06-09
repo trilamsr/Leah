@@ -32,7 +32,7 @@ func (h *Heartbeat) Ping(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("heartbeat: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 500 {
 		return fmt.Errorf("heartbeat status %d", resp.StatusCode)
 	}
