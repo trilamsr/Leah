@@ -55,10 +55,17 @@ func main() {
 		}
 		runReview(os.Args[2], prNum)
 	case "status":
+		jsonMode := false
+		for _, a := range os.Args[2:] {
+			if a == "--json" {
+				jsonMode = true
+			}
+		}
 		s := &dispatcher.Status{
 			AuditPath: filepath.Join(stateDir(), "audit.jsonl"),
 			Out:       os.Stdout,
 			Limit:     20,
+			JSON:      jsonMode,
 		}
 		if err := s.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "leah status: %v\n", err)
@@ -238,6 +245,6 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ask \"<query>\"        direct query to Reasoner")
 	fmt.Fprintln(os.Stderr, "  ship <repo> \"<intent>\"  file regatta issue + watch + narrate")
 	fmt.Fprintln(os.Stderr, "  review <repo> <pr#>   independent reviewer subagent on PR")
-	fmt.Fprintln(os.Stderr, "  status               recent activity from audit log")
+	fmt.Fprintln(os.Stderr, "  status [--json]      recent activity from audit log")
 	fmt.Fprintln(os.Stderr, "  version              show version")
 }

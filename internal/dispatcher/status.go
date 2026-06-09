@@ -15,12 +15,17 @@ type Status struct {
 	AuditPath string
 	Out       io.Writer
 	Limit     int
+	JSON      bool
 }
 
 func (s *Status) Run() error {
 	f, err := os.Open(s.AuditPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			if s.JSON {
+				_, _ = fmt.Fprintln(s.Out, "[]")
+				return nil
+			}
 			_, _ = fmt.Fprintln(s.Out, "no activity")
 			return nil
 		}
@@ -43,6 +48,10 @@ func (s *Status) Run() error {
 	}
 
 	if len(entries) == 0 {
+		if s.JSON {
+			_, _ = fmt.Fprintln(s.Out, "[]")
+			return nil
+		}
 		_, _ = fmt.Fprintln(s.Out, "no activity")
 		return nil
 	}
@@ -52,6 +61,16 @@ func (s *Status) Run() error {
 		limit = len(entries)
 	}
 	start := len(entries) - limit
+
+	if s.JSON {
+		enc := json.NewEncoder(s.Out)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(entries[start:]); err != nil {
+			return fmt.Errorf("encode json: %w", err)
+		}
+		return nil
+	}
+
 	for _, e := range entries[start:] {
 		_, _ = fmt.Fprintf(s.Out, "%s  %-7s  BR=%d  %s  %s\n",
 			e.Timestamp, e.Kind, e.BlastRadius, e.Outcome, e.Detail)
