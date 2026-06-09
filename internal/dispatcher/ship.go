@@ -53,6 +53,12 @@ type Ship struct {
 	Title    string
 	TmpDir   string
 
+	// Context is an optional markdown block (PR / issue / shell-history
+	// fetched by the caller via FetchPRContext / FetchIssueContext /
+	// FetchThreadContext + ComposeContext) prepended to the Reasoner draft
+	// prompt so the model sees the referenced artifacts before drafting.
+	Context string
+
 	// Watcher (optional; Watch=false → ship-and-exit)
 	Watch     bool
 	Regatta   RegattaClient
@@ -60,6 +66,11 @@ type Ship struct {
 	Notify    Notifier
 	PollEvery time.Duration
 	MaxPolls  int
+
+	// LastURL is the issue URL from the most recent successful Run; consumed
+	// by SelfBuild to surface the URL on its BR=4 self-build audit row so
+	// the H3 attestation gate can correlate dispatches to PRs.
+	LastURL string
 }
 
 // Run drafts the issue body, files via gh, and (when Watch=true) polls
@@ -74,8 +85,8 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 	lg := obs.LoggerFromCtx(ctx).With("package", "dispatcher", "action_id", actionID)
 
 	lg.Info("dispatcher.draft.start")
-	bodyDraft, err := s.Reasoner.Ask(ctx,
-		"Intent:\n"+intent+"\n\nDraft the regatta issue body per the template you were given.")
+	prompt := s.Context + "Intent:\n" + intent + "\n\nDraft the regatta issue body per the template you were given."
+	bodyDraft, err := s.Reasoner.Ask(ctx, prompt)
 	if err != nil {
 		lg.Error("dispatcher.draft.error", "err", err.Error())
 		s.auditFail("draft body: "+err.Error(), intent)
@@ -122,6 +133,7 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		_, _ = fmt.Fprintf(s.Out, "warning: audit append failed: %v\n", err)
 	}
 
+	s.LastURL = url
 	_, _ = fmt.Fprintln(s.Out, url)
 
 	if s.Watch {
@@ -132,6 +144,7 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 }
 
 func (s *Ship) watch(ctx context.Context) {
+	lg := obs.LoggerFromCtx(ctx).With("package", "dispatcher")
 	polls := 0
 	for {
 		if s.MaxPolls > 0 && polls >= s.MaxPolls {
@@ -144,6 +157,9 @@ func (s *Ship) watch(ctx context.Context) {
 		if s.Regatta != nil {
 			agents, err := s.Regatta.List(ctx)
 			if err != nil {
+				// Mirror to obs so daemon-mode watchers (no attached
+				// terminal) do not lose the signal (audit M5).
+				lg.Warn("dispatcher.watch.regatta_list_error", "err", err.Error())
 				_, _ = fmt.Fprintf(s.Out, "regatta list error: %v\n", err)
 			}
 			for _, a := range agents {

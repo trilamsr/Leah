@@ -34,9 +34,13 @@ func (f *fakeGh) CreateIssue(ctx context.Context, a ghclient.CreateIssueArgs) (s
 	return f.createURL, nil
 }
 
-type fakeShipReasoner struct{ resp string }
+type fakeShipReasoner struct {
+	resp       string
+	lastPrompt string
+}
 
 func (f *fakeShipReasoner) Ask(ctx context.Context, user string) (string, error) {
+	f.lastPrompt = user
 	return f.resp, nil
 }
 
@@ -190,6 +194,58 @@ func TestShipWatcherPingsHeartbeatAndNotifiesOnMerge(t *testing.T) {
 	}
 }
 
+// errRegatta returns the given error on every List call.
+type errRegatta struct{ err error }
+
+func (e errRegatta) List(_ context.Context) ([]regattaclient.Agent, error) {
+	return nil, e.err
+}
+
+// TestShipWatcherMirrorsRegattaListErrorToObsLogger asserts the watcher
+// reports regatta-list failures through the obs logger (lg.Warn) in
+// addition to stdout, so a daemon-mode watcher with no attached terminal
+// does not lose the error signal. Audit M5.
+func TestShipWatcherMirrorsRegattaListErrorToObsLogger(t *testing.T) {
+	dir := t.TempDir()
+	a := &audit.Logger{Path: dir + "/audit.jsonl"}
+	b := &budget.Budget{Ceiling: 5.0}
+	r := &fakeShipReasoner{resp: "## Context\n\nx\n\n## What to do\n\n- x\n\n## Acceptance\n\n- y\n"}
+	gh := &fakeGh{createURL: "https://github.com/x/r/issues/1"}
+	out := &bytes.Buffer{}
+
+	var logBuf bytes.Buffer
+	lg := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ctx := obs.WithLogger(context.Background(), lg)
+
+	rc := errRegatta{err: errSynthetic("regatta unreachable")}
+
+	ship := &Ship{
+		Reasoner:  r,
+		GH:        gh,
+		Audit:     a,
+		Budget:    b,
+		Out:       out,
+		Repo:      "x/r",
+		TmpDir:    dir,
+		Watch:     true,
+		Regatta:   rc,
+		Heartbeat: &fakeHeartbeat{},
+		Notify:    &fakeNotify{},
+		PollEvery: 1 * time.Millisecond,
+		MaxPolls:  1,
+	}
+	if err := ship.Run(ctx, "fix"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	logs := logBuf.String()
+	if !strings.Contains(logs, `"msg":"dispatcher.watch.regatta_list_error"`) {
+		t.Errorf("obs logger missing watch.regatta_list_error event:\n%s", logs)
+	}
+	if !strings.Contains(logs, "regatta unreachable") {
+		t.Errorf("obs logger missing underlying error: %s", logs)
+	}
+}
+
 func TestDeriveTitleVerbRouting(t *testing.T) {
 	cases := map[string]string{
 		"fix bug 1086":         "[FIX] fix bug 1086",
@@ -309,6 +365,39 @@ func TestShipRun_BodyFileWriteFailureAuditsFailed(t *testing.T) {
 	data, _ := os.ReadFile(auditPath)
 	if !strings.Contains(string(data), `"outcome":"failed"`) {
 		t.Errorf("audit missing outcome=failed: %s", data)
+	}
+}
+
+// TestShipWithContext_PrependsContextToReasonerPrompt asserts the Ship.Context
+// field is prepended verbatim to the Reasoner draft prompt before the
+// "Intent:" line — the --from-pr / --from-issue / --from-thread surface.
+func TestShipWithContext_PrependsContextToReasonerPrompt(t *testing.T) {
+	dir := t.TempDir()
+	r := &fakeShipReasoner{resp: "drafted body"}
+	ship := &Ship{
+		Reasoner: r,
+		GH:       &fakeGh{createURL: "https://x/1"},
+		Audit:    &audit.Logger{Path: dir + "/a.jsonl"},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		Repo:     "r/r",
+		TmpDir:   dir,
+		Context:  "## Context from PR #42\n\nfoo bar\n\n",
+	}
+	if err := ship.Run(context.Background(), "tie this together"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !strings.Contains(r.lastPrompt, "Context from PR #42") {
+		t.Errorf("expected context block in prompt, got: %q", r.lastPrompt)
+	}
+	if !strings.Contains(r.lastPrompt, "Intent:\ntie this together") {
+		t.Errorf("expected intent line in prompt, got: %q", r.lastPrompt)
+	}
+	// Context block must precede Intent line.
+	ctxIdx := strings.Index(r.lastPrompt, "Context from PR")
+	intentIdx := strings.Index(r.lastPrompt, "Intent:")
+	if ctxIdx < 0 || intentIdx < 0 || ctxIdx >= intentIdx {
+		t.Errorf("context must precede intent, ctx@%d intent@%d", ctxIdx, intentIdx)
 	}
 }
 

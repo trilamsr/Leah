@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,11 +39,7 @@ func main() {
 		}
 		runAsk(os.Args[2])
 	case "ship":
-		if len(os.Args) < 4 {
-			_, _ = fmt.Fprintln(os.Stderr, "usage: leah ship <repo> \"<intent>\"")
-			os.Exit(2)
-		}
-		runShip(os.Args[2], os.Args[3])
+		runShipArgs(os.Args[2:])
 	case "review":
 		if len(os.Args) < 4 {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
@@ -99,6 +96,10 @@ func main() {
 		runSelfBuild(os.Args[2])
 	case "cost":
 		runCost(os.Args[2:])
+	case "brief":
+		runBrief(os.Args[2:])
+	case "listen":
+		runListen(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -132,7 +133,69 @@ func runAsk(query string) {
 	}
 }
 
+// runShipArgs parses the `leah ship` flag set + dispatches. Supports:
+//
+//	leah ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> "<intent>"
+//
+// Each --from-* flag fetches a context block (via gh / shell history); blocks
+// are composed in PR → issue → thread order and prepended to the Reasoner
+// draft prompt so the model sees the referenced artifacts before drafting.
+func runShipArgs(args []string) {
+	fs := flag.NewFlagSet("ship", flag.ExitOnError)
+	fromPR := fs.Int("from-pr", 0, "prepend gh pr view + diff for PR #N from the same repo")
+	fromIssue := fs.Int("from-issue", 0, "prepend gh issue view + comments for issue #N from the same repo")
+	fromThread := fs.String("from-thread", "", "prepend last-N shell-history entries (e.g. 100c or 30m)")
+	fs.Usage = func() {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() < 2 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	repo := fs.Arg(0)
+	intent := fs.Arg(1)
+
+	// Build optional context block(s). Each fetcher is soft-fail: warn,
+	// continue without that block — operator dispatching shouldn't be blocked
+	// by a stale PR number or a missing zsh history file.
+	ctx := context.Background()
+	exec := ghclient.ShellExec{}
+	var prCtx, issueCtx, threadCtx string
+	if *fromPR > 0 {
+		if c, err := dispatcher.FetchPRContext(ctx, exec, repo, *fromPR); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "warn: --from-pr %d: %v\n", *fromPR, err)
+		} else {
+			prCtx = c
+		}
+	}
+	if *fromIssue > 0 {
+		if c, err := dispatcher.FetchIssueContext(ctx, exec, repo, *fromIssue); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "warn: --from-issue %d: %v\n", *fromIssue, err)
+		} else {
+			issueCtx = c
+		}
+	}
+	if *fromThread != "" {
+		histPath := defaultHistoryPath()
+		if c, err := dispatcher.FetchThreadContext(*fromThread, histPath); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "warn: --from-thread %s: %v\n", *fromThread, err)
+		} else {
+			threadCtx = c
+		}
+	}
+	composed := dispatcher.ComposeContext(prCtx, issueCtx, threadCtx)
+	runShipWithContext(repo, intent, composed)
+}
+
 func runShip(repo, intent string) {
+	runShipWithContext(repo, intent, "")
+}
+
+func runShipWithContext(repo, intent, contextBlock string) {
 	ctx := context.Background()
 
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
@@ -167,6 +230,7 @@ func runShip(repo, intent string) {
 		Out:       os.Stdout,
 		Repo:      repo,
 		TmpDir:    tmp,
+		Context:   contextBlock,
 		Watch:     true,
 		Regatta:   regattaclient.New(),
 		Heartbeat: watchdog.New(),
@@ -178,6 +242,20 @@ func runShip(repo, intent string) {
 		_, _ = fmt.Fprintf(os.Stderr, "leah ship: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// defaultHistoryPath returns ~/.zsh_history if $SHELL is zsh, else
+// ~/.bash_history. Empty when $HOME is unset (FetchThreadContext skips).
+func defaultHistoryPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	shell := os.Getenv("SHELL")
+	if filepath.Base(shell) == "zsh" {
+		return filepath.Join(home, ".zsh_history")
+	}
+	return filepath.Join(home, ".bash_history")
 }
 
 func runReview(repo string, prNum int) {
@@ -271,7 +349,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "")
 	_, _ = fmt.Fprintln(os.Stderr, "commands:")
 	_, _ = fmt.Fprintln(os.Stderr, "  ask \"<query>\"             direct query to Reasoner")
-	_, _ = fmt.Fprintln(os.Stderr, "  ship <repo> \"<intent>\"    file regatta issue + watch + narrate")
+	_, _ = fmt.Fprintln(os.Stderr, "  ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"  file regatta issue + watch + narrate")
 	_, _ = fmt.Fprintln(os.Stderr, "  review <repo> <pr#>       independent reviewer subagent on PR")
 	_, _ = fmt.Fprintln(os.Stderr, "  status [--json]           recent activity from audit log")
 	_, _ = fmt.Fprintln(os.Stderr, "  contact <add|list|show>   manage contacts (memory)")
@@ -286,5 +364,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  recall [--llm] <query>    semantic search over audit + memory")
 	_, _ = fmt.Fprintln(os.Stderr, "  self-build \"<intent>\"     dispatch a regatta self-build PR")
 	_, _ = fmt.Fprintln(os.Stderr, "  cost [--since D] [--by kind|day|model] [--json]  aggregate spend")
+	_, _ = fmt.Fprintln(os.Stderr, "  brief [--voice] [--silent]   daily morning brief (recap + backlog + recs + cost)")
+	_, _ = fmt.Fprintln(os.Stderr, "  listen [--duration D] [--model M] [--repo R]   push-to-talk → whisper.cpp → intent dispatch")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
