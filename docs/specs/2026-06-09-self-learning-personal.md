@@ -1,7 +1,6 @@
 ---
 title: Leah — self-learning, personal-use Tier 1 subset
-status: draft-v1
-version: 1.0
+status: draft
 phase: design
 owner: tri
 created: 2026-06-09
@@ -52,8 +51,8 @@ restarts; no schema change to `audit.Entry`.
 | `*` (unknown kind)  | log + skip (no `unknown` row written)                     | —                       | —                               | —                                    |
 
 Default: rules live in `internal/selflearn/rules/`; one file per Kind.
-Only `regatta_pr.go` ships with Wave1; rest are stubs returning
-`unknown`. Add rules as Kinds appear in practice.
+`regatta_pr.go` is the first implemented rule; other kinds stub to
+`unknown` and gain rules as kinds appear in practice.
 
 ### 2.2 Scheduling
 
@@ -82,10 +81,8 @@ quota.** No throttle needed.
 
 ### 3.1 Schema
 
-Lives in memory.db (Wave1-A is building `internal/memory/`). If
-`internal/memory/schema.sql` exists at impl time, **append** the table
-below. If not, ship a temporary
-`internal/selflearn/schema.sql` and refactor in a follow-up.
+Lives in memory.db (`internal/memory/`). Appended to
+`internal/memory/schema.sql`.
 
 ```sql
 CREATE TABLE IF NOT EXISTS mistake_log (
@@ -113,7 +110,7 @@ leah mistake list [--week YYYY-WW]
 
 Convenience: `--audit-ts/kind/hash` may be replaced with a single
 `--audit-id <ts>:<kind>:<hash>` token to match the form `leah status`
-will print (status table gets an `ID` column in Wave1-B follow-up).
+prints.
 
 ## 4. Weekly retro
 
@@ -195,10 +192,10 @@ All cited in `2026-06-09-leah-phase-x-multi-operator-roadmap.md` §"Tier 1 self-
 
 ---
 
-## Adversarial review (Stage 2)
+## Adversarial review
 
-Solo reviewer pass; hunting circularity, selection bias, fatigue,
-serialization, cost. Severity-tagged.
+Hunting circularity, selection bias, fatigue, serialization, cost.
+Severity-tagged.
 
 ### CRITICAL — none
 
@@ -215,9 +212,9 @@ retro report and biases the operator's view of Leah.
 **never mutates the original**. The mistake_log lets the operator
 override: `leah mistake add --root-cause "resolver-misjudged" …`.
 Retro report MUST surface `resolver.update` rows with attribution so
-the operator can spot-check. *Spec revised: §2 now mandates appended
-row instead of in-place mutation; §4.1 wins/mistakes sections MUST
-display the resolving rule name in parentheses.*
+the operator can spot-check. §2 mandates appended row instead of
+in-place mutation; §4.1 wins/mistakes sections MUST display the
+resolving rule name in parentheses.
 
 **Accepted residual.** Operator-grades-Leah's-self-grading is honor
 system at single-operator scale. A second independent grader is Phase X.
@@ -256,10 +253,9 @@ notify-transition work.
 
 **Mitigation.** Resolver runs in a goroutine launched from tick with
 a `sync.Mutex` guard on the singleton `Resolver`. Tick that finds
-mutex held just continues with notify-transition work. Spec revised:
-§2.2 add sentence: "Resolver MUST be invoked via
-`go r.Run(ctx)` from tick with a sync.Mutex held inside r.Run; tick
-itself never blocks on resolver."
+mutex held just continues with notify-transition work. §2.2 mandates:
+"Resolver MUST be invoked via `go r.Run(ctx)` from tick with a
+sync.Mutex held inside r.Run; tick itself never blocks on resolver."
 
 ### MED — cost burst on first run
 
@@ -280,8 +276,7 @@ shrugs. Useless signal.
 
 **Mitigation.** `resolver.update` row's `Detail` MUST cite the probe
 result that drove the verdict (e.g. `"state=OPEN age=8d -> unknown"`).
-Retro `unknown` bucket prints the top-3 reasons. Spec §2 + §4.1
-revised.
+Retro `unknown` bucket prints the top-3 reasons (§2 + §4.1).
 
 ### LOW — composite key fragility
 
@@ -297,10 +292,6 @@ RFC3339Nano (1-line additive change).
 
 ### Verdict
 
-APPROVE with the inline §2 / §2.2 / §4.1 revisions captured above.
-Three of six findings already addressed in spec by writing it down;
-the remaining accepted-residual items are explicit personal-use
-tradeoffs, not oversights.
-
-Reviewer-agent-id: self-tagged-personal-use-leah-no-pr-gate
-Reviewer-recommendation: APPROVE
+APPROVE with the inline §2 / §2.2 / §4.1 mitigations captured above.
+Accepted-residual items are explicit personal-use tradeoffs, not
+oversights.

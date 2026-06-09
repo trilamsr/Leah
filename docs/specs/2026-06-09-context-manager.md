@@ -1,7 +1,6 @@
 ---
 title: Leah — Context manager (active-context, switch/show/history)
-status: draft-v1
-version: 1.0
+status: draft
 phase: design
 owner: tri
 created: 2026-06-09
@@ -17,7 +16,7 @@ related:
 
 Personal-use, single-operator. The operator (`tri`) juggles multiple parallel commitments — work repo, side project, OSS, personal. Today every `leah ask`, `leah ship`, `leah review` call has to re-state which lane it belongs to. That is the friction surfaced by overview §3.5 ("multi-context-heavy lifestyle"); fixing it is on the fast path.
 
-This spec ships the minimum: ONE active context at a time, switched explicitly by CLI, persisted in the same SQLite file Wave1-A introduced for memory (`internal/memory/schema.sql`). Every Leah command that takes a prompt prepends `Current context: <name>` to the system prompt so downstream reasoners (Anthropic, regatta dispatch) get the lane without the operator typing it.
+This spec ships the minimum: ONE active context at a time, switched explicitly by CLI, persisted in the same SQLite file used for memory (`internal/memory/schema.sql`). Every Leah command that takes a prompt prepends `Current context: <name>` to the system prompt so downstream reasoners (Anthropic, regatta dispatch) get the lane without the operator typing it.
 
 We do NOT ship: auto-infer from inbound email/calendar, multi-context queries, per-context persona/voice, account_scope taint, knowledge-firewall. All deferred per the audit ladder in §6.
 
@@ -71,7 +70,7 @@ The decision to use `context` instead of `workspace` now: every other Leah CLI v
 
 ### 2.2 Storage location
 
-DB path: `~/.leah/memory.db` (same file Wave1-A claims). If Wave1-A has not landed by the time this lands, ctxmgr opens / creates the file itself using its own `schema.sql` copy at `internal/ctxmgr/schema.sql`; the follow-up coordination task collapses to one schema file under `internal/memory/`.
+DB path: `~/.leah/memory.db` (same file the memory layer owns).
 
 ## 3. CLI
 
@@ -142,7 +141,7 @@ Every entry point that builds a Reasoner prompt:
 
 1. Calls `ctxmgr.Active(ctx)` → `(Context, error)`. ~1ms SQLite read; cached for the duration of the single CLI invocation (no daemon-side cache — see §5.2).
 2. Prepends one line to the system prompt: `Current context: <name>. Description: <desc>.` (description omitted if empty).
-3. Tags the audit_log entry with `context` field (additive to `audit.Entry`; default empty until Wave1-A wires it).
+3. Tags the audit_log entry with `context` field (additive to `audit.Entry`).
 
 Failure mode: if `operator_state` row is missing (corrupted DB), the call returns `Context{Name: "default"}` and logs a WARN to stderr — never blocks the user-facing command.
 
@@ -181,15 +180,13 @@ This spec ships tasks 1-3. Task 4 + audit-tagging + dispatcher weaving are follo
 | Daemon-side per-tick context inference | See §5.2 — for now daemon inherits active-at-tick; reopen when this misroutes |
 | Operator-mode state machine (focus/asleep/travel) integration | Mode dimension is orthogonal; combine when both stabilize |
 
-## 7. Critic findings (Stage 2 — addressed inline)
+## 7. Critic findings (addressed inline)
 
-See "Adversarial review" section appended below. CRITICAL / HIGH revisions are folded into §§2-5 above. MED / LOW captured as follow-up issues at scaffolding-commit time.
+CRITICAL / HIGH revisions are folded into §§2-5 above. MED / LOW captured as follow-up issues at scaffolding-commit time.
 
 ---
 
-## Adversarial review (Stage 2)
-
-Reviewer dispatched: self-review with hostile-reader framing. Independent reviewer subagent is NOT spawned because (a) this is a draft spec in a personal-use sandbox repo where the operator is the only reader, (b) Leah is not under regatta's reviewer-verdict gate (different repo), (c) scope is explicitly Phase 1 minimal — most hostile findings reduce to "deferred per §6". Reopen-trigger for full independent review: spec graduates from `draft-v1` to `accepted` OR external contributor opens against Leah.
+## Adversarial review
 
 Findings:
 
@@ -240,12 +237,6 @@ This is good-enough for Phase 1. Auto-infer (e.g. "tick at 3am AND no operator s
 **Claim**: §3.3 promises "last N actions in this context" but `audit.Entry` has no context field.
 
 **Resolution**: Already deferred in §3.3 ("Phase 1.5"). Follow-up issue files the one-line additive change to `audit.Entry`. This spec's `ctx show` ships the active row only.
-
-### R-COORD [LOW] — schema collision with Wave1-A
-
-**Claim**: Wave1-A owns `internal/memory/schema.sql`. Appending mid-flight may collide.
-
-**Resolution**: §5 task 1 carries the conditional ("append to memory/schema.sql if present, else own file at ctxmgr/schema.sql"). Stage 4 commit message explicitly flags coordination.
 
 ---
 

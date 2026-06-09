@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS schema_meta (
 INSERT OR IGNORE INTO schema_meta(key, value) VALUES('version', '1');
 ```
 
-Column budget: 7 / 7 / 7. Under 8. `workspace_id` present + dormant (always `'default'`); flips to active in Phase X when multi-operator lands.
+Column budget: 7 / 7 / 7. Under 8. `workspace_id` present + dormant (always `'default'`); activates in Phase X when multi-operator lands.
 
 Storage location: `~/.leah-state/memory.db`. Same dir as `audit.jsonl`. Directory created on `NewStore` if missing (0700).
 
@@ -165,35 +165,35 @@ Adversarial pass against the design above. Severity tags: CRITICAL / HIGH / MED 
 
 ### HIGH — §2 schema, `updated_at` column without update path
 **Problem**: `contact` + `project` carry `updated_at`, but §8 explicitly cuts update CRUD. Dead column; rots into mismatched semantics when M3 adds updates and forgets to bump it.
-**Fix applied**: kept `updated_at` (set equal to `created_at` on insert). Documented in §2: "updated_at = created_at on insert; mutated when update CRUD lands". One-line cost, kills schema migration in M3.
+**Resolution**: kept `updated_at` (set equal to `created_at` on insert). Documented in §2: "updated_at = created_at on insert; mutated when update CRUD lands". One-line cost, kills schema migration in M3.
 
 ### HIGH — §5 audit best-effort + §1 success criterion conflict
 **Problem**: "audit failure does not roll back DB write" means the success criterion ("writes a row + an audit-log line") can silently degrade to row-only. Operator notices nothing.
-**Fix applied**: audit failures logged to stderr via `log.Printf("audit: %v", err)` so the operator sees them in daemon logs. Still no rollback (truth is the DB row), but observable.
+**Resolution**: audit failures logged to stderr via `log.Printf("audit: %v", err)` so the operator sees them in daemon logs. Still no rollback (truth is the DB row), but observable.
 
 ### MED — §2 ULID as TEXT PK
 **Problem**: ULID strings sort lexically by time, but SQLite TEXT comparison is locale-dependent unless `COLLATE BINARY`. Default is BINARY for TEXT without override so this is fine — but worth pinning.
-**Fix applied**: noted in §2 — "PK TEXT uses default BINARY collation; ULID lex-sort = time-sort holds."
+**Resolution**: noted in §2 — "PK TEXT uses default BINARY collation; ULID lex-sort = time-sort holds."
 
 ### MED — §3 CLI: empty name → exit 2
 **Problem**: spec says exit 2 + stderr message but doesn't pin behavior for whitespace-only (`leah contact add "   "`). Stored row with name=`   ` is junk.
-**Fix applied**: §3 — "name is `strings.TrimSpace`'d; empty post-trim → exit 2". Same for project name + decision topic+choice.
+**Resolution**: §3 — "name is `strings.TrimSpace`'d; empty post-trim → exit 2". Same for project name + decision topic+choice.
 
 ### MED — `decision.decided_at` vs `created_at` confusion
 **Problem**: two timestamps invite "which is which?" reader load. Personal use rarely needs both.
-**Fix applied**: kept both but documented — `decided_at` = when the decision was made (operator-supplied, may backdate); `created_at` = when it was recorded in DB. Backdating real decisions is a use case worth preserving.
+**Resolution**: kept both but documented — `decided_at` = when the decision was made (operator-supplied, may backdate); `created_at` = when it was recorded in DB. Backdating real decisions is a use case worth preserving.
 
 ### LOW — §6 migration "fatal error if DB newer than binary"
 **Problem**: fatal-on-startup blocks every leah command including `leah ask` which doesn't touch Memory.
-**Fix not applied this round**: deferred — single-operator means downgrade is rare + recoverable (`brew install leah@latest`); the fatal is correct guard against silent corruption. Reopen if it bites.
+**Deferred**: single-operator means downgrade is rare + recoverable (`brew install leah@latest`); the fatal is correct guard against silent corruption. Reopen if it bites.
 
 ### LOW — index choices
 **Problem**: `idx_contact_name` is full-name; partial-match search (`list --grep ma`) won't use it. But §8 says LIKE scan acceptable at 100s of rows, so fine for M2.
-**Fix not applied**: noted; revisit at FTS5 trigger.
+**Deferred**: revisit at FTS5 trigger.
 
 ### LOW — no `db.SetMaxOpenConns(1)`
 **Problem**: SQLite + concurrent goroutines + modernc driver can lock-contend; setting max-open=1 is the boring fix.
-**Fix applied**: §7 build order step 1 includes `db.SetMaxOpenConns(1)` + `_pragma=journal_mode(WAL)` connection string. Mentioned in skeleton, not body, to keep §2 schema-only.
+**Resolution**: §7 build order step 1 includes `db.SetMaxOpenConns(1)` + `_pragma=journal_mode(WAL)` connection string. Mentioned in skeleton, not body, to keep §2 schema-only.
 
 ### Verdict
-HIGH x2 + MED x3 + LOW x3. Both HIGHs fixed inline. Spec promoted to ready-to-implement.
+HIGH x2 + MED x3 + LOW x3. Both HIGHs resolved inline.

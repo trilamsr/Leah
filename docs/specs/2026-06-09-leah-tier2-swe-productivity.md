@@ -1,7 +1,6 @@
 ---
 title: Leah — Tier 2, software-engineering productivity
-status: draft-v2.1
-version: 2.1
+status: draft
 phase: design
 owner: tri
 created: 2026-06-09
@@ -133,7 +132,7 @@ Critical safety:
 - Per regatta's `feedback_no_implementer_automerge`: Leah does NOT enable automerge on PRs with a `Reviewer-agent-id`; operator merges.
 - Subagent must NOT post APPROVE for PRs it doesn't understand — `reviewer-prompts/independent-reviewer.md` has explicit "if anything is unclear, REVISE not APPROVE" instruction.
 
-**Leah-side provenance gate (C4)**: Leah writes the `Reviewer-agent-id:` token to the PR body herself; a wrong-shape ID would only be rejected on the next CI run (dispatch already burned). Pre-write verification:
+**Leah-side provenance gate**: Leah writes the `Reviewer-agent-id:` token to the PR body herself; a wrong-shape ID would only be rejected on the next CI run (dispatch already burned). Pre-write verification:
 
 - Post-condition in `reviewer-prompts/independent-reviewer.md`: verify the subagent runtime returned an actual runtime-issued ID matching `^(a[0-9a-f]{16}|cavecrew-reviewer-[a-z0-9-]+)$`.
 - Implemented as `internal/dispatchers/regatta/reviewer.go::PostReview(id, ...)` — returns `ErrInvalidReviewerID` on shape mismatch BEFORE updating PR body.
@@ -164,7 +163,7 @@ Semantic + structural search over your repos via local index.
 
 Backend: ripgrep for literal + tree-sitter for structural + sqlite-vec embedding over a project graph for semantic. Index at `~/.leah/codeindex/<repo>.db`. Incremental — watches git refs, re-indexes on push.
 
-**Workspace partitioning (M33)**: index keys carry `workspace_id`; default `leah find` SQL-filters to active workspace; `--all-workspaces` opens cross-workspace (BR-2; per §3.18 knowledge-firewall).
+**Workspace partitioning**: index keys carry `workspace_id`; default `leah find` SQL-filters to active workspace; `--all-workspaces` opens cross-workspace (BR-2; per §3.18 knowledge-firewall).
 
 Queries:
 
@@ -177,9 +176,7 @@ leah find --all-workspaces "where do we use sqlite"   # explicit cross-workspace
 
 ### 2.7 Spec drafter
 
-From voice/text intent + optional pinned context → first-draft `docs/.../specs/YYYY-MM-DD-<topic>-design.md` per the target repo's spec convention.
-
-Pipeline same as v1. Adversarial review subagent mandatory before landing (§3.12).
+From voice/text intent + optional pinned context → first-draft `docs/.../specs/YYYY-MM-DD-<topic>-design.md` per the target repo's spec convention. Adversarial review subagent mandatory before landing (§3.12).
 
 ### 2.8 Brief drafter
 
@@ -195,7 +192,7 @@ Cron (configurable cadence per repo): read newly-opened issues → classify → 
 
 **Rate ceiling**: per-repo per-hour cap (default 20 triages/hour/repo) + cumulative daily cap (default 100/repo/day) + **circuit breaker on spike** (if classification rate > 2× rolling 7-day avg, pause + alert operator). Prevents runaway triage on issue-flood (spam wave / migration import).
 
-**Token-bucket burst behavior (M20)**: 20-per-hour refill, **100-burst cap**; circuit-breaker fires on >50 classifications in 5 min (sub-hourly spike).
+**Token-bucket burst behavior**: 20-per-hour refill, **100-burst cap**; circuit-breaker fires on >50 classifications in 5 min (sub-hourly spike).
 
 Triage rules per repo in `internal/repotriage/rules/<repo>.cue`.
 
@@ -225,7 +222,7 @@ Long CI/build/test log → 3-line root cause + 1-line proposed fix. Trigger: Git
 
 Renovate-style functionality, but via regatta. Phase 1: **wrap Renovate** (https://github.com/renovatebot/renovate accessed 2026-06-09, AGPL-3.0) — do NOT reimplement scheduling + ecosystem detection.
 
-**Config-layer boundary (M19)**:
+**Config-layer boundary**:
 
 - **Leah owns**: `presets`, `packageRules`, `schedule`. Leah may modify these as part of dep-batching policy.
 - **Operator owns**: `branch protection`, `hostRules`. Leah NEVER edits these; surfaces a proposal to operator if change needed.
@@ -261,7 +258,7 @@ leah ask --repos regatta,lumaverse "where do we use sqlite"
 
 **Workspace isolation**: by default, `leah ask` scopes to current workspace; cross-workspace queries are BR-2 (notify-after) and surfaced as such.
 
-**Per-call cap (M21)**: `leah ask` enforces $0.50 per-call ceiling; cap-hit returns "answer not available within budget; raise with `--max-cost N`". Cites Tier 2 35% budget (overview §4.0).
+**Per-call cap**: `leah ask` enforces $0.50 per-call ceiling; cap-hit returns "answer not available within budget; raise with `--max-cost N`". Cites Tier 2 35% budget (overview §4.0).
 
 ### 2.18 Office-hours mode (pair-programming)
 
@@ -276,7 +273,7 @@ Every "I figured out X" → captured into a personal codebase wiki, workspace-ta
 Scan repos for TODOs older than threshold. Age + classify (`actionable`, `dead`, `tracked-elsewhere`). For each:
 
 - `actionable`: file regatta issue + remove TODO via small PR
-- **`dead`: requires operator BR-4 confirm** — auto-deletion silently drops context. Sweeper proposes; operator clicks approve per-batch. Was BR-3 auto in v1.
+- **`dead`: requires operator BR-4 confirm** — auto-deletion silently drops context. Sweeper proposes; operator clicks approve per-batch.
 - `tracked-elsewhere`: convert to `// TODO(#nnn)` form (BR-3 auto for the reformatting only)
 
 ### 2.21 Cross-PR dependency tracker
@@ -291,7 +288,7 @@ After major incident, drafts post-mortem skeleton.
 
 **Blamelessness statement** opens every drafted post-mortem template: *"This post-mortem assumes everyone involved acted with the information available at the time. We name systems, not people. Action items improve the system, not assign fault."* Cite: SRE blameless-postmortem norm (https://sre.google/sre-book/postmortem-culture/ accessed 2026-06-09).
 
-## 3. Newly identified capabilities
+## 3. Additional capabilities
 
 ### 3.1 Diff explanation
 
@@ -319,7 +316,7 @@ For repos with multiple potential reviewers: Leah remembers domain expertise + l
 
 ### 3.7 Spec → plan → execute orchestration
 
-`leah build "<topic>"` end-to-end: brainstorming → spec → plan → dispatch via regatta. **Per-orchestration cap (M21)**: $5 ceiling per `leah build` invocation; cap-hit pauses + surfaces partial output for operator decision. Cites Tier 2 35% budget.
+`leah build "<topic>"` end-to-end: brainstorming → spec → plan → dispatch via regatta. **Per-orchestration cap**: $5 ceiling per `leah build` invocation; cap-hit pauses + surfaces partial output for operator decision. Cites Tier 2 35% budget.
 
 ### 3.8 Personal benchmark of repos
 
@@ -341,7 +338,7 @@ Per-task regatta-dispatch token + dollar spend. Cap inherited from overview §4.
 
 For specs Leah drafts (§2.7) AND briefs (§2.8): mandatory adversarial subagent pass before landing, per regatta's `feedback_adversarial_review_every_step`. **The spec-reviewer subagent runs without Leah's authoring context** (overview §4.4a); receives only the artifact + spec template + repo CLAUDE.md.
 
-## 3a Context-switch + parallel-commitment capabilities (new in v2)
+## 3a Context-switch + parallel-commitment capabilities
 
 Operator's context-switch-heavy work pattern produces specific failure modes. These cover them.
 
@@ -351,13 +348,13 @@ Measure workspace re-entry time (seconds from `leah workspace <name>` to first m
 
 ### 3.14 Idle-project surfacer
 
-For each project in Memory.projects: no movement (commits, PRs, todos touched) in N days → propose archive / reschedule. **Default N = 90** (raised from 30 — 30 was over-eager; M16). Per-project override via `memory.projects[*].idle_threshold_days`. Workspace-scoped.
+For each project in Memory.projects: no movement (commits, PRs, todos touched) in N days → propose archive / reschedule. **Default N = 90**. Per-project override via `memory.projects[*].idle_threshold_days`. Workspace-scoped.
 
 ### 3.15 Side-quest capture
 
 Operator pattern: while doing X, notices Y. Instead of derailing X, voice "side-quest: Y goes to <backlog>". Leah routes Y as a todo to Y's backlog (workspace-correct), keeps X uninterrupted. CLI: `leah side <project-or-workspace> "<note>"`.
 
-**Routing (M18)**: destination = workspace-inferred project backlog (`memory.projects[<active>].sidequests`); if no active project, lands in **operator-inbox unsorted** for next Sunday-review triage.
+**Routing**: destination = workspace-inferred project backlog (`memory.projects[<active>].sidequests`); if no active project, lands in **operator-inbox unsorted** for next Sunday-review triage.
 
 ### 3.16 "Where did we leave off" per project
 
@@ -365,7 +362,7 @@ Operator pattern: while doing X, notices Y. Instead of derailing X, voice "side-
 
 ### 3.17 Single-point-of-failure surfacer
 
-**Mechanism (M17)**: `git shortlog -sn --since=90d` per file in the project; flag files where operator > 90% of commits AND file path matches the project's critical-path glob (default `internal/*`, `cmd/*`; per-repo override). **Skip solo-operator personal repos** (no co-owner exists; signal is noise — `repos.yaml` `role: personal-tool` skips). Propose mitigation (write a brief, demo recording, doc-up). Sunday review surfaces.
+**Mechanism**: `git shortlog -sn --since=90d` per file in the project; flag files where operator > 90% of commits AND file path matches the project's critical-path glob (default `internal/*`, `cmd/*`; per-repo override). **Skip solo-operator personal repos** (no co-owner exists; signal is noise — `repos.yaml` `role: personal-tool` skips). Propose mitigation (write a brief, demo recording, doc-up). Sunday review surfaces.
 
 ### 3.18 Knowledge-firewall (cross-workspace reads explicit)
 
@@ -375,13 +372,13 @@ Memory queries default-filter to active workspace. Cross-workspace read (`leah f
 
 Memory.vocabulary already carries `workspace_id` (overview §3.5). Reasoner resolves vocabulary in active-workspace context first; falls through to `null`-workspace shared vocab; never crosses workspaces silently. Sunday review surfaces vocab conflicts ("`Phoenix` means X in acme, Y in personal").
 
-**Lookup tie (L6)**: when the same term exists in active workspace AND another, active-workspace wins by default; CLI prompt surfaces the conflict ("`Phoenix` matches both `acme` and `personal`; using `acme`. `leah vocab disambiguate <term>` to record per-context preference.").
+**Lookup tie**: when the same term exists in active workspace AND another, active-workspace wins by default; CLI prompt surfaces the conflict ("`Phoenix` matches both `acme` and `personal`; using `acme`. `leah vocab disambiguate <term>` to record per-context preference.").
 
 ## 4. Regatta integration in detail
 
 ### 4.1 Issue file format
 
-Leah's regatta-dispatched issues conform to regatta's expectations. Template (`prompts/regatta-issue.md`) — same as v1 with trailing comments unchanged.
+Leah's regatta-dispatched issues conform to regatta's expectations. Template lives at `prompts/regatta-issue.md`.
 
 ### 4.2 Watcher
 
@@ -390,15 +387,15 @@ Goroutine per outstanding regatta task. Polls (versioned CLI only; overview §5)
 - `regatta agents list --json` every 30s (versioned CLI)
 - `gh pr view <n> --json state,mergeStateStatus,statusCheckRollup,mergedAt` every 60s once PR opens
 - regatta slog tail (stdin from `regatta serve` if Leah runs alongside; otherwise file tail)
-- **Webhook primary, poll fallback** (§3.x below)
+- **Webhook primary, poll fallback** (§4.5 below)
 
-State machine per task: same as v1.
+State machine per task: `dispatched → opened → reviewed → merged | escalated | failed`.
 
 ### 4.3 Independent reviewer subagent
 
 Spawned in fresh subagent runtime. Prompt: `reviewer-prompts/independent-reviewer.md` (per overview §4.4a; reviewer-prompts live in a separately-versioned directory).
 
-**Critic-of-critic (C3)**: runs on **EVERY load-bearing PR** (not 1-in-10). Critic runs **BEFORE** the `Reviewer-recommendation:` token lands in PR body. Pipeline:
+**Critic-of-critic**: runs on **every load-bearing PR**. Critic runs **BEFORE** the `Reviewer-recommendation:` token lands in PR body. Pipeline:
 
 1. Reviewer subagent posts inline comments + draft verdict to a scratch buffer (NOT to PR body yet).
 2. Critic-of-critic subagent (fresh runtime, separate prompt `reviewer-prompts/critic-of-critic.md`) receives draft verdict + diff + linked spec; tries to refute.
@@ -407,7 +404,7 @@ Spawned in fresh subagent runtime. Prompt: `reviewer-prompts/independent-reviewe
    - If reviewer maintains original verdict, surface to operator with BOTH views shown; operator decides.
 4. Critic agreement: reviewer posts `Reviewer-recommendation:` token to PR body.
 
-**Cost tradeoff** documented: every load-bearing review now doubles inference. Folded into Tier 2 35% budget allocation (overview §4.0). Skip applies only to BR≤3 PRs (per §2.3 reviewer is not dispatched at all for those).
+**Cost tradeoff** documented: every load-bearing review doubles inference. Folded into Tier 2 35% budget allocation (overview §4.0). Skip applies only to BR≤3 PRs (per §2.3 reviewer is not dispatched at all for those).
 
 ### 4.4 Operator-merge handoff
 
@@ -421,7 +418,7 @@ Leah never merges. After APPROVE + CI green + no operator pause: Leah notifies "
 - Phase 2+: home-server tunnel (Cloudflare Tunnel / Tailscale Funnel) terminates webhook locally.
 - Poll fallback continues at lower cadence (every 5 min) as belt-and-suspenders.
 
-**smee.io health-check + escalate-poll (M32)**: HEAD-poll smee.io endpoint every 60s; track `last_event_received_ts`. On outage (≥5 min no events + HEAD failures), escalate poll cadence from 5min → 30s until smee recovers, then revert.
+**smee.io health-check + escalate-poll**: HEAD-poll smee.io endpoint every 60s; track `last_event_received_ts`. On outage (≥5 min no events + HEAD failures), escalate poll cadence from 5min → 30s until smee recovers, then revert.
 
 Reduces gh-API quota burn; cuts notification latency from ~30s to ~1s.
 
@@ -452,7 +449,7 @@ repos:
 
 `workspace_id` controls default brief routing, default reviewer subagent prefix, default cost-bucket. Multi-repo tasks carry `workspace_id` (§2.2).
 
-**Multi-workspace repo schema (M34)**: a repo entry may declare `workspace_ids: [a, b]` (preferred for shared repos) OR single `workspace_id`. When an action context is ambiguous on a multi-workspace repo, the operator must pass `--workspace <ws>` or Leah surfaces a one-time prompt + remembers per `(repo, action_kind)`.
+**Multi-workspace repo schema**: a repo entry may declare `workspace_ids: [a, b]` (preferred for shared repos) OR single `workspace_id`. When an action context is ambiguous on a multi-workspace repo, the operator must pass `--workspace <ws>` or Leah surfaces a one-time prompt + remembers per `(repo, action_kind)`.
 
 Per-account GitHub tokens via secrets vault (overview §4.7); Leah picks the right token per `gh` invocation.
 
@@ -510,12 +507,6 @@ T2.0–T2.5 + T2.31 (webhook) is M1. T2.6–T2.10 + T2.13 + T2.39 in M2 once Mem
 - KB Q&A model selection: same Reasoner model since context shape is similar.
 - Code search index size: per-repo SQLite ~50MB-2GB. `git gc` analog (oldest commits' content drops first).
 
-Resolved → normative:
-
-- ~~Multi-repo `merge-in-order` race~~ → dispatch-gate on `mergedAt` (§2.2).
-- ~~Issue triage rate limiting~~ → per-hour + daily cap + circuit breaker (§2.10).
-- ~~Office-hours LSP invasiveness~~ → git status + staged diff only Phase 1 (§2.18).
-
 ## 8. Success criteria (Tier 2)
 
 After T2.0–T2.5 (M1, ~week 2):
@@ -555,34 +546,3 @@ After T2.11–T2.18 (M6, ~week 8):
 - **No LSP buffer ingest Phase 1** (§2.18)
 - **No silent stale-todo `dead` deletion** (§2.20 — operator BR-4 confirm)
 
-## 10. Changes in v2
-
-- §1 + §3.13–3.19 + §5 + §6 + §8: workspace_id threaded throughout.
-- §2.1 versioned CLI only; no state.db.
-- §2.2 merge-in-order = dispatch-gate on `mergedAt != null` (race fix).
-- §2.3 prompt-injection hardening + fixture test on independent reviewer.
-- §2.10 issue triage rate ceiling + circuit breaker.
-- §2.15 dep upgrade wraps Renovate; supply-chain hardening (--ignore-scripts, network-isolated, ecosystem allowlist).
-- §2.18 office-hours = git status + staged diff only (no LSP).
-- §2.20 stale-todo `dead` → BR-4 confirm.
-- §2.22 post-mortem canonical UTC clock + blamelessness statement.
-- §3.12 spec-reviewer fresh runtime (no authoring context).
-- §3.13–3.19 context-switch + parallel-commitment capabilities (context-load timer, idle-project surfacer, side-quest, where-did-we-leave-off, single-point-of-failure, knowledge-firewall, vocabulary partitioning).
-- §4.5 GitHub webhook primary via smee.io; poll fallback.
-- §7 several questions resolved → normative.
-
-## 11. Changes in v2.1
-
-- §2.3 **Leah-side reviewer-agent-id provenance gate** — `PostReview(id, ...)` validates against `^(a[0-9a-f]{16}|cavecrew-reviewer-[a-z0-9-]+)$` BEFORE writing PR body; fail-closed with `ErrInvalidReviewerID` (C4). Reviewer prompt path moved to `reviewer-prompts/`.
-- §2.6 Code-search index **workspace partitioning** — keys carry `workspace_id`; default SQL-filters; `--all-workspaces` cross-workspace BR-2 (M33).
-- §2.10 Issue-triage **token-bucket burst** — 20/hr refill + 100-burst cap; >50 in 5min circuit-breaker (M20).
-- §2.15 Renovate **config-layer boundary** — Leah owns presets/packageRules/schedule; operator owns branch-protection/hostRules (M19).
-- §2.17 KB Q&A `leah ask` **per-call cap $0.50** (M21).
-- §3.7 `leah build` **per-orchestration cap $5** (M21).
-- §3.14 Idle-project default raised from 30d → **90d**; per-project override (M16).
-- §3.15 Side-quest routing destination defined: workspace-project backlog OR operator-inbox unsorted (M18).
-- §3.17 SPOF surfacer **mechanism pinned** — `git shortlog -sn --since=90d` + critical-path glob; skip solo-operator personal repos (M17).
-- §3.19 Vocabulary partition **tie rule** — active-workspace wins; CLI surface (L6).
-- §4.3 **Critic-of-critic** now every load-bearing PR (not 1-in-10); runs BEFORE token lands; disagreement re-surfaces to operator with both views; cost folded into Tier 2 budget (C3).
-- §4.5 **smee.io health-check** + escalate-poll 5min→30s during outage (M32).
-- §5 `repos.yaml` **multi-workspace schema** — `workspace_ids: [a, b]` list form supported (M34).

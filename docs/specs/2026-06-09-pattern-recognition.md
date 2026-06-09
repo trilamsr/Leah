@@ -1,7 +1,6 @@
 ---
 title: Leah — pattern recognition (audit clustering + skill candidate emitter)
-status: draft-v1.1
-version: 1.1
+status: draft
 phase: design
 owner: tri
 created: 2026-06-09
@@ -22,7 +21,7 @@ Surface repeated action patterns in the audit log so the operator can decide whi
 Non-goals (cut in §6):
 
 - Real-time detection while Leah is running
-- Shell-history ingestion (spec'd below, deferred to V2)
+- Shell-history ingestion
 - Auto-creation of skills from candidates
 - Embedding-based semantic clustering
 - New tables / new storage primitives (reads `audit.jsonl` directly)
@@ -35,11 +34,10 @@ Inputs:
 
 Cluster key: `(kind, args_hash[:8])` — kind exact, args_hash 8-char prefix.
 
-Rationale for 8-char prefix (revised after critic finding C1):
+Rationale for 8-char prefix:
 - args_hash is `sha256` hex (32 bytes → 64 chars) per Tier 1 §2.1 design
 - 8-char prefix = 32 bits → birthday-collision domain ~`sqrt(2^32) ≈ 65k` events before expected first false-cluster
 - 30-day window expected event volume: O(1k-10k). Collision probability for one operator over 30d: negligible (< 0.01% at 10k events)
-- Earlier draft used 3-char prefix (12 bits, ~4k birthday domain). Critic finding C1 flagged operator-volume risk; revised to 8 chars
 
 Threshold: `min_count int` — default `5`. Configurable via env `LEAH_PATTERN_MIN_COUNT`.
 
@@ -79,11 +77,11 @@ File header (regenerated each weekly run):
 ```
 # Skill candidates — generated {ts}, window {since}..{now}
 
-Cherry-pick entries below. Approval CLI lands in V2 (§6 deferred).
+Cherry-pick entries below. Approval CLI deferred (§6).
 Stale entries (no event in window) drop automatically on the next run.
 ```
 
-Lifecycle (revised after critic findings C3 + C6):
+Lifecycle:
 
 - **Aging / expiry**: file is fully regenerated each run from `since = now - 30d`. Clusters that fall out of the 30d window disappear from the file automatically — no manual sweep needed
 - **Escalation marker**: if a cluster `(kind, hashPrefix)` appears in `≥3` consecutive weekly runs, prefix the bullet with `⬆ recurring (Nw)` where N = consecutive-weeks count. Tracked via sidecar `~/.leah-state/skill-candidates.history.json` (last-N weekly snapshots, max 12 weeks retained). Sidecar is the only state — file itself stays regeneratable
@@ -106,7 +104,7 @@ Weekly cron, fires AFTER retro generator (so retro's audit-window summary is con
 4. Read prior `~/.leah-state/skill-candidates.history.json`, merge current cluster-keys, compute consecutive-week count per cluster
 5. Write `~/.leah-state/skill-candidates.md` (atomic write: tmp + rename)
 6. Write updated `~/.leah-state/skill-candidates.history.json` (last-12-weeks snapshots)
-7. Emit one `audit.Entry{Kind: "patterns", ArgsHash: hash(window), Outcome: "success", Detail: fmt.Sprintf("%d clusters", len(clusters))}` so the patterns-runner itself is auditable (and won't recursively cluster itself — kind "patterns" is fine, will only hit threshold after 5 weeks of runs, which IS the meta-signal "you keep running this")
+7. Emit one `audit.Entry{Kind: "patterns", ArgsHash: hash(window), Outcome: "success", Detail: fmt.Sprintf("%d clusters", len(clusters))}` so the patterns-runner itself is auditable (kind "patterns" only hits threshold after 5 weeks of runs, which IS the meta-signal "you keep running this")
 
 Failure modes:
 - Missing `audit.jsonl` → exit 0, log "no audit log yet"
@@ -124,13 +122,11 @@ Failure modes:
 - `Propose(clusters []Cluster) string` → markdown
 - Tests: `TestProposeMarkdownFormat`, `TestProposeEmptyClusters` (returns header-only)
 
-**T3 — `cmd/leah/patterns.go` CLI subcommand + history sidecar wiring** (defer — not in scaffolding stage)
+**T3 — `cmd/leah/patterns.go` CLI subcommand + history sidecar wiring**
 - CLI: `leah patterns --weekly`
 - History sidecar read/write/merge
 - Atomic file write
 - Audit entry emission
-
-Scope of THIS scaffolding PR: T1 + T2 only. T3 is filed as follow-up tracker issue.
 
 ## 6. Cuts (Phase X, reopen triggers cited)
 
@@ -138,27 +134,25 @@ Scope of THIS scaffolding PR: T1 + T2 only. T3 is filed as follow-up tracker iss
 | --- | --- | --- |
 | Real-time pattern detection | Adds latency to every Leah action; 99% of signal lives in weekly review window | Operator complains weekly cadence misses time-sensitive patterns |
 | Shell-history hook (zsh/bash history → audit ingest) | New ingestion path, privacy-sensitive (raw commands ≠ args_hash), needs redaction layer | Tier 1 §2.4 redaction layer ships AND operator wants shell-pattern coverage |
-| Auto-skill creation | "Approve" CLI requires skill-template engine; out of scope for V1 detection | Operator approves ≥3 candidates manually + asks for one-shot accept |
+| Auto-skill creation | "Approve" CLI requires skill-template engine; out of scope for initial detection | Operator approves ≥3 candidates manually + asks for one-shot accept |
 | Embedding-based semantic clustering | Local embedding model adds dep + cost; prefix-hash clustering covers args-identity case (the common one) | Operator reports "I do similar things with different args and clusterer misses them" |
 | New SQLite table for cluster cache | `audit.jsonl` is already the source; caching adds invalidation + schema migration burden | File grows past 1M lines AND `Detect` p99 exceeds 5s on operator's box |
-| Privacy redaction of args_hash in markdown | args_hash is already one-way (sha256 prefix); detail samples ARE raw — see C5 below | Tier 1 §2.4 redaction ships; clusterer routes `Detail` through it before writing |
+| Privacy redaction of args_hash in markdown | args_hash is already one-way (sha256 prefix); detail samples ARE raw | Tier 1 §2.4 redaction ships; clusterer routes `Detail` through it before writing |
 
 ## 7. Dependencies / known gaps
 
-- **Tier 1 redaction layer (§2.4) NOT YET BUILT**: `Detail` field samples may contain raw queries, PR titles, branch names. V1 ships unredacted (single-operator local file, mode 0600). When §2.4 lands, route `cluster.Samples` through redaction before `Propose`. Tracked: file follow-up issue at T3-merge time
+- **Tier 1 redaction layer (§2.4) gap**: `Detail` field samples may contain raw queries, PR titles, branch names. Ships unredacted (single-operator local file, mode 0600). When Tier 1 §2.4 lands, route `cluster.Samples` through redaction before `Propose`.
 - **CLI subcommand framework**: `cmd/leah/` layout for subcommands not surveyed in this spec. T3 may need a cobra/flag refactor or fits the existing pattern — surveyor task at T3 dispatch time
 - **Cron install**: out of scope. Operator wires `leah patterns --weekly` into their own cron / launchd alongside `leah retro --weekly`
 
-## 8. Adversarial-review record (Stage-2 critic)
-
-Findings hunted + resolutions baked into spec above:
+## 8. Adversarial-review record
 
 | Sev | Finding | Resolution |
 | --- | --- | --- |
-| HIGH | C1: 3-char args_hash prefix = 12 bits, birthday-collision at ~64 events; operator hits this in 30d | §2: bumped to 8-char prefix (32 bits, ~65k birthday-domain). Documented rationale inline |
-| MED | C2: threshold N=5 may be too high — operator with low activity (e.g. 20 events/30d) sees 0 candidates ever | §2: `min_count` env-configurable (`LEAH_PATTERN_MIN_COUNT`). Default 5 stays; doc note flags low-volume operator should tune down |
-| MED | C3: candidates file grows unbounded if operator doesn't read | §3: file fully regenerated each run, 30d window drops stale clusters automatically. Hard 200-cluster cap with truncation footer |
-| LOW | C4: where does an approved skill live? | §6 cut: auto-skill creation deferred. V1 proposes only; approval workflow lands in tracked V2 |
-| HIGH | C5: privacy — args_hash is one-way but `Detail` samples are raw | §7 dependency: documented Tier 1 §2.4 redaction-layer gap; V1 ships unredacted under mode-0600 local file; redaction wired at §2.4 land time |
-| MED | C6: lifecycle — repeated clusters should escalate vs new noise | §3: `⬆ recurring (Nw)` marker via 12-week history sidecar. ≥3 consecutive weeks triggers escalation prefix |
-| LOW | C7: patterns runner is itself an audit-emitting action — recursion / self-cluster risk | §4: documented. Kind "patterns" only hits threshold after 5 weekly runs; that IS the meta-signal (and it's bounded by the weekly cadence) |
+| HIGH | 3-char args_hash prefix = 12 bits, birthday-collision at ~64 events; operator hits this in 30d | §2: 8-char prefix (32 bits, ~65k birthday-domain). Documented rationale inline |
+| MED | threshold N=5 may be too high — operator with low activity (e.g. 20 events/30d) sees 0 candidates ever | §2: `min_count` env-configurable (`LEAH_PATTERN_MIN_COUNT`). Default 5; doc note flags low-volume operator should tune down |
+| MED | candidates file grows unbounded if operator doesn't read | §3: file fully regenerated each run, 30d window drops stale clusters automatically. Hard 200-cluster cap with truncation footer |
+| LOW | where does an approved skill live? | §6 cut: auto-skill creation deferred. Proposes only; approval workflow deferred |
+| HIGH | privacy — args_hash is one-way but `Detail` samples are raw | §7 dependency: documented Tier 1 §2.4 redaction-layer gap; ships unredacted under mode-0600 local file; redaction wired at §2.4 land time |
+| MED | lifecycle — repeated clusters should escalate vs new noise | §3: `⬆ recurring (Nw)` marker via 12-week history sidecar. ≥3 consecutive weeks triggers escalation prefix |
+| LOW | patterns runner is itself an audit-emitting action — recursion / self-cluster risk | §4: documented. Kind "patterns" only hits threshold after 5 weekly runs; that IS the meta-signal (and it's bounded by the weekly cadence) |

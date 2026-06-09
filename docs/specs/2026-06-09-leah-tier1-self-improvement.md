@@ -1,7 +1,6 @@
 ---
 title: Leah — Tier 1, self-improvement + meta-improvement
-status: draft-v2.1
-version: 2.1
+status: draft
 phase: design
 owner: tri
 created: 2026-06-09
@@ -88,7 +87,7 @@ Did the action achieve intent? Three signals, in priority:
 2. **Inferred world signal** — PR merged, email got reply, calendar invite accepted, draft was sent (vs deleted)
 3. **Time-decay default** — no negative signal in N days → `unknown` (NOT `success`)
 
-**Outcome default = `unknown`.** Calibration (§2.11) uses only resolved-positive + resolved-negative buckets; surfaces unknown-rate separately. Treating no-signal as success silently inflates calibration; this is fixed in v2.
+**Outcome default = `unknown`.** Calibration (§2.11) uses only resolved-positive + resolved-negative buckets; surfaces unknown-rate separately. Treating no-signal as success silently inflates calibration.
 
 Outcome inference rules per action_kind live in `internal/selfimprove/outcome/rules/<kind>.go`. Each rule is a small function: `func(action AuditRow, world WorldProbe) (Outcome, confidence float64)`.
 
@@ -140,7 +139,7 @@ CREATE TABLE mistake_log (
 );
 ```
 
-**Predicate language: cel-go ONLY** (google/cel-go, https://github.com/google/cel-go accessed 2026-06-09, Apache-2.0). Sandboxed, typed, designed for predicates (Kubernetes admission policy + Google IAM conditions use it). Dropped v2's "Go expression OR cel-go" hedge. Example:
+**Predicate language: cel-go ONLY** (google/cel-go, https://github.com/google/cel-go accessed 2026-06-09, Apache-2.0). Sandboxed, typed, designed for predicates (Kubernetes admission policy + Google IAM conditions use it). Example:
 
 ```cel
 event.kind == "email.received"
@@ -148,9 +147,9 @@ event.kind == "email.received"
   && contains(event.body, "opportunity")
 ```
 
-**Prevention predicate workspace scope** (M12): default `workspace_scope = 'same'` — fires only on intake events in the same workspace as the mistake's origin. `workspace_scope = 'any'` requires explicit operator-set + surfaces in Sunday review.
+**Prevention predicate workspace scope**: default `workspace_scope = 'same'` — fires only on intake events in the same workspace as the mistake's origin. `workspace_scope = 'any'` requires explicit operator-set + surfaces in Sunday review.
 
-**Mistake → prevention closure metric** (#C2): `fire_count` increments each time the predicate matches a fresh IntakeEvent that Leah would have repeated the mistake on. `fire_count > 0` = loop closed for that mistake. Sunday review surfaces zero-fire predictions as suspect.
+**Mistake → prevention closure metric**: `fire_count` increments each time the predicate matches a fresh IntakeEvent that Leah would have repeated the mistake on. `fire_count > 0` = loop closed for that mistake. Sunday review surfaces zero-fire predictions as suspect.
 
 Mistake → prevention path: each entry produces a candidate `feedback_*` style rule that ends up in Leah's own `CLAUDE.md` after operator-approved Sunday review (see §2.20). Mirrors regatta's lessons-learned mechanism but automated. **Per overview §4.4a**: promotion goes through a SEPARATE operator-approval queue, not the prompt-change batch.
 
@@ -195,7 +194,7 @@ Prompts under management:
 - `independent-reviewer` — dispatched to subagent reviewing regatta PR
 - `intent-classifier-voice` — variant for voice-input (different priors)
 
-Active version pinned per prompt in `prompts/active.yaml`. Changes require commit; CI gate (later) rejects uncommitted prompt files at runtime. **Boot-time load only** (M35): `prompts/active.yaml` is loaded at daemon process boot; swap requires daemon restart. Avoids "did the file change apply" surprise mid-run.
+Active version pinned per prompt in `prompts/active.yaml`. Changes require commit; CI gate (later) rejects uncommitted prompt files at runtime. **Boot-time load only**: `prompts/active.yaml` is loaded at daemon process boot; swap requires daemon restart. Avoids "did the file change apply" surprise mid-run.
 
 ### 2.7 A/B harness
 
@@ -209,9 +208,9 @@ After threshold cross, produce a comparison report: outcome quality, confidence 
 
 A/B is OFF by default for blast-radius ≥ 4 prompts on live data — running an experimental email-drafter against real outbound mail still requires mock dispatchers OR explicit opt-in per prompt.
 
-**SPRT prior + cap** (M26): H0 = parity (effect-size 0); H1 = δ ≥ 0.05 (5 percentage-point lift). Per-experiment cost ceiling $5 (Tier 1 budget); max **3 concurrent experiments**.
+**SPRT prior + cap**: H0 = parity (effect-size 0); H1 = δ ≥ 0.05 (5 percentage-point lift). Per-experiment cost ceiling $5 (Tier 1 budget); max **3 concurrent experiments**.
 
-**Per-workspace pooling** (M14): non-persona-sensitive prompts (e.g. `intent-classifier`) may pool across workspaces for sample-size. Persona-sensitive prompts (`email-drafter`, `meeting-prep`) **NEVER pooled** — per-workspace voice would be diluted.
+**Per-workspace pooling**: non-persona-sensitive prompts (e.g. `intent-classifier`) may pool across workspaces for sample-size. Persona-sensitive prompts (`email-drafter`, `meeting-prep`) **NEVER pooled** — per-workspace voice would be diluted.
 
 ### 2.8 Recurring-pattern detector
 
@@ -265,7 +264,7 @@ Surface miscalibration in Sunday review. Persistent over-confidence → tune con
 
 Implementation: simple bucketing into deciles + Brier score over resolved set. Stored in `calibration_snapshots` table for trend. Unknown-rate also surfaced.
 
-**Per-workspace + overall** (M11): Sunday review surfaces both per-workspace bucket AND overall rollup. **Data-sparsity fallback**: when a workspace has < 30 resolved actions, that workspace's per-workspace card falls back to overall + flags "low-sample."
+**Per-workspace + overall**: Sunday review surfaces both per-workspace bucket AND overall rollup. **Data-sparsity fallback**: when a workspace has < 30 resolved actions, that workspace's per-workspace card falls back to overall + flags "low-sample."
 
 ### 2.12 Anti-pattern catalog
 
@@ -281,7 +280,7 @@ For ProposedActions with blast radius ≥ 4, Leah's Reasoner outputs a `Plan`; t
 
 Critic uses a separate prompt (`prompts/critic.md`) with different framing: assume the plan is wrong; find why. Different from Reasoner — never re-uses Reasoner's reasoning text directly. **Critic runs in fresh subagent runtime, not the Reasoner's context** (overview §4.4a).
 
-Tradeoff: doubles inference cost on high-blast actions. Worth it. **Skip predicate (H7)**: `reversibility in ('trivial-undo', 'windowed-undo') AND confidence >= 0.95` (configurable).
+Tradeoff: doubles inference cost on high-blast actions. Worth it. **Skip predicate**: `reversibility in ('trivial-undo', 'windowed-undo') AND confidence >= 0.95` (configurable).
 
 ### 2.14 Drift detector
 
@@ -291,7 +290,7 @@ Sunday review surfaces drift; operator confirms (rule still applies, prompt need
 
 ### 2.15 Cost / value ledger
 
-Per feature (action_kind family): token spend + dollar cost + operator-reported usefulness. **Per workspace** (Tier 7 expense isolation alignment). **Cross-workspace attribution** (M13): a Reasoner call spanning workspaces (e.g. cross-workspace KB query) attributes to `cross-workspace` bucket; Sunday review surfaces its share.
+Per feature (action_kind family): token spend + dollar cost + operator-reported usefulness. **Per workspace** (Tier 7 expense isolation alignment). **Cross-workspace attribution**: a Reasoner call spanning workspaces (e.g. cross-workspace KB query) attributes to `cross-workspace` bucket; Sunday review surfaces its share.
 
 Sunday review surfaces:
 
@@ -308,7 +307,7 @@ Two subsets:
 - **Frozen seed-fixture set** — operator-curated fixtures Leah CANNOT extend autonomously. Drift on the frozen set is a high-signal regression flag (something fundamental broke).
 - **Open fixture set** — grown over time from operator-approved fixture-addition queue (per overview §4.4a).
 
-**Bootstrap** (C6): `leah bench seed --workspace <ws> --intent <kind>` CLI; operator manually adds 5-10 fixtures per major intent BEFORE T1.16 ships. Without seed, the frozen set is empty and no regression signal exists.
+**Bootstrap**: `leah bench seed --workspace <ws> --intent <kind>` CLI; operator manually adds 5-10 fixtures per major intent BEFORE T1.16 ships. Without seed, the frozen set is empty and no regression signal exists.
 
 **Close-trigger**: each frozen fixture-set is closed when operator runs `leah bench freeze --intent <kind>` — adds a git tag `frozen/<intent>/v1` + updates `bench/frozen/<intent>/.frozen-at`. Re-opening requires `leah bench unfreeze --intent <kind> --reason <text>` (BR-4 logged action).
 
@@ -337,7 +336,7 @@ CREATE TABLE verified_facts (
 );
 ```
 
-**Per-`fact_kind` TTL** (M9):
+**Per-`fact_kind` TTL**:
 
 - `contact-attr` — 6 months
 - `decision-recall` — indefinite (no expiry)
@@ -397,7 +396,7 @@ Explicit signal Leah can emit. Triggered when: confidence below floor (§3.4), O
 Audit log grows fast. Compaction policy:
 
 - Last 90 days: full rows (including encrypted `body_blob`)
-- 90d–1y: kind + outcome + signal + redaction hashes only; **`body_blob` purged** (M24); `body_hash` retained so outcome trace stays auditable
+- 90d–1y: kind + outcome + signal + redaction hashes only; **`body_blob` purged**; `body_hash` retained so outcome trace stays auditable
 - > 1y: aggregate-only (counts per kind per month per workspace)
 
 Compacted-row `audit unlock <id>` surfaces "body purged, hash retained" instead of attempting decrypt.
@@ -434,7 +433,7 @@ Semantics:
 - Mode-switch (`leah mode focus`): pending approvals stay pending but suppress notification fires; on mode-clear, re-surface in batch.
 - Stale approvals: `expires_at` (default 24h) → auto-deny + audit row.
 
-## 3a Decision-support capabilities (new in v2)
+## 3a Decision-support capabilities
 
 These cover meaningful operator decisions where Leah's role is to clarify, frame, and (within blast-radius bounds) decide.
 
@@ -457,7 +456,7 @@ Operator enables per-topic (`leah you-decide email-replies`, `leah you-decide ti
 
 ### 3a.3 Reversibility-first framing (enum-driven)
 
-Every decision presented to operator carries an explicit `reversibility` enum (H7):
+Every decision presented to operator carries an explicit `reversibility` enum:
 
 - `trivial-undo` — pure local revert (draft delete, calendar block remove). Nudge: *"decide in 10s, fully local."*
 - `windowed-undo(N s)` — short undo window (Gmail send 30s, Slack post 30s). Nudge: *"decide in 30s; you have N seconds to undo."*
@@ -476,7 +475,7 @@ When a topic resurfaces and decision_journal has a prior entry: surface the prio
 
 ### 3a.6 Burnout early-warning (mid-week proactive ping, NOT Sunday review)
 
-Surfacing moved OUT of Sunday review into a mid-week proactive ping (H8). Trigger: **3+ consecutive days** of (declining commit cadence OR missed daily briefs OR thumbs-down spike OR correction-rate ≥ 2× rolling 30-day avg). Action: TTS + push: *"I'm noticing X. Want me to redirect non-urgent to morning brief for next 24h?"* — one-tap action button.
+Mid-week proactive ping (out-of-band from Sunday review). Trigger: **3+ consecutive days** of (declining commit cadence OR missed daily briefs OR thumbs-down spike OR correction-rate ≥ 2× rolling 30-day avg). Action: TTS + push: *"I'm noticing X. Want me to redirect non-urgent to morning brief for next 24h?"* — one-tap action button.
 
 Multi-signal classifier over audit log + journal + calendar + sleep budget (Tier 3) + energy load (Tier 3). Threshold tuned operator-specific.
 
@@ -486,7 +485,7 @@ Sunday review **weights wins-first** (≥ 50% of body); demoralization signals o
 
 ### 4.1 Tables
 
-Inline schemas (M15) for the seven previously unschem'd tables; 5-7 columns each:
+Inline schemas; 5-7 columns each:
 
 ```sql
 CREATE TABLE calibration_snapshots (
@@ -631,13 +630,6 @@ T1.0 through T1.5 is the minimum viable self-improvement layer. T1.6–T1.12 shi
 - Cost-of-self-improvement: tier 1 itself burns tokens — budgeted at 15% of cap (overview §4.0); Sunday review surfaces if exceeded.
 - Where does the personal benchmark suite live? Same repo as prompts (versioned together).
 
-Resolved → normative in v2:
-
-- ~~A/B sample size~~ → SPRT (§2.7).
-- ~~Memory probe ground truth~~ → `verified_facts` (§2.17).
-- ~~Mistake closure metric~~ → `fire_count` on detector_predicate (§2.4).
-- ~~Time-decay outcome default~~ → `unknown` (§2.2).
-
 ## 8. Success criteria
 
 After Tier 1 fully delivered (M3 + Sunday-review live for 4 weeks):
@@ -663,37 +655,3 @@ After Tier 1 fully delivered (M3 + Sunday-review live for 4 weeks):
 - **No Leah-self-tagged fixture promotions** (overview §4.4a)
 - **No Leah-self-tagged mistake → prevention promotions** (overview §4.4a)
 
-## 10. Changes in v2
-
-- §2.1 redaction layer (`body_hash` + encrypted `body_blob` + `prompt_versions` + `workspace_id`).
-- §2.2 time-decay default = `unknown` (was `success`); calibration uses resolved buckets only.
-- §2.3 notification actions capped at 4 (UNNotificationAction limit).
-- §2.4 `detector_predicate` + `fire_count` (mistake → prevention closure metric).
-- §2.7 A/B uses SPRT + tool-mock layer.
-- §2.10 Sunday review split into independent operator-approval queues (independence principle).
-- §2.13 critic runs in fresh subagent runtime.
-- §2.16 frozen + open fixture subsets; Leah cannot extend frozen.
-- §2.17 ground truth via `verified_facts` table, populated only by operator-confirmed corrections.
-- §3a decision-support block added (3-option presenter, you-decide, reversibility framing, no-decide-after-9pm, prior-decision recall, burnout warning).
-- §4.2 single coalesced scheduler (SQLite WAL + busy_timeout; no parallel cron).
-- §5 fixture + prevention promotions explicitly NOT self-tagged.
-- workspace_id threaded through audit_log / mistake_log / decision_journal / verified_facts / cost_ledger.
-
-## 11. Changes in v2.1
-
-- §2.1 audit_log: `reversibility` enum column (was `reversible` bool) + `undo_window_s`; operator-unlock UX (Touch-ID/passphrase, 10/hr rate-limit, 5min auto-relock, `audit_log_unlock` companion row) (H7, M25).
-- §2.4 mistake_log: `detector_predicate` is **cel-go ONLY** (dropped "Go expr OR cel-go" hedge); added `workspace_scope` column + example predicate (C5, M12).
-- §2.5 decision_journal: cross-workspace `referenced_workspaces` JSON column when `workspace_id` is null (M10).
-- §2.6 prompts loaded at boot only; swap requires daemon restart (M35).
-- §2.7 SPRT prior (H0=parity, H1=δ≥0.05) + per-experiment $5 ceiling + max 3 concurrent + per-workspace pooling rule (intent-classifier pooled; email-drafter never) (M14, M26).
-- §2.11 per-workspace + overall calibration in Sunday review; data-sparsity (<30 resolved) falls back to overall (M11).
-- §2.13 critic-skip predicate uses reversibility enum: `in ('trivial-undo', 'windowed-undo') AND confidence >= 0.95` (H7).
-- §2.15 cost_ledger cross-workspace attribution bucket (M13).
-- §2.16 **frozen seed-fixture bootstrap CLI** (`leah bench seed/freeze/unfreeze`) + **mechanical immutability** via `scripts/check-frozen-fixtures.sh` + `Operator-frozen-edit:` token + operator-GPG signature (C6).
-- §2.17 verified_facts `expires_at` + per-`fact_kind` TTL (contact-attr 6mo, decision-recall indefinite, org-detail 12mo, vocab indefinite) (M9).
-- §3.7 compaction explicitly strips `body_blob` at 90d while preserving `body_hash` + outcome (M24).
-- §3.9 `approval_request` table + multi-device concurrency model (atomic claim, mode-switch suppression, 24h auto-expire) (H3).
-- §3a.3 reversibility-first framing enum-driven (H7).
-- §3a.6 burnout warning moved OUT of Sunday review into mid-week proactive ping; Sunday review weights wins-first ≥50% (H8).
-- §4.1 inline schemas for the 7 previously unschem'd tables (calibration_snapshots, behavior_diff, memory_probe_failure, ab_experiments, ab_results, feedback_signals, cost_ledger) (M15).
-- T1.16 build-order step extended for frozen-fixture bootstrap + immutability gate.

@@ -1,9 +1,8 @@
-# Observability — structured logs + metrics + panic recovery (Wave2-K)
+# Observability — structured logs + metrics + panic recovery
 
-**Status**: scaffolded
+**Status**: draft
 **Date**: 2026-06-09
 **Slug**: 2026-06-09-observability
-**Wave**: 2-K
 
 ## 1. Goal
 
@@ -116,14 +115,13 @@ id  := obs.TraceID(ctx)  // "" if missing
 
 Trace ID is set once per top-level operation:
 
-- CLI invocation: in `cmd/leah/main.go` before dispatching subcommand
-  (deferred to Wave2-G owner; this round just provides the helpers).
+- CLI invocation: in `cmd/leah/main.go` before dispatching subcommand.
 - Daemon tick: in `daemonloop.Loop.tick` per tick.
 - Reasoner call: inherited from caller's ctx; if none, generated per Ask.
 
-## 6. Integration with self-learn (Wave 3 hook)
+## 6. Integration with self-learn
 
-Future `selflearn` weekly rule reads:
+`selflearn` weekly rule reads:
 
 1. `$LEAH_STATE_DIR/metrics/latest.json` — find `leah_panic_total{package=X} > 0`.
 2. `$LEAH_STATE_DIR/panics/*.txt` — newest N matching that package.
@@ -131,21 +129,20 @@ Future `selflearn` weekly rule reads:
 
 Drafts a regatta issue body: "Leah self-bug — recurring panic in `<pkg>`.
 Stack trace + recent error context attached. Repro: <heuristic>." Ships
-via existing `dispatcher.Ship`. **Out of scope this round.**
+via existing `dispatcher.Ship`.
 
-## 7. Integration with self-build (Wave 3 hook)
+## 7. Integration with self-build
 
 `leah self-build "fix the panic in dispatcher at <stack-frame>"` reads
 the matching panic file from `$LEAH_STATE_DIR/panics/` and inlines it as
-context for the regatta issue body. **Out of scope this round.**
+context for the regatta issue body.
 
 ## 8. Build order
 
 1. `internal/obs/` package + tests (TDD: tests first).
 2. Instrument existing packages — minimal slog calls only.
 3. Daemon wiring (start metrics-snapshot goroutine, plumb trace IDs into
-   CLI). **Deferred** — `cmd/leah-daemon/main.go` owned by parallel
-   Wave2-I+J; `cmd/leah/main.go` owned by Wave2-G.
+   CLI).
 
 ## 9. Adversarial review (severity-tagged)
 
@@ -169,7 +166,7 @@ context for the regatta issue body. **Out of scope this round.**
   -delete`).
 - **LOW — slog overhead**: ~3-5% vs printf. Accepted.
 - **LOW — crash-report richness**: panic + 10 log lines may be
-  insufficient. Spec §6 acknowledges; richer report is Wave 3.
+  insufficient. Spec §6 acknowledges; richer report deferred.
 
 ## 10. Cuts (Phase X — explicitly out of scope)
 
@@ -177,7 +174,7 @@ context for the regatta issue body. **Out of scope this round.**
 - No OpenTelemetry / OTLP
 - No remote log shipping
 - No Grafana dashboards
-- No pprof endpoint (consider Wave 3 for goroutine snapshots)
+- No pprof endpoint (defer goroutine snapshots)
 - No log compression / retention sweeper
 - No structured tracing spans (just trace IDs)
 - No alerting / paging integration

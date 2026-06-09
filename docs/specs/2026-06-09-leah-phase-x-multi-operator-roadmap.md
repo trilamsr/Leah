@@ -9,7 +9,7 @@ parent: 2026-06-09-leah-overview.md
 
 # Phase X — Multi-operator + external-share items (deferred)
 
-These items lived in v2.1 specs as "right for multi-operator robustness / shareable / external-auditable" use. **Cut from active build for personal-use Leah** (tri-only consumption, single-Mac primary, no SaaS pitch).
+These items remain in spec for "right for multi-operator robustness / shareable / external-auditable" use. **Out of scope for active build on personal-use Leah** (tri-only consumption, single-Mac primary, no SaaS pitch).
 
 Reopen trigger for any item below: explicit operator decision OR external interest (e.g., someone else wants to run Leah).
 
@@ -23,15 +23,15 @@ Per regatta's `feedback_default_simpler`: don't pre-build for hypothetical drift
 
 - **Litestream + SQLCipher bifurcated backup** (overview §4.7a). Personal-use replacement: `restic` to local USB-3 + offsite B2 ($0.005/GB-mo). Single binary, single config. Reopen if WAL replication latency becomes load-bearing OR multi-device sync needed.
 
-- **Per-device API tokens + tailnet ACL + iOS Shortcut bridge** (overview §2.1). Personal-use: laptop-only Phase 1; phone fallback via SSH + claude CLI for now. Reopen at iPhone-secondary milestone.
+- **Per-device API tokens + tailnet ACL + iOS Shortcut bridge** (overview §2.1). Personal-use: laptop-only Phase 1; phone fallback via SSH + claude CLI. Reopen at iPhone-secondary milestone.
 
 - **CAP/RISC OAuth revocation push** (overview §4.7). Personal-use: per-account `leah account revoke <id>` CLI suffices when operator notices breakage. Reopen if compromise scenarios become realistic.
 
 ### Workspace dimension
 
-- **Workspace as first-class Memory column on every table** (overview §3.5). Personal-use: defer until tri has 2nd active context (e.g., side project requiring isolation from work email). MVP-5 + Memory v1 uses single implicit "default" workspace.
+- **Workspace as first-class Memory column on every table** (overview §3.5). Personal-use: defer until tri has 2nd active context (e.g., side project requiring isolation from work email). Memory v1 uses single implicit "default" workspace.
 
-- **Per-workspace persona + signature + voice + accounts** (Tier 3 §10). Personal-use: one persona at a time; workspace switcher is optimization for future. Reopen at 2nd-workspace event.
+- **Per-workspace persona + signature + voice + accounts** (Tier 3 §10). Personal-use: one persona at a time; workspace switcher is optimization for the future. Reopen at 2nd-workspace event.
 
 - **Knowledge-firewall cross-workspace BR-2** (Tier 2 §3.18). Personal-use: no cross-workspace queries exist for one workspace. Moot.
 
@@ -47,7 +47,7 @@ Per regatta's `feedback_default_simpler`: don't pre-build for hypothetical drift
 
 - **Operator-time-saved estimator** (Tier 1 §3.8). Personal-use: subjective; ask yourself weekly. Skip building the heuristic + Goodhart guard.
 
-- **Reviewer-prompts/ separately-versioned approval cadence** (Tier 1 §5 + overview §4.4a). Personal-use: operator approves both prompt sets in the same Sunday review. Keep the SEPARATE DIRECTORY (independence-principle is cheap structurally), drop the separate-approval-track ceremony.
+- **Reviewer-prompts/ separately-versioned approval cadence** (Tier 1 §5 + overview §4.4a). Personal-use: operator approves both prompt sets in the same Sunday review. Keep the separate directory (independence-principle is cheap structurally); drop the separate-approval-track ceremony.
 
 ### Tier 2 SWE productivity
 
@@ -75,33 +75,33 @@ Per regatta's `feedback_default_simpler`: don't pre-build for hypothetical drift
 
 - **Vacation autopilot per-account fixed-string OOO templates** (Tier 3 §10.21). Personal-use: write OOO manually for now; ~3min effort, twice a year.
 
-- **Operator-mode state machine (focus/standby/asleep/travel/sick/vacation) with 6h auto-revert + OS Focus read-only** (Remaining §H4). Personal-use: 2-3 modes max (working / not-working); avoid the enum complexity.
+- **Operator-mode state machine (focus/standby/asleep/travel/sick/vacation) with 6h auto-revert + OS Focus read-only** (Remaining-tiers cross-tier section). Personal-use: 2-3 modes max (working / not-working); avoid the enum complexity.
 
 ### Remaining tiers
 
-- **Plaid + SimpleFIN bank coverage pre-flight + workspace-categorization ladder** (T7.1 + T7.13-17). Personal-use: manual CSV import from each bank if you want spend tracking. Defer Plaid + SimpleFIN integration until operator hits ledger-update fatigue.
+- **Plaid + SimpleFIN bank coverage pre-flight + workspace-categorization ladder** (T7.1 + T7.13-17). Personal-use: manual CSV import from each bank if operator wants spend tracking. Defer Plaid + SimpleFIN integration until operator hits ledger-update fatigue.
 
 - **Tax-bucketing handoff (CSV + TXF + receipts.zip)** (T7.15). Personal-use: existing accountant workflow; revisit pre-tax-season Jan 2027.
 
-- **Sherpa visa proxy + freshness pin + 24h cache + consulate-scrape fallback** (T6.4 + H11). Personal-use: 1-3 trips/year; just google it. Reopen if frequent traveler.
+- **Sherpa visa proxy + freshness pin + 24h cache + consulate-scrape fallback** (T6.4). Personal-use: 1-3 trips/year; just google it. Reopen if frequent traveler.
 
-- **Per-tier cost ceiling enforcement table** (Remaining §H9 + Overview §4.0). Personal-use: single global $cap suffices. Per-tier sub-budget overkill until cost surprises occur.
+- **Per-tier cost ceiling enforcement table** (Remaining-tiers cross-tier section + Overview §4.0). Personal-use: single global $cap suffices. Per-tier sub-budget overkill until cost surprises occur.
 
-- **Privacy-tier enumerated consumer matrix + mechanical lint** (Remaining §H7). Personal-use: tri is the only privacy boundary; operator reviews each integration manually.
+- **Privacy-tier enumerated consumer matrix + mechanical lint** (Remaining-tiers cross-tier section). Personal-use: tri is the only privacy boundary; operator reviews each integration manually.
 
 - **Universal operator-inbox concurrency model + approval_request idempotency** (Remaining + Tier 1 §3.9). Personal-use: one operator, one device active at a time mostly; race conditions are theoretical.
 
 ### Cross-cutting / infra
 
-- **Multi-account OAuth blast-radius + per-account encrypted token at rest + YubiKey gate on refresh** (Overview §4.7 + Tier 3 C2). Personal-use: macOS Keychain alone suffices for OAuth tokens; YubiKey gate optional later.
+- **Multi-account OAuth blast-radius + per-account encrypted token at rest + YubiKey gate on refresh** (Overview §4.7 + Tier 3). Personal-use: macOS Keychain alone suffices for OAuth tokens; YubiKey gate optional later.
 
-- **Provider data-flow matrix with per-workspace overlay** (Overview §4.8 + M22). Personal-use: single global matrix sufficient; per-workspace overlay adds nothing for one workspace.
+- **Provider data-flow matrix with per-workspace overlay** (Overview §4.8). Personal-use: single global matrix sufficient; per-workspace overlay adds nothing for one workspace.
 
 - **launchd daemon + healthchecks.io heartbeat + Pushover + Twilio fallback** (Overview §4.7). Personal-use: launchd KeepAlive + healthchecks.io + Pushover sufficient. Skip Twilio SMS fallback until heartbeat misses become problem.
 
-- **Banned-phrase gate on prompts/ + narration outputs** (Overview §9 L2). Personal-use: operator self-edits; CI gate overkill.
+- **Banned-phrase gate on prompts/ + narration outputs** (Overview §9). Personal-use: operator self-edits; CI gate overkill.
 
-- **6 additional regatta CLAUDE.md rule ports** (audit-main-before-implementing, test-coverage-audit-per-wave, trap-projection, double-fail-root-cause, validate-before-ship, keep-orchestrator-branch-name) — Overview §9 L1. Personal-use: keep them in mind, skip mechanical enforcement.
+- **6 additional regatta CLAUDE.md rule ports** (audit-main-before-implementing, test-coverage-audit-per-wave, trap-projection, double-fail-root-cause, validate-before-ship, keep-orchestrator-branch-name) — Overview §9. Personal-use: keep them in mind, skip mechanical enforcement.
 
 ## Reopen-trigger glossary
 
@@ -122,7 +122,7 @@ Per regatta's `feedback_default_simpler`: don't pre-build for hypothetical drift
 
 ## What stays personal-use
 
-These items survive the personal-use cut because they protect tri-the-operator from tri-the-operator's own forgetfulness / mistakes / runaway cost / data loss. Not multi-operator concerns.
+These items remain personal-use because they protect tri-the-operator from tri-the-operator's own forgetfulness / mistakes / runaway cost / data loss. Not multi-operator concerns.
 
 - Hard $cap per process
 - JSONL audit (every action one line)
@@ -133,5 +133,3 @@ These items survive the personal-use cut because they protect tri-the-operator f
 - Self-improvement audit→outcome→retro loop once N weeks of data exist
 - Reviewer-prompts/ separate directory (cheap structurally)
 - Workspace_id column from day 1 on Memory tables (cheap to add; expensive to retrofit)
-
-These continue per v2.1 spec without modification.

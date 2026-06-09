@@ -1,7 +1,6 @@
 ---
 title: Leah — personal AI chief-of-staff (system overview)
-status: draft-v2.1
-version: 2.1
+status: draft
 phase: design
 owner: tri
 created: 2026-06-09
@@ -97,7 +96,7 @@ Out of scope (deferred indefinitely, see `2026-06-09-leah-remaining-tiers-reorde
 
 ## 3.5 Workspaces
 
-Operator carries multiple parallel commitments / contexts. Until v1, Leah was operator-keyed (single `tri`); v2 adds `workspace` as a first-class Memory + reasoning dimension.
+Operator carries multiple parallel commitments / contexts. `workspace` is a first-class Memory + reasoning dimension.
 
 - **Definition**: `workspace` = a named context (`personal`, `acme`, `side-project-X`, `oss-foo`, …) the operator declares. Workspaces are flat, no hierarchy.
 - **Memory rows carry `workspace_id`** (nullable → cross-workspace shared). Default views filter to the active workspace.
@@ -147,10 +146,10 @@ Threading per tier:
 
 ### 4.0 Cost cap (M0 invariant)
 
-Hard daily $ ceiling is a M0 acceptance criterion, NOT an open question.
+Hard daily $ ceiling is a M0 acceptance criterion.
 
 - `cost.Cap` (salvaged from regatta `internal/cost`) wraps every Reasoner / TTS / STT / embedding call.
-- Daily ceiling configurable in `~/.leah/cost.yaml`; default `$10/day, $300/month` (30 × daily + week buffer; v2 had a math-inconsistent $200/mo).
+- Daily ceiling configurable in `~/.leah/cost.yaml`; default `$10/day, $300/month` (30 × daily + week buffer).
 - **Tier-degrade ladder** on spend buckets: Opus → Sonnet → Haiku → local 3B (llama.cpp / MLX). Bucket thresholds: 50%, 75%, 90% of daily cap.
 - Above 100%: gateway pauses all non-emergency reasoning; emergency = BR-5 + operator-explicit. Surfaces "cap hit" banner in dashboard.
 - Per-action `Cost` field (estimated tokens, dollars, side-effects) computed pre-execution; cap blocks the call before spend.
@@ -406,7 +405,7 @@ A side-car that observes the Reasoner + Action gateway + Memory and feeds them l
 
 #### 4.7a Backup + recovery (M0 acceptance criterion) — BIFURCATED DBs
 
-Backup is not an open question; it's M0. **Litestream + SQLCipher are INCOMPATIBLE** — SQLCipher encrypts the WAL; Litestream WAL-tail cannot stream sane page data (Litestream upstream issue #177, https://github.com/benbjohnson/litestream/issues/177 accessed 2026-06-09). v2 shipped a broken combination; v2.1 resolves by **DB bifurcation**:
+Backup is M0. **Litestream + SQLCipher are INCOMPATIBLE** — SQLCipher encrypts the WAL; Litestream WAL-tail cannot stream sane page data (Litestream upstream issue #177, https://github.com/benbjohnson/litestream/issues/177 accessed 2026-06-09). Resolved by **DB bifurcation**:
 
 **Secrets DB** (`~/.leah/secrets.db`) — OAuth tokens, OS-keychain-wrapped per-row keys, sensitive operator identity:
 
@@ -642,21 +641,10 @@ Voice defaults to OpenAI `tts-1-hd` (Phase 1) with `say` offline fallback. Eleve
 
 ## 11. Open questions
 
-(Several Phase-1 open-questions resolved in v2 and moved into normative sections; remaining unknowns:)
-
-- **Hosting**: laptop-only Phase 1 confirmed; home server (Mac mini) by Phase 3 still open — depends on watchdog + Litestream proving out.
+- **Hosting**: laptop-only Phase 1; home server (Mac mini) by Phase 3 still open — depends on watchdog + Litestream proving out.
 - **Local model floor**: tier-degrade ladder lands `local-3B` at 90% cap; which model exactly (llama-3.1 8B Q4 via MLX vs llama.cpp) — benchmark needed.
-- **Web access**: tailnet-only Phase 1 confirmed; Cloudflare Tunnel still deferred.
-- **Identity / auth**: per-device API token in OS keychain + tailnet ACL Phase 1 confirmed; mTLS later if needed.
-
-Resolved → normative:
-
-- ~~Hard cost cap~~ → §4.0 (M0 invariant).
-- ~~LLM provider mix~~ → §4.1 voice pin + §4.8 matrix.
-- ~~OAuth lifecycle~~ → §4.7.
-- ~~Backup~~ → §4.7a.
-- ~~Watchdog~~ → §4.7.
-- ~~Blast-radius classifier shape~~ → §4.4.
+- **Web access**: tailnet-only Phase 1; Cloudflare Tunnel deferred.
+- **Identity / auth**: per-device API token in OS keychain + tailnet ACL Phase 1; mTLS later if needed.
 
 ## 12. Success criteria (system level)
 
@@ -688,34 +676,3 @@ Per-tier success criteria are in tier specs.
 - **No `state.db` direct read** (versioned CLI only; see §5).
 - **No OpenAI Whisper STT default** (audio retention policy violation; fallback only with per-utterance operator consent + privacy ledger entry; default STT = whisper.cpp local).
 
-## 14. Changes in v2
-
-- §3.5 **Workspaces** added — first-class Memory + reasoning dimension; threads through Tiers 1/2/3/4/5/7.
-- §4.0 **Cost cap** added as M0 invariant; tier-degrade ladder; per-Tier token budget table.
-- §4.4 **Cedar** pinned as policy engine; 20 canonical fixtures; `policy.schema.cue` skeleton.
-- §4.4a **Independence principle** — universal port of `no-self-tagged-APPROVE` to all BR≥3 approvals.
-- §4.5 trimmed Phase-1 dispatchers (terminal + regatta + notify + tts only); rest M2-M6.
-- §4.7 OAuth lifecycle pinned (Google "In production unverified" + CAP/RISC + per-account kill switch).
-- §4.7 watchdog replaced "Leah self-checks" with launchd `KeepAlive` + healthchecks.io + Pushover + Twilio SMS.
-- §4.7a **Backup + recovery** added as M0 (Litestream + SQLCipher + quarterly drill).
-- §4.8 **Provider data-flow matrix** added; default-deny money/health/family-PII to third-party reasoners.
-- §4.1 trimmed Phase-1 intake; iCloud Calendar → Phase-X; gmail/gcal/slack/github/file deferred to M5-M7.
-- §5 dropped `state.db direct read`; versioned CLI only + contract-test note.
-- §10 voice pinned: OpenAI tts-1-hd default + `say` fallback; ElevenLabs only with voice-clone need; TTS cache.
-- §11 several open-questions resolved → normative (cost, provider mix, OAuth, backup, watchdog, classifier shape).
-- §13 added cuts: iCloud Calendar, state.db direct read, OpenAI Whisper default.
-
-## 15. Changes in v2.1
-
-- §2.1 **Multi-device trust** subsection added — per-device API token, scoped capability, 90d rotation, iPhone Keychain + `leah://` URL scheme (H2).
-- §3.5 **Workspace auto-infer tie-breaker ladder** — domain-match single / zero / multiple / outbound / cron rules (H6).
-- §3.5a **operator_state schema** + event_stream trigger + multi-process race rules (H5).
-- §4.0 **Cost cap math fixed**: $300/mo (was $200/mo); empirically-grounded per-Tier % with per-call caps; daily-spend banner; post-M3 re-baseline note (C2).
-- §4.4 **Fixtures 21+22 added**: `workspace.switch → 1`, `policy_default_tier = 4` fail-closed for unknown action_kinds (M23).
-- §4.4a **Reviewer-prompt-store independence** — `reviewer-prompts/` separate dir + separate promotion CLI; reviewer system prompt opens with provenance disclaimer (H4).
-- §4.7 **OAuth UX gap** — unverified-app consent UX documented; token-refresh retry-with-backoff + Pushover/Twilio + auto-pause on persistent failure (H1).
-- §4.7a **Bifurcated backup** — Secrets DB SQLCipher + restic (NO Litestream); Memory DB plaintext SQLite + Litestream + per-row `body_blob` encryption; quarterly drill 1st Sunday of quarter < 1h RTO (C1, M36).
-- §4.8 **Per-workspace overlay rule** — overlays may tighten, never loosen, global default (M22).
-- §9 **Additional CLAUDE.md ports** — audit_main_before_implementing, test_coverage_audit_per_wave, trap_projection, double_fail_root_cause, validate_before_ship, keep_orchestrator_branch_name; **banned-phrase gate** added (L1, L2).
-- §8 `internal/persona/` directory clarification (L4).
-- §10 `say` fallback persona caveat noted (L5).

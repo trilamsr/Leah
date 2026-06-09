@@ -1,7 +1,6 @@
 ---
 title: Leah — self-building via regatta orchestrator
-status: draft-v1
-version: 1.0
+status: draft
 phase: design
 owner: tri
 created: 2026-06-09
@@ -106,7 +105,7 @@ Cross-link: Tier 1 spec §2.5 already names "self-build cadence" as a retro metr
 ## 6. Build order (max 3 tasks)
 
 1. **Prompt + dispatcher wrapper + tests.** `prompts/self-build-feature.md`, `internal/dispatcher/selfbuild.go`, `internal/dispatcher/selfbuild_test.go`. Validates: repo lock, BR=4 audit, title prefix, clarify-abort path. NO CLI wiring yet.
-2. **CLI wiring.** `case "self-build":` in `cmd/leah/main.go`. Sequenced AFTER (1) merges to avoid main.go churn collisions with parallel Wave-1 agents. Adds an end-to-end test that exercises the CLI path with a fake Reasoner + fake GHClient.
+2. **CLI wiring.** `case "self-build":` in `cmd/leah/main.go`. Sequenced AFTER (1) merges to avoid main.go churn collisions. Adds an end-to-end test that exercises the CLI path with a fake Reasoner + fake GHClient.
 3. **Tier-1 retro query + dashboard tile.** SQL view + CLI subcommand `leah self-build stats` returning weekly counts + merged-rate + clarify-rate. Blocks on Tier-1 Memory M2 landing first.
 
 ## 7. Cuts (explicit non-goals)
@@ -118,7 +117,7 @@ Cross-link: Tier 1 spec §2.5 already names "self-build cadence" as a retro metr
 - **Self-building credentials, secrets, or network egress features**: never via this path. Reasoner refuses; operator routes through manual-implement.
 - **Self-build chains** (one self-build PR triggering another self-build): never. Each self-build is an isolated operator-initiated action.
 - **`--from-issue <N>` shortcut** that takes an existing Leah issue and self-builds against it: deferred. First validate the manual-intent path.
-- **Interactive clarify loop** that re-asks Reasoner with operator answers: deferred. v1 prints questions + exits; operator re-invokes with refined intent.
+- **Interactive clarify loop** that re-asks Reasoner with operator answers: deferred. Prints questions + exits; operator re-invokes with refined intent.
 
 ## 8. Adversarial review (self-reviewed; spawn independent reviewer before merging this spec)
 
@@ -134,19 +133,19 @@ Mitigation in spec: §4.5 + §4.6 + §4.4 + §4.3. **Additional mitigation added
 
 Once self-build is reliable, operator drift: "they all pass; just merge." This is the classic auto-pilot failure mode for any human-in-the-loop safety control. Operator-merge stops being a real review and becomes a rubber stamp.
 
-Mitigation added inline (§4.9): every `[SELF-BUILD]` PR description ends with a randomised 1-line operator-attestation: "Confirm you read the diff by answering: <random factual question about the diff>, e.g. 'How many test functions does this PR add?'" Operator merges by posting the answer as a PR comment + then merging — no answer = no merge ritual. Cost is friction; benefit is preserving the only non-circular safety check.
+Mitigation (§4.9): every `[SELF-BUILD]` PR description ends with a randomised 1-line operator-attestation: "Confirm you read the diff by answering: <random factual question about the diff>, e.g. 'How many test functions does this PR add?'" Operator merges by posting the answer as a PR comment + then merging — no answer = no merge ritual. Cost is friction; benefit is preserving the only non-circular safety check.
 
 ### HIGH-3: Goodhart's law on "self-improvement features"
 
 Operator says "build a feature that makes Leah self-improve faster." Reasoner builds whatever syntactically resembles self-improvement (e.g. a meaningless metric counter) — not what operator meant. Reward (PR-shipped) is gamed by metric (any PR that compiles + has tests).
 
-Mitigation added inline (§3 + §4.6): Reasoner system prompt §6 explicitly says "if operator intent is abstract or unmeasurable, emit `## Clarifying questions` requesting a specific observable behaviour." SelfBuild aborts on clarify. Forces operator to specify observable acceptance criteria before regatta is dispatched. Cannot solve Goodhart fully; can require explicit operator-named success criterion as a precondition.
+Mitigation (§3 + §4.6): Reasoner system prompt §6 explicitly says "if operator intent is abstract or unmeasurable, emit `## Clarifying questions` requesting a specific observable behaviour." SelfBuild aborts on clarify. Forces operator to specify observable acceptance criteria before regatta is dispatched. Cannot solve Goodhart fully; can require explicit operator-named success criterion as a precondition.
 
 ### HIGH-4: Lock-out via broken build
 
 A self-build PR merges (operator misses a regression in test output). Next `leah self-build` invocation: `go test ./...` fails on master. Tier-1 retro can't run. Operator can't run `leah` at all if the regression is in `cmd/leah/main.go`. Self-build becomes self-bricking.
 
-Mitigation added inline (§4.10): SelfBuild precondition check — before filing the issue, run `go build ./...` against the operator's local `trilamsr/Leah` checkout (path discovered via `$LEAH_HOME` env or git config). If build fails, abort with "local Leah build is broken — fix master before self-building." Audit row records `outcome: "precondition_fail"`. Cheap, catches the case where prior self-build already bricked master.
+Mitigation (§4.10): SelfBuild precondition check — before filing the issue, run `go build ./...` against the operator's local `trilamsr/Leah` checkout (path discovered via `$LEAH_HOME` env or git config). If build fails, abort with "local Leah build is broken — fix master before self-building." Audit row records `outcome: "precondition_fail"`. Cheap, catches the case where prior self-build already bricked master.
 
 ### MED-1: Prompt drift — who reviews `prompts/self-build-feature.md`?
 
@@ -158,19 +157,19 @@ Mitigation: noted as DEPENDENCY in §4.8 + §7 — out of scope for this spec; h
 
 Operator's GitHub PAT has a 5000 req/hr rate limit (REST) and a separate 2nd-class abuse-detection limit for issue creation specifically. Operator typo-loop (`leah self-build "x" && leah self-build "y" && ...`) could trip abuse detection — locking out the operator's PAT for all of Leah AND regatta.
 
-Mitigation added inline (§4.12): SelfBuild rate-limit — refuse to file more than 3 self-build issues per rolling 24h window (counted from `audit_log WHERE kind = 'self-build' AND outcome != 'precondition_fail'`). Override flag `--rate-limit-override` for one-off bursts. 3/day is a soft ceiling that catches accidental loops, not deliberate work.
+Mitigation (§4.12): SelfBuild rate-limit — refuse to file more than 3 self-build issues per rolling 24h window (counted from `audit_log WHERE kind = 'self-build' AND outcome != 'precondition_fail'`). Override flag `--rate-limit-override` for one-off bursts. 3/day is a soft ceiling that catches accidental loops, not deliberate work.
 
 ### MED-3: Malicious self-build PR exfiltrating credentials
 
 A regatta agent (or a future supply-chain-compromised model) ships a PR that adds code which reads `~/.config/leah/.env`, posts to an attacker-controlled URL, then deletes the call site. Code review by operator catches it IF operator reads the diff (see HIGH-2). If they don't, Leah self-exfiltrates.
 
-Mitigation added inline (§4.13): operator-side defence already exists (manual merge, attestation question). **Additional**: `prompts/self-build-feature.md` §5 (Reasoner system prompt) names `~/.config/leah/`, `~/.aws/`, `~/.ssh/`, `~/.npmrc`, `$HOME/.netrc`, and `os.Environ()`-iteration as forbidden source patterns. Reasoner will emit a clarifying-question abort if operator intent maps to credential access. Not a full defence (Reasoner is the same process being defended), but raises the bar from "silent" to "would need to defeat Reasoner refusal AND operator attestation AND independent reviewer subagent."
+Mitigation (§4.13): operator-side defence already exists (manual merge, attestation question). **Additional**: `prompts/self-build-feature.md` §5 (Reasoner system prompt) names `~/.config/leah/`, `~/.aws/`, `~/.ssh/`, `~/.npmrc`, `$HOME/.netrc`, and `os.Environ()`-iteration as forbidden source patterns. Reasoner will emit a clarifying-question abort if operator intent maps to credential access. Not a full defence (Reasoner is the same process being defended), but raises the bar from "silent" to "would need to defeat Reasoner refusal AND operator attestation AND independent reviewer subagent."
 
 ### MED-4: Self-build PR introduces a memory-corrupting dep
 
 Self-build PR adds a new module dep. `go mod tidy` runs in regatta agent's sandbox; `go.sum` updates. Operator merges. Next `leah` run pulls the dep, which has a malicious init() function (typo-squat or supply-chain). Defence-in-depth — not unique to self-build, but self-build accelerates the attack surface by automating dep additions.
 
-Mitigation added inline (§4.14): Reasoner system prompt §5 forbids `## Files to create or modify` from naming `go.mod` or `go.sum`. Dep additions route through manual operator PRs only. Self-build is feature-build, not dep-build.
+Mitigation (§4.14): Reasoner system prompt §5 forbids `## Files to create or modify` from naming `go.mod` or `go.sum`. Dep additions route through manual operator PRs only. Self-build is feature-build, not dep-build.
 
 ### LOW-1: Watcher hang on stuck regatta agent
 
@@ -182,7 +181,7 @@ Mitigation: already present in `Ship.watch` via `MaxPolls`. **Improvement added 
 
 If operator runs `leah self-build` from a directory that isn't the Leah checkout AND `$LEAH_HOME` isn't set, precondition build check fails open or fails with unclear error.
 
-Mitigation added inline (§4.10): precondition order — (1) `$LEAH_HOME` env, (2) walk up from `pwd` looking for `go.mod` with `module github.com/trilam/leah`, (3) skip precondition with WARN log "could not locate Leah checkout; skipping build precondition." Skip-with-warn is correct: lock-out is a defence-in-depth control, not a primary safety control.
+Mitigation (§4.10): precondition order — (1) `$LEAH_HOME` env, (2) walk up from `pwd` looking for `go.mod` with `module github.com/trilam/leah`, (3) skip precondition with WARN log "could not locate Leah checkout; skipping build precondition." Skip-with-warn is correct: lock-out is a defence-in-depth control, not a primary safety control.
 
 ### Severity summary
 

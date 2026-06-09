@@ -1,5 +1,5 @@
 ---
-title: Leah — fast-path roadmap (post-MVP-5)
+title: Leah — fast-path roadmap
 status: living
 owner: tri
 created: 2026-06-09
@@ -32,9 +32,9 @@ All 6 are Wave 1. Once landed: closed loop runs end-to-end.
 
 Personal-use lens throughout. Phase X items deferred per `2026-06-09-leah-phase-x-multi-operator-roadmap.md`.
 
-## Wave 1 — design + scaffolding (parallel, 2026-06-09)
+## Wave 1 — design + scaffolding
 
-6 disjoint agents dispatched:
+6 disjoint agents:
 
 | Wave | Agent | Spec | Skeleton |
 |---|---|---|---|
@@ -48,8 +48,6 @@ Personal-use lens throughout. Phase X items deferred per `2026-06-09-leah-phase-
 Each agent: design → adversarial self-critique → revise if CRITICAL/HIGH → scaffold → commit local. Push handled by main thread.
 
 ## Wave 2 — wiring + first closed-loop attempt
-
-After Wave 1 lands:
 
 | Step | Goal |
 |---|---|
@@ -68,7 +66,7 @@ After Wave 1 lands:
 | 3-3 | Backlog command (`leah backlog [repo]` — regatta state + open issues + recent merged PRs) |
 | 3-4 | Smart `leah ship --from-pr/--from-issue/--from-thread` context flags |
 
-## Wave 4 — external adapters (only after Wave 3 + dogfood)
+## Wave 4 — external adapters
 
 Each adapter ships only when operator reports felt-pain in dogfood:
 

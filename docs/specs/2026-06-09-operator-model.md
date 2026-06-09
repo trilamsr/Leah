@@ -1,8 +1,8 @@
-# Operator-behavior modeling + proactive recommendation (Wave 2-J)
+# Operator-behavior modeling + proactive recommendation
 
-Status: drafted-2026-06-09
+Status: draft
 Owner: tri (sole operator)
-Builds-on: Wave1-D `internal/patterns/` (audit clusters), Wave1-B `internal/selflearn/` (retro), Wave2-H `internal/daemonloop/` (weekly tick).
+Builds-on: `internal/patterns/` (audit clusters), `internal/selflearn/` (retro), `internal/daemonloop/` (weekly tick).
 
 ## 1. Goal
 
@@ -20,7 +20,7 @@ Three-step loop:
 3. **Recommend** — pure-function ranker. Returns up to 3 candidate next
    actions for a given (context, time) input. Surfaces in 3 places:
    `leah suggest` CLI (on-demand), weekly retro section ("What Leah
-   noticed about you this week"), and the future morning-brief hook (Wave 3).
+   noticed about you this week"), and the morning-brief hook.
 
 **Non-goal**: autonomous action. Recommendations always surface to the
 operator; operator decides. No `--auto` mode, ever (`feedback_default_simpler`).
@@ -64,7 +64,7 @@ UPDATE schema_meta SET value='4' WHERE key='version';
 
 `count` = raw matches in window. `weight` = decay-adjusted (see §3.3).
 
-### 2.2 Differentiation from `patterns` (Wave 1-D)
+### 2.2 Differentiation from `patterns`
 
 `patterns.Detect` clusters by `(kind, args_hash[:8])` — answers "what
 repeated identical work did you do?" → skill-extraction signal.
@@ -163,7 +163,7 @@ session, not a habit; 7 days of 3 rows/day = sparse, noise-dominated.
 
 ## 4. Recommendation surfacer
 
-### 4.1 `leah suggest` CLI (deferred to Wave 3 follow-up)
+### 4.1 `leah suggest` CLI
 
 ```
 leah suggest                 # rank by (current ctx, current hour)
@@ -185,10 +185,6 @@ summary via the existing reasoner. Default off keeps cost zero
 (`feedback_default_simpler`). Expected per-call cost when on: ~$0.005
 (input ~1k tokens, output ~150 tokens, Sonnet pricing).
 
-**NOTE**: Scaffolding ships without `cmd/leah/suggest.go` to avoid
-collision with Wave2-G's main.go work. Wave 3 follow-up wires the CLI
-by calling `operatormodel.Recommend()` from a thin command file.
-
 ### 4.2 Weekly retro append
 
 `selflearn/retro.go::Generate` gains a section:
@@ -201,19 +197,13 @@ by calling `operatormodel.Recommend()` from a thin command file.
 - Weekly `leah retro` runs Sunday evening — held steady this week.
 ```
 
-Implemented in Wave 3 follow-up; spec entry here keeps the contract.
-
-### 4.3 Morning-brief (Wave 3)
+### 4.3 Morning-brief
 
 Pre-fetches top-3 recommendations for `(today's date, hour=09)` and
-surfaces in the morning notification body. No new code here — Wave 3
-brief calls `Recommend()` and renders.
+surfaces in the morning notification body. Brief calls `Recommend()`
+and renders.
 
 ## 5. Adversarial review — findings inline
-
-Reviewer agent: main-thread spec-time adversarial pass (independent
-reviewer dispatch deferred to PR-open; spec is iterating in operator
-worktree).
 
 | # | Severity | Concern | Resolution |
 | - | -------- | ------- | ---------- |
@@ -223,7 +213,7 @@ worktree).
 | 4 | MED      | Timezone confusion (laptop sleep/wake, travel) | Observers take explicit `*time.Location`; defaults to `time.Local`. Document trade-off: travel will skew the time_of_day class for ~1 halflife. Acceptable for single-operator. |
 | 5 | HIGH     | Context-transition pattern feedback loop (rec → action → rec reinforced) | §3.3 decay applies equally; §3.4 override counter must be checked at suggest-time. Recommend NEVER auto-fires — purely on-demand `leah suggest`. |
 | 6 | LOW      | LLM cost at suggest time | Default off; doc'd ~$0.005/call when --llm. |
-| 7 | MED      | Overlap with `patterns` (Wave 1-D) | §2.2 explicit differentiation; storage disjoint; output channels disjoint. |
+| 7 | MED      | Overlap with `patterns` | §2.2 explicit differentiation; storage disjoint; output channels disjoint. |
 | 8 | LOW      | Goodhart in cadence class (recommend "leah retro Sunday" → operator runs Sunday → reinforced forever) | Same §3.3 decay; cadence rows naturally decay if operator stops the habit. |
 
 No CRITICAL findings; HIGH items resolved inline before scaffolding.
@@ -245,12 +235,11 @@ if needed (`LEAH_OPERATOR_MODEL_WINDOW_DAYS`,
 
 ## 7. Build order
 
-1. **This PR** (Wave 2-J): spec + schema v4 + `operatormodel` package
+1. Spec + schema v4 + `operatormodel` package
    (`profile.go`, `observe.go`, `recommend.go`) with TDD; daemon weekly
    task #4 wired in `cmd/leah-daemon/main.go::buildWeeklyTasks`.
-2. **Wave 3 follow-up**: `cmd/leah/suggest.go` CLI + `selflearn/retro.go`
-   append-section + morning-brief integration. Defers main.go writes to
-   after Wave2-G lands.
+2. `cmd/leah/suggest.go` CLI + `selflearn/retro.go`
+   append-section + morning-brief integration.
 
 ## 8. Cuts (Phase-X reopen-trigger: external customer ask or 90 days of audit data)
 
@@ -268,8 +257,8 @@ if needed (`LEAH_OPERATOR_MODEL_WINDOW_DAYS`,
 
 ## 9. References
 
-- Wave 1-D pattern recognition: `docs/specs/2026-06-09-pattern-recognition.md`
-- Wave 1-B self-learning: `docs/specs/2026-06-09-self-learning-personal.md`
-- Wave 2-H daemon loop: `internal/daemonloop/loop.go::WeeklyTask`
+- Pattern recognition: `docs/specs/2026-06-09-pattern-recognition.md`
+- Self-learning: `docs/specs/2026-06-09-self-learning-personal.md`
+- Daemon loop: `internal/daemonloop/loop.go::WeeklyTask`
 - Audit shape: `internal/audit/audit.go::Entry`
 - Context switches: `internal/memory/schema.sql` (`context_switch_log`)

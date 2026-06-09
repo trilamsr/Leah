@@ -2,7 +2,6 @@
 
 **Status:** draft
 **Date:** 2026-06-09
-**Source:** Wave3-N adopt-vs-build survey (`docs/research/2026-06-09-adopt-vs-build-survey.md`)
 **Reference:** https://github.com/hexgrad/kokoro (Apache-2.0)
 
 ## 1. Goal

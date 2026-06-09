@@ -1,30 +1,27 @@
 ---
-title: Leah — remaining tiers reordered (4 → 8)
-status: draft-v2.1
-version: 2.1
+title: Leah — remaining tiers (4 → 8)
+status: draft
 phase: design
 owner: tri
 created: 2026-06-09
 parent: 2026-06-09-leah-overview.md
-Reviewer-agent-id: <pending>
-Reviewer-recommendation: <pending>
 ---
 
-# Remaining tiers — reordered
+# Remaining tiers
 
 After Tier 1 (self-improvement), Tier 2 (SWE productivity), Tier 3 (schedule + multi-account comms + voice) are mature, expand outward.
 
-Reordered by leverage × low-blast-risk × foundation-dependency. Original order: automation → external-comms → social → travel → finance. New order:
+Ordered by leverage × low-blast-risk × foundation-dependency:
 
-## Reorder (new priority order)
+## Priority order
 
-| # | Tier | Original # | Why prioritized |
-|---|---|---|---|
-| 4 | **Automation (life ops)** | 4 | Same: low blast, recurring drudgery, compounds with Memory |
-| 5 | **External communication (proactive)** | 5 | Same: high leverage, gated, builds on Tier 3 inbox |
-| 6 | **Travel research** | 7 | Promoted: read-only research, no auto-actions |
-| 7 | **Finance (read-only first, write later)** | 8 | Promoted: read-only spend/balance huge value |
-| 8 | **Social media** | 6 | Demoted: discretionary, brittle APIs, weakest ROI |
+| # | Tier | Rationale |
+|---|---|---|
+| 4 | **Automation (life ops)** | Low blast, recurring drudgery, compounds with Memory |
+| 5 | **External communication (proactive)** | High leverage, gated, builds on Tier 3 inbox |
+| 6 | **Travel research** | Read-only research, no auto-actions |
+| 7 | **Finance (read-only first, write later)** | Read-only spend/balance huge value |
+| 8 | **Social media** | Discretionary, brittle APIs, weakest ROI |
 
 ## Tier 4 — Automation (life ops)
 
@@ -38,7 +35,7 @@ Eliminate recurring drudgery. Low individual blast radius; the value comes from 
 |---|---|---|---|
 | T4.1 | File watcher: `~/Downloads/*.pdf` auto-rename + categorize + index | **4 until 90d-green** | File mutation. `.leah-trail.jsonl` sidecar per-action; reversibility window. After 90-day-green-log, BR may be relaxed to 3 (proposal). |
 | T4.2 | Screenshot sweeper: auto-tag + archive | 2 | OCR via macOS Vision API + LLM caption |
-| T4.3 | Clipboard history + smart actions | 1 | Opt-in only; **mandatory local regex denylist** (AWS/GCP keys, JWT, CC numbers, SSH private keys) BEFORE any LLM call. See §H below. |
+| T4.3 | Clipboard history + smart actions | 1 | Opt-in only; **mandatory local regex denylist** (AWS/GCP keys, JWT, CC numbers, SSH private keys) BEFORE any LLM call. See cross-tier "Clipboard secrets denylist" below. |
 | T4.4 | Recurring local commands | 2 | YAML schedule + report on completion |
 | T4.5 | Backup health monitor: verify backups + alert on failure | 3 | Periodic restore-test sample; complements overview §4.7a Litestream |
 | T4.6 | Subscription audit (paired with Tier 7) | 1 | Surface unused; never cancels autonomously |
@@ -82,7 +79,7 @@ Move email/Slack from "Leah drafts, tri sends" to "Leah handles low-stakes outbo
 
 | ID | Feature | BR | Notes |
 |---|---|---|---|
-| T5.1 | Auto-send for thanks/ack/short-confirm templates (whitelisted per-contact) | 4 | Per-contact opt-in; reversible within 30s (Gmail undo); subject to §A40 rate limits |
+| T5.1 | Auto-send for thanks/ack/short-confirm templates (whitelisted per-contact) | 4 | Per-contact opt-in; reversible within 30s (Gmail undo); subject to "Auto-send rate limits" below |
 | T5.2 | Inbox-zero "approve-all-clean" batch | 4 | Per-batch operator approval |
 | T5.3 | Recruiter/sales polite-decline auto-send (per-template-per-sender) | 4 | Whitelist by template + sender domain; rate-limited |
 | T5.4 | Scheduled-send: send tomorrow 9am | 4 | Per-message approval, deferred execution |
@@ -98,7 +95,7 @@ Move email/Slack from "Leah drafts, tri sends" to "Leah handles low-stakes outbo
 | T5.14 | Awkward-ask drafter (2-3 tone variants) | 1 | Re-stated from Tier 3 §10.16; lives here at send-stage |
 | T5.15 | Defer-without-loss (real reminder + thread snooze + invisible-to-sender) | 1 | Re-stated from Tier 3 §10.13; send-stage variant |
 
-### Auto-send rate limits (§A40)
+### Auto-send rate limits
 
 Every auto-send template enforces:
 
@@ -133,7 +130,7 @@ Trip planning + price watching + checklists. Read-only research initially; no bo
 | T6.1 | Trip planner: destination + dates + constraints → flight/hotel/itinerary research | 1 | Output: structured plan; no booking |
 | T6.2 | Price watcher: flight/hotel route, alert on drop | 1 | Polls + computes baseline; alert via push |
 | T6.3 | Itinerary builder: multi-day plan + mapped routes + time budgets | 1 | Read-only output |
-| T6.4 | Visa/document checker | 1 | **Sherpa proxy** (https://www.joinsherpa.com accessed 2026-06-09) primary source — authoritative visa data API. **Freshness pin**: cache TTL ≤ 24h. **Mandatory disclaimer in every output**: "Visa rules change; verify with the consulate before travel. This is research, not advice." **NO LLM-only path** — the LLM may reformat the Sherpa response but MUST NOT substitute for the source. **Pricing fallback (H11)**: if Sherpa B2B pricing > $200/mo OR access denied → fall back to **consulate-site scrape for top-10 destinations + Reasoner-summarize + mandatory disclaimer + ≤24h cache** (cited sources required; never LLM-only). |
+| T6.4 | Visa/document checker | 1 | **Sherpa proxy** (https://www.joinsherpa.com accessed 2026-06-09) primary source — authoritative visa data API. **Freshness pin**: cache TTL ≤ 24h. **Mandatory disclaimer in every output**: "Visa rules change; verify with the consulate before travel. This is research, not advice." **NO LLM-only path** — the LLM may reformat the Sherpa response but MUST NOT substitute for the source. **Pricing fallback**: if Sherpa B2B pricing > $200/mo OR access denied → fall back to **consulate-site scrape for top-10 destinations + Reasoner-summarize + mandatory disclaimer + ≤24h cache** (cited sources required; never LLM-only). |
 | T6.5 | Pre-trip checklist: packing + holds + OOO + currency + plugs | 2 | Generates checklist; integrates with todos |
 | T6.6 | In-trip mode: flight status + gate changes + local-time-aware reminders | 3 | Flight API + timezone shift |
 | T6.7 | Post-trip expense gather: receipts from email + photos → expense report | 2 | Combines with T4.8 receipt-file |
@@ -168,22 +165,22 @@ Visibility first. Read-only spend/balance/anomaly/subscriptions across accounts.
 | T7.3 | Anomaly detection: unusual CC charges | 1 | Statistical + LLM verify; alert via push |
 | T7.4 | Subscription auditor (cross with T4.6) | 1 | "Paying $X/mo for Y, last used 6mo ago"; per-workspace audit |
 | T7.5 | Bill review: "looks normal" / "investigate this line" | 1 | Comparison vs prior bills |
-| T7.6 | Tax doc gathering | 1 | **Primary: email-attachment harvesting**. Playwright portal scraping DEFERRED to Phase-X (brittle + breaks on portal changes); reopen when 90% of operator's tax docs arrive by email + remaining 10% justify the maintenance cost. |
+| T7.6 | Tax doc gathering | 1 | **Primary: email-attachment harvesting**. Playwright portal scraping deferred to Phase-X (brittle + breaks on portal changes); reopen when 90% of operator's tax docs arrive by email + remaining 10% justify the maintenance cost. |
 | T7.7 | Budget tracking: monthly targets, surface drift | 1 | Per-category, per-workspace targets in YAML |
 | T7.8 | Investment summary read-only | 0 | Portfolio snapshot |
 | T7.9 | Net-worth tracker (monthly snapshot) | 0 | Sum of accounts; trend line |
 | T7.10 | Receipt + transaction matcher | 1 | Combines T4.8 + T7.2 |
 | T7.11 | Bill-pay watcher: surface late bills, autopay status | 1 | Read-only; alerts only |
-| T7.12 | ~~Bill pay~~ | — | **CUT to Phase-X deferred.** Reopen trigger = explicit operator request + ≥6mo green read-only finance + 2FA hardware key in flow. |
+| T7.12 | ~~Bill pay~~ | — | **Phase-X deferred.** Reopen trigger = explicit operator request + ≥6mo green read-only finance + 2FA hardware key in flow. |
 | T7.13 | Per-workspace expense isolation | 1 | Categorize transactions by workspace; surface per-workspace P&L view |
 | T7.14 | Per-workspace invoice tracker | 1 | Outstanding, payment status, age; read-only first |
 | T7.15 | Tax-bucketing across workspaces | 1 | Structured set so Jan tax-prep is mechanical; per-workspace bucket |
 | T7.16 | Reimbursable tracker | 1 | Receipts marked "to-reimburse"; 30-day-unreimbursed alert |
 | T7.17 | Per-workspace subscription audit | 1 | "This paid tool charged to acme but unused 3mo" |
 
-### Plaid risk callout (§C1)
+### Plaid risk callout
 
-Plaid (https://plaid.com accessed 2026-06-09) stores transaction data **externally on Plaid infrastructure** — operator credentials flow through Plaid + transactions cached server-side. Re-tiered to BR-2 (was BR-0). Privacy ledger (Tier 1 §3.3) records every Plaid call.
+Plaid (https://plaid.com accessed 2026-06-09) stores transaction data **externally on Plaid infrastructure** — operator credentials flow through Plaid + transactions cached server-side. Tiered at BR-2. Privacy ledger (Tier 1 §3.3) records every Plaid call.
 
 **Alternatives evaluated**:
 
@@ -192,7 +189,7 @@ Plaid (https://plaid.com accessed 2026-06-09) stores transaction data **external
 
 Spec body recommends: **SimpleFIN primary, Plaid secondary** for institutions SimpleFIN doesn't cover. Manual CSV as escape valve.
 
-**Bank coverage pre-flight (H10)**: before M10 dispatch, run `leah finance preflight` → enumerate operator's known banks → cross-check SimpleFIN supported-institutions endpoint → produce coverage report. If gap > 20% by transaction volume → fall back to **manual CSV import** for missing banks, OR open **Plaid Trial** for that account specifically (per-account opt-in, not all-or-nothing).
+**Bank coverage pre-flight**: before M10 dispatch, run `leah finance preflight` → enumerate operator's known banks → cross-check SimpleFIN supported-institutions endpoint → produce coverage report. If gap > 20% by transaction volume → fall back to **manual CSV import** for missing banks, OR open **Plaid Trial** for that account specifically (per-account opt-in, not all-or-nothing).
 
 ### Build order
 
@@ -204,7 +201,7 @@ T7.1 + T7.2 + T7.8 + T7.9 (read-only foundation) → T7.3 + T7.4 + T7.5 + T7.7 (
 - No autonomous investment trades
 - No autonomous bill cancellation (proposes; operator acts)
 - No credit-score tracking
-- **T7.12 cut** to Phase-X
+- **T7.12 (bill pay)** deferred to Phase-X
 - **T7.6 Playwright** deferred to Phase-X; email-harvesting primary
 
 ## Tier 8 — Social media
@@ -218,16 +215,16 @@ Reduce, not amplify, time spent. Drafting + minimal engagement. Demoted on purpo
 | ID | Feature | BR | Notes |
 |---|---|---|---|
 | T8.1 | Post drafter: from voice ramble or bullets | 1 | Output: drafts only |
-| ~~T8.2~~ | ~~Schedule-post via Buffer/native APIs~~ | — | **CUT (Twitter/LinkedIn write-paths).** Brittle APIs + low ROI; demoted permanently. |
+| ~~T8.2~~ | ~~Schedule-post via Buffer/native APIs~~ | — | **Phase-X** (Twitter/LinkedIn write-paths). Brittle APIs + low ROI. |
 | T8.3 | Mention monitor: surface mentions worth replying to | 1 | Filter by sentiment + commenter relevance |
 | T8.4 | Engagement digest: "this post is doing well/poorly" | 0 | No autonomous engagement |
-| ~~T8.5~~ | ~~Cross-post helper~~ | — | **CUT.** Tone-adapt drafting may live in T8.1; multi-platform write-path is cut. |
+| ~~T8.5~~ | ~~Cross-post helper~~ | — | **Phase-X.** Tone-adapt drafting may live in T8.1; multi-platform write-path deferred. |
 | T8.6 | Reply drafter for selected mentions | 1 | Operator-approved reply pipeline |
-| ~~T8.7~~ | ~~Bluesky / Mastodon / etc.~~ | — | **CUT as auto-post path.** Bluesky AT Protocol (https://atproto.com accessed 2026-06-09) noted as cheaper future alternative if Tier 8 write-paths ever reopen — open API, less rate-limit hostile than X/LinkedIn. |
+| ~~T8.7~~ | ~~Bluesky / Mastodon / etc.~~ | — | **Phase-X** auto-post path. Bluesky AT Protocol (https://atproto.com accessed 2026-06-09) noted as cheaper future alternative if Tier 8 write-paths ever reopen — open API, less rate-limit hostile than X/LinkedIn. |
 
 ### Build order
 
-T8.1 + T8.4 (drafting + visibility) → T8.3 + T8.6 (selective engagement). T8.2 + T8.5 + T8.7 cut.
+T8.1 + T8.4 (drafting + visibility) → T8.3 + T8.6 (selective engagement). T8.2 + T8.5 + T8.7 Phase-X.
 
 ### Cuts
 
@@ -235,11 +232,11 @@ T8.1 + T8.4 (drafting + visibility) → T8.3 + T8.6 (selective engagement). T8.2
 - No follower growth tactics
 - No autonomous DMs on any platform
 - No automated cross-posting
-- **T8.2 / T8.5 / T8.7 cut from spec** (write-paths to Twitter/LinkedIn/Bluesky deferred to Phase-X)
+- **T8.2 / T8.5 / T8.7 Phase-X** (write-paths to Twitter/LinkedIn/Bluesky)
 
 ## Cross-tier feature additions
 
-### Operator-mode switcher state machine (§H4)
+### Operator-mode switcher state machine
 
 `leah mode focus|standby|asleep|travel|sick|vacation` — **single enum, NO stacking**. Setting a mode replaces the previous mode. Sequence of operator commands → last-write-wins.
 
@@ -259,7 +256,7 @@ standby (default)
 - Dashboard banner shows current mode + time-in-mode + revert time.
 - Vacation: 12h after operator manual-set, banner nudges "still vacation?" + one-click clear.
 
-Per mode (same as v1 effect):
+Per mode:
 
 - `focus`: pause notifications, decline new meetings, auto-OOO Slack, hold non-urgent
 - `standby`: default; everything normal
@@ -274,7 +271,7 @@ Bridges Tier 6 + Tier 7. Per-workspace hourly value lets Leah compute "this $40 
 
 ### Universal "operator inbox"
 
-`leah inbox` extended showing pending approvals across all tiers. Per-workspace by default; `--all` cross-workspace. **Concurrency model (H3)**: backed by the `approval_request` table (Tier 1 §3.9) with atomic claim semantics — multi-device taps on the same approval no-op the second click with "already decided." Mode-switch (`leah mode focus`) suppresses notification fires but leaves approvals pending; mode-clear re-surfaces in batch. 24h auto-expire + auto-deny + audit row.
+`leah inbox` extended showing pending approvals across all tiers. Per-workspace by default; `--all` cross-workspace. **Concurrency model**: backed by the `approval_request` table (Tier 1 §3.9) with atomic claim semantics — multi-device taps on the same approval no-op the second click with "already decided." Mode-switch (`leah mode focus`) suppresses notification fires but leaves approvals pending; mode-clear re-surfaces in batch. 24h auto-expire + auto-deny + audit row.
 
 ### "Defer to me" pattern
 
@@ -288,7 +285,7 @@ End-to-end: T4.8 receipt-file → T7.10 transaction-matcher → T7.15 tax-bucket
 
 End of brief: operator says "Leah, surprise me" → Leah picks one high-value low-friction action (a paper to read, a friend to message, a system to maintain). Anti-stagnation.
 
-### Privacy-tier override (§H7 — enumerated consumer table)
+### Privacy-tier override (enumerated consumer table)
 
 For sensitive content (medical, legal, personal-relationships, financial-specifics), operator marks a thread/topic "private". Privacy-tier override is an **enumerated consumer table**, not a vague "exclude from passive analysis."
 
@@ -304,7 +301,7 @@ For sensitive content (medical, legal, personal-relationships, financial-specifi
 
 Mechanical lint: `scripts/check-privacy-leak.sh` (modeled on regatta `check-phase-x-leak.sh`) walks Memory schemas + dispatcher manifests + privacy-ledger config and fails closed if any consumer is missing a row in the matrix OR if any "private" data class lacks a "never" cell against a third-party reasoner.
 
-### Per-tier cost ceiling (H9)
+### Per-tier cost ceiling
 
 References overview §4.0 cost cap. Per-tier monthly + daily caps + per-call caps:
 
@@ -321,7 +318,7 @@ References overview §4.0 cost cap. Per-tier monthly + daily caps + per-call cap
 
 Headroom = $30/mo system-wide spike absorption. Re-baseline after 2 weeks of M3 audit data (overview §4.0).
 
-### Tier-7 shared workspace categorization rule (M5)
+### Tier-7 shared workspace categorization rule
 
 Single deterministic ladder applied across T7.13–T7.17 (all finance workspace bucketing):
 
@@ -330,21 +327,21 @@ Single deterministic ladder applied across T7.13–T7.17 (all finance workspace 
 3. **Operator-prompt at week-close batch** (Friday rollup).
 4. **"uncategorized" sink** — surfaces in next week-close.
 
-### Tier-7 tax-bucketing handoff format (M6)
+### Tier-7 tax-bucketing handoff format
 
 Per-workspace `tax-YYYY.csv` with Schedule C codes + per-workspace `tax-YYYY.txf` (TurboTax-compatible) + per-workspace `tax-YYYY-receipts.zip`. Generated by T7.15.
 
-### Tier-7 shared-subscription attribution (M7)
+### Tier-7 shared-subscription attribution
 
 Rule: **primary-workspace = workspace with > 50% usage in trailing 30d**; tie → operator-prompt at week-close. Subscription continues billed to primary; usage detected via app-activity heuristic per workspace.
 
-### sick + vacation mode combination (M8)
+### sick + vacation mode combination
 
-Operator-mode enum (§H4) stays single (no stacking). Nested-state semantics are operator's job via the **mode notes field**: `leah mode sick --note "vacation underway"`. Mode stays single (`sick`); operator-readable note carries the qualifier. Enum unchanged.
+Operator-mode enum stays single (no stacking). Nested-state semantics are operator's job via the **mode notes field**: `leah mode sick --note "vacation underway"`. Mode stays single (`sick`); operator-readable note carries the qualifier.
 
-### Pushover privacy row (L3)
+### Pushover privacy row
 
-Add row to §H7 matrix:
+Add row to the privacy-tier consumer matrix:
 
 | Downstream consumer \\ Privacy class | normal | sensitive | private |
 |---|---|---|---|
@@ -352,13 +349,13 @@ Add row to §H7 matrix:
 
 Push-preview text often visible on lock screen; classify accordingly.
 
-### Reviewer-skip footer expectation (L8)
+### Reviewer-skip footer expectation
 
-Design-doc frontmatter for any spec under `docs/specs/` MUST carry `Reviewer-agent-id:` + `Reviewer-recommendation:` fields (echoes regatta `feedback_adversarial_review_every_step`). v2.1 specs added the stubs; v2.1+ revisions require an independent reviewer subagent dispatch to fill them.
+Design-doc frontmatter for any spec under `docs/specs/` MUST carry `Reviewer-agent-id:` + `Reviewer-recommendation:` fields (echoes regatta `feedback_adversarial_review_every_step`). Spec revisions require an independent reviewer subagent dispatch to fill them.
 
-### Clipboard secrets denylist (§M3)
+### Clipboard secrets denylist
 
-Re-stated for cross-tier visibility (lives in Tier 4 T4.3 too). MANDATORY mechanical gate before any clipboard → LLM call:
+Mandatory mechanical gate before any clipboard → LLM call (also lives in Tier 4 T4.3):
 
 - AWS access key (`AKIA[0-9A-Z]{16}`)
 - AWS secret key (`[A-Za-z0-9/+=]{40}`)
@@ -402,17 +399,6 @@ Parallelism trade: regatta can dispatch parts of this once Leah itself is bootst
 - Multi-device sync: Phase 1 single-machine; Phase 2 home-server + thin clients via tailnet.
 - When to harden Leah into a product vs keep personal: leave open until M11+.
 
-Resolved → normative in v2:
-
-- ~~Plaid as default~~ → SimpleFIN primary (§T7); Plaid re-tiered BR-2.
-- ~~T7.6 Playwright primary~~ → email-harvesting primary; Playwright Phase-X.
-- ~~T7.12 bill pay in spec~~ → cut to Phase-X.
-- ~~T8.2/T8.5/T8.7 social write-paths~~ → cut.
-- ~~Calendar weeks~~ → ordered milestones + re-baseline after M5.
-- ~~Operator-mode stacking~~ → single enum + auto-revert (§H4 state machine).
-- ~~Privacy-tier override vague~~ → enumerated consumer table (§H7).
-- ~~Clipboard LLM-call without denylist~~ → mandatory regex denylist (§M3 / T4.3).
-
 ## Cuts (cross-tier, explicit)
 
 - No multi-user / SaaS
@@ -426,43 +412,10 @@ Resolved → normative in v2:
 - No autonomous social-engagement
 - No external customer / SaaS pitch for Leah Phase 1+
 - **No file-mutation without trail-and-window** (T4.1 / T4.9)
-- **No clipboard LLM call without denylist** (T4.3 / §M3)
+- **No clipboard LLM call without denylist** (T4.3)
 - **No LLM-only visa output** (T6.4)
-- **No Twitter/LinkedIn auto-post** (T8.2 / T8.5 cut)
+- **No Twitter/LinkedIn auto-post** (T8.2 / T8.5 Phase-X)
 - **No bill pay Phase 1** (T7.12 Phase-X)
 - **No tax-portal Playwright Phase 1** (T7.6 deferred)
-- **No stacked operator modes** (§H4 single enum)
-- **No "private" data class routing to third-party reasoners** (§H7 matrix)
-
-## Changes in v2
-
-- T4.1 + T4.9 re-tiered to BR-4 with `.leah-trail.jsonl` sidecar until 90-day green; reversibility window mandatory.
-- T4.3 clipboard mandatory regex denylist (AWS/GCP/JWT/CC/SSH) before LLM call.
-- T4.13–T4.18 added: voice-to-todo, highlight ingestion, web-clipping inbox, context-aware "remind me when I'm next", idle-thought capture, forced unplug.
-- T5.5 + T3 §10.21 OOO templates fixed-strings only; "sick" allowlist-restricted.
-- T5.13–T5.15 added: identity-correct reply enforcement, awkward-ask drafter, defer-without-loss (send-stage).
-- T5 auto-send rate limits formalized (§A40): per-policy cap + daily budget + burst detect + 60s anti-loop + spam-wave circuit breaker.
-- T6.4 visa = Sherpa proxy + freshness + disclaimer + no LLM-only path.
-- T7.1 re-tiered BR-2 with Plaid risk callout; SimpleFIN primary recommendation; manual CSV escape.
-- T7.6 Playwright Phase-X; email-harvesting primary.
-- T7.12 bill pay cut to Phase-X.
-- T7.13–T7.17 added: per-workspace expense isolation, invoice tracker, tax-bucketing, reimbursable tracker, subscription audit.
-- T8.2 + T8.5 + T8.7 social write-paths cut; Bluesky/AT Protocol noted as future-cheaper alternative.
-- Operator-mode switcher (§H4): single enum, no stacking, 6h auto-revert default, OS Focus = input, last-write-wins, dashboard banner + 12h vacation nudge.
-- Privacy-tier override (§H7) enumerated consumer × class table + mechanical lint (`scripts/check-privacy-leak.sh`).
-- Clipboard denylist (§M3) elevated to cross-tier rule.
-- Build sequence: calendar weeks dropped; ordered milestones + re-baseline after M5.
-
-## Changes in v2.1
-
-- T6.4 **Sherpa pricing fallback** — consulate-site scrape + cited sources + ≤24h cache if Sherpa B2B > $200/mo or denied (H11).
-- T7.1 **SimpleFIN bank-coverage pre-flight** — `leah finance preflight` before M10; >20% gap → manual CSV OR per-account Plaid Trial (H10).
-- New §**Per-tier cost ceiling** table — references overview §4.0; per-tier monthly/daily/per-call caps (H9).
-- New §**Tier-7 shared workspace categorization** deterministic ladder (M5).
-- New §**Tier-7 tax-bucketing handoff format** — per-workspace `tax-YYYY.csv` + `.txf` + receipts.zip (M6).
-- New §**Tier-7 shared-subscription attribution** — primary-workspace > 50% usage; tie → operator-prompt (M7).
-- New §**sick + vacation mode combination** — enum single, qualifier via mode notes field (M8).
-- New §**Pushover privacy row** added to §H7 matrix (L3).
-- New §**Reviewer-skip footer expectation** — design-doc frontmatter requires `Reviewer-agent-id:` + `Reviewer-recommendation:` (L8).
-- Universal operator inbox: cite `approval_request` table (Tier 1 §3.9) + multi-device atomic-claim concurrency (H3).
-- Frontmatter: added `Reviewer-agent-id:` / `Reviewer-recommendation:` pending stubs.
+- **No stacked operator modes** (single enum)
+- **No "private" data class routing to third-party reasoners** (privacy matrix)

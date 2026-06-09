@@ -24,9 +24,9 @@ How all the pieces fit. Operator's north-star: Leah notices her own bugs + dispa
                           │ recommend                                    
 ┌─────────────────────────┴───────────────────────────────────────────┐
 │  Layer 3 — DECIDE (operator-model + patterns + self-learn)          │
-│  internal/operatormodel/ — Wave2-J                                  │
-│  internal/patterns/ — Wave1-D                                       │
-│  internal/selflearn/ — Wave1-B                                      │
+│  internal/operatormodel/                                            │
+│  internal/patterns/                                                 │
+│  internal/selflearn/                                                │
 │  → operatormodel.Recommend(profile, ctx, time) → []Recommendation   │
 │  → patterns.Detect(audit) → []Cluster → skill candidates            │
 │  → selflearn.Resolver.Run() → back-fills outcome                    │
@@ -37,9 +37,9 @@ How all the pieces fit. Operator's north-star: Leah notices her own bugs + dispa
                           │ read                                         
 ┌─────────────────────────┴───────────────────────────────────────────┐
 │  Layer 2 — REMEMBER (memory + ctxmgr + audit)                       │
-│  internal/memory/ — Wave1-A (contact/project/decision)              │
-│  internal/ctxmgr/ — Wave1-C (active context + history)              │
-│  internal/audit/ — MVP-5 (JSONL append-only)                        │
+│  internal/memory/ (contact/project/decision)                        │
+│  internal/ctxmgr/ (active context + history)                        │
+│  internal/audit/ (JSONL append-only)                                │
 │  → Single memory.db (modernc.org/sqlite) at ~/.leah-state/          │
 │  → schema v4: contact, project, decision, mistake_log,              │
 │    operator_profile, context, operator_state, context_switch_log    │
@@ -48,8 +48,8 @@ How all the pieces fit. Operator's north-star: Leah notices her own bugs + dispa
                           │ write                                        
 ┌─────────────────────────┴───────────────────────────────────────────┐
 │  Layer 1 — OBSERVE (audit + obs)                                    │
-│  internal/audit/ — MVP-5 (every action one line)                    │
-│  internal/obs/ — Wave2-K (slog + metrics + panic recovery)          │
+│  internal/audit/ (every action one line)                            │
+│  internal/obs/ (slog + metrics + panic recovery)                    │
 │  → Every action → audit row (user-facing semantics)                 │
 │  → Every internal call → slog + metrics (operational semantics)     │
 │  → Every panic → ~/.leah-state/panics/<ts>.txt + slog ERROR         │
@@ -93,47 +93,44 @@ This is the concrete sequence operator's directive enables:
 
 2. **Remember**: Audit row written: `{kind: "reasoner.panic", outcome: "failed", detail: "see panics/2026-06-09T13-42-00-..."}`. Daemon weekly tick reads audit + sees the panic outcome.
 
-3. **Decide**: `selflearn.Resolver` notices `panic` outcomes are increasing week-over-week. Wave 3 hook (deferred): builds a regatta-issue-body from the panic file + last 10 slog lines + which-goroutine + memory snapshot. Surfaces to operator: "Leah noticed N panics in reasoner this week — want me to dispatch a self-build fix?"
+3. **Decide**: `selflearn.Resolver` notices `panic` outcomes are increasing week-over-week. Deferred hook: builds a regatta-issue-body from the panic file + last 10 slog lines + which-goroutine + memory snapshot. Surfaces to operator: "Leah noticed N panics in reasoner this week — want me to dispatch a self-build fix?"
 
 4. **Act**: Operator says yes → `leah self-build "fix the reasoner.Complete panic at &lt;stack&gt; — context attached"` → SelfBuild reads the panic file + audit context + drafts a Leah-feature spec (which is really a bug-fix spec) → `gh issue create` against trilamsr/Leah → regatta picks up → opens PR with fix.
 
-5. **Validate**: Leah's independent reviewer subagent reads the PR diff vs the linked issue (which has the panic context) → verdict APPROVE/REVISE/BLOCK → operator-attestation-question gate (Wave 2-G) forces operator to answer a random question in PR comment → operator merges.
+5. **Validate**: Leah's independent reviewer subagent reads the PR diff vs the linked issue (which has the panic context) → verdict APPROVE/REVISE/BLOCK → operator-attestation-question gate forces operator to answer a random question in PR comment → operator merges.
 
-6. **Verify-after-shipping**: Next 30s daemon poll → CI ran → new binary deployed (manual for now; CI deploy = Wave X) → next reasoner.Complete call → no panic → `leah_panic_total{package=reasoner}` flatlines.
+6. **Verify-after-shipping**: Next 30s daemon poll → CI ran → new binary deployed (manual for now; CI deploy deferred) → next reasoner.Complete call → no panic → `leah_panic_total{package=reasoner}` flatlines.
 
 7. **Retro**: Following weekly retro reports: "Leah shipped 1 self-fix this week: reasoner.Complete panic. Panic rate dropped from N/wk to 0."
 
 ## Where we are
 
 ### Shipped
-- Layer 1 audit (MVP-5) ✅
-- Layer 1 obs (Wave 2-K, in flight)
-- Layer 2 memory (Wave 1-A) ✅
-- Layer 2 ctxmgr (Wave 1-C) ✅
-- Layer 3 patterns (Wave 1-D) ✅
-- Layer 3 selflearn resolver+mistake+retro (Wave 1-B) ✅
-- Layer 3 operatormodel (Wave 2-J, in flight)
-- Layer 4 ship dispatcher (MVP-5) ✅
-- Layer 4 reviewer independent subagent (MVP-5) ✅
-- Layer 4 selfbuild dispatcher (Wave 1-E) ✅
-- Surface: CLI (Wave 2-G, in flight)
-- Surface: daemon per-30s + weekly tick (Wave 2-H) ✅
-- Surface: JARVIS UI dashboard (Wave 2-I) ✅
+- Layer 1 audit ✅
+- Layer 2 memory ✅
+- Layer 2 ctxmgr ✅
+- Layer 3 patterns ✅
+- Layer 3 selflearn resolver+mistake+retro ✅
+- Layer 4 ship dispatcher ✅
+- Layer 4 reviewer independent subagent ✅
+- Layer 4 selfbuild dispatcher ✅
+- Surface: daemon per-30s + weekly tick ✅
+- Surface: JARVIS UI dashboard ✅
 
-### In flight (parallel agents)
-- Wave 2-G: CLI wiring + schema reconciliation + operator-attestation gate
-- Wave 2-J: operator-model + recommendation
-- Wave 2-K: observability layer
+### In flight
+- Layer 1 obs
+- Layer 3 operatormodel
+- Surface: CLI wiring + schema reconciliation + operator-attestation gate
 
-### Wave 3 (next)
-- `leah suggest` CLI (operator-model surfacer; deferred from J to avoid main.go collision)
-- `obs` daemon wiring (start metrics snapshotter + write panic files; deferred from K)
+### Next
+- `leah suggest` CLI (operator-model surfacer)
+- `obs` daemon wiring (start metrics snapshotter + write panic files)
 - Bug-fix-self-build hook: selflearn.Resolver detects increasing-panic-rate → drafts regatta-issue-body with panic context → notify operator
 - Daily morning brief (cron 8am — reads audit + agents + operator-model)
 - Voice PTT (whisper.cpp local)
 - `leah recall <query>` semantic search
 
-### Wave X — never (without explicit re-evaluation)
+### Phase X — never (without explicit re-evaluation)
 - Multi-user / SaaS
 - Autonomous merge of self-build PRs (operator-merge is the load-bearing safety control)
 - Autonomous money movement
@@ -144,14 +141,14 @@ This is the concrete sequence operator's directive enables:
 Self-modifying systems need extra scrutiny. The structural safeguards:
 
 1. **Independent reviewer subagent** on every PR (regatta gate enforces canonical agent-id; Leah dispatches separate Anthropic call)
-2. **Operator-attestation question** in self-build PR bodies (Wave 2-G ships this) — forces operator to answer a random question in PR comment before merge
+2. **Operator-attestation question** in self-build PR bodies — forces operator to answer a random question in PR comment before merge
 3. **Operator-merge mandatory** — `gh pr merge` is NEVER autonomous for self-build PRs
 4. **`leah self-build` repo-locked** to trilamsr/Leah (rejects --repo override)
 5. **Build precondition** — SelfBuild won't dispatch if `go build ./...` fails locally first
 6. **Rate limit** — max 3 self-build dispatches per 24h (prevents runaway)
 7. **Forbidden globs** in self-build prompt — `~/.aws/`, `~/.ssh/`, `~/.netrc`, `os.Environ()` iteration, `go.mod`/`go.sum` direct edits
 8. **Audit + obs trail** — every self-build dispatch + every panic + every metric gets recorded; operator can run `leah retro` to see what changed
-9. **Specs adversarially reviewed before code** — Wave 1 agents all included self-critique sections; Wave 2-J + 2-K critique their own specs before scaffolding
+9. **Specs adversarially reviewed before code** — every spec critiqued before scaffolding
 
 ## Cross-spec links
 
@@ -161,8 +158,8 @@ Self-modifying systems need extra scrutiny. The structural safeguards:
 - Pattern recognition: `2026-06-09-pattern-recognition.md`
 - Self-build: `2026-06-09-self-building-via-regatta.md`
 - JARVIS UI: `2026-06-09-jarvis-ui.md`
-- Operator model: `2026-06-09-operator-model.md` (Wave 2-J, in flight)
-- Observability: `2026-06-09-observability.md` (Wave 2-K, in flight)
+- Operator model: `2026-06-09-operator-model.md`
+- Observability: `2026-06-09-observability.md`
 - Roadmap: `2026-06-09-roadmap-overview.md`
 - Phase X deferrals: `2026-06-09-leah-phase-x-multi-operator-roadmap.md`
 - This doc: `2026-06-09-closed-loop-architecture.md`
