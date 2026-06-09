@@ -20,7 +20,7 @@ func memoryPath() string { return filepath.Join(stateDir(), "memory.db") }
 func openMemoryStore() *memory.Store {
 	s, err := memory.NewStore(memoryPath())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "open memory store: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "open memory store: %v\n", err)
 		os.Exit(1)
 	}
 	return s
@@ -31,7 +31,7 @@ func openMemoryStore() *memory.Store {
 func openCtxManager() *ctxmgr.Manager {
 	m, err := ctxmgr.Open(memoryPath())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "open ctxmgr: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "open ctxmgr: %v\n", err)
 		os.Exit(1)
 	}
 	return m

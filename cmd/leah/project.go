@@ -15,7 +15,7 @@ import (
 // runProject dispatches `leah project <action> ...`.
 func runProject(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: leah project <add|list|show> [args...]")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah project <add|list|show> [args...]")
 		os.Exit(2)
 	}
 	store := openMemoryStore()
@@ -31,12 +31,12 @@ func runProject(args []string) {
 		jsonOut := fs.Bool("json", false, "emit json")
 		_ = fs.Parse(args[1:])
 		if *name == "" {
-			fmt.Fprintln(os.Stderr, "leah project add: --name required")
+			_, _ = fmt.Fprintln(os.Stderr, "leah project add: --name required")
 			os.Exit(2)
 		}
 		p, err := store.AddProject(memory.Project{Name: *name, Status: *status, Notes: *notes})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah project add: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah project add: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "project.add", ArgsHash: p.ID, BlastRadius: 1, Outcome: "success", Detail: p.Name})
@@ -45,7 +45,7 @@ func runProject(args []string) {
 		jsonOut := hasFlag(args[1:], "--json")
 		ps, err := store.ListProjects()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah project list: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah project list: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "project.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(ps))})
@@ -54,7 +54,7 @@ func runProject(args []string) {
 			return
 		}
 		if len(ps) == 0 {
-			fmt.Println("(no projects)")
+			_, _ = fmt.Println("(no projects)")
 			return
 		}
 		for _, p := range ps {
@@ -62,19 +62,19 @@ func runProject(args []string) {
 		}
 	case "show":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: leah project show <id> [--json]")
+			_, _ = fmt.Fprintln(os.Stderr, "usage: leah project show <id> [--json]")
 			os.Exit(2)
 		}
 		jsonOut := hasFlag(args[2:], "--json")
 		p, err := store.GetProject(args[1])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah project show: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah project show: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "project.show", ArgsHash: p.ID, BlastRadius: 0, Outcome: "success"})
 		printProject(os.Stdout, p, jsonOut)
 	default:
-		fmt.Fprintf(os.Stderr, "leah project: unknown action %q\n", args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "leah project: unknown action %q\n", args[0])
 		os.Exit(2)
 	}
 }

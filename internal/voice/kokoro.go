@@ -28,7 +28,7 @@ func (k *KokoroTTS) Speak(ctx context.Context, text string) error {
 	}
 	path := tmp.Name()
 	_ = tmp.Close()
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 
 	args := []string{"-t", text, "-o", path}
 	if k.Voice != "" {

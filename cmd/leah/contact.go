@@ -15,7 +15,7 @@ import (
 // runContact dispatches `leah contact <action> ...`.
 func runContact(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: leah contact <add|list|show> [args...]")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah contact <add|list|show> [args...]")
 		os.Exit(2)
 	}
 	store := openMemoryStore()
@@ -31,12 +31,12 @@ func runContact(args []string) {
 		jsonOut := fs.Bool("json", false, "emit json")
 		_ = fs.Parse(args[1:])
 		if *name == "" {
-			fmt.Fprintln(os.Stderr, "leah contact add: --name required")
+			_, _ = fmt.Fprintln(os.Stderr, "leah contact add: --name required")
 			os.Exit(2)
 		}
 		c, err := store.AddContact(memory.Contact{Name: *name, Email: *email, Notes: *notes})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah contact add: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah contact add: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "contact.add", ArgsHash: c.ID, BlastRadius: 1, Outcome: "success", Detail: c.Name})
@@ -45,7 +45,7 @@ func runContact(args []string) {
 		jsonOut := hasFlag(args[1:], "--json")
 		cs, err := store.ListContacts()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah contact list: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah contact list: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "contact.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(cs))})
@@ -54,7 +54,7 @@ func runContact(args []string) {
 			return
 		}
 		if len(cs) == 0 {
-			fmt.Println("(no contacts)")
+			_, _ = fmt.Println("(no contacts)")
 			return
 		}
 		for _, c := range cs {
@@ -62,19 +62,19 @@ func runContact(args []string) {
 		}
 	case "show":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: leah contact show <id> [--json]")
+			_, _ = fmt.Fprintln(os.Stderr, "usage: leah contact show <id> [--json]")
 			os.Exit(2)
 		}
 		jsonOut := hasFlag(args[2:], "--json")
 		c, err := store.GetContact(args[1])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah contact show: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah contact show: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "contact.show", ArgsHash: c.ID, BlastRadius: 0, Outcome: "success"})
 		printContact(os.Stdout, c, jsonOut)
 	default:
-		fmt.Fprintf(os.Stderr, "leah contact: unknown action %q\n", args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "leah contact: unknown action %q\n", args[0])
 		os.Exit(2)
 	}
 }

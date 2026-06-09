@@ -16,7 +16,7 @@ import (
 // runDecision dispatches `leah decision <action> ...`.
 func runDecision(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: leah decision <add|list|show> [args...]")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah decision <add|list|show> [args...]")
 		os.Exit(2)
 	}
 	store := openMemoryStore()
@@ -33,14 +33,14 @@ func runDecision(args []string) {
 		jsonOut := fs.Bool("json", false, "emit json")
 		_ = fs.Parse(args[1:])
 		if *topic == "" || *choice == "" {
-			fmt.Fprintln(os.Stderr, "leah decision add: --topic and --choice required")
+			_, _ = fmt.Fprintln(os.Stderr, "leah decision add: --topic and --choice required")
 			os.Exit(2)
 		}
 		rationale := *text
 		if rationale == "" {
 			b, err := io.ReadAll(os.Stdin)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "read stdin: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stderr, "read stdin: %v\n", err)
 				os.Exit(1)
 			}
 			rationale = strings.TrimSpace(string(b))
@@ -49,7 +49,7 @@ func runDecision(args []string) {
 			Topic: *topic, Choice: *choice, Rationale: rationale, DecidedAt: *decidedAt,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah decision add: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah decision add: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "decision.add", ArgsHash: d.ID, BlastRadius: 1, Outcome: "success", Detail: d.Topic})
@@ -58,7 +58,7 @@ func runDecision(args []string) {
 		jsonOut := hasFlag(args[1:], "--json")
 		ds, err := store.ListDecisions()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah decision list: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah decision list: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "decision.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(ds))})
@@ -67,7 +67,7 @@ func runDecision(args []string) {
 			return
 		}
 		if len(ds) == 0 {
-			fmt.Println("(no decisions)")
+			_, _ = fmt.Println("(no decisions)")
 			return
 		}
 		for _, d := range ds {
@@ -75,19 +75,19 @@ func runDecision(args []string) {
 		}
 	case "show":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: leah decision show <id> [--json]")
+			_, _ = fmt.Fprintln(os.Stderr, "usage: leah decision show <id> [--json]")
 			os.Exit(2)
 		}
 		jsonOut := hasFlag(args[2:], "--json")
 		d, err := store.GetDecision(args[1])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah decision show: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah decision show: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "decision.show", ArgsHash: d.ID, BlastRadius: 0, Outcome: "success"})
 		printDecision(os.Stdout, d, jsonOut)
 	default:
-		fmt.Fprintf(os.Stderr, "leah decision: unknown action %q\n", args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "leah decision: unknown action %q\n", args[0])
 		os.Exit(2)
 	}
 }

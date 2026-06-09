@@ -35,7 +35,7 @@ func runBacklog(args []string) {
 		case a == "--json":
 			jsonMode = true
 		case strings.HasPrefix(a, "--"):
-			fmt.Fprintf(os.Stderr, "leah backlog: unknown flag %q\n", a)
+			_, _ = fmt.Fprintf(os.Stderr, "leah backlog: unknown flag %q\n", a)
 			os.Exit(2)
 		default:
 			repo = a
@@ -50,7 +50,7 @@ func runBacklog(args []string) {
 	// 1. Active regatta agents. Soft-fail: regatta may not be on PATH or daemon
 	// may be down; print empty section + stderr warning rather than aborting.
 	if agents, err := regattaclient.New().List(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "warn: regatta agents list: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "warn: regatta agents list: %v\n", err)
 	} else {
 		view.Agents = filterActive(agents)
 	}
@@ -59,14 +59,14 @@ func runBacklog(args []string) {
 
 	// 2. Open ready-for-agent issues.
 	if issues, err := listReadyIssues(ctx, sh, repo); err != nil {
-		fmt.Fprintf(os.Stderr, "warn: gh issue list: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "warn: gh issue list: %v\n", err)
 	} else {
 		view.Issues = issues
 	}
 
 	// 3. Recent PRs (last 10, any state).
 	if prs, err := listRecentPRs(ctx, sh, repo); err != nil {
-		fmt.Fprintf(os.Stderr, "warn: gh pr list: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "warn: gh pr list: %v\n", err)
 	} else {
 		view.PRs = prs
 	}
@@ -75,7 +75,7 @@ func runBacklog(args []string) {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(view); err != nil {
-			fmt.Fprintf(os.Stderr, "leah backlog: encode json: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah backlog: encode json: %v\n", err)
 			os.Exit(1)
 		}
 		return
@@ -134,9 +134,9 @@ func listRecentPRs(ctx context.Context, sh ghclient.ShellExec, repo string) ([]m
 }
 
 func printBacklog(w *os.File, v backlogView) {
-	fmt.Fprintln(w, "== REGATTA AGENTS (active) ==")
+	_, _ = fmt.Fprintln(w, "== REGATTA AGENTS (active) ==")
 	if len(v.Agents) == 0 {
-		fmt.Fprintln(w, "(none)")
+		_, _ = fmt.Fprintln(w, "(none)")
 	}
 	for _, a := range v.Agents {
 		pr := "-"
@@ -147,24 +147,24 @@ func printBacklog(w *os.File, v backlogView) {
 		if len(id) > 12 {
 			id = id[:12]
 		}
-		fmt.Fprintf(w, "%-12s %-20s %-10s %s\n", id, a.Branch, a.State, pr)
+		_, _ = fmt.Fprintf(w, "%-12s %-20s %-10s %s\n", id, a.Branch, a.State, pr)
 	}
 
-	fmt.Fprintf(w, "\n== OPEN ISSUES (ready-for-agent in %s) ==\n", v.Repo)
+	_, _ = fmt.Fprintf(w, "\n== OPEN ISSUES (ready-for-agent in %s) ==\n", v.Repo)
 	if len(v.Issues) == 0 {
-		fmt.Fprintln(w, "(none)")
+		_, _ = fmt.Fprintln(w, "(none)")
 	}
 	now := time.Now()
 	for _, is := range v.Issues {
 		num, _ := is["number"].(float64)
 		title, _ := is["title"].(string)
 		created, _ := is["createdAt"].(string)
-		fmt.Fprintf(w, "#%-5d %-60s %s\n", int(num), truncate(title, 60), ageSince(created, now))
+		_, _ = fmt.Fprintf(w, "#%-5d %-60s %s\n", int(num), truncate(title, 60), ageSince(created, now))
 	}
 
-	fmt.Fprintf(w, "\n== RECENT PRs (last 10 in %s) ==\n", v.Repo)
+	_, _ = fmt.Fprintf(w, "\n== RECENT PRs (last 10 in %s) ==\n", v.Repo)
 	if len(v.PRs) == 0 {
-		fmt.Fprintln(w, "(none)")
+		_, _ = fmt.Fprintln(w, "(none)")
 	}
 	for _, pr := range v.PRs {
 		num, _ := pr["number"].(float64)
@@ -174,7 +174,7 @@ func printBacklog(w *os.File, v backlogView) {
 		if ts == "" {
 			ts, _ = pr["createdAt"].(string)
 		}
-		fmt.Fprintf(w, "#%-5d %-50s %-8s %s\n", int(num), truncate(title, 50), state, ageSince(ts, now))
+		_, _ = fmt.Fprintf(w, "#%-5d %-50s %-8s %s\n", int(num), truncate(title, 50), state, ageSince(ts, now))
 	}
 }
 

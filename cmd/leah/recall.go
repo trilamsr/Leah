@@ -45,7 +45,7 @@ func runRecall(args []string) {
 	}
 	query := strings.TrimSpace(strings.Join(rest, " "))
 	if query == "" {
-		fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] <query>")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] <query>")
 		os.Exit(2)
 	}
 
@@ -56,12 +56,12 @@ func runRecall(args []string) {
 
 	auditHits, err := grepAudit(a.Path, query, 30*24*time.Hour, time.Now())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah recall: audit scan: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah recall: audit scan: %v\n", err)
 		os.Exit(1)
 	}
 	memHits, err := grepMemory(store.DB(), query)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah recall: memory scan: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah recall: memory scan: %v\n", err)
 		os.Exit(1)
 	}
 	results := append(auditHits, memHits...)
@@ -70,7 +70,7 @@ func runRecall(args []string) {
 	})
 
 	if len(results) == 0 {
-		fmt.Println("no matches")
+		_, _ = fmt.Println("no matches")
 		_ = a.Append(audit.Entry{
 			Kind:        "recall",
 			ArgsHash:    query,
@@ -99,7 +99,7 @@ func runRecall(args []string) {
 	b := budget.New()
 	client, err := reasoner.NewAnthropicClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
 		os.Exit(1)
 	}
 	sys := "You are Leah's recall synthesizer. Given audit + memory hits, " +
@@ -109,14 +109,14 @@ func runRecall(args []string) {
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: sys}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Query: %s\n\nMatches:\n", query)
+	_, _ = fmt.Fprintf(&sb, "Query: %s\n\nMatches:\n", query)
 	for _, hit := range results {
-		fmt.Fprintf(&sb, "- [%s %s] %s\n", hit.Source, hit.Timestamp, hit.Text)
+		_, _ = fmt.Fprintf(&sb, "- [%s %s] %s\n", hit.Source, hit.Timestamp, hit.Text)
 	}
 
 	text, err := r.Ask(context.Background(), sb.String())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
 		_ = a.Append(audit.Entry{
 			Kind:        "recall",
 			ArgsHash:    query,
@@ -127,7 +127,7 @@ func runRecall(args []string) {
 		})
 		os.Exit(1)
 	}
-	fmt.Println(text)
+	_, _ = fmt.Println(text)
 	_ = a.Append(audit.Entry{
 		Kind:        "recall",
 		ArgsHash:    query,

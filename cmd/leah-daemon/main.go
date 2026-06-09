@@ -47,7 +47,7 @@ func main() {
 	// snapshotter so a write failure can't crash the daemon.
 	lg, closeLog, err := obs.NewLogger()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah-daemon: obs logger: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: obs logger: %v\n", err)
 		os.Exit(1)
 	}
 	defer closeLog()
@@ -96,7 +96,7 @@ func main() {
 	if *dashboardAddr != "" {
 		store, err := memory.NewStore(filepath.Join(sd, "memory.db"))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah-daemon: memory store: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: memory store: %v\n", err)
 			os.Exit(1)
 		}
 		defer func() { _ = store.Close() }()
@@ -113,14 +113,14 @@ func main() {
 		}
 		go func() {
 			if err := srv.Start(ctx); err != nil {
-				fmt.Fprintf(os.Stderr, "leah-daemon: dashboard: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: dashboard: %v\n", err)
 			}
 		}()
-		fmt.Fprintf(os.Stdout, "leah-daemon: dashboard at http://%s/dashboard\n", *dashboardAddr)
+		_, _ = fmt.Fprintf(os.Stdout, "leah-daemon: dashboard at http://%s/dashboard\n", *dashboardAddr)
 	}
 
 	if err := loop.Run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -142,7 +142,7 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 				Out:            out,
 			}
 			if err := r.Run(ctx); err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly resolver error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly resolver error: %v\n", err)
 			}
 		},
 		// 2. Pattern detect → skill-candidates.md
@@ -150,13 +150,13 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 			since := time.Now().Add(-7 * 24 * time.Hour)
 			clusters, err := patterns.Detect(auditPath, since)
 			if err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly patterns error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly patterns error: %v\n", err)
 				return
 			}
 			md := patterns.Propose(clusters)
 			path := filepath.Join(sd, "skill-candidates.md")
 			if err := os.WriteFile(path, []byte(md), 0o600); err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly patterns write error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly patterns write error: %v\n", err)
 			}
 		},
 		// 3. Retro → retro-YYYY-WW.md
@@ -164,7 +164,7 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 			dbPath := filepath.Join(sd, "memory.db")
 			store, err := selflearn.OpenMistakeStore(dbPath)
 			if err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly retro store error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly retro store error: %v\n", err)
 				return
 			}
 			defer func() { _ = store.Close() }()
@@ -173,12 +173,12 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 			week := fmt.Sprintf("%04d-%02d", y, w)
 			md, err := retro.Generate(week)
 			if err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly retro error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly retro error: %v\n", err)
 				return
 			}
 			path := filepath.Join(sd, fmt.Sprintf("retro-%s.md", week))
 			if err := os.WriteFile(path, []byte(md), 0o600); err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly retro write error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly retro write error: %v\n", err)
 			}
 		},
 		// 4. Operator-behavior profile rebuild (Wave 2-J).
@@ -188,12 +188,12 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 			dbPath := filepath.Join(sd, "memory.db")
 			store, err := memory.NewStore(dbPath)
 			if err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly operatormodel store error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly operatormodel store error: %v\n", err)
 				return
 			}
 			defer func() { _ = store.Close() }()
 			if err := operatormodel.UpdateProfile(ctx, store, auditPath); err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly operatormodel error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly operatormodel error: %v\n", err)
 			}
 		},
 		// 5. Panic-rate detection → bug-fix-candidates.md + operator push.
@@ -215,7 +215,7 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 				}
 				cands, err := pr.Detect(ctx, sd)
 				if err != nil {
-					fmt.Fprintf(out, "leah-daemon: weekly panic-detect %s error: %v\n", d.Name(), err)
+					_, _ = fmt.Fprintf(out, "leah-daemon: weekly panic-detect %s error: %v\n", d.Name(), err)
 					continue
 				}
 				found = append(found, cands...)
@@ -226,16 +226,16 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 				var b strings.Builder
 				ts := time.Now().UTC().Format(time.RFC3339)
 				for _, c := range found {
-					fmt.Fprintf(&b, "\n<!-- candidate appended %s -->\n", ts)
+					_, _ = fmt.Fprintf(&b, "\n<!-- candidate appended %s -->\n", ts)
 					b.WriteString(rules.BuildIssueBody(c))
 					b.WriteString("\n---\n")
 				}
 				f, err := os.OpenFile(candPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 				if err != nil {
-					fmt.Fprintf(out, "leah-daemon: weekly bug-fix-candidates open error: %v\n", err)
+					_, _ = fmt.Fprintf(out, "leah-daemon: weekly bug-fix-candidates open error: %v\n", err)
 				} else {
 					if _, err := f.WriteString(b.String()); err != nil {
-						fmt.Fprintf(out, "leah-daemon: weekly bug-fix-candidates write error: %v\n", err)
+						_, _ = fmt.Fprintf(out, "leah-daemon: weekly bug-fix-candidates write error: %v\n", err)
 					}
 					_ = f.Close()
 				}
@@ -251,23 +251,23 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 			}
 			total := prev + len(found)
 			if err := os.WriteFile(sentinelPath, []byte(strconv.Itoa(total)), 0o600); err != nil {
-				fmt.Fprintf(out, "leah-daemon: weekly bug-fix sentinel write error: %v\n", err)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly bug-fix sentinel write error: %v\n", err)
 			}
 
 			newCount := len(found)
 			if newCount > 0 {
 				title := "Leah: bug-fix candidates"
 				body := fmt.Sprintf("Leah noticed %d bug candidates this week — review ~/.leah-state/bug-fix-candidates.md + run leah self-build", newCount)
-				fmt.Fprintf(out, "leah-daemon: weekly panic-detect: %d new candidates → %s\n", newCount, candPath)
+				_, _ = fmt.Fprintf(out, "leah-daemon: weekly panic-detect: %d new candidates → %s\n", newCount, candPath)
 				if d := notify.NewDesktop(); d != nil {
 					if err := d.Notify(ctx, title, body); err != nil {
-						fmt.Fprintf(out, "leah-daemon: weekly bug-fix desktop notify error: %v\n", err)
+						_, _ = fmt.Fprintf(out, "leah-daemon: weekly bug-fix desktop notify error: %v\n", err)
 					}
 				}
 				if p := notify.NewPushover(); p != nil {
 					if err := p.Notify(ctx, title, body); err != nil {
 						// Missing credentials degrade silently — see Pushover.Notify.
-						fmt.Fprintf(out, "leah-daemon: weekly bug-fix pushover skip: %v\n", err)
+						_, _ = fmt.Fprintf(out, "leah-daemon: weekly bug-fix pushover skip: %v\n", err)
 					}
 				}
 			}
@@ -282,7 +282,7 @@ func stateDir() string {
 		d = filepath.Join(home, ".leah-state")
 	}
 	if err := os.MkdirAll(d, 0o700); err != nil {
-		fmt.Fprintf(os.Stderr, "mkdir state dir: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "mkdir state dir: %v\n", err)
 		os.Exit(1)
 	}
 	return d

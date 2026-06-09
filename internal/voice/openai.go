@@ -75,7 +75,7 @@ func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
 	if err != nil {
 		return fmt.Errorf("openai tts: post: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("openai tts: status %d: %s", resp.StatusCode, string(b))
@@ -86,7 +86,7 @@ func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
 		return fmt.Errorf("openai tts: temp: %w", err)
 	}
 	path := tmp.Name()
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("openai tts: write: %w", err)

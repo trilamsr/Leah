@@ -29,20 +29,20 @@ func runSelfBuild(intent string) {
 	promptPath := filepath.Join(promptDir(), "self-build-feature.md")
 	sysPrompt, err := os.ReadFile(promptPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "read self-build prompt: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "read self-build prompt: %v\n", err)
 		os.Exit(1)
 	}
 
 	client, err := reasoner.NewAnthropicClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(sysPrompt)}
 
 	tmp, err := os.MkdirTemp("", "leah-selfbuild-*")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "tmp dir: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "tmp dir: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
@@ -69,7 +69,7 @@ func runSelfBuild(intent string) {
 			// Reasoner printed questions; non-fatal exit code 0.
 			return
 		}
-		fmt.Fprintf(os.Stderr, "leah self-build: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah self-build: %v\n", err)
 		os.Exit(1)
 	}
 }

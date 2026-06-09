@@ -13,7 +13,7 @@ import (
 // runCtx dispatches `leah ctx <action> ...`.
 func runCtx(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: leah ctx <new|switch|show|history|list> [args...]")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ctx <new|switch|show|history|list> [args...]")
 		os.Exit(2)
 	}
 	mgr := openCtxManager()
@@ -27,11 +27,11 @@ func runCtx(args []string) {
 		desc := fs.String("description", "", "human-readable description")
 		_ = fs.Parse(args[1:])
 		if *name == "" {
-			fmt.Fprintln(os.Stderr, "leah ctx new: --name required")
+			_, _ = fmt.Fprintln(os.Stderr, "leah ctx new: --name required")
 			os.Exit(2)
 		}
 		if err := mgr.NewContext(*name, *desc); err != nil {
-			fmt.Fprintf(os.Stderr, "leah ctx new: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah ctx new: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.new", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
@@ -42,11 +42,11 @@ func runCtx(args []string) {
 		reason := fs.String("reason", "cli", "free-form reason recorded in switch log")
 		_ = fs.Parse(args[1:])
 		if *name == "" {
-			fmt.Fprintln(os.Stderr, "leah ctx switch: --name required")
+			_, _ = fmt.Fprintln(os.Stderr, "leah ctx switch: --name required")
 			os.Exit(2)
 		}
 		if err := mgr.Switch(*name, *reason); err != nil {
-			fmt.Fprintf(os.Stderr, "leah ctx switch: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah ctx switch: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.switch", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
@@ -55,7 +55,7 @@ func runCtx(args []string) {
 		jsonOut := hasFlag(args[1:], "--json")
 		c, err := mgr.Active()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah ctx show: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah ctx show: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.show", BlastRadius: 0, Outcome: "success", Detail: c.Name})
@@ -73,7 +73,7 @@ func runCtx(args []string) {
 		_ = fs.Parse(args[1:])
 		hist, err := mgr.History(*limit)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah ctx history: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah ctx history: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.history", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(hist))})
@@ -82,7 +82,7 @@ func runCtx(args []string) {
 			return
 		}
 		if len(hist) == 0 {
-			fmt.Println("(no switches recorded)")
+			_, _ = fmt.Println("(no switches recorded)")
 			return
 		}
 		for _, s := range hist {
@@ -97,7 +97,7 @@ func runCtx(args []string) {
 		jsonOut := hasFlag(args[1:], "--json")
 		cs, err := mgr.List()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah ctx list: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah ctx list: %v\n", err)
 			os.Exit(1)
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(cs))})
@@ -109,7 +109,7 @@ func runCtx(args []string) {
 			fmt.Printf("%-20s  %s\n", c.Name, c.Description)
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "leah ctx: unknown action %q\n", args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "leah ctx: unknown action %q\n", args[0])
 		os.Exit(2)
 	}
 }

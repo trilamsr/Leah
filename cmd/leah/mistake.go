@@ -13,7 +13,7 @@ import (
 // runMistake dispatches `leah mistake <action> ...`.
 func runMistake(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: leah mistake add --audit-id <ts> --root-cause <tag> --prevention <text>")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah mistake add --audit-id <ts> --root-cause <tag> --prevention <text>")
 		os.Exit(2)
 	}
 	switch args[0] {
@@ -30,12 +30,12 @@ func runMistake(args []string) {
 		prevention := fs.String("prevention", "", "free-form prevention note (required)")
 		_ = fs.Parse(args[1:])
 		if *auditID == "" || *rootCause == "" || *prevention == "" {
-			fmt.Fprintln(os.Stderr, "leah mistake add: --audit-id, --root-cause, --prevention all required")
+			_, _ = fmt.Fprintln(os.Stderr, "leah mistake add: --audit-id, --root-cause, --prevention all required")
 			os.Exit(2)
 		}
 		store, err := selflearn.OpenMistakeStore(memoryPath())
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah mistake add: open store: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah mistake add: open store: %v\n", err)
 			os.Exit(1)
 		}
 		defer func() { _ = store.Close() }()
@@ -47,14 +47,14 @@ func runMistake(args []string) {
 			Prevention: *prevention,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "leah mistake add: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah mistake add: %v\n", err)
 			os.Exit(1)
 		}
 		a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
 		_ = a.Append(audit.Entry{Kind: "mistake.add", ArgsHash: id, BlastRadius: 1, Outcome: "success", Detail: *rootCause})
 		fmt.Printf("logged mistake %s (root_cause=%q)\n", id, *rootCause)
 	default:
-		fmt.Fprintf(os.Stderr, "leah mistake: unknown action %q\n", args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "leah mistake: unknown action %q\n", args[0])
 		os.Exit(2)
 	}
 }

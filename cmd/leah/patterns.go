@@ -27,7 +27,7 @@ func runPatterns(args []string) {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	clusters, err := patterns.DetectWithThreshold(auditPath, since, *minCount)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah patterns: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah patterns: %v\n", err)
 		os.Exit(1)
 	}
 

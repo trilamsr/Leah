@@ -35,7 +35,7 @@ func runSuggest(args []string) {
 	memPath := filepath.Join(stateDir(), "memory.db")
 	store, err := memory.NewStore(memPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "open memory: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "open memory: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() { _ = store.Close() }()
@@ -54,18 +54,18 @@ func runSuggest(args []string) {
 
 	profile, err := operatormodel.Load(ctx, store.DB())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "load profile: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "load profile: %v\n", err)
 		os.Exit(1)
 	}
 
 	recs, err := operatormodel.Recommend(profile, activeContext, time.Now())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "recommend: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "recommend: %v\n", err)
 		os.Exit(1)
 	}
 	if len(recs) == 0 {
 		if profile.Ready {
-			fmt.Println("no recommendations for current context + time")
+			_, _ = fmt.Println("no recommendations for current context + time")
 		} else {
 			fmt.Printf("operator-model not ready (have %d rows, %d days; need %d+ rows and %d+ days)\n",
 				profile.RowsObserved, profile.DaysObserved,
@@ -75,7 +75,7 @@ func runSuggest(args []string) {
 	}
 
 	if useLLM {
-		fmt.Println("(--llm phrasing TODO; printing template form)")
+		_, _ = fmt.Println("(--llm phrasing TODO; printing template form)")
 	}
 	for i, r := range recs {
 		fmt.Printf("%d. %s — %s (weight %.2f)\n", i+1, r.Kind, r.Reason, r.Weight)

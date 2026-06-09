@@ -18,7 +18,7 @@ func runRetro(args []string) {
 
 	store, err := selflearn.OpenMistakeStore(memoryPath())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah retro: open store: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah retro: open store: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() { _ = store.Close() }()
@@ -27,7 +27,7 @@ func runRetro(args []string) {
 	r := &selflearn.Retro{AuditPath: auditPath, Store: store}
 	md, err := r.Generate(*week)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah retro: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah retro: %v\n", err)
 		os.Exit(1)
 	}
 	a := &audit.Logger{Path: auditPath}
