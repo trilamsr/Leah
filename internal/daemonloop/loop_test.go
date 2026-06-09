@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -95,6 +96,130 @@ func TestLoopIgnoresNonTerminalTransition(t *testing.T) {
 
 	if len(nf.calls) != 0 {
 		t.Errorf("non-terminal change should not notify; got %v", nf.calls)
+	}
+}
+
+func TestWeeklyTaskFiresAfter7Days(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt"
+
+	// Seed tracker to 8d ago so weekly should fire.
+	old := time.Now().Add(-8 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired int
+	var mu sync.Mutex
+	done := make(chan struct{}, 1)
+	weekly := func(ctx context.Context) {
+		mu.Lock()
+		fired++
+		mu.Unlock()
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{weekly}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("weekly task did not fire after 7d boundary")
+	}
+	mu.Lock()
+	if fired != 1 {
+		t.Errorf("want 1 weekly fire, got %d", fired)
+	}
+	mu.Unlock()
+
+	// Tracker file should be updated to ~now.
+	data, err := os.ReadFile(tracker)
+	if err != nil {
+		t.Fatalf("read tracker: %v", err)
+	}
+	ts, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("parse tracker: %v", err)
+	}
+	if time.Since(ts) > time.Minute {
+		t.Errorf("tracker stale: %v", ts)
+	}
+}
+
+func TestWeeklyTaskDoesNotFireWithin7Days(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt"
+
+	// Seed tracker to 1d ago — weekly should NOT fire.
+	recent := time.Now().Add(-24 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(recent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired int
+	var mu sync.Mutex
+	weekly := func(ctx context.Context) {
+		mu.Lock()
+		fired++
+		mu.Unlock()
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{weekly}
+	l.tick(context.Background())
+
+	// Allow any goroutine that would have fired to run.
+	time.Sleep(50 * time.Millisecond)
+	mu.Lock()
+	if fired != 0 {
+		t.Errorf("weekly should not fire within 7d; got %d", fired)
+	}
+	mu.Unlock()
+
+	// Tracker should be unchanged.
+	data, _ := os.ReadFile(tracker)
+	if strings.TrimSpace(string(data)) != recent {
+		t.Errorf("tracker changed unexpectedly: %s", data)
+	}
+}
+
+func TestWeeklyTaskFiresOnFirstRunWhenTrackerMissing(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt" // does not exist
+
+	done := make(chan struct{}, 1)
+	weekly := func(ctx context.Context) {
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{weekly}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("weekly task did not fire on first run (missing tracker)")
+	}
+	if _, err := os.Stat(tracker); err != nil {
+		t.Errorf("tracker should be created: %v", err)
 	}
 }
 

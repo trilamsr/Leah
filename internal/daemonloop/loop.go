@@ -4,11 +4,23 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/regattaclient"
 )
+
+// WeeklyTask runs on the weekly tick. Tasks execute in their own goroutine
+// per tick — they MUST NOT block the per-30s poll.
+type WeeklyTask func(ctx context.Context)
+
+// weeklyInterval is the cadence for firing weekly tasks. Exposed as a
+// package var for tests; defaults to 7 days.
+var weeklyInterval = 7 * 24 * time.Hour
 
 type RegattaClient interface {
 	List(ctx context.Context) ([]regattaclient.Agent, error)
@@ -32,8 +44,20 @@ type Loop struct {
 	Out       io.Writer
 	PollEvery time.Duration
 
+	// Weekly fires once per weeklyInterval. Each task runs in its own
+	// goroutine — slow tasks DO NOT block the per-30s tick. Concurrent
+	// invocations are gated by weeklyMu (TryLock — skip if in flight).
+	Weekly []WeeklyTask
+	// WeeklyTracker is the file storing the last-fired RFC3339 timestamp.
+	// Missing or unparseable file = fire on next tick.
+	WeeklyTracker string
+	// WeeklyHour gates the weekly tick to fire only at-or-after this
+	// hour-of-day (local time). Zero (or unset) = no hour gate.
+	WeeklyHour int
+
 	prevState map[string]string
 	cold      bool
+	weeklyMu  sync.Mutex
 }
 
 func New(rc RegattaClient, hb Heartbeat, nf Notifier, a *audit.Logger, out io.Writer, pollEvery time.Duration) *Loop {
@@ -70,24 +94,94 @@ func (l *Loop) tick(ctx context.Context) {
 	agents, err := l.Regatta.List(ctx)
 	if err != nil {
 		_, _ = fmt.Fprintf(l.Out, "leah-daemon: regatta list error: %v\n", err)
-		return
-	}
-	current := map[string]string{}
-	for _, a := range agents {
-		current[a.ID] = a.State
-	}
-
-	if !l.cold {
-		for id, newState := range current {
-			oldState, existed := l.prevState[id]
-			if existed && oldState != newState && isTerminal(newState) {
-				l.notifyTransition(ctx, id, oldState, newState, agents)
+		// Fall through to weekly tick — regatta unreachability MUST NOT
+		// gate weekly self-learn/patterns/retro work.
+	} else {
+		current := map[string]string{}
+		for _, a := range agents {
+			current[a.ID] = a.State
+		}
+		if !l.cold {
+			for id, newState := range current {
+				oldState, existed := l.prevState[id]
+				if existed && oldState != newState && isTerminal(newState) {
+					l.notifyTransition(ctx, id, oldState, newState, agents)
+				}
 			}
 		}
+		l.prevState = current
+		l.cold = false
 	}
 
-	l.prevState = current
-	l.cold = false
+	l.maybeFireWeekly(ctx)
+}
+
+// maybeFireWeekly checks the WeeklyTracker file and, if >= weeklyInterval has
+// elapsed since the last fire (or the tracker is missing/unparseable), runs
+// all WeeklyTask funcs in a background goroutine and rewrites the tracker.
+// Concurrent invocations short-circuit on weeklyMu TryLock.
+func (l *Loop) maybeFireWeekly(ctx context.Context) {
+	if len(l.Weekly) == 0 || l.WeeklyTracker == "" {
+		return
+	}
+	if !l.weeklyMu.TryLock() {
+		return // weekly already in flight
+	}
+
+	now := time.Now().UTC()
+	last, ok := readWeeklyTracker(l.WeeklyTracker)
+	if ok && now.Sub(last) < weeklyInterval {
+		l.weeklyMu.Unlock()
+		_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly skipped (last ran %s, <%v ago)\n",
+			last.Format(time.RFC3339), weeklyInterval)
+		return
+	}
+	if l.WeeklyHour > 0 && time.Now().Hour() < l.WeeklyHour {
+		l.weeklyMu.Unlock()
+		_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly deferred (hour %d < WeeklyHour %d)\n",
+			time.Now().Hour(), l.WeeklyHour)
+		return
+	}
+
+	if err := writeWeeklyTracker(l.WeeklyTracker, now); err != nil {
+		_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly tracker write error: %v\n", err)
+		l.weeklyMu.Unlock()
+		return
+	}
+	tasks := l.Weekly
+	_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly: running %d task(s)\n", len(tasks))
+	go func() {
+		defer l.weeklyMu.Unlock()
+		for _, t := range tasks {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly task panic: %v\n", r)
+					}
+				}()
+				t(ctx)
+			}()
+		}
+	}()
+}
+
+func readWeeklyTracker(path string) (time.Time, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return time.Time{}, false
+	}
+	ts, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data)))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return ts, true
+}
+
+func writeWeeklyTracker(path string, now time.Time) error {
+	if dir := filepath.Dir(path); dir != "" {
+		_ = os.MkdirAll(dir, 0o700)
+	}
+	return os.WriteFile(path, []byte(now.Format(time.RFC3339)), 0o600)
 }
 
 func isTerminal(state string) bool {
