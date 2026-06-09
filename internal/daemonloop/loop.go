@@ -23,9 +23,12 @@ import (
 // per tick — they MUST NOT block the per-30s poll.
 type WeeklyTask func(ctx context.Context)
 
-// weeklyInterval is the cadence for firing weekly tasks. Exposed as a
-// package var for tests; defaults to 7 days.
-var weeklyInterval = 7 * 24 * time.Hour
+// defaultWeeklyInterval is the cadence for firing weekly tasks when a
+// Loop does not specify its own. Each Loop carries its own WeeklyInterval
+// field — there is no package-level mutable state to avoid the race the
+// 2026-06-09 audit H6 flagged (parallel tests mutating a shared var
+// while concurrent tick goroutines read it).
+const defaultWeeklyInterval = 7 * 24 * time.Hour
 
 // RegattaClient is the subset of regattaclient.Client the loop needs;
 // abstracted so tests can stub state diffs without spawning the regatta binary.
@@ -65,6 +68,10 @@ type Loop struct {
 	// WeeklyHour gates the weekly tick to fire only at-or-after this
 	// hour-of-day (local time). Zero (or unset) = no hour gate.
 	WeeklyHour int
+	// WeeklyInterval overrides the 7-day cadence per Loop instance. Zero
+	// = defaultWeeklyInterval. Per-Loop field (not a package var) so test
+	// instances cannot race the production tick goroutine.
+	WeeklyInterval time.Duration
 
 	prevState map[string]string
 	cold      bool
@@ -146,11 +153,15 @@ func (l *Loop) maybeFireWeekly(ctx context.Context) {
 	}
 
 	now := time.Now().UTC()
+	interval := l.WeeklyInterval
+	if interval <= 0 {
+		interval = defaultWeeklyInterval
+	}
 	last, ok := readWeeklyTracker(l.WeeklyTracker)
-	if ok && now.Sub(last) < weeklyInterval {
+	if ok && now.Sub(last) < interval {
 		l.weeklyMu.Unlock()
 		_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly skipped (last ran %s, <%v ago)\n",
-			last.Format(time.RFC3339), weeklyInterval)
+			last.Format(time.RFC3339), interval)
 		return
 	}
 	if l.WeeklyHour > 0 && time.Now().Hour() < l.WeeklyHour {

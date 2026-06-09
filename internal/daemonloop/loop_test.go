@@ -186,6 +186,62 @@ func TestWeeklyTaskFiresAfter7Days(t *testing.T) {
 	}
 }
 
+// TestWeeklyIntervalOverridePerLoop asserts each Loop carries its own
+// WeeklyInterval — no shared package-level mutable state. Catches the
+// race the audit's H6 flagged: parallel tests mutating a package var
+// while concurrent goroutines read it. Setting WeeklyInterval to a
+// short window on one Loop instance must not bleed into others.
+func TestWeeklyIntervalOverridePerLoop(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt"
+
+	// Seed tracker to 1h ago so the default-7d Loop would skip, but a
+	// 30-minute-interval Loop would fire.
+	old := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired atomic.Int32
+	done := make(chan struct{}, 1)
+	weekly := func(ctx context.Context) {
+		fired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	short := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	short.WeeklyTracker = tracker
+	short.Weekly = []WeeklyTask{weekly}
+	short.WeeklyInterval = 30 * time.Minute
+	short.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("short-interval weekly did not fire")
+	}
+	if got := fired.Load(); got != 1 {
+		t.Errorf("fired = %d, want 1", got)
+	}
+
+	// Build a second Loop with the default interval against the same
+	// tracker (which just got rewritten to "now") — it must NOT fire and
+	// must NOT see any state leaked from `short`.
+	def := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	def.WeeklyTracker = tracker
+	def.Weekly = []WeeklyTask{weekly}
+	def.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	if got := fired.Load(); got != 1 {
+		t.Errorf("default-interval Loop fired (leak): fired=%d, want 1", got)
+	}
+}
+
 func TestWeeklyTaskDoesNotFireWithin7Days(t *testing.T) {
 	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
 	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
