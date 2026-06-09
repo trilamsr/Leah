@@ -106,6 +106,18 @@ function renderOps(o) {
   $('alive').className = 'dot alive-dot' + (aliveAgeSec > 300 ? ' fail' : aliveAgeSec > 60 ? ' warn' : '');
 }
 
+function renderCosts(c) {
+  // Costs is always present (zeroed) — but guard for old-payload safety.
+  if (!c) return;
+  $('ops-cost-today').innerHTML = `<span class="label">cost 24h</span><span class="val">${esc(fmtMoney(c.today_usd))}</span>`;
+  $('ops-cost-week').innerHTML  = `<span class="label">cost 7d</span><span class="val">${esc(fmtMoney(c.week_usd))}</span>`;
+  const top = c.top_kinds || [];
+  const txt = top.length
+    ? top.map(b => `${esc(b.name)} ${esc(fmtMoney(b.usd))}`).join(' · ')
+    : 'none';
+  $('ops-cost-top').innerHTML = `<span class="label">top kinds</span><span class="val" title="${esc(txt)}">${txt}</span>`;
+}
+
 function renderMetrics(m) {
   const el = $('ops-metrics');
   if (!el) return;
@@ -147,6 +159,7 @@ async function tick() {
     renderAgents(data.agents);
     renderMemory(data.memory);
     renderOps(data.ops);
+    renderCosts(data.costs);
     renderMetrics(data.metrics);
     if (!booted) { booted = true; document.body.classList.remove('boot'); }
   } catch (e) {

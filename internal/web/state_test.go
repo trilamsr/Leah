@@ -27,7 +27,7 @@ func newTestServer(t *testing.T) *Server {
 
 	logger := &audit.Logger{Path: filepath.Join(dir, "audit.jsonl")}
 	for i := 0; i < 3; i++ {
-		if err := logger.Append(audit.Entry{Kind: "test.kind", Outcome: "ok", Detail: "row"}); err != nil {
+		if err := logger.Append(audit.Entry{Kind: "test.kind", Outcome: "ok", Detail: "row", CostDollars: 0.10}); err != nil {
 			t.Fatalf("audit append: %v", err)
 		}
 	}
@@ -89,6 +89,17 @@ func TestSnapshotAggregatesFromAllSources(t *testing.T) {
 	}
 	if state.Ops.LastHeartbeatAt == "" {
 		t.Error("heartbeat: empty")
+	}
+	// Costs: three 0.10 audit rows written above with default time.Now()
+	// should aggregate to 0.30 USD in the 24h + 7d windows.
+	if got := state.Costs.WeekUSD; got < 0.29 || got > 0.31 {
+		t.Errorf("Costs.WeekUSD: got %v, want ~0.30", got)
+	}
+	if got := state.Costs.TodayUSD; got < 0.29 || got > 0.31 {
+		t.Errorf("Costs.TodayUSD: got %v, want ~0.30", got)
+	}
+	if len(state.Costs.TopKinds) == 0 || state.Costs.TopKinds[0].Name != "test.kind" {
+		t.Errorf("Costs.TopKinds: got %+v", state.Costs.TopKinds)
 	}
 }
 

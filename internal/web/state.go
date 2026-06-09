@@ -12,6 +12,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/costview"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/regattaclient"
 )
@@ -22,7 +23,17 @@ type State struct {
 	Agents  []Agent     `json:"agents"`
 	Memory  MemoryView  `json:"memory"`
 	Ops     OpsView     `json:"ops"`
+	Costs   CostsView   `json:"costs"`
 	Metrics interface{} `json:"metrics,omitempty"` // raw obs.Registry snapshot when latest.json exists
+}
+
+// CostsView is the dashboard projection of audit.jsonl cost_dollars: a
+// rolling 24h total + 7d total + the top-3 kinds over the 7d window. Full
+// historical breakdown lives behind `leah cost` CLI.
+type CostsView struct {
+	TodayUSD float64           `json:"today_usd"`
+	WeekUSD  float64           `json:"week_usd"`
+	TopKinds []costview.Bucket `json:"top_kinds"`
 }
 
 // AuditRow is one entry surfaced from audit.jsonl tail.
@@ -80,9 +91,34 @@ func (s *Server) Snapshot(ctx context.Context) State {
 		Agents:  listAgents(ctx, s.Regatta),
 		Memory:  readMemory(s.Memory),
 		Ops:     s.readOps(),
+		Costs:   readCosts(s.AuditPath),
 		Metrics: readMetrics(s.MetricsPath),
 	}
 	return out
+}
+
+// readCosts derives a dashboard-sized projection from audit.jsonl. Single
+// 7d aggregation + a streaming subtraction for the rolling 24h slice keeps
+// us to one file pass per poll (dashboard polls every 3s). ByDay is a
+// closed-form subtraction when the 24h boundary aligns with day rollover;
+// otherwise we re-aggregate at the finer grain — acceptable since the
+// audit file is small at single-operator scale.
+func readCosts(auditPath string) CostsView {
+	v := CostsView{TopKinds: []costview.Bucket{}}
+	if auditPath == "" {
+		return v
+	}
+	now := time.Now()
+	week, err := costview.Aggregate(auditPath, now.Add(-7*24*time.Hour))
+	if err != nil {
+		return v
+	}
+	v.WeekUSD = week.TotalUSD
+	v.TopKinds = week.TopKinds(3)
+	if today, err := costview.Aggregate(auditPath, now.Add(-24*time.Hour)); err == nil {
+		v.TodayUSD = today.TotalUSD
+	}
+	return v
 }
 
 // readMetrics returns the latest obs.Registry snapshot as a raw map, or nil

@@ -97,6 +97,8 @@ func main() {
 			os.Exit(2)
 		}
 		runSelfBuild(os.Args[2])
+	case "cost":
+		runCost(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -283,5 +285,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  backlog [repo] [--json]   active agents + ready issues + recent PRs")
 	_, _ = fmt.Fprintln(os.Stderr, "  recall [--llm] <query>    semantic search over audit + memory")
 	_, _ = fmt.Fprintln(os.Stderr, "  self-build \"<intent>\"     dispatch a regatta self-build PR")
+	_, _ = fmt.Fprintln(os.Stderr, "  cost [--since D] [--by kind|day|model] [--json]  aggregate spend")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
