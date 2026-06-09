@@ -1,3 +1,7 @@
+// Package ghclient wraps the `gh` CLI for the three calls Leah makes today:
+// CreateIssue (ship/self-build), ViewPR (review), and ListPRsForBranch
+// (future watcher work). Shells out instead of using the GitHub REST API so
+// the operator's existing `gh auth login` token covers everything.
 package ghclient
 
 import (
@@ -8,12 +12,18 @@ import (
 	"strings"
 )
 
+// Executor abstracts the shell hop so tests can replace gh with a fixture
+// that returns canned JSON.
 type Executor interface {
 	Run(ctx context.Context, args []string) (stdout string, err error)
 }
 
+// ShellExec is the production Executor that runs the gh binary via os/exec.
 type ShellExec struct{}
 
+// Run executes args[0] with args[1:], surfacing ExitError.Stderr in the
+// returned error so gh's "authentication required" / rate-limit messages
+// reach the operator.
 func (ShellExec) Run(ctx context.Context, args []string) (string, error) {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	out, err := cmd.Output()
@@ -26,14 +36,19 @@ func (ShellExec) Run(ctx context.Context, args []string) (string, error) {
 	return string(out), nil
 }
 
+// Client is the gh wrapper. Exec defaults to ShellExec.
 type Client struct {
 	Exec Executor
 }
 
+// New returns a Client wired to the gh binary on $PATH.
 func New() *Client {
 	return &Client{Exec: ShellExec{}}
 }
 
+// CreateIssueArgs is the argument set for gh issue create. BodyFile is the
+// preferred shape over inline body (avoids the shell-escape hazard for the
+// triple-backtick release-notes fences regatta expects).
 type CreateIssueArgs struct {
 	Repo     string
 	Title    string
@@ -41,6 +56,9 @@ type CreateIssueArgs struct {
 	Labels   []string
 }
 
+// CreateIssue files an issue + returns the trimmed URL printed by gh.
+// Callers (Ship, SelfBuild) prepend the `ready-for-agent` label so regatta
+// picks the issue up on its next poll.
 func (c *Client) CreateIssue(ctx context.Context, a CreateIssueArgs) (url string, err error) {
 	args := []string{"gh", "issue", "create",
 		"--repo", a.Repo,
@@ -57,6 +75,9 @@ func (c *Client) CreateIssue(ctx context.Context, a CreateIssueArgs) (url string
 	return strings.TrimSpace(out), nil
 }
 
+// ViewPR returns the gh-projected JSON for one PR. fields MUST be an
+// explicit allowlist (per CLAUDE.md gh-minimal-fields rule) — passing all
+// fields blows token budget on PR body / comments.
 func (c *Client) ViewPR(ctx context.Context, repo string, num int, fields []string) (map[string]any, error) {
 	args := []string{"gh", "pr", "view", fmt.Sprintf("%d", num),
 		"--repo", repo,
@@ -73,6 +94,8 @@ func (c *Client) ViewPR(ctx context.Context, repo string, num int, fields []stri
 	return m, nil
 }
 
+// ListPRsForBranch returns up to 20 PRs whose head ref matches branch.
+// Used by the watcher to correlate a regatta agent branch back to its PR.
 func (c *Client) ListPRsForBranch(ctx context.Context, repo, branch string, fields []string) ([]map[string]any, error) {
 	args := []string{"gh", "pr", "list",
 		"--repo", repo,

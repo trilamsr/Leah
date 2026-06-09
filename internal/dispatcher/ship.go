@@ -18,22 +18,31 @@ import (
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
+// GHClient is the gh-create-issue surface Ship needs; abstracted so tests
+// can capture the issue payload without forking gh.
 type GHClient interface {
 	CreateIssue(ctx context.Context, args ghclient.CreateIssueArgs) (string, error)
 }
 
+// RegattaClient is the regatta-list surface used by the optional watcher.
 type RegattaClient interface {
 	List(ctx context.Context) ([]regattaclient.Agent, error)
 }
 
+// HeartbeatPinger is the per-poll keep-alive hook; failures are non-fatal
+// so a missing LEAH_HEALTHCHECK_URL never blocks ship.
 type HeartbeatPinger interface {
 	Ping(ctx context.Context) error
 }
 
+// Notifier emits the terminal-state push on watcher exit (desktop + optional
+// Pushover). Failures are non-fatal — operator still sees the URL on stdout.
 type Notifier interface {
 	Notify(ctx context.Context, title, body string) error
 }
 
+// Ship is the BR=3 `leah ship` orchestration: Reasoner draft → gh issue
+// create → optional watcher loop until a regatta agent hits terminal state.
 type Ship struct {
 	Reasoner Reasoner
 	GH       GHClient
@@ -53,6 +62,9 @@ type Ship struct {
 	MaxPolls  int
 }
 
+// Run drafts the issue body, files via gh, and (when Watch=true) polls
+// regatta until a terminal agent transition or MaxPolls. Audit row is
+// written immediately as "pending" — watcher does not retroactively update.
 func (s *Ship) Run(ctx context.Context, intent string) error {
 	ulidVal, err := ulid.New(ulid.Now(), ulid.Monotonic(rand.Reader, 0))
 	if err != nil {

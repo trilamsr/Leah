@@ -11,6 +11,8 @@ import (
 	"github.com/trilam/leah/internal/audit"
 )
 
+// Status renders the tail of audit.jsonl as either a fixed-width table or
+// a JSON array (--json mode). Limit caps the row count; 0 or > total = all.
 type Status struct {
 	AuditPath string
 	Out       io.Writer
@@ -18,6 +20,9 @@ type Status struct {
 	JSON      bool
 }
 
+// Run streams the audit file, parses each line as audit.Entry (skipping
+// malformed rows), and emits the tail in table or JSON form. Missing audit
+// file is treated as "no activity" — first-run UX, not an error.
 func (s *Status) Run() error {
 	f, err := os.Open(s.AuditPath)
 	if err != nil {

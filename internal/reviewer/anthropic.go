@@ -14,11 +14,17 @@ const (
 	outputCostPerToken = 15.0 / 1_000_000
 )
 
+// AnthropicSubagent is the production Subagent for the reviewer. Model
+// defaults to claude-sonnet-4-6 with LEAH_REVIEWER_MODEL override —
+// independent from Reasoner's LEAH_MODEL so reviewer can run a stricter
+// model than the drafter.
 type AnthropicSubagent struct {
 	sdk   anthropic.Client
 	model string
 }
 
+// NewAnthropicSubagent constructs an AnthropicSubagent, failing fast when
+// ANTHROPIC_API_KEY is unset.
 func NewAnthropicSubagent() (*AnthropicSubagent, error) {
 	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
@@ -32,6 +38,8 @@ func NewAnthropicSubagent() (*AnthropicSubagent, error) {
 	return &AnthropicSubagent{sdk: c, model: model}, nil
 }
 
+// Run sends one system + user message pair and returns the joined text
+// blocks plus the computed dollar cost.
 func (a *AnthropicSubagent) Run(ctx context.Context, system, input string) (string, float64, error) {
 	resp, err := a.sdk.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(a.model),

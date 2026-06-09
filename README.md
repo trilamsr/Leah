@@ -232,6 +232,99 @@ Integration tests (require ANTHROPIC_API_KEY):
 
 CLAUDE.md at repo root has operator-rules for any agent (main + subagents).
 
+## What Leah does now (Wave 1 + 2)
+
+Post-Wave-1 + Wave-2 the MVP-5 surface above has grown into the closed-loop core. Capabilities shipped today:
+
+- **Memory KB** — `leah contact`, `leah project`, `leah decision` (add/list/show). SQLite-backed at `~/.leah-state/memory.db`, schema v4.
+- **Context manager** — `leah ctx new/switch/show/history/list`. Single-active-context with per-switch audit; ctxmgr + memory share one `memory.db`.
+- **Mistake log + retro** — `leah mistake add` annotates a negative outcome; `leah retro [--week YYYY-WW]` renders the weekly markdown rollup (actions, cost, wins, mistakes).
+- **Pattern recognition** — `leah patterns` clusters audit rows by `(kind, args_hash[:8])` and surfaces clusters at ≥5 occurrences as skill candidates.
+- **Self-build dispatcher** — `leah self-build "<intent>"` drafts a Leah-feature spec via Reasoner, picks a random attestation question, and files a `[SELF-BUILD] ...` issue against `trilamsr/Leah`. Repo is hard-locked.
+- **Independent reviewer** — `leah review <repo> <pr#>` runs an Anthropic subagent with a separate prompt + model env (`LEAH_REVIEWER_MODEL`), validates the agent-id against the canonical allowlist.
+- **JARVIS dashboard** — `leah-daemon --dashboard 127.0.0.1:8080` serves `/dashboard` (HTML) + `/api/state` (JSON aggregator of audit tail, agents, memory counts, ops/budget gauges). Loopback-only; non-127.0.0.1 binds are refused.
+- **Daemon weekly tick** — Sunday-9am-default cron fires four tasks: resolver back-fill, pattern detect → `skill-candidates.md`, retro generate → `retro-YYYY-WW.md`, operatormodel profile rebuild.
+- **Operator model** — `operatormodel.UpdateProfile` rebuilds time-of-day / cadence / context-transition signals from the last 30 days; `Recommend()` ranks candidates (CLI wiring lands in Wave 3).
+- **Observability** — `internal/obs` provides slog daily-rotated JSONL logs, in-process metrics, `SafeGo`/`SafeRun` panic-recovery wrappers writing to `~/.leah-state/panics/`.
+
+See `ARCHITECTURE.md` for the package map + end-to-end data flow.
+
+## Operator workflows
+
+Five concrete walkthroughs covering the bulk of day-to-day Leah usage.
+
+### 1. Filing a self-build fix
+
+When you spot a Leah bug or want a small new capability:
+
+    leah self-build "fix the reasoner panic when SystemPrompt is empty — see panic file 2026-06-09T..."
+
+- Reasoner drafts a feature spec (or returns clarifying questions; no issue is filed in that case).
+- A random attestation question from `prompts/self-build-attestations.txt` is appended to the body.
+- `gh issue create --repo trilamsr/Leah --label ready-for-agent` files the issue.
+- regatta picks it up on its next poll → opens a PR.
+- Run `leah review trilamsr/Leah <PR#>` for the independent subagent verdict.
+- Answer the attestation question in a `Attestation: ...` PR comment.
+- Merge manually (`gh pr merge`) — automerge is BANNED on self-build PRs.
+
+### 2. Weekly retro review
+
+Sunday morning (or anytime):
+
+    leah retro                        # current ISO week
+    leah retro --week 2026-23         # specific week
+
+Returns markdown: total actions, success/failed/pending/unknown counts, cost, top action_kind, top 5 wins, top 5 mistakes grouped by root cause. The daemon writes the same report to `~/.leah-state/retro-YYYY-WW.md` on the weekly tick — open the file or pipe `leah retro` into `glow`.
+
+### 3. JARVIS dashboard tour
+
+Start the daemon with the dashboard enabled:
+
+    leah-daemon --dashboard 127.0.0.1:8080
+
+Open <http://127.0.0.1:8080/dashboard>. Single page renders:
+
+- Tail of 20 most recent audit rows (kind / BR / outcome / detail).
+- Live regatta agent list with state colour-coding.
+- Memory cardinality (contacts / projects / decisions) + top-5 recent decisions.
+- Ops view: budget spent vs ceiling, daemon uptime, last heartbeat.
+
+`/api/state` returns the same payload as JSON for scripting. Server refuses non-loopback binds; no remote access by design.
+
+### 4. Logging a mistake
+
+When something went sideways and you want it to surface in next week's retro:
+
+    leah mistake add \
+      --audit-id <ts-from-leah-status> \
+      --root-cause "wrong context" \
+      --prevention "always ctx switch before ship"
+
+Row lands in `mistake_log` (schema v3+). `leah retro` groups top 5 root causes by frequency and prints the first prevention text encountered per cause.
+
+### 5. Skill candidates from patterns
+
+After 30+ days of regular use:
+
+    leah patterns
+    # or wait for the weekly tick to write ~/.leah-state/skill-candidates.md
+
+Each cluster shows kind × count, args_hash prefix, sample details, and a `leah skill approve <kind>-<hash>` proposal stub. The approve CLI lands in V2 (spec deferred); for now operator cherry-picks manually.
+
+## What's NOT done yet
+
+Wave 3 + later still pending. See [`docs/specs/2026-06-09-roadmap-overview.md`](docs/specs/2026-06-09-roadmap-overview.md) for the full sequence and [`docs/specs/2026-06-09-leah-phase-x-multi-operator-roadmap.md`](docs/specs/2026-06-09-leah-phase-x-multi-operator-roadmap.md) for explicitly-deferred items.
+
+Highlights:
+
+- `leah suggest` CLI (operator-model surfacer; the data model exists but the CLI entry doesn't yet).
+- `leah recall <query>` semantic search over memory.
+- Bug-fix-self-build hook: `selflearn.Resolver` detecting rising panic rate → drafting self-bug issue body from panic file + last 10 slog lines.
+- Daily morning brief (cron 8am — reads audit + agents + operator-model).
+- Voice push-to-talk (`leah listen` with whisper.cpp local).
+- Gmail / Google Calendar / Slack adapters (only when felt-pain in dogfood).
+- Multi-user / SaaS / autonomous merge / autonomous money movement — Wave X (never without explicit re-evaluation).
+
 ## License
 
 Private; not licensed for external use. Personal-use only.

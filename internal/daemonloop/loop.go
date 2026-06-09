@@ -1,3 +1,7 @@
+// Package daemonloop is the always-on leah-daemon poll engine. Per-tick it
+// pings the healthcheck URL, diffs regatta agent state for terminal
+// transitions, and fires WeeklyTask funcs at a 7d cadence. Cold-start
+// suppresses notifications so a daemon restart never floods.
 package daemonloop
 
 import (
@@ -23,14 +27,20 @@ type WeeklyTask func(ctx context.Context)
 // package var for tests; defaults to 7 days.
 var weeklyInterval = 7 * 24 * time.Hour
 
+// RegattaClient is the subset of regattaclient.Client the loop needs;
+// abstracted so tests can stub state diffs without spawning the regatta binary.
 type RegattaClient interface {
 	List(ctx context.Context) ([]regattaclient.Agent, error)
 }
 
+// Heartbeat is the per-tick keep-alive surface (typically watchdog.Heartbeat
+// posting to healthchecks.io). Failures are non-fatal.
 type Heartbeat interface {
 	Ping(ctx context.Context) error
 }
 
+// Notifier sends a desktop / phone push on terminal-state transitions.
+// notify.Desktop + notify.Pushover both satisfy this.
 type Notifier interface {
 	Notify(ctx context.Context, title, body string) error
 }
@@ -61,6 +71,9 @@ type Loop struct {
 	weeklyMu  sync.Mutex
 }
 
+// New constructs a Loop with empty prevState + cold=true so the first tick
+// seeds state without emitting transitions. WeeklyTracker / WeeklyHour /
+// Weekly are set by the caller before Run.
 func New(rc RegattaClient, hb Heartbeat, nf Notifier, a *audit.Logger, out io.Writer, pollEvery time.Duration) *Loop {
 	return &Loop{
 		Regatta:   rc,

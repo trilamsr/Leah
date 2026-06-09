@@ -1,3 +1,6 @@
+// Package dispatcher is Layer 4 of the closed loop — the CLI orchestrations
+// (Ask, Ship, SelfBuild, Status) that take operator intent, drive Reasoner +
+// gh + regatta, and write the audit row. Every operator action lands here.
 package dispatcher
 
 import (
@@ -11,10 +14,14 @@ import (
 	"github.com/trilam/leah/internal/budget"
 )
 
+// Reasoner is the LLM surface dispatcher uses. Defined here so Ship/SelfBuild
+// can swap in a passthrough wrapper without dragging in reasoner package.
 type Reasoner interface {
 	Ask(ctx context.Context, user string) (string, error)
 }
 
+// Ask is the BR=0 read-only `leah ask` orchestration — one Reasoner call,
+// one audit row, stdout result.
 type Ask struct {
 	Reasoner Reasoner
 	Audit    *audit.Logger
@@ -22,6 +29,8 @@ type Ask struct {
 	Out      io.Writer
 }
 
+// Run executes the ask, writing the audit row on both success and failure
+// paths so the operator's audit log never misses a charged Reasoner call.
 func (a *Ask) Run(ctx context.Context, query string) error {
 	text, err := a.Reasoner.Ask(ctx, query)
 	entry := audit.Entry{

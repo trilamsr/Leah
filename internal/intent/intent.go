@@ -1,3 +1,6 @@
+// Package intent is the regex classifier that maps a free-text utterance
+// to one of the four CLI verbs (ask/ship/review/status). Kept regex-only
+// (no LLM) so intent dispatch stays deterministic + zero-cost.
 package intent
 
 import (
@@ -5,8 +8,11 @@ import (
 	"strings"
 )
 
+// Kind enumerates the canonical dispatcher verbs. KindAsk is the default
+// fallback when no other regex matches.
 type Kind int
 
+// Canonical verbs the classifier resolves to.
 const (
 	KindAsk Kind = iota
 	KindShip
@@ -14,6 +20,7 @@ const (
 	KindStatus
 )
 
+// String returns the lowercase verb name (matches the CLI subcommand).
 func (k Kind) String() string {
 	switch k {
 	case KindAsk:
@@ -34,6 +41,8 @@ var (
 	statusRe = regexp.MustCompile(`(?i)^(status|what['’]s\s+running|any\s+open\s+prs|regatta\s+status)`)
 )
 
+// Classify returns the first verb whose regex matches s (trimmed),
+// defaulting to KindAsk when none match.
 func Classify(s string) Kind {
 	s = strings.TrimSpace(s)
 	if shipRe.MatchString(s) {

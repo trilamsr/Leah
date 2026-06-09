@@ -15,6 +15,9 @@ import (
 var canonicalIDRegex = regexp.MustCompile(
 	`^(a[0-9a-f]{16}|(cavecrew-reviewer|designer|triage|implementer|reviewer)-[a-z0-9]+(-[a-z0-9]+)*)$`)
 
+// ValidateAgentID enforces the canonical allowlist regex on a reviewer
+// agent-id. Empty / non-canonical IDs are rejected so the verdict cannot
+// land with an unverifiable reviewer identity.
 func ValidateAgentID(id string) error {
 	if id == "" {
 		return fmt.Errorf("reviewer agent-id is empty")
@@ -26,6 +29,10 @@ func ValidateAgentID(id string) error {
 	return nil
 }
 
+// ValidateAgentIDAgainstAuthor adds the self-tag check on top of
+// ValidateAgentID — rejects the case where the reviewer ID equals the PR
+// author login (operator writing own APPROVE, per CLAUDE.md
+// feedback_no_self_tagged_approve).
 func ValidateAgentIDAgainstAuthor(reviewerID, prAuthor string) error {
 	if err := ValidateAgentID(reviewerID); err != nil {
 		return err

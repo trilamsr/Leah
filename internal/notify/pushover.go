@@ -13,6 +13,10 @@ import (
 
 const defaultPushoverAPI = "https://api.pushover.net/1/messages.json"
 
+// Pushover sends a push to the operator's phone via the Pushover REST API.
+// Credentials are sourced from LEAH_PUSHOVER_USER + LEAH_PUSHOVER_TOKEN; if
+// either is unset, Notify returns an error and the caller falls back to the
+// desktop banner only.
 type Pushover struct {
 	User   string
 	Token  string
@@ -20,6 +24,7 @@ type Pushover struct {
 	APIURL string
 }
 
+// NewPushover returns a Pushover wired to the environment + default API URL.
 func NewPushover() *Pushover {
 	return &Pushover{
 		User:   os.Getenv("LEAH_PUSHOVER_USER"),
@@ -29,6 +34,9 @@ func NewPushover() *Pushover {
 	}
 }
 
+// Notify posts title + body to Pushover. Returns a credentials error
+// (without hitting the network) when User or Token is empty so the daemon
+// can degrade gracefully to desktop-only push.
 func (p *Pushover) Notify(ctx context.Context, title, body string) error {
 	if p.User == "" || p.Token == "" {
 		return fmt.Errorf("pushover credentials not set (LEAH_PUSHOVER_USER/TOKEN)")

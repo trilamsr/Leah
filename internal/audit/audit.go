@@ -1,3 +1,7 @@
+// Package audit is Leah's append-only JSONL log of operator-facing actions.
+// One row per CLI invocation / daemon transition; downstream tools (status,
+// retro, patterns, operatormodel) read it back. Single source of truth for
+// "what did Leah do".
 package audit
 
 import (
@@ -7,6 +11,9 @@ import (
 	"time"
 )
 
+// Entry is one audit row. Stable on-disk schema — fields are read by
+// patterns.Detect, selflearn.Resolver, operatormodel.Observe* and
+// web.Snapshot; renaming breaks the entire downstream consumer set.
 type Entry struct {
 	Timestamp   string  `json:"ts"`
 	Kind        string  `json:"kind"`
@@ -17,11 +24,17 @@ type Entry struct {
 	Detail      string  `json:"detail,omitempty"`
 }
 
+// Logger is the append-only writer for an audit.jsonl file. Concurrent
+// Append calls are safe because each call re-opens the file in O_APPEND
+// mode — the OS handles serialization at the syscall boundary.
 type Logger struct {
 	Path string
 	Now  func() time.Time
 }
 
+// Append writes e as a single JSON line, stamping Timestamp from Now (or
+// time.Now().UTC() when unset). File is opened 0600 to keep the operator's
+// audit history off other users' read paths.
 func (l *Logger) Append(e Entry) error {
 	if l.Now != nil {
 		e.Timestamp = l.Now().Format(time.RFC3339)

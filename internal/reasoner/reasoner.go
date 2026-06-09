@@ -1,3 +1,6 @@
+// Package reasoner is Leah's main LLM surface (Anthropic-backed). One Reasoner
+// per CLI invocation; each Ask charges the per-process budget before returning
+// so the cap is honored even mid-conversation.
 package reasoner
 
 import (
@@ -9,16 +12,23 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
+// Client is the LLM completion surface. Implemented by AnthropicClient in
+// production and by test doubles elsewhere — the Reasoner itself is
+// provider-agnostic.
 type Client interface {
 	Complete(ctx context.Context, system, user string) (text string, costUSD float64, err error)
 }
 
+// Reasoner pairs a Client with the budget gate and the system prompt loaded
+// from prompts/system.md (or prompts/regatta-issue.md for Ship).
 type Reasoner struct {
 	Client       Client
 	Budget       *budget.Budget
 	SystemPrompt string
 }
 
+// Ask sends user to Client.Complete + charges the returned cost. Budget
+// exceeded → returns *budget.ExceededError without surfacing partial text.
 func (r *Reasoner) Ask(ctx context.Context, user string) (string, error) {
 	lg := obs.LoggerFromCtx(ctx).With("package", "reasoner", "func", "Ask")
 	lg.Debug("reasoner.call.start")
