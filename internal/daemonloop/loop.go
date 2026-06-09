@@ -30,6 +30,11 @@ type WeeklyTask func(ctx context.Context)
 // while concurrent tick goroutines read it).
 const defaultWeeklyInterval = 7 * 24 * time.Hour
 
+// defaultDailyInterval is the cadence for firing daily tasks (morning
+// brief) when a Loop does not specify its own. Same per-Loop-field
+// pattern as defaultWeeklyInterval — no package-level mutable state.
+const defaultDailyInterval = 24 * time.Hour
+
 // RegattaClient is the subset of regattaclient.Client the loop needs;
 // abstracted so tests can stub state diffs without spawning the regatta binary.
 type RegattaClient interface {
@@ -73,9 +78,22 @@ type Loop struct {
 	// instances cannot race the production tick goroutine.
 	WeeklyInterval time.Duration
 
+	// Daily fires once per dailyInterval — used for the morning-brief task.
+	// Same per-task-goroutine + per-task-recover + dailyMu TryLock pattern
+	// as Weekly. Independent tracker so weekly + daily never race.
+	Daily []WeeklyTask
+	// DailyTracker is the file storing the last daily-fire RFC3339 timestamp.
+	DailyTracker string
+	// DailyHour gates the daily tick to fire only at-or-after this hour-of-day
+	// (local time). Same semantics as WeeklyHour.
+	DailyHour int
+	// DailyInterval overrides the 24h cadence per Loop. Zero = defaultDailyInterval.
+	DailyInterval time.Duration
+
 	prevState map[string]string
 	cold      bool
 	weeklyMu  sync.Mutex
+	dailyMu   sync.Mutex
 }
 
 // New constructs a Loop with empty prevState + cold=true so the first tick
@@ -138,6 +156,7 @@ func (l *Loop) tick(ctx context.Context) {
 	}
 
 	l.maybeFireWeekly(ctx)
+	l.maybeFireDaily(ctx)
 }
 
 // maybeFireWeekly checks the WeeklyTracker file and, if >= weeklyInterval has
@@ -185,6 +204,58 @@ func (l *Loop) maybeFireWeekly(ctx context.Context) {
 				defer func() {
 					if r := recover(); r != nil {
 						_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly task panic: %v\n", r)
+					}
+				}()
+				t(ctx)
+			}()
+		}
+	}()
+}
+
+// maybeFireDaily mirrors maybeFireWeekly with the 24h cadence + a separate
+// tracker + mutex. Independent state prevents interleaving with weekly fires
+// (the morning brief MUST run regardless of weekly-retro cadence and vice-versa).
+func (l *Loop) maybeFireDaily(ctx context.Context) {
+	if len(l.Daily) == 0 || l.DailyTracker == "" {
+		return
+	}
+	if !l.dailyMu.TryLock() {
+		return // daily already in flight
+	}
+
+	now := time.Now().UTC()
+	interval := l.DailyInterval
+	if interval <= 0 {
+		interval = defaultDailyInterval
+	}
+	last, ok := readWeeklyTracker(l.DailyTracker)
+	if ok && now.Sub(last) < interval {
+		l.dailyMu.Unlock()
+		_, _ = fmt.Fprintf(l.Out, "leah-daemon: daily skipped (last ran %s, <%v ago)\n",
+			last.Format(time.RFC3339), interval)
+		return
+	}
+	if l.DailyHour > 0 && time.Now().Hour() < l.DailyHour {
+		l.dailyMu.Unlock()
+		_, _ = fmt.Fprintf(l.Out, "leah-daemon: daily deferred (hour %d < DailyHour %d)\n",
+			time.Now().Hour(), l.DailyHour)
+		return
+	}
+
+	if err := writeWeeklyTracker(l.DailyTracker, now); err != nil {
+		_, _ = fmt.Fprintf(l.Out, "leah-daemon: daily tracker write error: %v\n", err)
+		l.dailyMu.Unlock()
+		return
+	}
+	tasks := l.Daily
+	_, _ = fmt.Fprintf(l.Out, "leah-daemon: daily: running %d task(s)\n", len(tasks))
+	go func() {
+		defer l.dailyMu.Unlock()
+		for _, t := range tasks {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						_, _ = fmt.Fprintf(l.Out, "leah-daemon: daily task panic: %v\n", r)
 					}
 				}()
 				t(ctx)

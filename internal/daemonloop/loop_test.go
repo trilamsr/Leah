@@ -379,6 +379,162 @@ func TestWeeklyHourGate(t *testing.T) {
 	}
 }
 
+// TestDailyTaskFiresAfter24Hours asserts the daily-tick cadence: when the
+// daily-tracker is older than 24h, the registered Daily tasks run.
+func TestDailyTaskFiresAfter24Hours(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-daily.txt"
+
+	// Seed 25h ago → must fire.
+	old := time.Now().Add(-25 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{}, 1)
+	var fired atomic.Int32
+	daily := func(ctx context.Context) {
+		fired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DailyTracker = tracker
+	l.Daily = []WeeklyTask{daily}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("daily task did not fire after 24h boundary")
+	}
+	if got := fired.Load(); got != 1 {
+		t.Errorf("fired = %d, want 1", got)
+	}
+}
+
+// TestDailyTaskDoesNotFireWithin24Hours asserts a tracker timestamp inside
+// the 24h window skips the daily tasks (no double-fire same day).
+func TestDailyTaskDoesNotFireWithin24Hours(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-daily.txt"
+
+	recent := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(recent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired atomic.Int32
+	daily := func(ctx context.Context) { fired.Add(1) }
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DailyTracker = tracker
+	l.Daily = []WeeklyTask{daily}
+	l.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+
+	if got := fired.Load(); got != 0 {
+		t.Errorf("daily should not fire within 24h; fired=%d", got)
+	}
+}
+
+// TestDailyHourGate asserts DailyHour=25 (unreachable) always defers the
+// daily task — operator quiet-hours guard mirrors WeeklyHour.
+func TestDailyHourGate(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-daily.txt" // missing → would normally fire
+
+	var fired atomic.Int32
+	daily := func(ctx context.Context) { fired.Add(1) }
+	out := &bytes.Buffer{}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, out, 1*time.Millisecond)
+	l.DailyTracker = tracker
+	l.Daily = []WeeklyTask{daily}
+	l.DailyHour = 25
+	l.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+
+	if fired.Load() != 0 {
+		t.Errorf("DailyHour=25 should always defer; fired=%d", fired.Load())
+	}
+	if !strings.Contains(out.String(), "deferred") {
+		t.Errorf("output should mention deferred: %q", out.String())
+	}
+	if _, err := os.Stat(tracker); err == nil {
+		t.Errorf("tracker should NOT be written when daily deferred")
+	}
+}
+
+// TestDailyAndWeeklyTracksAreIndependent asserts the daily tracker and the
+// weekly tracker do not bleed into each other — firing daily must not reset
+// the weekly tracker (and vice-versa).
+func TestDailyAndWeeklyTracksAreIndependent(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	weeklyTracker := dir + "/last-weekly.txt"
+	dailyTracker := dir + "/last-daily.txt"
+
+	// Weekly: seeded recent (1d ago) → must NOT fire.
+	// Daily: seeded 25h ago → must fire.
+	weeklySeed := time.Now().Add(-1 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	dailySeed := time.Now().Add(-25 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(weeklyTracker, []byte(weeklySeed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dailyTracker, []byte(dailySeed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var weeklyFired, dailyFired atomic.Int32
+	done := make(chan struct{}, 1)
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.WeeklyTracker = weeklyTracker
+	l.DailyTracker = dailyTracker
+	l.Weekly = []WeeklyTask{func(ctx context.Context) { weeklyFired.Add(1) }}
+	l.Daily = []WeeklyTask{func(ctx context.Context) {
+		dailyFired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("daily task did not fire")
+	}
+	if weeklyFired.Load() != 0 {
+		t.Errorf("weekly should not fire (recent); fired=%d", weeklyFired.Load())
+	}
+	if dailyFired.Load() != 1 {
+		t.Errorf("daily should fire once; fired=%d", dailyFired.Load())
+	}
+
+	// Weekly tracker must be untouched; daily tracker must be rewritten.
+	wraw, _ := os.ReadFile(weeklyTracker)
+	if strings.TrimSpace(string(wraw)) != weeklySeed {
+		t.Errorf("weekly tracker changed: %s", wraw)
+	}
+	draw, _ := os.ReadFile(dailyTracker)
+	if strings.TrimSpace(string(draw)) == dailySeed {
+		t.Errorf("daily tracker should be updated, still: %s", draw)
+	}
+}
+
 // TestLoopContinuesWhenRegattaErrors asserts a Regatta.List failure logs but
 // does not kill the tick — heartbeat must still run.
 func TestLoopContinuesWhenRegattaErrors(t *testing.T) {
