@@ -21,13 +21,14 @@ var staticFS embed.FS
 
 // Server is the JARVIS dashboard HTTP server. Bound to 127.0.0.1 only.
 type Server struct {
-	Addr      string // e.g. "127.0.0.1:8080"; non-loopback hosts are rejected.
-	AuditPath string // path to audit.jsonl; tail of last 20 surfaces in /api/state.
-	Memory    *memory.Store
-	Regatta   RegattaLister
-	Budget    *budget.Budget
-	StartTime time.Time
-	Heartbeat func() time.Time // optional; last successful regatta poll.
+	Addr        string // e.g. "127.0.0.1:8080"; non-loopback hosts are rejected.
+	AuditPath   string // path to audit.jsonl; tail of last 20 surfaces in /api/state.
+	MetricsPath string // optional path to obs.Registry latest.json snapshot.
+	Memory      *memory.Store
+	Regatta     RegattaLister
+	Budget      *budget.Budget
+	StartTime   time.Time
+	Heartbeat   func() time.Time // optional; last successful regatta poll.
 }
 
 // Start binds and serves until ctx cancellation triggers graceful shutdown.

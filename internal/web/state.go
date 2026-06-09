@@ -18,10 +18,11 @@ import (
 
 // State is the single JSON shape returned by /api/state. Mirrors spec §4.
 type State struct {
-	Audit  []AuditRow `json:"audit"`
-	Agents []Agent    `json:"agents"`
-	Memory MemoryView `json:"memory"`
-	Ops    OpsView    `json:"ops"`
+	Audit   []AuditRow  `json:"audit"`
+	Agents  []Agent     `json:"agents"`
+	Memory  MemoryView  `json:"memory"`
+	Ops     OpsView     `json:"ops"`
+	Metrics interface{} `json:"metrics,omitempty"` // raw obs.Registry snapshot when latest.json exists
 }
 
 // AuditRow is one entry surfaced from audit.jsonl tail.
@@ -75,10 +76,30 @@ type RegattaLister interface {
 // because regatta is offline.
 func (s *Server) Snapshot(ctx context.Context) State {
 	out := State{
-		Audit:  tailAudit(s.AuditPath, 20),
-		Agents: listAgents(ctx, s.Regatta),
-		Memory: readMemory(s.Memory),
-		Ops:    s.readOps(),
+		Audit:   tailAudit(s.AuditPath, 20),
+		Agents:  listAgents(ctx, s.Regatta),
+		Memory:  readMemory(s.Memory),
+		Ops:     s.readOps(),
+		Metrics: readMetrics(s.MetricsPath),
+	}
+	return out
+}
+
+// readMetrics returns the latest obs.Registry snapshot as a raw map, or nil
+// when the snapshot file is missing / unreadable. Dashboard renders 1-2
+// counters in the OPS quadrant; the full payload is available for an ops
+// dashboard later.
+func readMetrics(path string) interface{} {
+	if path == "" {
+		return nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var out interface{}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
 	}
 	return out
 }

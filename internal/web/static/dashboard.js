@@ -106,6 +106,22 @@ function renderOps(o) {
   $('alive').className = 'dot alive-dot' + (aliveAgeSec > 300 ? ' fail' : aliveAgeSec > 60 ? ' warn' : '');
 }
 
+function renderMetrics(m) {
+  const el = $('ops-metrics');
+  if (!el) return;
+  if (!m || !m.counters) { el.innerHTML = ''; return; }
+  // Surface the two highest-signal counters; rest available via raw /api/state.
+  const c = m.counters;
+  const panics = Object.entries(c)
+    .filter(([k]) => k.startsWith('leah_panic_total'))
+    .reduce((a, [, v]) => a + v, 0);
+  const entries = Object.entries(c).slice(0, 1);
+  const head = entries.length
+    ? `${esc(entries[0][0].split('|')[0])}=${esc(String(entries[0][1]))}`
+    : 'no metrics';
+  el.innerHTML = `<span class="label">metrics</span><span class="val">${head} · panics=${esc(String(panics))}</span>`;
+}
+
 function showBoot() {
   $('audit-list').innerHTML = skeletonLi();
   $('agents-list').innerHTML = skeletonLi();
@@ -131,6 +147,7 @@ async function tick() {
     renderAgents(data.agents);
     renderMemory(data.memory);
     renderOps(data.ops);
+    renderMetrics(data.metrics);
     if (!booted) { booted = true; document.body.classList.remove('boot'); }
   } catch (e) {
     missed++;

@@ -16,6 +16,7 @@ import (
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/notify"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/patterns"
 	"github.com/trilam/leah/internal/regattaclient"
@@ -41,6 +42,17 @@ func main() {
 	a := &audit.Logger{Path: auditPath}
 	rc := regattaclient.New()
 
+	// obs wiring: logger + metrics registry + panic dir. SafeGo on
+	// snapshotter so a write failure can't crash the daemon.
+	lg, closeLog, err := obs.NewLogger()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "leah-daemon: obs logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer closeLog()
+	registry := obs.NewRegistry()
+	_ = os.MkdirAll(filepath.Join(sd, "panics"), 0o700)
+
 	loop := daemonloop.New(
 		rc,
 		watchdog.New(),
@@ -61,6 +73,25 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	// 60s metrics snapshot to ~/.leah-state/metrics/latest.json. SafeGo
+	// recovers panics into the panic dir + counter, never kills the daemon.
+	snapPath := filepath.Join(sd, "metrics", "latest.json")
+	_ = os.MkdirAll(filepath.Dir(snapPath), 0o700)
+	obs.SafeGo(lg, registry, "metrics-snapshotter", func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := registry.Snapshot(snapPath); err != nil {
+					lg.Error("metrics snapshot failed", "err", err)
+				}
+			}
+		}
+	})
+
 	if *dashboardAddr != "" {
 		store, err := memory.NewStore(filepath.Join(sd, "memory.db"))
 		if err != nil {
@@ -70,13 +101,14 @@ func main() {
 		defer func() { _ = store.Close() }()
 		startedAt := time.Now()
 		srv := &web.Server{
-			Addr:      *dashboardAddr,
-			AuditPath: auditPath,
-			Memory:    store,
-			Regatta:   rc,
-			Budget:    budget.New(),
-			StartTime: startedAt,
-			Heartbeat: func() time.Time { return time.Now() }, // TODO: wire daemonloop last-tick when exposed
+			Addr:        *dashboardAddr,
+			AuditPath:   auditPath,
+			MetricsPath: snapPath,
+			Memory:      store,
+			Regatta:     rc,
+			Budget:      budget.New(),
+			StartTime:   startedAt,
+			Heartbeat:   func() time.Time { return time.Now() }, // TODO: wire daemonloop last-tick when exposed
 		}
 		go func() {
 			if err := srv.Start(ctx); err != nil {
