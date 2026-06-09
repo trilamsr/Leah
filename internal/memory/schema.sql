@@ -88,3 +88,26 @@ CREATE TABLE IF NOT EXISTS mistake_log (
 CREATE INDEX IF NOT EXISTS mistake_log_created ON mistake_log(created_at);
 
 UPDATE schema_meta SET value='3' WHERE key='version';
+
+-- schema_version: 4 (additive — operatormodel operator_profile)
+-- See docs/specs/2026-06-09-operator-model.md §2
+
+CREATE TABLE IF NOT EXISTS operator_profile (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  class        TEXT NOT NULL,    -- 'time_of_day' | 'context_transition' | 'cadence'
+  key          TEXT NOT NULL,    -- per-class natural key (e.g. action kind)
+  slot         TEXT NOT NULL,    -- per-class bucket (e.g. '09', 'Sun', 'leah.ask')
+  count        INTEGER NOT NULL, -- raw observed events for (class, key, slot)
+  weight       REAL NOT NULL,    -- decay-adjusted count; recommend() sorts on this
+  window_start TEXT NOT NULL,    -- RFC3339 — bounds the audit slice that produced this row
+  window_end   TEXT NOT NULL,    -- RFC3339 — typically "now" at observe time
+  updated_at   TEXT NOT NULL     -- RFC3339
+);
+CREATE INDEX IF NOT EXISTS idx_op_profile_lookup ON operator_profile(class, key);
+
+CREATE TABLE IF NOT EXISTS operator_profile_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+UPDATE schema_meta SET value='4' WHERE key='version';

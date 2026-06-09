@@ -21,7 +21,7 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-const embeddedSchemaVersion = "3"
+const embeddedSchemaVersion = "4"
 
 // Store is the memory KB handle. Wrap *sql.DB; one per process.
 type Store struct {

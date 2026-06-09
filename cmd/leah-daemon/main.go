@@ -16,6 +16,7 @@ import (
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/notify"
+	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/patterns"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/selflearn"
@@ -93,7 +94,7 @@ func main() {
 
 // buildWeeklyTasks returns the per-week tasks fired by daemonloop on the
 // weekly tick: resolver back-fill, pattern detection → skill-candidates.md,
-// and the weekly retro report.
+// weekly retro report, and operator-behavior profile rebuild.
 func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []daemonloop.WeeklyTask {
 	return []daemonloop.WeeklyTask{
 		// 1. Resolver back-fills outcomes on pending audit rows.
@@ -144,6 +145,21 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 			path := filepath.Join(sd, fmt.Sprintf("retro-%s.md", week))
 			if err := os.WriteFile(path, []byte(md), 0o600); err != nil {
 				fmt.Fprintf(out, "leah-daemon: weekly retro write error: %v\n", err)
+			}
+		},
+		// 4. Operator-behavior profile rebuild (Wave 2-J).
+		// Rebuilds operator_profile rows from the audit window; cold-start
+		// gate inside Update() ensures Ready stays false until 50 rows + 7d.
+		func(ctx context.Context) {
+			dbPath := filepath.Join(sd, "memory.db")
+			store, err := memory.NewStore(dbPath)
+			if err != nil {
+				fmt.Fprintf(out, "leah-daemon: weekly operatormodel store error: %v\n", err)
+				return
+			}
+			defer func() { _ = store.Close() }()
+			if err := operatormodel.UpdateProfile(ctx, store, auditPath); err != nil {
+				fmt.Fprintf(out, "leah-daemon: weekly operatormodel error: %v\n", err)
 			}
 		},
 	}
