@@ -1,14 +1,28 @@
 ---
 title: Leah — Context manager (active-context, switch/show/history)
-status: draft
+status: shipped
 phase: design
 owner: tri
 created: 2026-06-09
-parent: 2026-06-09-leah-overview.md
 related:
   - 2026-06-09-leah-overview.md   # §3.5 Workspaces (source-of-truth dimension)
   - 2026-06-09-leah-phase-x-multi-operator-roadmap.md  # workspace mostly deferred
 ---
+
+> **2026-06-09 update — workspace dimension activated end-to-end.**
+> Schema v6 adds `workspace_persona` (tone / signature / voice_id, one row per
+> workspace). `audit.Entry` gains an `omitempty` `Workspace` field stamped from
+> `Logger.DefaultWorkspace()`; `Reasoner` accepts a `PersonaPrefix` woven in
+> front of `SystemPrompt` so per-workspace persona dominates LLM framing.
+> `cmd/leah` exposes `leah workspace list/new/switch/show` (positional aliases
+> for `leah ctx`) plus `leah workspace persona show/set`. Memory list APIs
+> grow `ListContactsByWorkspace`, `ListProjectsByWorkspace`,
+> `ListDecisionsByWorkspace`; legacy `ListContacts`/`...` keep filtering to
+> the implicit `default` workspace so rows with empty `workspace_id` remain
+> visible. Cuts in §6 that flipped from deferred to active:
+> per-workspace persona (bullet 3), audit-tag (R-AUDIT-TAG). Untouched:
+> auto-infer, cross-workspace queries, account_scope taint, voice intent,
+> knowledge firewall.
 
 # Context manager — fast path to "what am I doing right now"
 

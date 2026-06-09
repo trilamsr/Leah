@@ -328,6 +328,86 @@ func TestNewStore_RejectsNewerSchemaOnDisk(t *testing.T) {
 	}
 }
 
+// TestListContactsByWorkspace asserts ListContactsByWorkspace filters to the
+// supplied workspace, and treats empty string as the canonical "default"
+// (backward-compat with rows seeded via the old WorkspaceID-defaulting
+// AddContact path). Activates the dormant workspace_id column.
+func TestListContactsByWorkspace(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.AddContact(Contact{Name: "default-1"}); err != nil {
+		t.Fatalf("add default-1: %v", err)
+	}
+	if _, err := s.AddContact(Contact{Name: "acme-1", WorkspaceID: "acme"}); err != nil {
+		t.Fatalf("add acme-1: %v", err)
+	}
+	if _, err := s.AddContact(Contact{Name: "acme-2", WorkspaceID: "acme"}); err != nil {
+		t.Fatalf("add acme-2: %v", err)
+	}
+
+	def, err := s.ListContactsByWorkspace("default")
+	if err != nil {
+		t.Fatalf("list default: %v", err)
+	}
+	if len(def) != 1 || def[0].Name != "default-1" {
+		t.Errorf("default list = %+v, want [default-1]", def)
+	}
+
+	acme, err := s.ListContactsByWorkspace("acme")
+	if err != nil {
+		t.Fatalf("list acme: %v", err)
+	}
+	if len(acme) != 2 {
+		t.Errorf("acme list len = %d, want 2", len(acme))
+	}
+
+	// Empty input → default. Backward-compat with ListContacts.
+	emp, err := s.ListContactsByWorkspace("")
+	if err != nil {
+		t.Fatalf("list empty: %v", err)
+	}
+	if len(emp) != 1 || emp[0].Name != "default-1" {
+		t.Errorf("empty-workspace list = %+v, want [default-1]", emp)
+	}
+}
+
+// TestListProjectsByWorkspace mirrors TestListContactsByWorkspace for the
+// project table.
+func TestListProjectsByWorkspace(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.AddProject(Project{Name: "p1"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddProject(Project{Name: "p2", WorkspaceID: "acme"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ListProjectsByWorkspace("acme")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "p2" {
+		t.Errorf("got %+v want [p2]", got)
+	}
+}
+
+// TestListDecisionsByWorkspace mirrors TestListContactsByWorkspace for the
+// decision table — newest-first order preserved per workspace.
+func TestListDecisionsByWorkspace(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.AddDecision(Decision{Topic: "t1", Choice: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddDecision(Decision{Topic: "t2", Choice: "y", WorkspaceID: "acme"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ListDecisionsByWorkspace("acme")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 1 || got[0].Topic != "t2" {
+		t.Errorf("got %+v want [t2]", got)
+	}
+}
+
 // TestAuditHook fires the audit callback on each mutation (#M2).
 func TestAuditHook(t *testing.T) {
 	s := newTestStore(t)

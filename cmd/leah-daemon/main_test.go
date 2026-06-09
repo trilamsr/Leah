@@ -28,9 +28,7 @@ func TestBriefTaskWritesFile(t *testing.T) {
 	t.Setenv("LEAH_STATE_DIR", sd)
 	t.Setenv("LEAH_VOICE_ENABLED", "0")
 
-	out := &bytes.Buffer{}
 	task := buildBriefTask(sd, stubRegatta{}, os.Stdout)
-	_ = out
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

@@ -71,6 +71,51 @@ func TestAskEmitsObsLogOnSuccess(t *testing.T) {
 	}
 }
 
+// TestAskPrependsPersonaPrefix asserts a non-empty PersonaPrefix is woven
+// into the system prompt before SystemPrompt, separated by a blank line.
+// Empty prefix produces the legacy behavior — verified by the existing
+// TestAskCallsClientWithSystemAndUser test (PersonaPrefix unset).
+func TestAskPrependsPersonaPrefix(t *testing.T) {
+	c := &fakeClient{respText: "ok", respCostUSD: 0.001}
+	r := &Reasoner{
+		Client:        c,
+		Budget:        &budget.Budget{Ceiling: 1.0},
+		SystemPrompt:  "you are leah",
+		PersonaPrefix: "Workspace: acme. Tone: formal.",
+	}
+	if _, err := r.Ask(context.Background(), "hi"); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	if !strings.Contains(c.lastPrompt, "Workspace: acme. Tone: formal.") {
+		t.Errorf("persona prefix missing from prompt: %q", c.lastPrompt)
+	}
+	if !strings.Contains(c.lastPrompt, "you are leah") {
+		t.Errorf("system prompt missing: %q", c.lastPrompt)
+	}
+	// PersonaPrefix must appear BEFORE the base system prompt so the
+	// workspace framing dominates.
+	pi := strings.Index(c.lastPrompt, "Workspace: acme")
+	si := strings.Index(c.lastPrompt, "you are leah")
+	if pi < 0 || si < 0 || pi >= si {
+		t.Errorf("persona must precede system: persona@%d system@%d", pi, si)
+	}
+}
+
+// TestAskEmptyPersonaPrefixUnchanged asserts an empty PersonaPrefix
+// produces the legacy system-prompt-only behavior.
+func TestAskEmptyPersonaPrefixUnchanged(t *testing.T) {
+	c := &fakeClient{respText: "ok"}
+	r := &Reasoner{Client: c, Budget: &budget.Budget{Ceiling: 1.0}, SystemPrompt: "base"}
+	if _, err := r.Ask(context.Background(), "x"); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	// Sentinel: the assembled system field equals base — no extra leading
+	// whitespace or newline that an unguarded join would introduce.
+	if !strings.HasPrefix(c.lastPrompt, "base") {
+		t.Errorf("empty persona must not alter system prompt prefix: %q", c.lastPrompt)
+	}
+}
+
 func TestAskBlocksOnBudgetExceeded(t *testing.T) {
 	c := &fakeClient{respText: "won't matter", respCostUSD: 10.0}
 	b := &budget.Budget{Ceiling: 1.0}

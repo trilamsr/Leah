@@ -124,3 +124,19 @@ CREATE TABLE IF NOT EXISTS embedding (
   PRIMARY KEY (item_id, item_type)
 );
 CREATE INDEX IF NOT EXISTS idx_embedding_model ON embedding(model, dim);
+
+-- schema_version: 6 (additive — workspace_persona)
+-- See docs/specs/2026-06-09-leah-overview.md §3.5 bullet 4 + internal/persona.
+-- Per-workspace persona settings consumed by reasoner SystemPrompt prefix
+-- and voice TTS calls. workspace column is plain TEXT (no FK) because the
+-- canonical workspace registry lives in the context table; FK at write time
+-- would force persona Set to error before the operator runs `leah workspace
+-- new`. Persona Load tolerates dangling workspaces (falls back to defaults).
+
+CREATE TABLE IF NOT EXISTS workspace_persona (
+  workspace   TEXT PRIMARY KEY,
+  tone        TEXT NOT NULL DEFAULT '',
+  signature   TEXT NOT NULL DEFAULT '',
+  voice_id    TEXT NOT NULL DEFAULT '',
+  updated_at  TEXT NOT NULL
+);

@@ -21,7 +21,7 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-const embeddedSchemaVersion = "5"
+const embeddedSchemaVersion = "6"
 
 // schemaMetaBootstrapSQL creates the version-tracking table only.
 // Kept separate from schemaSQL so we can read the on-disk version BEFORE
@@ -175,11 +175,22 @@ func (s *Store) AddContact(c Contact) (Contact, error) {
 	return c, nil
 }
 
-// ListContacts returns all contacts in the default workspace, name-sorted.
+// ListContacts returns contacts in the default workspace, name-sorted.
+// Backward-compat wrapper for ListContactsByWorkspace("default").
 func (s *Store) ListContacts() ([]Contact, error) {
+	return s.ListContactsByWorkspace("default")
+}
+
+// ListContactsByWorkspace returns contacts tagged with the supplied workspace,
+// name-sorted. Empty workspace is canonicalized to "default" so callers may
+// pass the operator's active workspace without checking for empty.
+func (s *Store) ListContactsByWorkspace(workspace string) ([]Contact, error) {
+	if workspace == "" {
+		workspace = "default"
+	}
 	rows, err := s.db.Query(
 		`SELECT id, workspace_id, name, COALESCE(email,''), COALESCE(notes,''), created_at, updated_at
-		 FROM contact WHERE workspace_id='default' ORDER BY name`,
+		 FROM contact WHERE workspace_id=? ORDER BY name`, workspace,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query contacts: %w", err)
@@ -238,11 +249,21 @@ func (s *Store) AddProject(p Project) (Project, error) {
 	return p, nil
 }
 
-// ListProjects returns all projects in the default workspace, name-sorted.
+// ListProjects returns projects in the default workspace, name-sorted.
+// Backward-compat wrapper for ListProjectsByWorkspace("default").
 func (s *Store) ListProjects() ([]Project, error) {
+	return s.ListProjectsByWorkspace("default")
+}
+
+// ListProjectsByWorkspace returns projects for the supplied workspace,
+// name-sorted. Empty workspace canonicalizes to "default".
+func (s *Store) ListProjectsByWorkspace(workspace string) ([]Project, error) {
+	if workspace == "" {
+		workspace = "default"
+	}
 	rows, err := s.db.Query(
 		`SELECT id, workspace_id, name, status, COALESCE(notes,''), created_at, updated_at
-		 FROM project WHERE workspace_id='default' ORDER BY name`,
+		 FROM project WHERE workspace_id=? ORDER BY name`, workspace,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query projects: %w", err)
@@ -304,11 +325,21 @@ func (s *Store) AddDecision(d Decision) (Decision, error) {
 	return d, nil
 }
 
-// ListDecisions returns all decisions in the default workspace, newest decided first.
+// ListDecisions returns decisions in the default workspace, newest decided first.
+// Backward-compat wrapper for ListDecisionsByWorkspace("default").
 func (s *Store) ListDecisions() ([]Decision, error) {
+	return s.ListDecisionsByWorkspace("default")
+}
+
+// ListDecisionsByWorkspace returns decisions for the supplied workspace,
+// newest decided first. Empty workspace canonicalizes to "default".
+func (s *Store) ListDecisionsByWorkspace(workspace string) ([]Decision, error) {
+	if workspace == "" {
+		workspace = "default"
+	}
 	rows, err := s.db.Query(
 		`SELECT id, workspace_id, topic, choice, COALESCE(rationale,''), decided_at, created_at
-		 FROM decision WHERE workspace_id='default' ORDER BY decided_at DESC`,
+		 FROM decision WHERE workspace_id=? ORDER BY decided_at DESC`, workspace,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query decisions: %w", err)

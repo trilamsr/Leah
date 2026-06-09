@@ -21,10 +21,17 @@ type Client interface {
 
 // Reasoner pairs a Client with the budget gate and the system prompt loaded
 // from prompts/system.md (or prompts/regatta-issue.md for Ship).
+//
+// PersonaPrefix, when non-empty, is woven in front of SystemPrompt at Ask
+// time so per-workspace tone/signature/voice settings dominate the framing
+// the model sees. Empty prefix preserves the legacy behavior (SystemPrompt
+// unchanged) — see internal/persona.Persona.SystemPromptPrefix for the
+// canonical producer.
 type Reasoner struct {
-	Client       Client
-	Budget       *budget.Budget
-	SystemPrompt string
+	Client        Client
+	Budget        *budget.Budget
+	SystemPrompt  string
+	PersonaPrefix string
 }
 
 // Ask sends user to Client.Complete + charges the returned cost. Budget
@@ -34,7 +41,11 @@ func (r *Reasoner) Ask(ctx context.Context, user string) (string, error) {
 	lg.Debug("reasoner.call.start")
 
 	start := time.Now()
-	text, cost, err := r.Client.Complete(ctx, r.SystemPrompt, user)
+	system := r.SystemPrompt
+	if r.PersonaPrefix != "" {
+		system = r.PersonaPrefix + "\n\n" + r.SystemPrompt
+	}
+	text, cost, err := r.Client.Complete(ctx, system, user)
 	durMs := time.Since(start).Milliseconds()
 	if err != nil {
 		lg.Error("reasoner.call.error", "duration_ms", durMs, "err", err.Error())

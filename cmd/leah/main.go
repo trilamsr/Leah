@@ -13,6 +13,7 @@ import (
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
 	"github.com/trilam/leah/internal/notify"
+	"github.com/trilam/leah/internal/persona"
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/reviewer"
@@ -76,6 +77,8 @@ func main() {
 		runDecision(os.Args[2:])
 	case "ctx":
 		runCtx(os.Args[2:])
+	case "workspace":
+		runWorkspace(os.Args[2:])
 	case "mistake":
 		runMistake(os.Args[2:])
 	case "retro":
@@ -110,7 +113,7 @@ func runAsk(query string) {
 	ctx := context.Background()
 
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	a := &audit.Logger{Path: auditPath}
+	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
 
 	systemPrompt, err := os.ReadFile(filepath.Join(promptDir(), "system.md"))
@@ -124,7 +127,7 @@ func runAsk(query string) {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt)}
+	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt), PersonaPrefix: personaPrefixForActive()}
 
 	ask := &dispatcher.Ask{Reasoner: r, Audit: a, Budget: b, Out: os.Stdout}
 	if err := ask.Run(ctx, query); err != nil {
@@ -199,7 +202,7 @@ func runShipWithContext(repo, intent, contextBlock string) {
 	ctx := context.Background()
 
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	a := &audit.Logger{Path: auditPath}
+	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
 
 	issueTpl, err := os.ReadFile(filepath.Join(promptDir(), "regatta-issue.md"))
@@ -213,7 +216,7 @@ func runShipWithContext(repo, intent, contextBlock string) {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(issueTpl)}
+	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(issueTpl), PersonaPrefix: personaPrefixForActive()}
 
 	tmp, err := os.MkdirTemp("", "leah-ship-*")
 	if err != nil {
@@ -262,7 +265,7 @@ func runReview(repo string, prNum int) {
 	ctx := context.Background()
 
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	a := &audit.Logger{Path: auditPath}
+	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
 
 	sysPrompt, err := os.ReadFile(filepath.Join(reviewerPromptDir(), "independent-reviewer.md"))
@@ -315,6 +318,25 @@ func runReview(repo string, prNum int) {
 	})
 }
 
+// personaPrefixForActive loads the persona row for the operator's active
+// workspace and returns its SystemPromptPrefix. Soft-fails to empty string
+// on any error so a missing persona DB / corrupted row never blocks the
+// user-facing CLI invocation. The Reasoner treats empty prefix as legacy
+// behavior (SystemPrompt unchanged).
+func personaPrefixForActive() string {
+	ws := activeWorkspace()
+	ps, err := persona.Open(memoryPath())
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = ps.Close() }()
+	p, err := ps.Load(ws)
+	if err != nil {
+		return ""
+	}
+	return p.SystemPromptPrefix()
+}
+
 func stateDir() string {
 	d := os.Getenv("LEAH_STATE_DIR")
 	if d == "" {
@@ -356,6 +378,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  project <add|list|show>   manage projects (memory)")
 	_, _ = fmt.Fprintln(os.Stderr, "  decision <add|list|show>  log + recall decisions (memory)")
 	_, _ = fmt.Fprintln(os.Stderr, "  ctx <new|switch|show|history|list>  context manager")
+	_, _ = fmt.Fprintln(os.Stderr, "  workspace <list|new|switch|show|persona>  workspace + per-workspace persona")
 	_, _ = fmt.Fprintln(os.Stderr, "  mistake add --audit-id <id> --root-cause <tag> --prevention <text>")
 	_, _ = fmt.Fprintln(os.Stderr, "  retro [--week YYYY-WW]    weekly retro markdown")
 	_, _ = fmt.Fprintln(os.Stderr, "  patterns [--weekly]       skill-candidate clusters from audit")
@@ -366,5 +389,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  cost [--since D] [--by kind|day|model] [--json]  aggregate spend")
 	_, _ = fmt.Fprintln(os.Stderr, "  brief [--voice] [--silent]   daily morning brief (recap + backlog + recs + cost)")
 	_, _ = fmt.Fprintln(os.Stderr, "  listen [--duration D] [--model M] [--repo R]   push-to-talk → whisper.cpp → intent dispatch")
+	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]  restic snapshot of ~/.leah-state")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }

@@ -18,7 +18,11 @@ func runCtx(args []string) {
 	}
 	mgr := openCtxManager()
 	defer func() { _ = mgr.Close() }()
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
+	// DefaultWorkspace pulls active workspace at append time so ctx.switch,
+	// ctx.show etc. rows are tagged. After Switch executes, subsequent
+	// Append calls observe the NEW active workspace — that's the desired
+	// audit semantics ("the row was emitted while in workspace X").
+	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 
 	switch args[0] {
 	case "new":

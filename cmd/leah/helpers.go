@@ -37,6 +37,14 @@ func openCtxManager() *ctxmgr.Manager {
 	return m
 }
 
+// openCtxManagerSoft opens the ctxmgr handle but returns an error rather
+// than os.Exit on failure. Used by the ambient-workspace lookup path where
+// "couldn't read workspace" must degrade to "default" rather than killing
+// the user-facing CLI invocation.
+func openCtxManagerSoft() (*ctxmgr.Manager, error) {
+	return ctxmgr.Open(memoryPath())
+}
+
 // hasFlag returns true if any arg in args equals flag. Used for parsing
 // trailing --json on simple list/show subcommands that don't bother with a
 // dedicated FlagSet.

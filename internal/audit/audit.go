@@ -22,6 +22,10 @@ type Entry struct {
 	Outcome     string  `json:"outcome"`
 	CostDollars float64 `json:"cost_dollars,omitempty"`
 	Detail      string  `json:"detail,omitempty"`
+	// Workspace tags the row with the operator's active workspace at
+	// append time. Empty/unset (legacy rows + non-workspace-aware paths)
+	// are treated as the implicit "default" workspace by downstream readers.
+	Workspace string `json:"workspace,omitempty"`
 }
 
 // Logger is the append-only writer for an audit.jsonl file. Concurrent
@@ -30,6 +34,11 @@ type Entry struct {
 type Logger struct {
 	Path string
 	Now  func() time.Time
+	// DefaultWorkspace, if set, is consulted at Append time when the
+	// incoming Entry has no Workspace tag. Lets the CLI wire active
+	// workspace once at logger construction and forget about it at every
+	// callsite. Caller-supplied Entry.Workspace always wins.
+	DefaultWorkspace func() string
 }
 
 // Append writes e as a single JSON line, stamping Timestamp from Now (or
@@ -40,6 +49,9 @@ func (l *Logger) Append(e Entry) error {
 		e.Timestamp = l.Now().Format(time.RFC3339)
 	} else {
 		e.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	}
+	if e.Workspace == "" && l.DefaultWorkspace != nil {
+		e.Workspace = l.DefaultWorkspace()
 	}
 	f, err := os.OpenFile(l.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
