@@ -2,7 +2,10 @@ module github.com/trilam/leah
 
 go 1.24
 
-require github.com/anthropics/anthropic-sdk-go v1.49.0
+require (
+	github.com/anthropics/anthropic-sdk-go v1.49.0
+	github.com/oklog/ulid/v2 v2.1.1
+)
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
