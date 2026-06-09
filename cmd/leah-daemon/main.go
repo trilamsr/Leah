@@ -168,7 +168,11 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 				return
 			}
 			defer func() { _ = store.Close() }()
-			retro := &selflearn.Retro{AuditPath: auditPath, Store: store}
+			retro := &selflearn.Retro{
+				AuditPath:          auditPath,
+				Store:              store,
+				AttestationScanner: daemonAttestationScanner(),
+			}
 			y, w := time.Now().UTC().ISOWeek()
 			week := fmt.Sprintf("%04d-%02d", y, w)
 			md, err := retro.Generate(week)
@@ -272,6 +276,27 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 				}
 			}
 		},
+	}
+}
+
+// daemonAttestationScanner adapts rules.AttestationGate.Scan to the
+// selflearn.Retro.AttestationScanner shape. Field-copy adapter mirrors
+// cmd/leah/retro.go::attestationScannerAdapter; the duplication is
+// intentional (composition root per binary).
+func daemonAttestationScanner() func(context.Context, string) ([]selflearn.AttestationViolation, error) {
+	g := rules.AttestationGate{}
+	return func(ctx context.Context, path string) ([]selflearn.AttestationViolation, error) {
+		raw, err := g.Scan(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]selflearn.AttestationViolation, 0, len(raw))
+		for _, v := range raw {
+			out = append(out, selflearn.AttestationViolation{
+				Repo: v.Repo, PRNumber: v.PRNumber, URL: v.URL,
+			})
+		}
+		return out, nil
 	}
 }
 

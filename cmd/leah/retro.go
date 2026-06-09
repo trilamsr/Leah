@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/selflearn"
+	"github.com/trilam/leah/internal/selflearn/rules"
 )
 
 // runRetro renders the weekly retro markdown to stdout.
@@ -24,7 +26,11 @@ func runRetro(args []string) {
 	defer func() { _ = store.Close() }()
 
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	r := &selflearn.Retro{AuditPath: auditPath, Store: store}
+	r := &selflearn.Retro{
+		AuditPath:          auditPath,
+		Store:              store,
+		AttestationScanner: attestationScannerAdapter(rules.AttestationGate{}),
+	}
 	md, err := r.Generate(*week)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah retro: %v\n", err)
@@ -33,4 +39,25 @@ func runRetro(args []string) {
 	a := &audit.Logger{Path: auditPath}
 	_ = a.Append(audit.Entry{Kind: "retro", ArgsHash: *week, BlastRadius: 0, Outcome: "success", Detail: *week})
 	fmt.Print(md)
+}
+
+// attestationScannerAdapter bridges rules.AttestationGate.Scan (which
+// returns rules.Violation) to selflearn.Retro.AttestationScanner (which
+// requires selflearn.AttestationViolation). The two-type shape exists
+// only to keep selflearn → rules dependency one-way; this adapter does
+// the trivial field copy at the composition root.
+func attestationScannerAdapter(g rules.AttestationGate) func(context.Context, string) ([]selflearn.AttestationViolation, error) {
+	return func(ctx context.Context, path string) ([]selflearn.AttestationViolation, error) {
+		raw, err := g.Scan(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]selflearn.AttestationViolation, 0, len(raw))
+		for _, v := range raw {
+			out = append(out, selflearn.AttestationViolation{
+				Repo: v.Repo, PRNumber: v.PRNumber, URL: v.URL,
+			})
+		}
+		return out, nil
+	}
 }

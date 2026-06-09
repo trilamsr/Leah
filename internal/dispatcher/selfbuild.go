@@ -142,7 +142,7 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 	if err := inner.Run(ctx, intent); err != nil {
 		return err
 	}
-	s.appendAuditSuccess(intent)
+	s.appendAuditSuccess(intent, inner.LastURL)
 	return nil
 }
 
@@ -231,8 +231,14 @@ func (s *SelfBuild) appendAuditClarify(intent string) {
 	})
 }
 
-func (s *SelfBuild) appendAuditSuccess(intent string) {
+func (s *SelfBuild) appendAuditSuccess(intent, issueURL string) {
 	detail := "prompt_sha=" + s.promptSHA()
+	if issueURL != "" {
+		// Recorded so the H3 attestation gate can map a self-build dispatch to
+		// its PR. Format: url=<full issue URL>. The gate uses gh issue view to
+		// hop from issue → closing PR.
+		detail += " url=" + issueURL
+	}
 	if s.lastQuestion != "" {
 		// Question text can contain quotes / commas; truncate to keep audit
 		// rows scannable. Operator can re-derive the full text from the PR body.

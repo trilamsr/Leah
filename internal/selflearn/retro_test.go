@@ -1,6 +1,7 @@
 package selflearn
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -8,6 +9,57 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 )
+
+// TestRetroIncludesAttestationViolations asserts the H3 gate section
+// renders a per-PR bullet when the wired AttestationScanner returns
+// violations; otherwise prints "(none)".
+func TestRetroIncludesAttestationViolations(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := filepath.Join(dir, "audit.jsonl")
+	dbPath := filepath.Join(dir, "memory.db")
+
+	store, err := OpenMistakeStore(dbPath)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Hit: scanner returns 1 violation.
+	r := &Retro{
+		AuditPath: auditPath,
+		Store:     store,
+		Now:       func() time.Time { return time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC) },
+		AttestationScanner: func(_ context.Context, _ string) ([]AttestationViolation, error) {
+			return []AttestationViolation{{
+				Repo:     "trilamsr/Leah",
+				PRNumber: 42,
+				URL:      "https://github.com/trilamsr/Leah/pull/42",
+			}}, nil
+		},
+	}
+	md, err := r.Generate("")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if !strings.Contains(md, "## Attestation gate violations") {
+		t.Errorf("missing attestation header: %s", md)
+	}
+	if !strings.Contains(md, "https://github.com/trilamsr/Leah/pull/42") {
+		t.Errorf("missing PR URL bullet: %s", md)
+	}
+
+	// Empty: scanner returns no violations → (none) bullet.
+	r.AttestationScanner = func(_ context.Context, _ string) ([]AttestationViolation, error) {
+		return nil, nil
+	}
+	md, err = r.Generate("")
+	if err != nil {
+		t.Fatalf("Generate (empty): %v", err)
+	}
+	if !strings.Contains(md, "## Attestation gate violations") || !strings.Contains(md, "(none)") {
+		t.Errorf("empty scanner output should render '(none)': %s", md)
+	}
+}
 
 // TestRetroIncludesMistakes asserts the markdown retro report contains a
 // mistakes section listing logged root_cause entries for the requested

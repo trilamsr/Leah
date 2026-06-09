@@ -1,6 +1,7 @@
 package selflearn
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,6 +17,23 @@ type Retro struct {
 	Store     *MistakeStore
 	Now       func() time.Time
 	Budget    float64 // weekly $ ceiling; 0 = unset
+
+	// AttestationScanner is an optional probe for the H3 attestation-gate
+	// section. When set, Generate calls it with AuditPath and renders the
+	// returned violations under "## Attestation gate violations".
+	// Implemented by rules.AttestationGate.Scan; an interface here keeps
+	// selflearn → rules dependency one-way (rules already imports
+	// selflearn for Outcome).
+	AttestationScanner func(ctx context.Context, auditPath string) ([]AttestationViolation, error)
+}
+
+// AttestationViolation mirrors rules.Violation in shape; redeclared in
+// the selflearn package to avoid an import cycle. Retro callers adapt
+// rules.Violation → AttestationViolation at the wiring site (cmd/leah).
+type AttestationViolation struct {
+	Repo     string
+	PRNumber int
+	URL      string
 }
 
 // Generate produces a markdown report for the given ISO week (YYYY-WW).
@@ -140,6 +158,26 @@ func (r *Retro) Generate(week string) (string, error) {
 	}
 	for _, r := range rcs {
 		fmt.Fprintf(&sb, "- %s ×%d   prevention: %q\n", r.cause, r.count, r.prevention)
+	}
+	fmt.Fprintln(&sb)
+
+	fmt.Fprintln(&sb, "## Attestation gate violations")
+	if r.AttestationScanner == nil {
+		fmt.Fprintln(&sb, "- (scanner not wired)")
+	} else {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		vs, err := r.AttestationScanner(ctx, r.AuditPath)
+		switch {
+		case err != nil:
+			fmt.Fprintf(&sb, "- scanner error: %v\n", err)
+		case len(vs) == 0:
+			fmt.Fprintln(&sb, "- (none)")
+		default:
+			for _, v := range vs {
+				fmt.Fprintf(&sb, "- %s — merged without `Attestation:` comment\n", v.URL)
+			}
+		}
 	}
 	fmt.Fprintln(&sb)
 
