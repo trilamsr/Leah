@@ -2,11 +2,14 @@ package reviewer
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/trilam/leah/internal/budget"
 )
+
+var errSubagent = errors.New("synthetic subagent failure")
 
 type fakeSubagent struct {
 	gotPrompt string
@@ -83,6 +86,97 @@ func TestReviewRejectsMissingAgentID(t *testing.T) {
 	_, err := r.Review(context.Background(), "diff", "issue")
 	if err == nil || !strings.Contains(err.Error(), "agent-id") {
 		t.Errorf("want missing-agent-id error, got %v", err)
+	}
+}
+
+// TestReview_VerdictAtTopOfBody asserts the verdict regex matches when the
+// Reviewer-recommendation line is the first line of the response (multiline
+// anchor + (?m) flag — guards against future refactor that drops (?m)).
+func TestReview_VerdictAtTopOfBody(t *testing.T) {
+	sa := &fakeSubagent{
+		resp: `Reviewer-recommendation: REVISE
+Reviewer-agent-id: cavecrew-reviewer-top-position
+
+Findings: needs work.
+`,
+	}
+	r := &Reviewer{Subagent: sa, SystemPrompt: "x"}
+	v, err := r.Review(context.Background(), "diff", "issue")
+	if err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	if v.Recommendation != "REVISE" {
+		t.Errorf("recommendation: %q", v.Recommendation)
+	}
+}
+
+// TestReview_VerdictCaseInsensitive asserts the (?mi) flag lets the parser
+// accept "reviewer-recommendation:" + lowercase verdict tokens (canonical
+// is uppercase but operator drafts mix case; regex Capture maps to upper).
+func TestReview_VerdictCaseInsensitive(t *testing.T) {
+	sa := &fakeSubagent{
+		resp: `reviewer-recommendation: approve
+reviewer-agent-id: a1234567890abcdef
+`,
+	}
+	r := &Reviewer{Subagent: sa, SystemPrompt: "x"}
+	v, err := r.Review(context.Background(), "diff", "issue")
+	if err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	if v.Recommendation != "APPROVE" {
+		t.Errorf("expected normalized APPROVE, got %q", v.Recommendation)
+	}
+}
+
+// TestReview_MultipleAgentIDLinesUsesFirst asserts the parser binds to the
+// first Reviewer-agent-id line if the response (incorrectly) emits two.
+// Authors copy-paste templates; we want a deterministic verdict not a panic.
+func TestReview_MultipleAgentIDLinesUsesFirst(t *testing.T) {
+	sa := &fakeSubagent{
+		resp: `Reviewer-recommendation: APPROVE
+Reviewer-agent-id: a1234567890abcdef
+Reviewer-agent-id: cavecrew-reviewer-secondary
+`,
+	}
+	r := &Reviewer{Subagent: sa, SystemPrompt: "x"}
+	v, err := r.Review(context.Background(), "diff", "issue")
+	if err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	if v.AgentID != "a1234567890abcdef" {
+		t.Errorf("expected first id, got %q", v.AgentID)
+	}
+}
+
+// TestReview_SubagentErrorPropagates asserts a non-nil subagent error returns
+// a wrapped error and skips both budget and parse paths.
+func TestReview_SubagentErrorPropagates(t *testing.T) {
+	sa := &fakeSubagent{respErr: errSubagent}
+	b := &budget.Budget{Ceiling: 1.0}
+	r := &Reviewer{Subagent: sa, Budget: b, SystemPrompt: "x"}
+	_, err := r.Review(context.Background(), "diff", "issue")
+	if err == nil || !strings.Contains(err.Error(), "reviewer subagent") {
+		t.Errorf("want wrapped subagent error, got %v", err)
+	}
+	if b.Spent() != 0 {
+		t.Errorf("budget should not be charged on subagent error, got %v", b.Spent())
+	}
+}
+
+// TestReview_BodyTrimsWhitespace asserts the parsed body has leading/trailing
+// whitespace stripped — log + downstream readers don't want noise.
+func TestReview_BodyTrimsWhitespace(t *testing.T) {
+	sa := &fakeSubagent{
+		resp: "\n\n\nFindings: ok.\n\nReviewer-recommendation: APPROVE\nReviewer-agent-id: a1234567890abcdef\n\n\n",
+	}
+	r := &Reviewer{Subagent: sa, SystemPrompt: "x"}
+	v, err := r.Review(context.Background(), "diff", "issue")
+	if err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	if strings.HasPrefix(v.Body, "\n") || strings.HasSuffix(v.Body, "\n") {
+		t.Errorf("body not trimmed: %q", v.Body)
 	}
 }
 

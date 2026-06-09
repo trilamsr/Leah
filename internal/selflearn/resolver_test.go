@@ -123,6 +123,145 @@ func TestResolverSkipsAlreadyResolved(t *testing.T) {
 	}
 }
 
+// TestResolver_MissingAuditFileNoError asserts a missing audit log returns
+// nil instead of erroring — the resolver may be invoked before the operator
+// has dispatched anything.
+func TestResolver_MissingAuditFileNoError(t *testing.T) {
+	r := &Resolver{
+		AuditPath: filepath.Join(t.TempDir(), "no-such-audit.jsonl"),
+		Logger:    &audit.Logger{Path: filepath.Join(t.TempDir(), "out.jsonl")},
+		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeSuccess}},
+		Since:     7 * 24 * time.Hour,
+		Now:       func() time.Time { return time.Now() },
+		Out:       new(bytes.Buffer),
+	}
+	if err := r.Run(context.Background()); err != nil {
+		t.Errorf("missing audit file should not error, got %v", err)
+	}
+}
+
+// TestResolver_RowOutsideSinceWindowIgnored asserts a pending row older than
+// Since is skipped (resolver works a sliding window — old rows are stale).
+func TestResolver_RowOutsideSinceWindowIgnored(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := filepath.Join(dir, "audit.jsonl")
+	// Seed a pending row from 30 days ago.
+	old := time.Now().UTC().Add(-30 * 24 * time.Hour)
+	logger := &audit.Logger{Path: auditPath, Now: func() time.Time { return old }}
+	if err := logger.Append(audit.Entry{Kind: "ship", ArgsHash: "old", Outcome: "pending"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	r := &Resolver{
+		AuditPath: auditPath,
+		Logger:    logger,
+		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeSuccess, detail: "x"}},
+		Since:     7 * 24 * time.Hour, // 7d window — 30d-old row should fall outside
+		Now:       func() time.Time { return time.Now() },
+		Out:       new(bytes.Buffer),
+	}
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	rows := readAll(t, auditPath)
+	if len(rows) != 1 {
+		t.Errorf("stale row should not get a resolver.update; want 1 row, got %d", len(rows))
+	}
+}
+
+// TestResolver_UnknownKindSkipped asserts a pending row with no matching Rule
+// is left untouched (resolver only handles registered kinds).
+func TestResolver_UnknownKindSkipped(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := filepath.Join(dir, "audit.jsonl")
+	logger := &audit.Logger{Path: auditPath}
+	if err := logger.Append(audit.Entry{Kind: "unknown-kind", ArgsHash: "x", Outcome: "pending"}); err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{
+		AuditPath: auditPath,
+		Logger:    logger,
+		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeSuccess}},
+		Since:     7 * 24 * time.Hour,
+		Now:       func() time.Time { return time.Now() },
+		Out:       new(bytes.Buffer),
+	}
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	rows := readAll(t, auditPath)
+	if len(rows) != 1 {
+		t.Errorf("unknown-kind row should not be resolved; want 1 row, got %d", len(rows))
+	}
+}
+
+// TestResolver_PendingVerdictDeferred asserts a rule returning OutcomePending
+// (probe says "wait longer") does NOT write a resolver.update row — re-runs
+// will retry.
+func TestResolver_PendingVerdictDeferred(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := filepath.Join(dir, "audit.jsonl")
+	logger := &audit.Logger{Path: auditPath}
+	if err := logger.Append(audit.Entry{Kind: "ship", ArgsHash: "x", Outcome: "pending"}); err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{
+		AuditPath: auditPath,
+		Logger:    logger,
+		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomePending, detail: "still-running"}},
+		Since:     7 * 24 * time.Hour,
+		Now:       func() time.Time { return time.Now() },
+		Out:       new(bytes.Buffer),
+	}
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	rows := readAll(t, auditPath)
+	if len(rows) != 1 {
+		t.Errorf("pending verdict should not append resolver.update; got %d rows", len(rows))
+	}
+}
+
+// TestResolver_OverlappingRunsNoOpViaTryLock asserts a second concurrent Run
+// is short-circuited (returns nil immediately) — guards against the
+// daemon-tick double-fire risk.
+func TestResolver_OverlappingRunsNoOpViaTryLock(t *testing.T) {
+	r := &Resolver{
+		AuditPath: filepath.Join(t.TempDir(), "no-such.jsonl"),
+		Logger:    &audit.Logger{Path: filepath.Join(t.TempDir(), "out.jsonl")},
+		Rules:     map[string]Rule{},
+		Since:     7 * 24 * time.Hour,
+		Now:       func() time.Time { return time.Now() },
+	}
+	// Hand-take the mutex so the second Run hits TryLock=false.
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.Run(context.Background()); err != nil {
+		t.Errorf("overlapping Run should return nil, got %v", err)
+	}
+}
+
+// TestParseResolvedKey_ShapeBoundaries asserts the prefix-strip helper
+// rejects malformed Detail strings (used by the dedup map).
+func TestParseResolvedKey_ShapeBoundaries(t *testing.T) {
+	cases := map[string]struct {
+		wantKey string
+		wantOK  bool
+	}{
+		"":                                    {"", false},
+		"too short":                           {"", false},
+		"resolved ship,abc,2026-06-09T10:00:00Z -> ok":    {"ship,abc,2026-06-09T10:00:00Z", true},
+		"resolved ship,abc,ts":                {"", false}, // no " -" sentinel
+		"prefix-mismatch ship,abc,ts -> ok":   {"", false},
+	}
+	for in, want := range cases {
+		gotKey, gotOK := parseResolvedKey(in)
+		if gotKey != want.wantKey || gotOK != want.wantOK {
+			t.Errorf("parseResolvedKey(%q) = (%q, %v), want (%q, %v)",
+				in, gotKey, gotOK, want.wantKey, want.wantOK)
+		}
+	}
+}
+
 func readAll(t *testing.T, path string) []audit.Entry {
 	t.Helper()
 	raw, err := os.ReadFile(path)

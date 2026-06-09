@@ -2,8 +2,11 @@ package budget
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -61,6 +64,61 @@ func TestChargeEmitsObsLogs(t *testing.T) {
 	}
 	if !strings.Contains(out, `"msg":"budget.exceeded"`) {
 		t.Errorf("missing exceeded event: %s", out)
+	}
+}
+
+// TestCharge_ConcurrentRespectsCeiling pounds Charge from many goroutines
+// with each charge < ceiling/N — the spent total must never exceed the
+// ceiling, and rejected attempts must not bump spent. Race-detector clean.
+func TestCharge_ConcurrentRespectsCeiling(t *testing.T) {
+	b := &Budget{Ceiling: 1.0}
+	const N = 100
+	const each = 0.02 // 100 * 0.02 = 2.0; ceiling 1.0 → ~50 accepted, ~50 rejected
+	var accepted, rejected int64
+	var wg sync.WaitGroup
+	wg.Add(N)
+	for i := 0; i < N; i++ {
+		go func() {
+			defer wg.Done()
+			if err := b.Charge(each); err == nil {
+				atomic.AddInt64(&accepted, 1)
+			} else {
+				atomic.AddInt64(&rejected, 1)
+			}
+		}()
+	}
+	wg.Wait()
+	if accepted+rejected != N {
+		t.Errorf("lost charges: accepted=%d rejected=%d", accepted, rejected)
+	}
+	spent := b.Spent()
+	if spent > b.Ceiling {
+		t.Errorf("spent %v exceeds ceiling %v", spent, b.Ceiling)
+	}
+	// Spent must equal accepted * each (atomic accumulation).
+	want := float64(accepted) * each
+	if diff := spent - want; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("spent=%v want=%v (accepted=%d)", spent, want, accepted)
+	}
+}
+
+// TestCharge_ExceededErrorIsTyped asserts the returned error is the
+// *ExceededError type (errors.As round-trip) so callers can branch on it.
+func TestCharge_ExceededErrorIsTyped(t *testing.T) {
+	b := &Budget{Ceiling: 1.0}
+	err := b.Charge(2.0)
+	if err == nil {
+		t.Fatal("expected exceeded error")
+	}
+	var exc *ExceededError
+	if !errors.As(err, &exc) {
+		t.Fatalf("expected *ExceededError, got %T: %v", err, err)
+	}
+	if exc.Attempted != 2.0 || exc.Ceiling != 1.0 || exc.Spent != 0 {
+		t.Errorf("ExceededError fields: %+v", exc)
+	}
+	if !strings.Contains(exc.Error(), "budget exceeded") {
+		t.Errorf("Error() should describe overspend: %q", exc.Error())
 	}
 }
 

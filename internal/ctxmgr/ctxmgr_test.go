@@ -3,6 +3,7 @@ package ctxmgr
 import (
 	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -181,6 +182,97 @@ func TestSwitchUnknownErrors(t *testing.T) {
 	c, _ := m.Active()
 	if c.Name != "default" {
 		t.Errorf("unknown switch should not mutate active; got %q", c.Name)
+	}
+}
+
+// TestSwitchIdempotentTargetStillLogs asserts a Switch to the already-active
+// context still appends to context_switch_log so the audit trail captures
+// the user-visible action (spec §2 — idempotent target still records).
+func TestSwitchIdempotentTargetStillLogs(t *testing.T) {
+	m := openTestManager(t)
+	if err := m.NewContext("acme", ""); err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	if err := m.Switch("acme", "cli"); err != nil {
+		t.Fatalf("switch1: %v", err)
+	}
+	if err := m.Switch("acme", "cli"); err != nil {
+		t.Fatalf("switch2: %v", err)
+	}
+	hist, err := m.History(10)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	if len(hist) != 2 {
+		t.Errorf("idempotent switch should still log; want 2 entries, got %d", len(hist))
+	}
+	// Second switch: from=acme, to=acme.
+	if hist[0].From != "acme" || hist[0].To != "acme" {
+		t.Errorf("hist[0] = %+v, want acme→acme", hist[0])
+	}
+}
+
+// TestConcurrentSwitchesNoRace runs N goroutines toggling between two
+// contexts; race detector + operator_state singleton invariant guard
+// against state corruption under contention. SQLite SQLITE_BUSY rejections
+// are expected (the busy_timeout(5000) + WAL stops most but not all);
+// the test asserts only that the SUCCESSFUL switches landed coherently
+// (active matches one of the two contexts, history count == success count).
+func TestConcurrentSwitchesNoRace(t *testing.T) {
+	m := openTestManager(t)
+	for _, n := range []string{"acme", "personal"} {
+		if err := m.NewContext(n, ""); err != nil {
+			t.Fatalf("new %s: %v", n, err)
+		}
+	}
+	var wg sync.WaitGroup
+	var succeeded sync.Map // map[int]bool
+	const N = 20
+	wg.Add(N)
+	for i := 0; i < N; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			target := "acme"
+			if i%2 == 0 {
+				target = "personal"
+			}
+			if err := m.Switch(target, "race-test"); err == nil {
+				succeeded.Store(i, true)
+			}
+			// SQLITE_BUSY is acceptable under contention; we only assert
+			// invariants on the rows that DID commit.
+		}()
+	}
+	wg.Wait()
+	// Singleton row must still resolve to one of the two contexts.
+	c, err := m.Active()
+	if err != nil {
+		t.Fatalf("active: %v", err)
+	}
+	if c.Name != "acme" && c.Name != "personal" {
+		t.Errorf("active corrupted under race: %q", c.Name)
+	}
+	// History rows match successful Switch returns.
+	successCount := 0
+	succeeded.Range(func(_, _ any) bool { successCount++; return true })
+	hist, _ := m.History(N + 10)
+	if len(hist) != successCount {
+		t.Errorf("history rows %d != successful switches %d", len(hist), successCount)
+	}
+}
+
+// TestHistoryReturnsEmptyOnFreshDB asserts a freshly-opened DB with no
+// explicit switches returns an empty history slice (the seed default
+// context lands via INSERT-OR-IGNORE only, no switch row).
+func TestHistoryReturnsEmptyOnFreshDB(t *testing.T) {
+	m := openTestManager(t)
+	hist, err := m.History(10)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	if len(hist) != 0 {
+		t.Errorf("fresh DB should have empty history, got %d entries", len(hist))
 	}
 }
 

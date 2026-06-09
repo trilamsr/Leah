@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -253,6 +254,103 @@ func TestWeeklyTaskFiresOnFirstRunWhenTrackerMissing(t *testing.T) {
 		t.Errorf("tracker should be created: %v", err)
 	}
 }
+
+// TestWeeklyTask_PanicDoesNotKillSubsequent asserts a panicking weekly task
+// is recovered + later tasks in the same tick still run (per-task recover).
+func TestWeeklyTask_PanicDoesNotKillSubsequent(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt" // missing → fires immediately
+
+	done := make(chan struct{}, 1)
+	var ranAfter atomic.Bool
+	panicker := func(ctx context.Context) { panic("synthetic weekly panic") }
+	survivor := func(ctx context.Context) {
+		ranAfter.Store(true)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	out := &bytes.Buffer{}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, out, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{panicker, survivor}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("survivor task did not run after panicker panicked")
+	}
+	if !ranAfter.Load() {
+		t.Error("survivor task did not run")
+	}
+	if !strings.Contains(out.String(), "weekly task panic") {
+		t.Errorf("output missing panic log: %q", out.String())
+	}
+}
+
+// TestWeeklyHourGate asserts WeeklyHour defers the weekly task when the
+// current hour is below the threshold (operator-quiet-hours guard).
+func TestWeeklyHourGate(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt" // missing → would normally fire
+
+	var fired atomic.Int32
+	weekly := func(ctx context.Context) { fired.Add(1) }
+	out := &bytes.Buffer{}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, out, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{weekly}
+	// Hours go 0-23; 25 is unreachable so the gate must always defer.
+	l.WeeklyHour = 25
+	l.tick(context.Background())
+
+	if fired.Load() != 0 {
+		t.Errorf("WeeklyHour=25 should always defer; fired=%d", fired.Load())
+	}
+	if !strings.Contains(out.String(), "deferred") {
+		t.Errorf("output should mention deferred: %q", out.String())
+	}
+	if _, err := os.Stat(tracker); err == nil {
+		t.Errorf("tracker should NOT be written when weekly deferred")
+	}
+}
+
+// TestLoopContinuesWhenRegattaErrors asserts a Regatta.List failure logs but
+// does not kill the tick — heartbeat must still run.
+func TestLoopContinuesWhenRegattaErrors(t *testing.T) {
+	rc := &errRegatta{}
+	hb := &fakeHb{}
+	out := &bytes.Buffer{}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+
+	l := New(rc, hb, &fakeNf{}, a, out, 1*time.Millisecond)
+	l.tick(context.Background())
+	if hb.pings != 1 {
+		t.Errorf("heartbeat should fire even when regatta errors; got %d", hb.pings)
+	}
+	if !strings.Contains(out.String(), "regatta list error") {
+		t.Errorf("output should surface regatta error: %q", out.String())
+	}
+}
+
+// errRegatta returns an error on every List call.
+type errRegatta struct{}
+
+func (errRegatta) List(_ context.Context) ([]regattaclient.Agent, error) {
+	return nil, errString("synthetic regatta failure")
+}
+
+type errString string
+
+func (e errString) Error() string { return string(e) }
 
 func TestLoopRespectsContextCancellation(t *testing.T) {
 	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}

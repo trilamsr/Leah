@@ -206,6 +206,78 @@ func TestSelfBuildAttestationFailClosed(t *testing.T) {
 	}
 }
 
+// TestSelfBuild_ReasonerErrorAuditsFailed asserts that a reasoner-draft
+// failure during self-build records a `self-build` outcome=failed row and
+// skips the underlying Ship call entirely.
+func TestSelfBuild_ReasonerErrorAuditsFailed(t *testing.T) {
+	dir := t.TempDir()
+	gh := &fakeGh{}
+	sb := &SelfBuild{
+		Reasoner: errReasoner{},
+		GH:       gh,
+		Audit:    &audit.Logger{Path: dir + "/audit.jsonl"},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		TmpDir:   dir,
+	}
+	if err := sb.Run(context.Background(), "do x"); err == nil {
+		t.Fatal("want reasoner error, got nil")
+	}
+	if gh.createdTitle != "" {
+		t.Errorf("issue created despite reasoner failure: %q", gh.createdTitle)
+	}
+	data, _ := os.ReadFile(dir + "/audit.jsonl")
+	if !strings.Contains(string(data), `"kind":"self-build"`) ||
+		!strings.Contains(string(data), `"outcome":"failed"`) {
+		t.Errorf("audit missing self-build/failed row: %s", data)
+	}
+}
+
+// TestSelfBuild_PromptSHARecordedInSuccess asserts promptSHA() output appears
+// in the success audit row when PromptPath is set + readable (spec §4.11).
+func TestSelfBuild_PromptSHARecordedInSuccess(t *testing.T) {
+	dir := t.TempDir()
+	promptPath := filepath.Join(dir, "prompt.md")
+	if err := os.WriteFile(promptPath, []byte("system prompt content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := &fakeGh{createURL: "https://github.com/trilamsr/Leah/issues/1"}
+	sb := &SelfBuild{
+		Reasoner:   &fakeShipReasoner{resp: validSpec},
+		GH:         gh,
+		Audit:      &audit.Logger{Path: dir + "/audit.jsonl"},
+		Budget:     &budget.Budget{Ceiling: 5.0},
+		Out:        &bytes.Buffer{},
+		TmpDir:     dir,
+		PromptPath: promptPath,
+	}
+	if err := sb.Run(context.Background(), "add feature"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	data, _ := os.ReadFile(dir + "/audit.jsonl")
+	if !strings.Contains(string(data), "prompt_sha=") {
+		t.Errorf("audit missing prompt_sha field: %s", data)
+	}
+}
+
+// TestSelfBuild_PromptSHAEmptyWhenPathUnset asserts the helper degrades to
+// empty (non-fatal) on missing config — the audit row still appears.
+func TestSelfBuild_PromptSHAEmptyWhenPathUnset(t *testing.T) {
+	sb := &SelfBuild{}
+	if got := sb.promptSHA(); got != "" {
+		t.Errorf("unset PromptPath should yield empty sha, got %q", got)
+	}
+}
+
+// TestSelfBuild_PromptSHAEmptyWhenFileMissing asserts an unreadable PromptPath
+// returns "" (rather than panic) so the audit row still lands.
+func TestSelfBuild_PromptSHAEmptyWhenFileMissing(t *testing.T) {
+	sb := &SelfBuild{PromptPath: "/nonexistent/path/that/should/not/exist.md"}
+	if got := sb.promptSHA(); got != "" {
+		t.Errorf("missing PromptPath should yield empty sha, got %q", got)
+	}
+}
+
 func TestSelfBuildClarifyAbortFilesNoIssue(t *testing.T) {
 	dir := t.TempDir()
 	clarify := "## Clarifying questions\n\n- Which package?\n- What's the observable acceptance?\n"

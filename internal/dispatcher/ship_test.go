@@ -205,3 +205,139 @@ func TestDeriveTitleVerbRouting(t *testing.T) {
 		}
 	}
 }
+
+// errSynthetic is a tiny string-error used by failure-path tests below.
+type errSynthetic string
+
+func (e errSynthetic) Error() string { return string(e) }
+
+// errGh always fails CreateIssue with a synthetic error.
+type errGh struct{}
+
+func (errGh) CreateIssue(_ context.Context, _ ghclient.CreateIssueArgs) (string, error) {
+	return "", errSynthetic("gh create-issue exploded")
+}
+
+// errReasoner always fails Ask with a synthetic error.
+type errReasoner struct{}
+
+func (errReasoner) Ask(_ context.Context, _ string) (string, error) {
+	return "", errSynthetic("reasoner exploded")
+}
+
+// TestShipRun_ReasonerErrorAuditsFailedAndReturns asserts the reasoner-draft
+// failure path records a `ship` audit row with outcome=failed and skips the
+// GH call entirely.
+func TestShipRun_ReasonerErrorAuditsFailedAndReturns(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := dir + "/audit.jsonl"
+	gh := &fakeGh{}
+	ship := &Ship{
+		Reasoner: errReasoner{},
+		GH:       gh,
+		Audit:    &audit.Logger{Path: auditPath},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		Repo:     "x/y",
+		TmpDir:   dir,
+	}
+	err := ship.Run(context.Background(), "do thing")
+	if err == nil {
+		t.Fatal("want reasoner error, got nil")
+	}
+	if gh.createdTitle != "" {
+		t.Errorf("issue created despite reasoner failure: %q", gh.createdTitle)
+	}
+	data, _ := os.ReadFile(auditPath)
+	if !strings.Contains(string(data), `"outcome":"failed"`) {
+		t.Errorf("audit missing outcome=failed: %s", data)
+	}
+}
+
+// TestShipRun_GHErrorAuditsFailed asserts a gh-create failure records a
+// failed-outcome row referencing the gh error path.
+func TestShipRun_GHErrorAuditsFailed(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := dir + "/audit.jsonl"
+	ship := &Ship{
+		Reasoner: &fakeShipReasoner{resp: "draft body"},
+		GH:       errGh{},
+		Audit:    &audit.Logger{Path: auditPath},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		Repo:     "x/y",
+		TmpDir:   dir,
+	}
+	if err := ship.Run(context.Background(), "do thing"); err == nil {
+		t.Fatal("want gh error, got nil")
+	}
+	data, _ := os.ReadFile(auditPath)
+	if !strings.Contains(string(data), `"outcome":"failed"`) {
+		t.Errorf("audit missing outcome=failed: %s", data)
+	}
+	if !strings.Contains(string(data), "gh issue create") {
+		t.Errorf("audit detail should reference gh create: %s", data)
+	}
+}
+
+// TestShipRun_BodyFileWriteFailureAuditsFailed asserts an unwritable TmpDir
+// surfaces a failed audit row and skips the gh call.
+func TestShipRun_BodyFileWriteFailureAuditsFailed(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := dir + "/audit.jsonl"
+	gh := &fakeGh{}
+	// Point TmpDir at a path nested under a regular file — os.WriteFile fails.
+	blocker := dir + "/blocker"
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ship := &Ship{
+		Reasoner: &fakeShipReasoner{resp: "draft"},
+		GH:       gh,
+		Audit:    &audit.Logger{Path: auditPath},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		Repo:     "x/y",
+		TmpDir:   blocker, // not-a-directory → WriteFile errors
+	}
+	if err := ship.Run(context.Background(), "thing"); err == nil {
+		t.Fatal("want write error, got nil")
+	}
+	if gh.createdTitle != "" {
+		t.Errorf("issue created despite write failure: %q", gh.createdTitle)
+	}
+	data, _ := os.ReadFile(auditPath)
+	if !strings.Contains(string(data), `"outcome":"failed"`) {
+		t.Errorf("audit missing outcome=failed: %s", data)
+	}
+}
+
+// TestShipRun_NeutralizesCommentCloseInDraft asserts the substitution that
+// prevents a draft body's literal `-->` from accidentally closing the
+// leah-dispatched HTML comment marker.
+func TestShipRun_NeutralizesCommentCloseInDraft(t *testing.T) {
+	dir := t.TempDir()
+	gh := &fakeGh{createURL: "https://example/1"}
+	hostile := "## Context\n\nUser said: --> oops -->\n"
+	ship := &Ship{
+		Reasoner: &fakeShipReasoner{resp: hostile},
+		GH:       gh,
+		Audit:    &audit.Logger{Path: dir + "/audit.jsonl"},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		Repo:     "x/y",
+		TmpDir:   dir,
+	}
+	if err := ship.Run(context.Background(), "x"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	// Drafted body's two `-->` occurrences neutralized → only the marker block
+	// (two trailing HTML comments) provides the literal `-->` tokens.
+	got := strings.Count(gh.createdBody, "-->")
+	if got != 2 {
+		t.Errorf("expected exactly 2 trailing `-->` (the markers), got %d in body: %q", got, gh.createdBody)
+	}
+	if !strings.Contains(gh.createdBody, "leah-dispatched:") {
+		t.Errorf("body missing marker: %q", gh.createdBody)
+	}
+}

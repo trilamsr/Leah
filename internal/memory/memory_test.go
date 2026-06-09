@@ -3,6 +3,7 @@ package memory
 import (
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -193,6 +194,101 @@ func TestSchemaIdempotent(t *testing.T) {
 		}
 		_ = s.Close()
 	}
+}
+
+// TestGetProject_Roundtrip asserts AddProject → GetProject preserves all
+// fields including the default-active status assignment.
+func TestGetProject_Roundtrip(t *testing.T) {
+	s := newTestStore(t)
+	added, err := s.AddProject(Project{Name: "leah", Notes: "self-host"})
+	if err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
+	got, err := s.GetProject(added.ID)
+	if err != nil {
+		t.Fatalf("GetProject: %v", err)
+	}
+	if got.ID != added.ID || got.Name != "leah" || got.Status != "active" || got.Notes != "self-host" {
+		t.Errorf("GetProject mismatch: %+v", got)
+	}
+}
+
+// TestGetProject_NotFoundErrors asserts unknown ID returns an error rather
+// than a zero-value (which would silently swallow KB miss).
+func TestGetProject_NotFoundErrors(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.GetProject("nonexistent-id"); err == nil {
+		t.Fatal("GetProject accepted unknown id, want error")
+	}
+}
+
+// TestListDecisions_NewestFirst asserts the list is ordered by DecidedAt desc
+// (operator wants newest decisions surfaced first).
+func TestListDecisions_NewestFirst(t *testing.T) {
+	s := newTestStore(t)
+	older := "2026-06-01T10:00:00Z"
+	newer := "2026-06-09T10:00:00Z"
+	if _, err := s.AddDecision(Decision{Topic: "a", Choice: "x", DecidedAt: older}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddDecision(Decision{Topic: "b", Choice: "y", DecidedAt: newer}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.ListDecisions()
+	if err != nil {
+		t.Fatalf("ListDecisions: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("want 2 decisions, got %d", len(list))
+	}
+	if list[0].DecidedAt != newer || list[1].DecidedAt != older {
+		t.Errorf("want newest first, got: %+v", list)
+	}
+}
+
+// TestMemoryStore_ConcurrentWritesNoRace exercises AddContact/AddProject/
+// AddDecision concurrently — race detector must stay clean and all 30 rows
+// must land (MaxOpenConns=1 serializes the writers).
+func TestMemoryStore_ConcurrentWritesNoRace(t *testing.T) {
+	s := newTestStore(t)
+	var wg sync.WaitGroup
+	const N = 10
+	wg.Add(3 * N)
+	for i := 0; i < N; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			if _, err := s.AddContact(Contact{Name: "c-" + intToStr(i)}); err != nil {
+				t.Errorf("AddContact: %v", err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			if _, err := s.AddProject(Project{Name: "p-" + intToStr(i)}); err != nil {
+				t.Errorf("AddProject: %v", err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			if _, err := s.AddDecision(Decision{Topic: "t-" + intToStr(i), Choice: "x"}); err != nil {
+				t.Errorf("AddDecision: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	contacts, _ := s.ListContacts()
+	projects, _ := s.ListProjects()
+	decisions, _ := s.ListDecisions()
+	if len(contacts) != N || len(projects) != N || len(decisions) != N {
+		t.Errorf("want %d each, got contacts=%d projects=%d decisions=%d",
+			N, len(contacts), len(projects), len(decisions))
+	}
+}
+
+// intToStr avoids strconv import in the test helper; pulls a single digit
+// from 0-9 (N=10 in the caller).
+func intToStr(i int) string {
+	return string(rune('0' + i))
 }
 
 // TestAuditHook fires the audit callback on each mutation (#M2).
