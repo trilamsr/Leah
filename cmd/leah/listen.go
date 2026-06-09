@@ -1,0 +1,140 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/dispatcher"
+	"github.com/trilam/leah/internal/intent"
+	"github.com/trilam/leah/internal/voice"
+)
+
+// runListen records one push-to-talk utterance, transcribes it via
+// whisper.cpp locally, then routes the transcript through the existing
+// intent classifier → CLI command dispatch.
+//
+// Routing rules (mirror the intent package):
+//   - KindAsk    → runAsk(transcript)
+//   - KindShip   → print transcript + prompt operator for repo (Phase 1
+//                  does not auto-pick a repo — every ship is a load-bearing
+//                  irreversible action)
+//   - KindReview → parse pr# from transcript + dispatch runReview
+//   - KindStatus → forward to runStatus equivalent (audit-log printout)
+//
+// One audit row per invocation: kind=voice.input, BR=0, detail=truncated
+// transcript + classified verb.
+func runListen(args []string) {
+	fs := flag.NewFlagSet("listen", flag.ExitOnError)
+	duration := fs.Duration("duration", 0, "max recording length (e.g. 30s); 0 = silence-detector only")
+	model := fs.String("model", "ggml-large-v3-turbo-q5_0.bin", "whisper.cpp model filename in --model-dir")
+	modelDir := fs.String("model-dir", "models", "directory containing ggml-*.bin model files")
+	repo := fs.String("repo", "", "repo to use when transcript classifies as ship/review")
+	_ = fs.Parse(args)
+
+	ctx := context.Background()
+	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
+
+	_, _ = fmt.Println("listening... (Ctrl-C to stop)")
+
+	transcript, err := voice.Listen(ctx, voice.ShellExec{}, voice.ListenConfig{
+		Duration: *duration,
+		Model:    *model,
+		ModelDir: *modelDir,
+	})
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah listen: %v\n", err)
+		os.Exit(1)
+	}
+	if transcript == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "leah listen: empty transcript")
+		os.Exit(1)
+	}
+
+	kind := intent.Classify(transcript)
+	_, _ = fmt.Printf("you said: %q\n", transcript)
+	_, _ = fmt.Printf("intent: %s\n", kind)
+
+	_ = a.Append(audit.Entry{
+		Kind:        "voice.input",
+		BlastRadius: 0,
+		Outcome:     "success",
+		Detail:      kind.String() + ": " + truncateTranscript(transcript, 200),
+	})
+
+	switch kind {
+	case intent.KindAsk:
+		runAsk(transcript)
+	case intent.KindShip:
+		if *repo == "" {
+			_, _ = fmt.Println("ship intent detected — re-run with --repo <repo> to dispatch")
+			return
+		}
+		runShip(*repo, transcript)
+	case intent.KindReview:
+		if *repo == "" {
+			_, _ = fmt.Println("review intent detected — re-run with --repo <repo> to dispatch")
+			return
+		}
+		prNum, ok := extractPRNumber(transcript)
+		if !ok {
+			_, _ = fmt.Fprintln(os.Stderr, "could not parse PR number from transcript")
+			os.Exit(1)
+		}
+		runReview(*repo, prNum)
+	case intent.KindStatus:
+		s := &dispatcher.Status{
+			AuditPath: filepath.Join(stateDir(), "audit.jsonl"),
+			Out:       os.Stdout,
+			Limit:     20,
+		}
+		if err := s.Run(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah status: %v\n", err)
+			os.Exit(1)
+		}
+	}
+}
+
+// extractPRNumber pulls the first integer token from s. Returns false when
+// none is present. Used to bridge "review pr 123" / "review #123" /
+// "please review 123" speech into runReview's typed signature.
+func extractPRNumber(s string) (int, bool) {
+	// Walk runes, accumulate first contiguous digit run.
+	var buf strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			buf.WriteRune(r)
+			continue
+		}
+		if buf.Len() > 0 {
+			break
+		}
+	}
+	if buf.Len() == 0 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(buf.String())
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// truncateTranscript returns s clipped to n runes, appending "…" when
+// clipped. Kept audit-detail rows short; full transcript stays on stdout
+// only. Rune-safe so a multi-byte UTF-8 character cannot be split mid-byte
+// (whisper.cpp emits unicode punctuation). Named to disambiguate from
+// cmd/leah/backlog.go::truncate.
+func truncateTranscript(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
+}
+
