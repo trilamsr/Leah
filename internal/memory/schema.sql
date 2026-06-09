@@ -107,3 +107,20 @@ CREATE TABLE IF NOT EXISTS operator_profile_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- schema_version: 5 (additive — embedding rows for semantic recall)
+-- See docs/specs/2026-06-09-semantic-recall.md
+-- Vector is a little-endian float32 BLOB (4*dim bytes); search is brute-force
+-- cosine in Go (single-operator scale; sqlite-vec deferred per spec §Deferred).
+
+CREATE TABLE IF NOT EXISTS embedding (
+  item_id    TEXT NOT NULL,
+  item_type  TEXT NOT NULL,    -- 'audit' | 'contact' | 'project' | 'decision'
+  model      TEXT NOT NULL,    -- generator Name() — cross-model rows are incomparable
+  dim        INTEGER NOT NULL, -- vector length; defends against model-swap drift
+  vector     BLOB NOT NULL,    -- little-endian float32, length = dim*4
+  content    TEXT NOT NULL,    -- the embedded text (for result display)
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (item_id, item_type)
+);
+CREATE INDEX IF NOT EXISTS idx_embedding_model ON embedding(model, dim);

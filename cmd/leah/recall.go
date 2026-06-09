@@ -15,6 +15,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/embed"
 	"github.com/trilam/leah/internal/reasoner"
 )
 
@@ -27,25 +28,32 @@ type recallResult struct {
 	Text      string
 }
 
-// runRecall implements `leah recall [--llm] <query>`.
+// runRecall implements `leah recall [--llm] [--semantic] <query>`.
 //
 // Tier 1 (default): substring grep across audit.jsonl (last 30d) +
 // LIKE %q% over contact/project/decision rows.
-// Tier 2 (--llm): pass Tier-1 hits to the Reasoner for a single
-// synthesis call (budget-gated).
+// Tier 1.5 (--semantic): cosine search over the `embedding` table
+// (schema v5). Backend picked by LEAH_EMBED_BACKEND env (hash | openai).
+// Tier 2 (--llm): pass hits to the Reasoner for a single synthesis call
+// (budget-gated). --semantic and --llm compose: semantic feeds the LLM.
 func runRecall(args []string) {
 	useLLM := false
+	useSemantic := false
 	rest := make([]string, 0, len(args))
 	for _, a := range args {
 		if a == "--llm" {
 			useLLM = true
 			continue
 		}
+		if a == "--semantic" {
+			useSemantic = true
+			continue
+		}
 		rest = append(rest, a)
 	}
 	query := strings.TrimSpace(strings.Join(rest, " "))
 	if query == "" {
-		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] <query>")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] <query>")
 		os.Exit(2)
 	}
 
@@ -54,20 +62,30 @@ func runRecall(args []string) {
 	store := openMemoryStore()
 	defer func() { _ = store.Close() }()
 
-	auditHits, err := grepAudit(a.Path, query, 30*24*time.Hour, time.Now())
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah recall: audit scan: %v\n", err)
-		os.Exit(1)
+	var results []recallResult
+	if useSemantic {
+		semHits, err := semanticRecall(context.Background(), store.DB(), query)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah recall: semantic: %v\n", err)
+			os.Exit(1)
+		}
+		results = semHits
+	} else {
+		auditHits, err := grepAudit(a.Path, query, 30*24*time.Hour, time.Now())
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah recall: audit scan: %v\n", err)
+			os.Exit(1)
+		}
+		memHits, err := grepMemory(store.DB(), query)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah recall: memory scan: %v\n", err)
+			os.Exit(1)
+		}
+		results = append(auditHits, memHits...)
+		sort.SliceStable(results, func(i, j int) bool {
+			return results[i].Timestamp > results[j].Timestamp
+		})
 	}
-	memHits, err := grepMemory(store.DB(), query)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah recall: memory scan: %v\n", err)
-		os.Exit(1)
-	}
-	results := append(auditHits, memHits...)
-	sort.SliceStable(results, func(i, j int) bool {
-		return results[i].Timestamp > results[j].Timestamp
-	})
 
 	if len(results) == 0 {
 		_, _ = fmt.Println("no matches")
@@ -281,4 +299,35 @@ func printResult(w *os.File, r recallResult) {
 		return
 	}
 	_, _ = fmt.Fprintf(w, "[%s %s] %s\n", r.Source, r.Timestamp, r.Text)
+}
+
+// semanticRecall runs cosine search over the `embedding` table using the
+// generator chosen by LEAH_EMBED_BACKEND (default: hash, offline). Returns
+// rows in score-descending order, mapped into the existing recallResult
+// shape so the LLM-synthesis path downstream stays oblivious to backend.
+//
+// First-run UX: if no embeddings have been ingested yet (semantic index
+// empty), this returns zero results rather than an error. Embedding-ingest
+// itself lives in a separate `leah ingest` command tracked as a followup;
+// for now the operator seeds the index by running their existing capture
+// flows after schema v5 lands (Put hooks added per-table in a successor PR).
+func semanticRecall(ctx context.Context, db *sql.DB, query string) ([]recallResult, error) {
+	gen, err := embed.SelectGenerator()
+	if err != nil {
+		return nil, err
+	}
+	store := embed.NewStore(db, gen)
+	hits, err := store.Search(ctx, query, 10)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]recallResult, 0, len(hits))
+	for _, h := range hits {
+		out = append(out, recallResult{
+			Source:    h.Item.Type,
+			Timestamp: "", // embedding rows carry updated_at, not semantic ts
+			Text:      fmt.Sprintf("(sim=%.3f) %s", h.Score, h.Item.Content),
+		})
+	}
+	return out, nil
 }

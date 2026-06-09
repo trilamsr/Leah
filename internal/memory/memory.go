@@ -21,7 +21,7 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-const embeddedSchemaVersion = "4"
+const embeddedSchemaVersion = "5"
 
 // schemaMetaBootstrapSQL creates the version-tracking table only.
 // Kept separate from schemaSQL so we can read the on-disk version BEFORE
