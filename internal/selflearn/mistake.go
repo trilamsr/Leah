@@ -3,16 +3,13 @@ package selflearn
 import (
 	"crypto/rand"
 	"database/sql"
-	_ "embed"
 	"fmt"
 	"time"
 
 	"github.com/oklog/ulid/v2"
+	"github.com/trilam/leah/internal/memory"
 	_ "modernc.org/sqlite"
 )
-
-//go:embed schema.sql
-var mistakeSchema string
 
 // Mistake is an operator-annotated negative outcome (spec §3.1).
 type Mistake struct {
@@ -25,27 +22,42 @@ type Mistake struct {
 	Prevention string
 }
 
-// MistakeStore wraps the mistake_log table.
+// MistakeStore wraps the mistake_log table. The table itself lives in
+// internal/memory/schema.sql (schema_version 3); MistakeStore does NOT
+// own migrations — it borrows the *sql.DB from a *memory.Store.
 type MistakeStore struct {
-	db  *sql.DB
-	Now func() time.Time
+	db    *sql.DB
+	owned *memory.Store // non-nil only when OpenMistakeStore created the Store; Close releases it
+	Now   func() time.Time
 }
 
-// OpenMistakeStore opens (and migrates) the sqlite db at path.
+// NewMistakeStore wraps an existing *sql.DB (typically from
+// (*memory.Store).DB()). The caller owns the lifecycle.
+func NewMistakeStore(db *sql.DB) *MistakeStore {
+	return &MistakeStore{db: db}
+}
+
+// OpenMistakeStore opens the shared memory.db at path, runs migrations, and
+// returns a MistakeStore that owns the underlying handle. Close releases it.
+// Convenience for tests + standalone CLI callers; production wiring should
+// use NewMistakeStore(store.DB()) to share with other memory consumers.
 func OpenMistakeStore(path string) (*MistakeStore, error) {
-	db, err := sql.Open("sqlite", path)
+	store, err := memory.NewStore(path)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, fmt.Errorf("open memory store: %w", err)
 	}
-	if _, err := db.Exec(mistakeSchema); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("apply schema: %w", err)
-	}
-	return &MistakeStore{db: db}, nil
+	return &MistakeStore{db: store.DB(), owned: store}, nil
 }
 
-// Close releases the underlying db handle.
-func (s *MistakeStore) Close() error { return s.db.Close() }
+// Close releases the underlying *memory.Store iff this MistakeStore opened it.
+// For MistakeStore values created via NewMistakeStore, Close is a no-op — the
+// caller still owns the *sql.DB.
+func (s *MistakeStore) Close() error {
+	if s.owned != nil {
+		return s.owned.Close()
+	}
+	return nil
+}
 
 // Add inserts a mistake row + returns its ulid.
 func (s *MistakeStore) Add(m Mistake) (string, error) {

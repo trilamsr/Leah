@@ -71,3 +71,20 @@ INSERT OR IGNORE INTO operator_state(id, active_context, updated_at)
   VALUES (1, 'default', strftime('%Y-%m-%dT%H:%M:%SZ','now'));
 
 UPDATE schema_meta SET value='2' WHERE key='version';
+
+-- schema_version: 3 (additive — selflearn mistake_log)
+-- See docs/specs/2026-06-09-self-learning-personal.md §3.1
+
+CREATE TABLE IF NOT EXISTS mistake_log (
+  id          TEXT PRIMARY KEY,    -- ulid
+  created_at  TIMESTAMP NOT NULL,  -- RFC3339 UTC
+  audit_ts    TEXT NOT NULL,       -- audit.Entry.Timestamp (composite key part)
+  audit_kind  TEXT NOT NULL,       -- audit.Entry.Kind         (composite key part)
+  audit_hash  TEXT NOT NULL,       -- audit.Entry.ArgsHash     (composite key part)
+  root_cause  TEXT NOT NULL,       -- short tag, e.g. "wrong-pr"
+  prevention  TEXT NOT NULL        -- free-form operator note
+);
+
+CREATE INDEX IF NOT EXISTS mistake_log_created ON mistake_log(created_at);
+
+UPDATE schema_meta SET value='3' WHERE key='version';

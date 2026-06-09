@@ -21,7 +21,7 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-const embeddedSchemaVersion = "2"
+const embeddedSchemaVersion = "3"
 
 // Store is the memory KB handle. Wrap *sql.DB; one per process.
 type Store struct {
@@ -91,6 +91,11 @@ func NewStore(path string) (*Store, error) {
 
 // Close releases the underlying DB handle.
 func (s *Store) Close() error { return s.db.Close() }
+
+// DB returns the underlying *sql.DB. Exposed so sibling packages (e.g.
+// selflearn.MistakeStore) can share the single migrated handle rather than
+// opening their own connection + re-running schema.
+func (s *Store) DB() *sql.DB { return s.db }
 
 func (s *Store) migrate() error {
 	if _, err := s.db.Exec(schemaSQL); err != nil {
