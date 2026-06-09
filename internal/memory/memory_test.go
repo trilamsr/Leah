@@ -291,6 +291,43 @@ func intToStr(i int) string {
 	return string(rune('0' + i))
 }
 
+// TestNewStore_RejectsNewerSchemaOnDisk asserts the "newer DB than binary"
+// guard fires when the on-disk schema_meta.version exceeds the embedded
+// version. Wave3-P regression: schema.sql previously stamped the version
+// unconditionally on every open, silently overwriting any operator-bumped
+// value before the version check could fire.
+func TestNewStore_RejectsNewerSchemaOnDisk(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/memory.db"
+
+	s, err := NewStore(path)
+	if err != nil {
+		t.Fatalf("first open: %v", err)
+	}
+	_ = s.Close()
+
+	// Operator manually bumps schema_meta to a future version (simulating
+	// a newer binary having touched this DB then operator downgraded).
+	s2, err := NewStore(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	db := s2.DB()
+	if _, err := db.Exec(`UPDATE schema_meta SET value='999' WHERE key='version'`); err != nil {
+		t.Fatalf("bump: %v", err)
+	}
+	_ = s2.Close()
+
+	// Re-open should REFUSE — DB is from a newer binary.
+	_, err = NewStore(path)
+	if err == nil {
+		t.Fatalf("expected error opening DB with newer schema version, got nil")
+	}
+	if !strings.Contains(err.Error(), "schema") || !strings.Contains(err.Error(), "999") {
+		t.Errorf("expected schema-version error mentioning 999, got: %v", err)
+	}
+}
+
 // TestAuditHook fires the audit callback on each mutation (#M2).
 func TestAuditHook(t *testing.T) {
 	s := newTestStore(t)

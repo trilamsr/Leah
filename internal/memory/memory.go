@@ -23,6 +23,16 @@ var schemaSQL string
 
 const embeddedSchemaVersion = "4"
 
+// schemaMetaBootstrapSQL creates the version-tracking table only.
+// Kept separate from schemaSQL so we can read the on-disk version BEFORE
+// applying the full DDL — otherwise a stamp-on-every-open inside schema.sql
+// would clobber an operator-bumped value before the newer-than-binary guard
+// fires (Wave3-P regression).
+const schemaMetaBootstrapSQL = `CREATE TABLE IF NOT EXISTS schema_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);`
+
 // Store is the memory KB handle. Wrap *sql.DB; one per process.
 type Store struct {
 	db      *sql.DB
@@ -98,18 +108,34 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) DB() *sql.DB { return s.db }
 
 func (s *Store) migrate() error {
-	if _, err := s.db.Exec(schemaSQL); err != nil {
-		return fmt.Errorf("exec schema: %w", err)
+	// Bootstrap schema_meta first so we can read the on-disk version BEFORE
+	// applying the full DDL. Order matters: reading after exec(schemaSQL)
+	// would be racing a stamp that no longer exists, but ordering also
+	// guarantees we never run DDL against a DB whose schema is newer than
+	// this binary understands.
+	if _, err := s.db.Exec(schemaMetaBootstrapSQL); err != nil {
+		return fmt.Errorf("bootstrap schema_meta: %w", err)
 	}
 	var v string
 	err := s.db.QueryRow(`SELECT value FROM schema_meta WHERE key='version'`).Scan(&v)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("read schema version: %w", err)
 	}
 	if v > embeddedSchemaVersion {
 		return fmt.Errorf("memory.db schema version %s newer than binary %s; upgrade leah", v, embeddedSchemaVersion)
 	}
-	// v < embedded: future migration steps would run here.
+	// Safe to apply DDL: on-disk version is absent or ≤ embedded.
+	if _, err := s.db.Exec(schemaSQL); err != nil {
+		return fmt.Errorf("exec schema: %w", err)
+	}
+	// Stamp to embedded version. INSERT OR REPLACE is safe now that we've
+	// already proven on-disk ≤ embedded (no downgrade-overwrite risk).
+	if _, err := s.db.Exec(
+		`INSERT OR REPLACE INTO schema_meta(key, value) VALUES('version', ?)`,
+		embeddedSchemaVersion,
+	); err != nil {
+		return fmt.Errorf("stamp schema version: %w", err)
+	}
 	return nil
 }
 

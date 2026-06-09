@@ -39,7 +39,9 @@ CREATE TABLE IF NOT EXISTS schema_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-INSERT OR IGNORE INTO schema_meta(key, value) VALUES('version', '1');
+-- NOTE: schema_meta is seeded + stamped from Go (NewStore.migrate), NOT here.
+-- Embedding `INSERT/UPDATE schema_meta` in this DDL file would clobber any
+-- operator-bumped value before the "newer than binary" guard could fire.
 
 -- schema_version: 2 (additive — ctxmgr tables)
 -- See docs/specs/2026-06-09-context-manager.md
@@ -70,8 +72,6 @@ INSERT OR IGNORE INTO context(name, created_at, description)
 INSERT OR IGNORE INTO operator_state(id, active_context, updated_at)
   VALUES (1, 'default', strftime('%Y-%m-%dT%H:%M:%SZ','now'));
 
-UPDATE schema_meta SET value='2' WHERE key='version';
-
 -- schema_version: 3 (additive — selflearn mistake_log)
 -- See docs/specs/2026-06-09-self-learning-personal.md §3.1
 
@@ -86,8 +86,6 @@ CREATE TABLE IF NOT EXISTS mistake_log (
 );
 
 CREATE INDEX IF NOT EXISTS mistake_log_created ON mistake_log(created_at);
-
-UPDATE schema_meta SET value='3' WHERE key='version';
 
 -- schema_version: 4 (additive — operatormodel operator_profile)
 -- See docs/specs/2026-06-09-operator-model.md §2
@@ -109,5 +107,3 @@ CREATE TABLE IF NOT EXISTS operator_profile_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-
-UPDATE schema_meta SET value='4' WHERE key='version';
