@@ -103,6 +103,8 @@ func main() {
 		runBrief(os.Args[2:])
 	case "listen":
 		runListen(os.Args[2:])
+	case "backup":
+		runBackup(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -389,6 +391,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  cost [--since D] [--by kind|day|model] [--json]  aggregate spend")
 	_, _ = fmt.Fprintln(os.Stderr, "  brief [--voice] [--silent]   daily morning brief (recap + backlog + recs + cost)")
 	_, _ = fmt.Fprintln(os.Stderr, "  listen [--duration D] [--model M] [--repo R]   push-to-talk → whisper.cpp → intent dispatch")
+	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]   restic snapshot of state dir")
 	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]  restic snapshot of ~/.leah-state")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
