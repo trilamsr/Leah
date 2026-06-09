@@ -77,7 +77,7 @@ func runAsk(query string) {
 	a := &audit.Logger{Path: auditPath}
 	b := budget.New()
 
-	systemPrompt, err := os.ReadFile("prompts/system.md")
+	systemPrompt, err := os.ReadFile(filepath.Join(promptDir(), "system.md"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read system prompt: %v\n", err)
 		os.Exit(1)
@@ -104,7 +104,7 @@ func runShip(repo, intent string) {
 	a := &audit.Logger{Path: auditPath}
 	b := budget.New()
 
-	issueTpl, err := os.ReadFile("prompts/regatta-issue.md")
+	issueTpl, err := os.ReadFile(filepath.Join(promptDir(), "regatta-issue.md"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read issue template: %v\n", err)
 		os.Exit(1)
@@ -151,7 +151,7 @@ func runReview(repo string, prNum int) {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath}
 
-	sysPrompt, err := os.ReadFile("reviewer-prompts/independent-reviewer.md")
+	sysPrompt, err := os.ReadFile(filepath.Join(reviewerPromptDir(), "independent-reviewer.md"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read reviewer prompt: %v\n", err)
 		os.Exit(1)
@@ -211,6 +211,20 @@ func stateDir() string {
 		os.Exit(1)
 	}
 	return d
+}
+
+func promptDir() string {
+	if d := os.Getenv("LEAH_PROMPT_DIR"); d != "" {
+		return d
+	}
+	return "prompts"
+}
+
+func reviewerPromptDir() string {
+	if d := os.Getenv("LEAH_REVIEWER_PROMPT_DIR"); d != "" {
+		return d
+	}
+	return "reviewer-prompts"
 }
 
 func usage() {
