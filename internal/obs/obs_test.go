@@ -260,3 +260,46 @@ func TestDailyRotationClosesPriorHandle(t *testing.T) {
 	}
 	rot.close()
 }
+
+// TestPanicFilesRotateOldest asserts writePanicFile caps the directory at
+// maxPanicFiles by deleting the oldest entries first. Catches the
+// unbounded-growth defect from audit H7 (a panicking goroutine in a
+// reconnect loop could create ~2.8k files/day with no rotation).
+func TestPanicFilesRotateOldest(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+
+	// Write 5 panic files spaced by 10ms so the lexical timestamp suffix
+	// gives a stable oldest-first ordering.
+	for i := 0; i < 5; i++ {
+		writePanicFile("test-rot", fmt.Sprintf("panic-%d", i), "stack")
+		time.Sleep(10 * time.Millisecond)
+	}
+	panicsDir := filepath.Join(dir, "panics")
+	entries, _ := os.ReadDir(panicsDir)
+	if len(entries) != 5 {
+		t.Fatalf("pre-cap: want 5 files, got %d", len(entries))
+	}
+
+	// Now write enough to push past maxPanicFiles (100). Use a low override
+	// so the test stays fast.
+	prev := maxPanicFiles
+	maxPanicFiles = 3
+	t.Cleanup(func() { maxPanicFiles = prev })
+
+	writePanicFile("test-rot", "panic-6", "stack")
+	entries, _ = os.ReadDir(panicsDir)
+	if len(entries) > maxPanicFiles {
+		t.Errorf("post-cap: %d files exceeds cap %d", len(entries), maxPanicFiles)
+	}
+	// The most recently written file MUST still be present.
+	var hasRecent bool
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "test-rot") {
+			hasRecent = true
+		}
+	}
+	if !hasRecent {
+		t.Errorf("most recent panic file was rotated away: %v", entries)
+	}
+}

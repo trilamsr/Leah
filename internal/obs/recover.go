@@ -6,8 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"time"
 )
+
+// maxPanicFiles caps $LEAH_STATE_DIR/panics/ — oldest entries get pruned
+// on each write so a wedged goroutine panicking in a tight loop cannot
+// exhaust the inode budget. Package-level + non-const so tests can lower
+// the cap without writing 100+ files. Audit 2026-06-09 H7.
+var maxPanicFiles = 100
 
 // SafeGo spawns f in a goroutine that recovers panics, logs them,
 // increments the leah_panic_total{name=…} counter on reg, and writes the
@@ -80,6 +87,35 @@ func writePanicFile(name string, panicVal any, stack string) {
 	body := fmt.Sprintf("panic: %v\ngoroutine: %s\nts: %s\n\n%s",
 		panicVal, name, now.Format(time.RFC3339), stack)
 	_ = os.WriteFile(path, []byte(body), 0o600)
+	pruneOldPanicFiles(dir, maxPanicFiles)
+}
+
+// pruneOldPanicFiles deletes the oldest entries in dir until at most keep
+// remain. Best-effort: any I/O error short-circuits silently (a wedged
+// disk is not fixable from a panic handler). Sorted lexically since
+// writePanicFile uses RFC3339-millisecond timestamp prefixes, giving a
+// stable oldest→newest order.
+func pruneOldPanicFiles(dir string, keep int) {
+	if keep <= 0 {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) <= keep {
+		return
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	if len(names) <= keep {
+		return
+	}
+	sort.Strings(names)
+	for _, n := range names[:len(names)-keep] {
+		_ = os.Remove(filepath.Join(dir, n))
+	}
 }
 
 // sanitize strips path separators + spaces from a goroutine name so the
