@@ -131,6 +131,93 @@ func TestProfileUpdateReadyAboveBothFloors(t *testing.T) {
 	}
 }
 
+// TestLoad_ReadsPersistedProfile asserts Load reads back the profile
+// (meta counters + rows) that Update persisted, across a Close+reopen
+// of the underlying store — mirrors the suggest.go cold-read path.
+func TestLoad_ReadsPersistedProfile(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "memory.db")
+	store, err := memory.NewStore(dbPath)
+	if err != nil {
+		t.Fatalf("memory: %v", err)
+	}
+
+	var entries []audit.Entry
+	base := time.Now().UTC().Add(-8 * 24 * time.Hour)
+	for i := 0; i < 60; i++ {
+		entries = append(entries, audit.Entry{
+			Timestamp: base.Add(time.Duration(i*3) * time.Hour).Format(time.RFC3339),
+			Kind:      "leah.ship",
+		})
+	}
+	path := writeAudit(t, dir, entries)
+
+	p := &Profile{Now: func() time.Time { return time.Now().UTC() }}
+	if err := p.Update(context.Background(), store, path, base.Add(-time.Hour)); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	wantRows := p.RowsObserved
+	wantDays := p.DaysObserved
+	wantProfileRows := len(p.Rows)
+	if err := store.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	store2, err := memory.NewStore(dbPath)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer func() { _ = store2.Close() }()
+
+	loaded, err := Load(context.Background(), store2.DB())
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.RowsObserved != wantRows {
+		t.Errorf("RowsObserved: got %d want %d", loaded.RowsObserved, wantRows)
+	}
+	if loaded.DaysObserved != wantDays {
+		t.Errorf("DaysObserved: got %d want %d", loaded.DaysObserved, wantDays)
+	}
+	if !loaded.Ready {
+		t.Errorf("Ready: got false; want true (rows=%d days=%d)", loaded.RowsObserved, loaded.DaysObserved)
+	}
+	if len(loaded.Rows) != wantProfileRows {
+		t.Errorf("len(Rows): got %d want %d", len(loaded.Rows), wantProfileRows)
+	}
+	for i, r := range loaded.Rows {
+		if r.Class == "" || r.Key == "" {
+			t.Errorf("row %d: empty Class/Key (%+v)", i, r)
+		}
+		if r.WindowStart.IsZero() || r.WindowEnd.IsZero() {
+			t.Errorf("row %d: zero window timestamps (%+v)", i, r)
+		}
+	}
+}
+
+// TestLoad_MissingTablesReturnsEmptyProfile asserts Load is forgiving
+// on a fresh store where operator_profile* tables have never been
+// populated — returns Ready=false, no error.
+func TestLoad_MissingTablesReturnsEmptyProfile(t *testing.T) {
+	dir := t.TempDir()
+	store, err := memory.NewStore(filepath.Join(dir, "memory.db"))
+	if err != nil {
+		t.Fatalf("memory: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	loaded, err := Load(context.Background(), store.DB())
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Ready {
+		t.Errorf("want Ready=false on fresh store; got true")
+	}
+	if len(loaded.Rows) != 0 {
+		t.Errorf("want 0 rows on fresh store; got %d", len(loaded.Rows))
+	}
+}
+
 // TestProfileUpdateRebuildsFromScratch asserts a second Update wipes
 // stale rows from prior runs (rebuild-from-scratch contract §3.2).
 func TestProfileUpdateRebuildsFromScratch(t *testing.T) {

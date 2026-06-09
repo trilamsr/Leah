@@ -247,6 +247,60 @@ func halflifeDays() float64 {
 	return DefaultHalflifeDays
 }
 
+// Load reads operator_profile + operator_profile_meta (populated by
+// Update / UpdateProfile) and returns a Profile ready to feed Recommend.
+// Symmetric with Update: write-side rebuilds, read-side hydrates.
+//
+// Missing tables (fresh install before the first daemon tick) are not
+// an error — Load returns an empty, not-Ready Profile so callers can
+// surface the cold-start message instead of a stack trace.
+func Load(ctx context.Context, db *sql.DB) (Profile, error) {
+	p := Profile{}
+	meta := map[string]string{}
+	mrows, err := db.QueryContext(ctx, `SELECT key, value FROM operator_profile_meta`)
+	if err != nil {
+		return p, nil
+	}
+	defer func() { _ = mrows.Close() }()
+	for mrows.Next() {
+		var k, v string
+		if err := mrows.Scan(&k, &v); err != nil {
+			return p, fmt.Errorf("scan meta: %w", err)
+		}
+		meta[k] = v
+	}
+	if n, err := strconv.Atoi(meta["rows_observed"]); err == nil {
+		p.RowsObserved = n
+	}
+	if n, err := strconv.Atoi(meta["days_observed"]); err == nil {
+		p.DaysObserved = n
+	}
+	p.Ready = p.RowsObserved >= ColdStartMinRows && p.DaysObserved >= ColdStartMinDays
+
+	rrows, err := db.QueryContext(ctx, `
+		SELECT class, key, slot, count, weight, window_start, window_end
+		FROM operator_profile`)
+	if err != nil {
+		return p, nil
+	}
+	defer func() { _ = rrows.Close() }()
+	for rrows.Next() {
+		var r ProfileRow
+		var ws, we string
+		if err := rrows.Scan(&r.Class, &r.Key, &r.Slot, &r.Count, &r.Weight, &ws, &we); err != nil {
+			return p, fmt.Errorf("scan row: %w", err)
+		}
+		if t, err := time.Parse(time.RFC3339, ws); err == nil {
+			r.WindowStart = t
+		}
+		if t, err := time.Parse(time.RFC3339, we); err == nil {
+			r.WindowEnd = t
+		}
+		p.Rows = append(p.Rows, r)
+	}
+	return p, nil
+}
+
 // UpdateProfile is the daemon-task entrypoint. Composed of NewStore +
 // Profile.Update over the default window. Designed to be added as a
 // WeeklyTask in cmd/leah-daemon/main.go::buildWeeklyTasks.
