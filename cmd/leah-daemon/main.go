@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -137,7 +138,8 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 				Rules: map[string]selflearn.Rule{
 					"regatta.ship": rules.RegattaPR{},
 				},
-				Out: out,
+				PanicDetectors: []selflearn.PanicDetector{rules.PanicRateRule{}},
+				Out:            out,
 			}
 			if err := r.Run(ctx); err != nil {
 				fmt.Fprintf(out, "leah-daemon: weekly resolver error: %v\n", err)
@@ -192,6 +194,82 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 			defer func() { _ = store.Close() }()
 			if err := operatormodel.UpdateProfile(ctx, store, auditPath); err != nil {
 				fmt.Fprintf(out, "leah-daemon: weekly operatormodel error: %v\n", err)
+			}
+		},
+		// 5. Panic-rate detection → bug-fix-candidates.md + operator push.
+		// Iterates resolver.PanicDetectors, appends Candidates to
+		// ~/.leah-state/bug-fix-candidates.md (one BuildIssueBody section
+		// per candidate w/ UTC timestamp), counts new vs sentinel, and
+		// notifies the operator when new > 0. NEVER auto-dispatches to
+		// regatta — operator reads the file + manually runs `leah
+		// self-build` (the only structural defense against
+		// self-modification drift; see
+		// docs/specs/2026-06-09-bug-fix-self-build-hook.md).
+		func(ctx context.Context) {
+			detectors := []selflearn.PanicDetector{rules.PanicRateRule{}}
+			var found []rules.Candidate
+			for _, d := range detectors {
+				pr, ok := d.(rules.PanicRateRule)
+				if !ok {
+					continue
+				}
+				cands, err := pr.Detect(ctx, sd)
+				if err != nil {
+					fmt.Fprintf(out, "leah-daemon: weekly panic-detect %s error: %v\n", d.Name(), err)
+					continue
+				}
+				found = append(found, cands...)
+			}
+
+			candPath := filepath.Join(sd, "bug-fix-candidates.md")
+			if len(found) > 0 {
+				var b strings.Builder
+				ts := time.Now().UTC().Format(time.RFC3339)
+				for _, c := range found {
+					fmt.Fprintf(&b, "\n<!-- candidate appended %s -->\n", ts)
+					b.WriteString(rules.BuildIssueBody(c))
+					b.WriteString("\n---\n")
+				}
+				f, err := os.OpenFile(candPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+				if err != nil {
+					fmt.Fprintf(out, "leah-daemon: weekly bug-fix-candidates open error: %v\n", err)
+				} else {
+					if _, err := f.WriteString(b.String()); err != nil {
+						fmt.Fprintf(out, "leah-daemon: weekly bug-fix-candidates write error: %v\n", err)
+					}
+					_ = f.Close()
+				}
+			}
+
+			// Compare against last-week sentinel to derive NEW count.
+			sentinelPath := filepath.Join(sd, "bug-fix-last-count.txt")
+			prev := 0
+			if raw, err := os.ReadFile(sentinelPath); err == nil {
+				if n, err := strconv.Atoi(strings.TrimSpace(string(raw))); err == nil {
+					prev = n
+				}
+			}
+			total := prev + len(found)
+			if err := os.WriteFile(sentinelPath, []byte(strconv.Itoa(total)), 0o600); err != nil {
+				fmt.Fprintf(out, "leah-daemon: weekly bug-fix sentinel write error: %v\n", err)
+			}
+
+			newCount := len(found)
+			if newCount > 0 {
+				title := "Leah: bug-fix candidates"
+				body := fmt.Sprintf("Leah noticed %d bug candidates this week — review ~/.leah-state/bug-fix-candidates.md + run leah self-build", newCount)
+				fmt.Fprintf(out, "leah-daemon: weekly panic-detect: %d new candidates → %s\n", newCount, candPath)
+				if d := notify.NewDesktop(); d != nil {
+					if err := d.Notify(ctx, title, body); err != nil {
+						fmt.Fprintf(out, "leah-daemon: weekly bug-fix desktop notify error: %v\n", err)
+					}
+				}
+				if p := notify.NewPushover(); p != nil {
+					if err := p.Notify(ctx, title, body); err != nil {
+						// Missing credentials degrade silently — see Pushover.Notify.
+						fmt.Fprintf(out, "leah-daemon: weekly bug-fix pushover skip: %v\n", err)
+					}
+				}
 			}
 		},
 	}
