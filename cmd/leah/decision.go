@@ -97,10 +97,10 @@ func printDecision(w io.Writer, d memory.Decision, asJSON bool) {
 		_ = json.NewEncoder(w).Encode(d)
 		return
 	}
-	fmt.Fprintf(w, "id:         %s\n", d.ID)
-	fmt.Fprintf(w, "topic:      %s\n", d.Topic)
-	fmt.Fprintf(w, "choice:     %s\n", d.Choice)
-	fmt.Fprintf(w, "rationale:\n%s\n", d.Rationale)
-	fmt.Fprintf(w, "decided_at: %s\n", d.DecidedAt)
-	fmt.Fprintf(w, "created:    %s\n", d.CreatedAt)
+	_, _ = fmt.Fprintf(w, "id:         %s\n", d.ID)
+	_, _ = fmt.Fprintf(w, "topic:      %s\n", d.Topic)
+	_, _ = fmt.Fprintf(w, "choice:     %s\n", d.Choice)
+	_, _ = fmt.Fprintf(w, "rationale:\n%s\n", d.Rationale)
+	_, _ = fmt.Fprintf(w, "decided_at: %s\n", d.DecidedAt)
+	_, _ = fmt.Fprintf(w, "created:    %s\n", d.CreatedAt)
 }

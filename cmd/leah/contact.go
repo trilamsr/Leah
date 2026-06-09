@@ -84,10 +84,10 @@ func printContact(w io.Writer, c memory.Contact, asJSON bool) {
 		_ = json.NewEncoder(w).Encode(c)
 		return
 	}
-	fmt.Fprintf(w, "id:        %s\n", c.ID)
-	fmt.Fprintf(w, "name:      %s\n", c.Name)
-	fmt.Fprintf(w, "email:     %s\n", c.Email)
-	fmt.Fprintf(w, "notes:     %s\n", c.Notes)
-	fmt.Fprintf(w, "created:   %s\n", c.CreatedAt)
-	fmt.Fprintf(w, "updated:   %s\n", c.UpdatedAt)
+	_, _ = fmt.Fprintf(w, "id:        %s\n", c.ID)
+	_, _ = fmt.Fprintf(w, "name:      %s\n", c.Name)
+	_, _ = fmt.Fprintf(w, "email:     %s\n", c.Email)
+	_, _ = fmt.Fprintf(w, "notes:     %s\n", c.Notes)
+	_, _ = fmt.Fprintf(w, "created:   %s\n", c.CreatedAt)
+	_, _ = fmt.Fprintf(w, "updated:   %s\n", c.UpdatedAt)
 }

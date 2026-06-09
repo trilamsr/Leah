@@ -1,0 +1,12 @@
+What is the single biggest risk this diff introduces, and where in the code does it live?
+Which test case in this PR would catch the most-likely regression you imagine?
+What workflow did you (the operator) do this week that this feature would have improved?
+Name one operator workflow this PR does NOT improve, and explain why that's OK.
+What's the simplest follow-up issue you'd file the moment this lands?
+Which existing code path becomes deletable after this PR, and why didn't this PR delete it?
+What's the most likely way an autonomous loop would misuse this feature, and how is that prevented?
+If this PR were reverted in 30 days, which symptom would tell you it should be reverted?
+What's one assumption embedded in this design you're least confident about?
+Which audit-row kind/blast_radius is the right correlate for the new behavior added here?
+Has any line of this PR been written by a previous self-build attempt? If yes, link the prior PR.
+What's the smallest end-to-end manual smoke test that proves this PR works on your machine, not just in CI?

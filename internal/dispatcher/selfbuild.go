@@ -1,13 +1,16 @@
 package dispatcher
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +57,19 @@ type SelfBuild struct {
 	// — useful in tests; production CLI wiring sets it.
 	AttestationQuestionsPath string
 
+	// AttestationOperatorLogin is the GitHub login that must answer the
+	// attestation question in the PR. Defaults to "tri-lamsr" (the single
+	// owner of trilamsr/Leah) when empty.
+	AttestationOperatorLogin string
+
+	// Rand is the random source for picking a question (tests inject a
+	// deterministic source). nil → math/rand default.
+	Rand *rand.Rand
+
+	// lastQuestion is populated by Run after the attestation question is
+	// chosen; surfaced in the dispatched-success audit row. Not exported.
+	lastQuestion string
+
 	// RepoOverride MUST be empty; any non-empty value triggers ErrSelfBuildRepoLocked.
 	RepoOverride string
 
@@ -89,10 +105,21 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 		return ErrSelfBuildClarify
 	}
 
+	question, err := s.pickAttestationQuestion()
+	if err != nil {
+		s.appendAuditFail("attestation: " + err.Error())
+		return err
+	}
+	specWithAttestation := spec
+	if question != "" {
+		specWithAttestation = spec + "\n\n" + s.attestationBlock(question)
+	}
+	s.lastQuestion = question
+
 	title := SelfBuildTitlePrefix + deriveSelfBuildTitle(intent)
 
 	inner := &Ship{
-		Reasoner: passthrough{spec: spec},
+		Reasoner: passthrough{spec: specWithAttestation},
 		GH:       s.GH,
 		Audit:    s.Audit,
 		Budget:   s.Budget,
@@ -198,11 +225,81 @@ func (s *SelfBuild) appendAuditClarify() {
 }
 
 func (s *SelfBuild) appendAuditSuccess() {
+	detail := "prompt_sha=" + s.promptSHA()
+	if s.lastQuestion != "" {
+		// Question text can contain quotes / commas; truncate to keep audit
+		// rows scannable. Operator can re-derive the full text from the PR body.
+		q := s.lastQuestion
+		if len(q) > 80 {
+			q = q[:77] + "..."
+		}
+		detail += " attestation_question=" + strconv.Quote(q)
+	}
 	_ = s.Audit.Append(audit.Entry{
 		Kind:        "self-build",
 		BlastRadius: 4,
 		Outcome:     "dispatched",
 		CostDollars: s.Budget.Spent(),
-		Detail:      "prompt_sha=" + s.promptSHA(),
+		Detail:      detail,
 	})
+}
+
+// pickAttestationQuestion reads AttestationQuestionsPath and returns one
+// randomly-selected line (whitespace-trimmed, blanks + comments dropped).
+// Returns "" when the path is empty (gate disabled). Returns an error when
+// the path is set but unreadable / yields no questions — the gate is
+// fail-closed by design (operator habituation defense per Wave1-E HIGH-2).
+func (s *SelfBuild) pickAttestationQuestion() (string, error) {
+	if s.AttestationQuestionsPath == "" {
+		return "", nil
+	}
+	f, err := os.Open(s.AttestationQuestionsPath)
+	if err != nil {
+		return "", fmt.Errorf("open attestation file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	var qs []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		qs = append(qs, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("scan attestation file: %w", err)
+	}
+	if len(qs) == 0 {
+		return "", errors.New("attestation file has no questions")
+	}
+	r := s.Rand
+	if r == nil {
+		r = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
+	return qs[r.Intn(len(qs))], nil
+}
+
+// attestationBlock renders the markdown footer appended to the issue body.
+// The block is operator-actionable: it names the GitHub login that must
+// answer and the exact comment shape ("Attestation: …") that downstream
+// retro tooling will grep for.
+func (s *SelfBuild) attestationBlock(question string) string {
+	login := s.AttestationOperatorLogin
+	if login == "" {
+		login = "tri-lamsr"
+	}
+	var sb strings.Builder
+	sb.WriteString("---\n\n")
+	sb.WriteString("## Operator merge attestation\n\n")
+	sb.WriteString("Before merging this PR, operator (`")
+	sb.WriteString(login)
+	sb.WriteString("`) must answer the following question in a PR comment whose first line starts with `Attestation:`.\n\n")
+	sb.WriteString("> ")
+	sb.WriteString(question)
+	sb.WriteString("\n\n")
+	sb.WriteString("PRs merged without an `Attestation:` comment from `")
+	sb.WriteString(login)
+	sb.WriteString("` will be flagged in the next weekly retro (self-build habituation defense).\n")
+	return sb.String()
 }

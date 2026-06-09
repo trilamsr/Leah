@@ -84,10 +84,10 @@ func printProject(w io.Writer, p memory.Project, asJSON bool) {
 		_ = json.NewEncoder(w).Encode(p)
 		return
 	}
-	fmt.Fprintf(w, "id:        %s\n", p.ID)
-	fmt.Fprintf(w, "name:      %s\n", p.Name)
-	fmt.Fprintf(w, "status:    %s\n", p.Status)
-	fmt.Fprintf(w, "notes:     %s\n", p.Notes)
-	fmt.Fprintf(w, "created:   %s\n", p.CreatedAt)
-	fmt.Fprintf(w, "updated:   %s\n", p.UpdatedAt)
+	_, _ = fmt.Fprintf(w, "id:        %s\n", p.ID)
+	_, _ = fmt.Fprintf(w, "name:      %s\n", p.Name)
+	_, _ = fmt.Fprintf(w, "status:    %s\n", p.Status)
+	_, _ = fmt.Fprintf(w, "notes:     %s\n", p.Notes)
+	_, _ = fmt.Fprintf(w, "created:   %s\n", p.CreatedAt)
+	_, _ = fmt.Fprintf(w, "updated:   %s\n", p.UpdatedAt)
 }
