@@ -33,19 +33,19 @@ func runCost(args []string) {
 		case strings.HasPrefix(a, "--since="):
 			d, err := parseCostDuration(strings.TrimPrefix(a, "--since="))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "leah cost: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stderr, "leah cost: %v\n", err)
 				os.Exit(2)
 			}
 			window = d
 		case a == "--since":
 			if i+1 >= len(args) {
-				fmt.Fprintln(os.Stderr, "leah cost: --since needs DURATION (e.g. 7d, 24h)")
+				_, _ = fmt.Fprintln(os.Stderr, "leah cost: --since needs DURATION (e.g. 7d, 24h)")
 				os.Exit(2)
 			}
 			i++
 			d, err := parseCostDuration(args[i])
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "leah cost: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stderr, "leah cost: %v\n", err)
 				os.Exit(2)
 			}
 			window = d
@@ -53,13 +53,13 @@ func runCost(args []string) {
 			by = strings.TrimPrefix(a, "--by=")
 		case a == "--by":
 			if i+1 >= len(args) {
-				fmt.Fprintln(os.Stderr, "leah cost: --by needs kind|day|model")
+				_, _ = fmt.Fprintln(os.Stderr, "leah cost: --by needs kind|day|model")
 				os.Exit(2)
 			}
 			i++
 			by = args[i]
 		default:
-			fmt.Fprintf(os.Stderr, "leah cost: unknown arg %q\n", a)
+			_, _ = fmt.Fprintf(os.Stderr, "leah cost: unknown arg %q\n", a)
 			os.Exit(2)
 		}
 	}
@@ -68,7 +68,7 @@ func runCost(args []string) {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	summary, err := costview.Aggregate(auditPath, since)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leah cost: aggregate: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah cost: aggregate: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -76,7 +76,7 @@ func runCost(args []string) {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(summary); err != nil {
-			fmt.Fprintf(os.Stderr, "leah cost: encode: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "leah cost: encode: %v\n", err)
 			os.Exit(1)
 		}
 		return
@@ -88,10 +88,10 @@ func runCost(args []string) {
 // printCostText renders the terse 2-column layout. Header always shows
 // total + count + window; body switches on --by.
 func printCostText(w *os.File, s costview.Summary, window time.Duration, by string) {
-	fmt.Fprintf(w, "leah cost — last %s\n", humanDuration(window))
-	fmt.Fprintf(w, "  total   $%.4f\n", s.TotalUSD)
-	fmt.Fprintf(w, "  rows    %d\n", s.Count)
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "leah cost — last %s\n", humanDuration(window))
+	_, _ = fmt.Fprintf(w, "  total   $%.4f\n", s.TotalUSD)
+	_, _ = fmt.Fprintf(w, "  rows    %d\n", s.Count)
+	_, _ = fmt.Fprintln(w)
 
 	switch by {
 	case "kind":
@@ -103,25 +103,25 @@ func printCostText(w *os.File, s costview.Summary, window time.Duration, by stri
 	case "":
 		printBuckets(w, "top kinds", s.TopKinds(3))
 	default:
-		fmt.Fprintf(os.Stderr, "leah cost: --by %q not in {kind,day,model}\n", by)
+		_, _ = fmt.Fprintf(os.Stderr, "leah cost: --by %q not in {kind,day,model}\n", by)
 		os.Exit(2)
 	}
 }
 
 func printBuckets(w *os.File, title string, buckets []costview.Bucket) {
 	if len(buckets) == 0 {
-		fmt.Fprintf(w, "  (no rows in window)\n")
+		_, _ = fmt.Fprintf(w, "  (no rows in window)\n")
 		return
 	}
-	fmt.Fprintf(w, "  %s:\n", title)
+	_, _ = fmt.Fprintf(w, "  %s:\n", title)
 	for _, b := range buckets {
-		fmt.Fprintf(w, "    %-24s  $%.4f\n", b.Name, b.USD)
+		_, _ = fmt.Fprintf(w, "    %-24s  $%.4f\n", b.Name, b.USD)
 	}
 }
 
 func printDayTable(w *os.File, byDay map[string]float64) {
 	if len(byDay) == 0 {
-		fmt.Fprintf(w, "  (no rows in window)\n")
+		_, _ = fmt.Fprintf(w, "  (no rows in window)\n")
 		return
 	}
 	days := make([]string, 0, len(byDay))
@@ -129,9 +129,9 @@ func printDayTable(w *os.File, byDay map[string]float64) {
 		days = append(days, d)
 	}
 	sort.Strings(days)
-	fmt.Fprintf(w, "  by day:\n")
+	_, _ = fmt.Fprintf(w, "  by day:\n")
 	for _, d := range days {
-		fmt.Fprintf(w, "    %s  $%.4f\n", d, byDay[d])
+		_, _ = fmt.Fprintf(w, "    %s  $%.4f\n", d, byDay[d])
 	}
 }
 
