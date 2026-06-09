@@ -110,6 +110,9 @@ func main() {
 			Budget:      budget.New(),
 			StartTime:   startedAt,
 			Heartbeat:   func() time.Time { return time.Now() }, // TODO: wire daemonloop last-tick when exposed
+			// 10s memoization absorbs the dashboard's 3s poll cadence so /api/state
+			// re-scans audit.jsonl + sqlite at most ~once every 10s (H4 audit fix).
+			CacheTTL: 10 * time.Second,
 		}
 		go func() {
 			if err := srv.Start(ctx); err != nil {

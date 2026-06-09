@@ -84,9 +84,38 @@ type RegattaLister interface {
 
 // Snapshot aggregates current state from all sources. Errors from individual
 // sources degrade to empty slices / zero values — dashboard must never 500
-// because regatta is offline.
+// because regatta is offline. When CacheTTL > 0 the result is memoized for
+// CacheTTL — dashboard polls (~3s cadence) hit the cache rather than
+// re-scanning audit.jsonl + opening sqlite on every request (H4 audit fix).
 func (s *Server) Snapshot(ctx context.Context) State {
-	out := State{
+	if s.CacheTTL > 0 {
+		s.cacheMu.RLock()
+		if s.cache != nil && time.Since(s.cacheAt) < s.CacheTTL {
+			cached := *s.cache
+			s.cacheMu.RUnlock()
+			return cached
+		}
+		s.cacheMu.RUnlock()
+
+		s.cacheMu.Lock()
+		defer s.cacheMu.Unlock()
+		// Double-check after the lock upgrade — another goroutine may have
+		// just populated the cache while we were waiting.
+		if s.cache != nil && time.Since(s.cacheAt) < s.CacheTTL {
+			return *s.cache
+		}
+		out := s.computeSnapshot(ctx)
+		s.cache = &out
+		s.cacheAt = time.Now()
+		return out
+	}
+	return s.computeSnapshot(ctx)
+}
+
+// computeSnapshot does the full aggregation without consulting the cache.
+// Kept separate from Snapshot so the caching path stays small + obvious.
+func (s *Server) computeSnapshot(ctx context.Context) State {
+	return State{
 		Audit:   tailAudit(s.AuditPath, 20),
 		Agents:  listAgents(ctx, s.Regatta),
 		Memory:  readMemory(s.Memory),
@@ -94,7 +123,6 @@ func (s *Server) Snapshot(ctx context.Context) State {
 		Costs:   readCosts(s.AuditPath),
 		Metrics: readMetrics(s.MetricsPath),
 	}
-	return out
 }
 
 // readCosts derives a dashboard-sized projection from audit.jsonl. Single

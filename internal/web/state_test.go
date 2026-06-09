@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -176,6 +177,65 @@ func TestServerStartsAndStops(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Error("Start did not return after ctx cancel")
 	}
+}
+
+// TestSnapshotCachesWithinTTL asserts Snapshot serves a cached State when
+// called within CacheTTL of the prior call — collapses the 3s dashboard
+// poll's audit-scan + sqlite + metrics-read cost to one full computation
+// per TTL window (H4 from Wave2-5 retro audit).
+func TestSnapshotCachesWithinTTL(t *testing.T) {
+	s := newTestServer(t)
+	s.CacheTTL = 10 * time.Second
+
+	first := s.Snapshot(context.Background())
+	// Append an audit row AFTER the first Snapshot — within TTL, the second
+	// call should NOT see it because the cached State is reused.
+	logger := &audit.Logger{Path: s.AuditPath}
+	if err := logger.Append(audit.Entry{Kind: "later.kind", Outcome: "ok"}); err != nil {
+		t.Fatalf("audit append: %v", err)
+	}
+	second := s.Snapshot(context.Background())
+	if len(second.Audit) != len(first.Audit) {
+		t.Errorf("expected cached State (len=%d), got fresh (len=%d)", len(first.Audit), len(second.Audit))
+	}
+}
+
+// TestSnapshotRefreshesAfterTTL asserts the cache is bypassed once TTL
+// elapses — set CacheTTL to a small positive value, sleep past it, expect
+// the new audit row to surface.
+func TestSnapshotRefreshesAfterTTL(t *testing.T) {
+	s := newTestServer(t)
+	s.CacheTTL = 5 * time.Millisecond
+
+	first := s.Snapshot(context.Background())
+	logger := &audit.Logger{Path: s.AuditPath}
+	if err := logger.Append(audit.Entry{Kind: "later.kind", Outcome: "ok"}); err != nil {
+		t.Fatalf("audit append: %v", err)
+	}
+	time.Sleep(20 * time.Millisecond) // allow-sleep: TTL expiry, not assertion wait
+	second := s.Snapshot(context.Background())
+	if len(second.Audit) <= len(first.Audit) {
+		t.Errorf("expected refreshed State (len>%d), got cached (len=%d)", len(first.Audit), len(second.Audit))
+	}
+}
+
+// TestSnapshotConcurrentReadsNoRace exercises concurrent Snapshot calls
+// under -race to assert the cache + RWMutex are safe.
+func TestSnapshotConcurrentReadsNoRace(t *testing.T) {
+	s := newTestServer(t)
+	s.CacheTTL = 50 * time.Millisecond
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 20; j++ {
+				_ = s.Snapshot(context.Background())
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // TestDashboardServesHTML asserts /dashboard returns the embedded HTML page.

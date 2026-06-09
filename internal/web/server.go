@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/trilam/leah/internal/budget"
@@ -29,6 +30,20 @@ type Server struct {
 	Budget      *budget.Budget
 	StartTime   time.Time
 	Heartbeat   func() time.Time // optional; last successful regatta poll.
+
+	// CacheTTL caps how often Snapshot does the full audit-scan + sqlite +
+	// metrics-read aggregation. Dashboard polls at 3s; without a cache,
+	// every poll re-scans audit.jsonl (which grows ~30 days deep in normal
+	// operation) and runs 3 sqlite queries. 10s is the operator-visible
+	// staleness budget — small enough that dashboard feels live, large
+	// enough that 3-4 polls hit the cache between recomputes. Zero leaves
+	// caching disabled (every call recomputes — preserves prior semantics
+	// for tests + callers that opt out). Wave2-5 retro audit H4.
+	CacheTTL time.Duration
+
+	cacheMu sync.RWMutex
+	cache   *State
+	cacheAt time.Time
 }
 
 // Start binds and serves until ctx cancellation triggers graceful shutdown.
