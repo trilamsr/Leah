@@ -127,7 +127,11 @@ function renderMetrics(m) {
   const panics = Object.entries(c)
     .filter(([k]) => k.startsWith('leah_panic_total'))
     .reduce((a, [, v]) => a + v, 0);
-  const entries = Object.entries(c).slice(0, 1);
+  // Sort alphabetically so the headline counter is stable across reloads;
+  // Go map iteration is randomized and would otherwise show a different
+  // counter on each poll (audit M4).
+  const sorted = Object.entries(c).sort(([a], [b]) => a.localeCompare(b));
+  const entries = sorted.slice(0, 1);
   const head = entries.length
     ? `${esc(entries[0][0].split('|')[0])}=${esc(String(entries[0][1]))}`
     : 'no metrics';
