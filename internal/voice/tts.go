@@ -101,7 +101,11 @@ func pickBackends(exec Executor, getenv func(string) string) []TTS {
 	if _, err := exec.LookPath("kokoro"); err == nil {
 		out = append(out, &KokoroTTS{Exec: exec})
 	}
-	if key := getenv("OPENAI_API_KEY"); key != "" {
+	// OpenAI tier requires explicit opt-in (LEAH_VOICE_ALLOW_OPENAI=1) so
+	// notification bodies (intent strings, PR titles, agent IDs) are never
+	// silently round-tripped to a third-party API just because a key happens
+	// to be exported for unrelated tooling. See audit 2026-06-09 H5.
+	if key := getenv("OPENAI_API_KEY"); key != "" && getenv("LEAH_VOICE_ALLOW_OPENAI") == "1" {
 		out = append(out, &OpenAITTS{APIKey: key, Exec: exec})
 	}
 	if _, err := exec.LookPath("say"); err == nil {

@@ -18,6 +18,10 @@ type fakeExec struct {
 	lookupOK map[string]bool // binary name → exists on PATH
 	runErr   map[string]error
 	runOut   map[string][]byte
+	// runHook fires inside Run before the canned reply is returned. Tests
+	// use it to simulate side-effects (e.g. sox writing a wav file) without
+	// touching the production code path.
+	runHook func(name string, args []string)
 }
 
 type runCall struct {
@@ -37,6 +41,9 @@ func (f *fakeExec) Run(ctx context.Context, name string, args ...string) ([]byte
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.runs = append(f.runs, runCall{name: name, args: args})
+	if f.runHook != nil {
+		f.runHook(name, args)
+	}
 	return f.runOut[name], f.runErr[name]
 }
 
@@ -179,14 +186,19 @@ func TestPickBackendsKokoroOnly(t *testing.T) {
 	}
 }
 
-// TestPickBackendsFullChain asserts ordering: Kokoro, OpenAI, Say.
+// TestPickBackendsFullChain asserts ordering: Kokoro, OpenAI, Say. The
+// OpenAI tier requires both OPENAI_API_KEY and LEAH_VOICE_ALLOW_OPENAI=1
+// (third-party egress opt-in; H5 in 2026-06-09 audit).
 func TestPickBackendsFullChain(t *testing.T) {
 	fe := newFakeExec()
 	fe.lookupOK["kokoro"] = true
 	fe.lookupOK["say"] = true
 	getenv := func(k string) string {
-		if k == "OPENAI_API_KEY" {
+		switch k {
+		case "OPENAI_API_KEY":
 			return "sk-test"
+		case "LEAH_VOICE_ALLOW_OPENAI":
+			return "1"
 		}
 		return ""
 	}
@@ -202,6 +214,48 @@ func TestPickBackendsFullChain(t *testing.T) {
 	}
 	if _, ok := bs[2].(*SayTTS); !ok {
 		t.Errorf("backend[2] = %T, want *SayTTS", bs[2])
+	}
+}
+
+// TestPickBackendsOpenAIRequiresOptIn asserts that OPENAI_API_KEY alone
+// is insufficient: without LEAH_VOICE_ALLOW_OPENAI=1 the OpenAI tier is
+// dropped from the chain so notification bodies (intent strings, PR
+// titles, agent IDs) are not silently round-tripped to a third party.
+// Defensive default per H5 in the 2026-06-09 audit.
+func TestPickBackendsOpenAIRequiresOptIn(t *testing.T) {
+	fe := newFakeExec()
+	fe.lookupOK["kokoro"] = true
+	fe.lookupOK["say"] = true
+	getenv := func(k string) string {
+		if k == "OPENAI_API_KEY" {
+			return "sk-test"
+		}
+		return ""
+	}
+	bs := pickBackends(fe, getenv)
+	for i, b := range bs {
+		if _, ok := b.(*OpenAITTS); ok {
+			t.Fatalf("backend[%d] is OpenAITTS without LEAH_VOICE_ALLOW_OPENAI opt-in", i)
+		}
+	}
+}
+
+// TestPickBackendsOpenAIOptInWithoutKey asserts the opt-in env alone does
+// nothing without the api key.
+func TestPickBackendsOpenAIOptInWithoutKey(t *testing.T) {
+	fe := newFakeExec()
+	fe.lookupOK["say"] = true
+	getenv := func(k string) string {
+		if k == "LEAH_VOICE_ALLOW_OPENAI" {
+			return "1"
+		}
+		return ""
+	}
+	bs := pickBackends(fe, getenv)
+	for i, b := range bs {
+		if _, ok := b.(*OpenAITTS); ok {
+			t.Fatalf("backend[%d] is OpenAITTS without API key", i)
+		}
 	}
 }
 
