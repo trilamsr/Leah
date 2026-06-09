@@ -8,15 +8,29 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/ghclient"
+	"github.com/trilam/leah/internal/regattaclient"
 )
 
 type GHClient interface {
 	CreateIssue(ctx context.Context, args ghclient.CreateIssueArgs) (string, error)
+}
+
+type RegattaClient interface {
+	List(ctx context.Context) ([]regattaclient.Agent, error)
+}
+
+type HeartbeatPinger interface {
+	Ping(ctx context.Context) error
+}
+
+type Notifier interface {
+	Notify(ctx context.Context, title, body string) error
 }
 
 type Ship struct {
@@ -28,6 +42,14 @@ type Ship struct {
 	Repo     string
 	Title    string
 	TmpDir   string
+
+	// Watcher (optional; Watch=false → ship-and-exit)
+	Watch     bool
+	Regatta   RegattaClient
+	Heartbeat HeartbeatPinger
+	Notify    Notifier
+	PollEvery time.Duration
+	MaxPolls  int
 }
 
 func (s *Ship) Run(ctx context.Context, intent string) error {
@@ -81,7 +103,44 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 	}
 
 	fmt.Fprintln(s.Out, url)
+
+	if s.Watch {
+		s.watch(ctx)
+	}
 	return nil
+}
+
+func (s *Ship) watch(ctx context.Context) {
+	polls := 0
+	for {
+		if s.MaxPolls > 0 && polls >= s.MaxPolls {
+			return
+		}
+		polls++
+		if s.Heartbeat != nil {
+			_ = s.Heartbeat.Ping(ctx)
+		}
+		if s.Regatta != nil {
+			agents, err := s.Regatta.List(ctx)
+			if err != nil {
+				fmt.Fprintf(s.Out, "regatta list error: %v\n", err)
+			}
+			for _, a := range agents {
+				if a.State == "merged" || a.State == "escalated" || a.State == "failed" {
+					if s.Notify != nil {
+						_ = s.Notify.Notify(ctx, "Leah",
+							fmt.Sprintf("agent %s: %s (PR #%d)", a.ID, a.State, a.PR))
+					}
+					return
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(s.PollEvery):
+		}
+	}
 }
 
 func (s *Ship) auditFail(detail, intent string) {

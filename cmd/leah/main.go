@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
+	"github.com/trilam/leah/internal/notify"
 	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/reviewer"
+	"github.com/trilam/leah/internal/watchdog"
 )
 
 const version = "0.0.1-mvp5"
@@ -121,13 +125,19 @@ func runShip(repo, intent string) {
 	defer os.RemoveAll(tmp)
 
 	ship := &dispatcher.Ship{
-		Reasoner: r,
-		GH:       ghclient.New(),
-		Audit:    a,
-		Budget:   b,
-		Out:      os.Stdout,
-		Repo:     repo,
-		TmpDir:   tmp,
+		Reasoner:  r,
+		GH:        ghclient.New(),
+		Audit:     a,
+		Budget:    b,
+		Out:       os.Stdout,
+		Repo:      repo,
+		TmpDir:    tmp,
+		Watch:     true,
+		Regatta:   regattaclient.New(),
+		Heartbeat: watchdog.New(),
+		Notify:    notify.NewDesktop(),
+		PollEvery: 30 * time.Second,
+		MaxPolls:  120, // 60 min max watch
 	}
 	if err := ship.Run(ctx, intent); err != nil {
 		fmt.Fprintf(os.Stderr, "leah ship: %v\n", err)
