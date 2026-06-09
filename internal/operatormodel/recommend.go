@@ -25,9 +25,14 @@ type Recommendation struct {
 // Cold-start gate: returns nil (no error) when !profile.Ready.
 //
 // Ranking:
-//   - time_of_day: row.Slot must match HH(currentTime) in UTC
+//   - time_of_day: row.Slot must match HH(currentTime) in profile.tz()
 //   - context_transition: row.Key must equal currentCtx
-//   - cadence: row.Slot must match weekday-abbrev(currentTime) in UTC
+//   - cadence: row.Slot must match weekday-abbrev(currentTime) in profile.tz()
+//
+// The hour + weekday lookup honors profile.TZ (defaults to time.Local) to
+// stay symmetric with Profile.Update which records slots in operator-local
+// time. UTC-rounded lookup silently missed every slot for any operator
+// outside UTC (audit L9).
 //
 // Within the matched set, sort by Weight desc, ties broken by Kind asc.
 // Same Kind across classes is de-duplicated — first (highest-weight)
@@ -36,8 +41,9 @@ func Recommend(profile Profile, currentCtx string, currentTime time.Time) ([]Rec
 	if !profile.Ready {
 		return nil, nil
 	}
-	hour := fmt.Sprintf("%02d", currentTime.UTC().Hour())
-	day := currentTime.UTC().Weekday().String()[:3]
+	local := currentTime.In(profile.tz())
+	hour := fmt.Sprintf("%02d", local.Hour())
+	day := local.Weekday().String()[:3]
 
 	var candidates []Recommendation
 	for _, r := range profile.Rows {

@@ -5,6 +5,61 @@ import (
 	"time"
 )
 
+// TestRecommendHonorsProfileTZ asserts time-of-day + cadence slot lookup
+// uses the operator's tz (profile.TZ) instead of always UTC. Profile.Update
+// already records slots in the operator's local tz; matching at lookup
+// time in UTC silently misses every slot for any operator outside UTC.
+// Audit L9.
+func TestRecommendHonorsProfileTZ(t *testing.T) {
+	// Operator is in Asia/Tokyo (UTC+9). Their 09:00 local is 00:00 UTC.
+	tokyo, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		t.Skipf("tz data unavailable: %v", err)
+	}
+	p := Profile{
+		Ready: true,
+		TZ:    tokyo,
+		Rows: []ProfileRow{
+			// Slot is the local-hour string the observer recorded ("09").
+			{Class: "time_of_day", Key: "leah.ship", Slot: "09", Count: 12, Weight: 12.0},
+			// Tuesday cadence — local weekday-abbrev.
+			{Class: "cadence", Key: "leah.standup", Slot: "Tue", Count: 8, Weight: 8.0},
+		},
+	}
+	// Monday 00:00 UTC = Monday 09:00 Tokyo. The profile rows above
+	// recorded "Tue" cadence + "09" hour in Tokyo-local time. Pick a UTC
+	// instant that lands on Tue Tokyo: Mon 15:00 UTC = Tue 00:00 Tokyo.
+	// Actually for hour=09 + weekday=Tue together we need Mon 00:00 UTC
+	// → Mon 09:00 Tokyo; so use a Mon-Tokyo row instead.
+	utc := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC) // Mon UTC
+	tokyoTime := utc.In(tokyo)
+	if tokyoTime.Hour() != 9 {
+		t.Fatalf("test setup bug: tokyo hour = %d, want 9", tokyoTime.Hour())
+	}
+	wantDay := tokyoTime.Weekday().String()[:3] // "Mon"
+	// Update the cadence row to match the actual Tokyo weekday.
+	p.Rows[1].Slot = wantDay
+	got, err := Recommend(p, "default", utc)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	var sawShip, sawStandup bool
+	for _, r := range got {
+		if r.Kind == "leah.ship" {
+			sawShip = true
+		}
+		if r.Kind == "leah.standup" {
+			sawStandup = true
+		}
+	}
+	if !sawShip {
+		t.Errorf("time_of_day rec missed — tz lookup likely in UTC; got %+v", got)
+	}
+	if !sawStandup {
+		t.Errorf("cadence rec missed — tz lookup likely in UTC; got %+v", got)
+	}
+}
+
 // TestRecommendBelowColdStartReturnsEmpty asserts Recommend returns []
 // (not error) when Profile.Ready == false (#wave2-J §3.5).
 func TestRecommendBelowColdStartReturnsEmpty(t *testing.T) {
@@ -23,10 +78,13 @@ func TestRecommendBelowColdStartReturnsEmpty(t *testing.T) {
 }
 
 // TestRecommendByTimeOfDay asserts the time_of_day class promotes the
-// action-kind with the highest weight at the current hour.
+// action-kind with the highest weight at the current hour. TZ=UTC keeps
+// the test deterministic across hosts (Recommend honors profile.TZ per
+// L9 fix).
 func TestRecommendByTimeOfDay(t *testing.T) {
 	p := Profile{
 		Ready: true,
+		TZ:    time.UTC,
 		Rows: []ProfileRow{
 			{Class: "time_of_day", Key: "leah.ship", Slot: "10", Count: 12, Weight: 12.0},
 			{Class: "time_of_day", Key: "leah.ask", Slot: "10", Count: 3, Weight: 3.0},
@@ -91,7 +149,7 @@ func TestRecommendByContextTransition(t *testing.T) {
 
 // TestRecommendCapsAtThree asserts at most 3 recommendations returned (§4.1).
 func TestRecommendCapsAtThree(t *testing.T) {
-	p := Profile{Ready: true}
+	p := Profile{Ready: true, TZ: time.UTC}
 	for i := 0; i < 10; i++ {
 		p.Rows = append(p.Rows, ProfileRow{
 			Class:  "time_of_day",
@@ -120,6 +178,7 @@ func TestRecommendCadenceForToday(t *testing.T) {
 	}
 	p := Profile{
 		Ready: true,
+		TZ:    time.UTC,
 		Rows: []ProfileRow{
 			{Class: "cadence", Key: "leah.retro", Slot: "Sun", Count: 6, Weight: 6.0},
 			{Class: "cadence", Key: "leah.standup", Slot: "Tue", Count: 4, Weight: 4.0},
