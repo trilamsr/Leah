@@ -6,6 +6,7 @@ package regattaclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 )
@@ -23,10 +24,11 @@ func (ShellExec) Run(ctx context.Context, args []string) (string, error) {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	out, err := cmd.Output()
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
 			return "", fmt.Errorf("%s: %s", args[0], string(ee.Stderr))
 		}
-		return "", err
+		return "", fmt.Errorf("%s: %w", args[0], err)
 	}
 	return string(out), nil
 }

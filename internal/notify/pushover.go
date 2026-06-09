@@ -47,9 +47,9 @@ func (p *Pushover) Notify(ctx context.Context, title, body string) error {
 	form.Set("title", title)
 	form.Set("message", body)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", p.APIURL, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.APIURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return err
+		return fmt.Errorf("new pushover request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -59,8 +59,8 @@ func (p *Pushover) Notify(ctx context.Context, title, body string) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("pushover status %d: %s", resp.StatusCode, body)
+		errBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("pushover status %d: %s", resp.StatusCode, errBody)
 	}
 	var r struct {
 		Status int `json:"status"`

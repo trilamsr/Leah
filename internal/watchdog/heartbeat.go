@@ -34,9 +34,9 @@ func (h *Heartbeat) Ping(ctx context.Context) error {
 	if h.URL == "" {
 		return nil // skip silently
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", h.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.URL, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("new heartbeat request: %w", err)
 	}
 	resp, err := h.HTTP.Do(req)
 	if err != nil {

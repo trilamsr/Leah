@@ -7,8 +7,10 @@ package ghclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -28,10 +30,11 @@ func (ShellExec) Run(ctx context.Context, args []string) (string, error) {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	out, err := cmd.Output()
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
 			return "", fmt.Errorf("%s: %s", args[0], string(ee.Stderr))
 		}
-		return "", err
+		return "", fmt.Errorf("%s: %w", args[0], err)
 	}
 	return string(out), nil
 }
@@ -79,7 +82,7 @@ func (c *Client) CreateIssue(ctx context.Context, a CreateIssueArgs) (url string
 // explicit allowlist (per CLAUDE.md gh-minimal-fields rule) — passing all
 // fields blows token budget on PR body / comments.
 func (c *Client) ViewPR(ctx context.Context, repo string, num int, fields []string) (map[string]any, error) {
-	args := []string{"gh", "pr", "view", fmt.Sprintf("%d", num),
+	args := []string{"gh", "pr", "view", strconv.Itoa(num),
 		"--repo", repo,
 		"--json", strings.Join(fields, ","),
 	}
