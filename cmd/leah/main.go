@@ -87,6 +87,10 @@ func main() {
 		runPatterns(os.Args[2:])
 	case "suggest":
 		runSuggest(os.Args[2:])
+	case "backlog":
+		runBacklog(os.Args[2:])
+	case "recall":
+		runRecall(os.Args[2:])
 	case "self-build":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "usage: leah self-build \"<intent>\"")
@@ -276,6 +280,8 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  retro [--week YYYY-WW]    weekly retro markdown")
 	fmt.Fprintln(os.Stderr, "  patterns [--weekly]       skill-candidate clusters from audit")
 	fmt.Fprintln(os.Stderr, "  suggest [--context X] [--llm]   surface operator-model recommendations")
+	fmt.Fprintln(os.Stderr, "  backlog [repo] [--json]   active agents + ready issues + recent PRs")
+	fmt.Fprintln(os.Stderr, "  recall [--llm] <query>    semantic search over audit + memory")
 	fmt.Fprintln(os.Stderr, "  self-build \"<intent>\"     dispatch a regatta self-build PR")
 	fmt.Fprintln(os.Stderr, "  version                   show version")
 }
