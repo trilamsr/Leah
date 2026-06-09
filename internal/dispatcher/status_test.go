@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -83,6 +84,27 @@ func TestStatusJSONEmitsArray(t *testing.T) {
 	}
 	if got[0]["kind"] != "ask" || got[1]["kind"] != "ship" {
 		t.Errorf("entries: %+v", got)
+	}
+}
+
+func TestStatusTruncatesLongDetailInTableMode(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/audit.jsonl"
+	longDetail := strings.Repeat("x", 200)
+	lines := fmt.Sprintf(`{"ts":"2026-06-09T10:00:00Z","kind":"ask","args_hash":"abc","blast_radius":0,"outcome":"failed","detail":%q}`+"\n", longDetail)
+	if err := os.WriteFile(path, []byte(lines), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	s := &Status{AuditPath: path, Out: out, Limit: 10}
+	if err := s.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), strings.Repeat("x", 100)) {
+		t.Errorf("detail not truncated: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "...") {
+		t.Errorf("missing ellipsis: %s", out.String())
 	}
 }
 

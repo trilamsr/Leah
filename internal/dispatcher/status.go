@@ -71,9 +71,15 @@ func (s *Status) Run() error {
 		return nil
 	}
 
+	_, _ = fmt.Fprintf(s.Out, "%-20s  %-7s  %-4s  %-7s  %s\n",
+		"TIMESTAMP", "KIND", "BR", "OUTCOME", "DETAIL")
 	for _, e := range entries[start:] {
-		_, _ = fmt.Fprintf(s.Out, "%s  %-7s  BR=%d  %s  %s\n",
-			e.Timestamp, e.Kind, e.BlastRadius, e.Outcome, e.Detail)
+		detail := e.Detail
+		if len(detail) > 80 {
+			detail = detail[:77] + "..."
+		}
+		_, _ = fmt.Fprintf(s.Out, "%s  %-7s  BR=%d  %-7s  %s\n",
+			e.Timestamp, e.Kind, e.BlastRadius, e.Outcome, detail)
 	}
 	return nil
 }

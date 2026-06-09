@@ -36,7 +36,7 @@ type ExceededError struct {
 }
 
 func (e *ExceededError) Error() string {
-	return fmt.Sprintf("budget exceeded: spent=$%.4f attempted=$%.4f ceiling=$%.2f",
+	return fmt.Sprintf("budget exceeded: spent=$%.4f attempted=$%.4f ceiling=$%.4f",
 		e.Spent, e.Attempted, e.Ceiling)
 }
 
