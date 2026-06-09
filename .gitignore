@@ -1,0 +1,17 @@
+# Go
+/leah
+/leah-bin
+*.test
+*.out
+
+# Operator-local state (never committed)
+/.leah-state/
+*.jsonl
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
