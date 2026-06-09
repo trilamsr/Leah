@@ -6,31 +6,32 @@
 <title>LEAH // dashboard</title>
 <link rel="stylesheet" href="/static/dashboard.css">
 </head>
-<body>
+<body class="boot">
+<div id="scanlines" aria-hidden="true"></div>
 <main id="grid">
   <section class="quad" id="q-audit">
-    <header><h2>LIVE ACTIONS</h2><span class="dot alive-dot" id="alive"></span></header>
-    <ul id="audit-list" class="scroll"></ul>
+    <header><h2>[ LIVE ACTIONS ]</h2><span class="dot alive-dot" id="alive" title="daemon heartbeat"></span></header>
+    <ul id="audit-list" class="scroll" aria-live="polite"></ul>
   </section>
   <section class="quad" id="q-agents">
-    <header><h2>AGENTS</h2></header>
+    <header><h2>[ AGENTS ]</h2></header>
     <ul id="agents-list" class="scroll"></ul>
   </section>
   <section class="quad" id="q-memory">
-    <header><h2>MEMORY</h2></header>
+    <header><h2>[ MEMORY ]</h2></header>
     <div id="memory-counts" class="counts"></div>
-    <h3>recent decisions</h3>
+    <h3>// recent decisions</h3>
     <ul id="memory-decisions" class="scroll"></ul>
   </section>
   <section class="quad" id="q-ops">
-    <header><h2>OPS</h2></header>
+    <header><h2>[ OPS ]</h2></header>
     <div id="ops-budget" class="row"></div>
     <div class="bar"><div id="ops-bar" class="fill"></div></div>
     <div id="ops-heart" class="row"></div>
     <div id="ops-uptime" class="row"></div>
   </section>
 </main>
-<div id="banner" hidden></div>
+<div id="banner" role="alert" aria-live="assertive" hidden></div>
 <script src="/static/dashboard.js"></script>
 </body>
 </html>
