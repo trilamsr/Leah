@@ -34,16 +34,31 @@ type Rule interface {
 	Resolve(ctx context.Context, e audit.Entry) (Outcome, string)
 }
 
+// PanicDetector is the marker interface for the bug-fix self-build
+// hook. Concrete implementations live in internal/selflearn/rules;
+// the daemon iterates Resolver.PanicDetectors each tick, type-asserts
+// to the concrete rule, runs Detect, and persists findings to
+// ~/.leah-state/bug-fix-candidates.md. Empty interface keeps the
+// selflearn → rules dependency one-way (rules imports selflearn for
+// Outcome; the reverse would cycle). Registering on Resolver keeps
+// weekly-tick composition in one place (additive change). See
+// docs/specs/2026-06-09-bug-fix-self-build-hook.md.
+type PanicDetector interface {
+	// Name identifies the detector in audit logs + operator output.
+	Name() string
+}
+
 // Resolver walks audit.jsonl for pending rows within Since and dispatches
 // each to a Kind-specific Rule. Idempotent: skips rows that already have
 // a resolver.update entry covering them.
 type Resolver struct {
-	AuditPath string
-	Logger    *audit.Logger
-	Rules     map[string]Rule
-	Since     time.Duration
-	Now       func() time.Time
-	Out       io.Writer
+	AuditPath      string
+	Logger         *audit.Logger
+	Rules          map[string]Rule
+	PanicDetectors []PanicDetector // daemon-iterated; see PanicDetector
+	Since          time.Duration
+	Now            func() time.Time
+	Out            io.Writer
 
 	mu sync.Mutex
 }
