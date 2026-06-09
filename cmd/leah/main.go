@@ -221,7 +221,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "commands:")
 	fmt.Fprintln(os.Stderr, "  ask \"<query>\"        direct query to Reasoner")
 	fmt.Fprintln(os.Stderr, "  ship <repo> \"<intent>\"  file regatta issue + watch + narrate")
-	fmt.Fprintln(os.Stderr, "  review <pr#>         independent reviewer subagent on PR")
+	fmt.Fprintln(os.Stderr, "  review <repo> <pr#>   independent reviewer subagent on PR")
 	fmt.Fprintln(os.Stderr, "  status               recent activity from audit log")
 	fmt.Fprintln(os.Stderr, "  version              show version")
 }
