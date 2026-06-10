@@ -127,11 +127,19 @@ type wakeChan chan struct{}
 
 func (w wakeChan) Events() <-chan struct{} { return w }
 
+// armed returns a buffered wakeChan pre-loaded with one arm-event — every
+// happy-path test arms exactly once via this helper.
+func armed() wakeChan {
+	w := make(wakeChan, 1)
+	w <- struct{}{}
+	return w
+}
+
 func TestLoop_WakeToFinalToReasonerToTTS_HappyPath(t *testing.T) {
 	fl := newStartedListener()
 	tts := &fakeTTS{auto: true}
 	rs := &fakeReasoner{reply: "the time is now"}
-	wake := make(wakeChan, 1)
+	wake := armed()
 
 	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, Wake: wake})
 
@@ -142,7 +150,6 @@ func TestLoop_WakeToFinalToReasonerToTTS_HappyPath(t *testing.T) {
 	go func() { done <- l.Run(ctx) }()
 	fl.waitReady(t)
 
-	wake <- struct{}{}
 	// Wake send is buffered; loop's select may not have consumed it before the
 	// next Emit. Settle by polling on the side-effect we actually want.
 	testutil.Eventually(t, 2*time.Second, 5*time.Millisecond, func() bool {
@@ -165,8 +172,9 @@ func TestLoop_BargeIn_CancelsTTS(t *testing.T) {
 	fl := newStartedListener()
 	tts := &fakeTTS{}
 	rs := &fakeReasoner{reply: "first reply"}
+	wake := make(wakeChan, 2)
 
-	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts})
+	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, Wake: wake})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -175,14 +183,16 @@ func TestLoop_BargeIn_CancelsTTS(t *testing.T) {
 	go func() { done <- l.Run(ctx) }()
 	fl.waitReady(t)
 
-	fl.Emit(listener.Segment{Text: "hello", Final: true})
+	wake <- struct{}{}
 	testutil.Eventually(t, 2*time.Second, 5*time.Millisecond, func() bool {
+		fl.Emit(listener.Segment{Text: "hello", Final: true})
 		return tts.count() == 1
 	})
 
 	rs.reply = "second reply"
-	fl.Emit(listener.Segment{Text: "wait stop", Final: true})
+	wake <- struct{}{}
 	testutil.Eventually(t, 2*time.Second, 5*time.Millisecond, func() bool {
+		fl.Emit(listener.Segment{Text: "wait stop", Final: true})
 		return tts.cancels() >= 1
 	})
 
@@ -195,8 +205,9 @@ func TestLoop_TripIntent_RoutedNotReasoner(t *testing.T) {
 	tts := &fakeTTS{auto: true}
 	rs := &fakeReasoner{reply: "should not run"}
 	ic := &fakeIntent{handle: true, captured: make(chan string, 1)}
+	wake := armed()
 
-	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, IntentRouter: ic})
+	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, Wake: wake, IntentRouter: ic})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -205,19 +216,20 @@ func TestLoop_TripIntent_RoutedNotReasoner(t *testing.T) {
 	go func() { done <- l.Run(ctx) }()
 	fl.waitReady(t)
 
-	fl.Emit(listener.Segment{Text: "what's on my drive to seattle", Final: true})
-
-	select {
-	case got := <-ic.captured:
-		if got != "what's on my drive to seattle" {
-			t.Fatalf("intent got %q", got)
+	testutil.Eventually(t, 2*time.Second, 5*time.Millisecond, func() bool {
+		fl.Emit(listener.Segment{Text: "what's on my drive to seattle", Final: true})
+		select {
+		case got := <-ic.captured:
+			if got != "what's on my drive to seattle" {
+				t.Fatalf("intent got %q", got)
+			}
+			return true
+		default:
+			return false
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("intent router not called")
-	}
+	})
 
-	// Give the goroutine a fair chance to call the reasoner if the routing
-	// branch were wrong; settle on observable absence rather than wall-clock.
+	// Settle on observable absence: the routed branch must not call reasoner.
 	testutil.Eventually(t, 200*time.Millisecond, 10*time.Millisecond, func() bool {
 		return rs.callCount() == 0
 	})
@@ -233,8 +245,9 @@ func TestLoop_ReasonerError_AnnouncesError(t *testing.T) {
 	fl := newStartedListener()
 	tts := &fakeTTS{auto: true}
 	rs := &fakeReasoner{err: errors.New("upstream 500")}
+	wake := armed()
 
-	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts})
+	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, Wake: wake})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -243,9 +256,8 @@ func TestLoop_ReasonerError_AnnouncesError(t *testing.T) {
 	go func() { done <- l.Run(ctx) }()
 	fl.waitReady(t)
 
-	fl.Emit(listener.Segment{Text: "anything", Final: true})
-
 	testutil.Eventually(t, 2*time.Second, 5*time.Millisecond, func() bool {
+		fl.Emit(listener.Segment{Text: "anything", Final: true})
 		return tts.count() == 1
 	})
 	if got := tts.last(); got == "" || got == "upstream 500" {
@@ -260,8 +272,9 @@ func TestLoop_CtxCancel_StopsLoop(t *testing.T) {
 	fl := newStartedListener()
 	tts := &fakeTTS{auto: true}
 	rs := &fakeReasoner{reply: "x"}
+	wake := make(wakeChan, 1)
 
-	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts})
+	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, Wake: wake})
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -278,4 +291,90 @@ func TestLoop_CtxCancel_StopsLoop(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Run did not exit on ctx cancel")
 	}
+}
+
+// Loop refuses to start without WakeSeam — closes finding #2 (ambient-
+// transcription path) by removing the nil branch.
+func TestLoop_NilWake_RefusesToStart(t *testing.T) {
+	fl := newStartedListener()
+	tts := &fakeTTS{auto: true}
+	rs := &fakeReasoner{reply: "x"}
+
+	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts})
+
+	err := l.Run(context.Background())
+	if err == nil || err.Error() != "voice/loop: Wake required" {
+		t.Fatalf("Run err = %v, want voice/loop: Wake required", err)
+	}
+}
+
+// Stuck TTS in the error-announce path is bounded by errAnnounceTimeout
+// (~1.5s) — the turn goroutine drains before outer ctx cancel.
+func TestLoop_ErrorAnnounce_TTSStuck_TurnDrainsOnTimeout(t *testing.T) {
+	fl := newStartedListener()
+	gate := make(chan struct{})
+	tts := &fakeTTS{gate: gate} // never released — Speak only unblocks on ctx
+	rs := &fakeReasoner{err: errors.New("upstream 500")}
+	wake := armed()
+
+	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, Wake: wake})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- l.Run(ctx) }()
+	fl.waitReady(t)
+
+	fl.Emit(listener.Segment{Text: "anything", Final: true})
+	// errAnnounceTimeout is 1.5s; allow a small jitter margin.
+	testutil.Eventually(t, 3*time.Second, 20*time.Millisecond, func() bool {
+		return tts.cancels() >= 1
+	})
+
+	cancel()
+	<-done
+}
+
+// Arbiter never head-of-line-blocks on a reasoner that ignores ctx —
+// cancelTurn falls through on outer ctx.Done.
+func TestLoop_StuckReasoner_OuterCancelUnwedges(t *testing.T) {
+	fl := newStartedListener()
+	tts := &fakeTTS{auto: true}
+	// reply path with delay larger than the test deadline — but ignores ctx,
+	// because the fakeReasoner's select returns ctx.Err on cancel. Override
+	// with a stub that truly ignores ctx.
+	rs := &stuckReasoner{release: make(chan struct{})}
+	wake := armed()
+
+	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, Wake: wake})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- l.Run(ctx) }()
+	fl.waitReady(t)
+
+	fl.Emit(listener.Segment{Text: "anything", Final: true})
+	// Give the turn goroutine time to enter Ask before cancelling.
+	testutil.Eventually(t, 1*time.Second, 5*time.Millisecond, func() bool {
+		return rs.entered.Load()
+	})
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not exit despite stuck reasoner")
+	}
+	close(rs.release) // unblock the orphan goroutine so the test exits clean
+}
+
+type stuckReasoner struct {
+	entered atomic.Bool
+	release chan struct{}
+}
+
+func (s *stuckReasoner) Ask(_ context.Context, _ string) (string, error) {
+	s.entered.Store(true)
+	<-s.release
+	return "", nil
 }

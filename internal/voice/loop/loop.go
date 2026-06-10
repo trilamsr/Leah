@@ -4,14 +4,10 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/trilam/leah/internal/voice/listener"
-	"github.com/trilam/leah/internal/voice/session"
 )
-
-// Listener is the segment-stream surface. listener.Listener satisfies it.
-type Listener = listener.Listener
 
 // ReasonerSeam is the LLM seam — reasoner.Reasoner.Ask satisfies it
 // structurally, so loop never imports the reasoner package.
@@ -25,9 +21,9 @@ type TTSSeam interface {
 	Speak(ctx context.Context, text string) error
 }
 
-// WakeSeam emits a value whenever the loop should leave the "requires wake"
-// state and arm STT. nil disables wake gating — every Final segment is treated
-// as armed (matches W11 wiring before W14 wake integration).
+// WakeSeam arms STT — required, never nil. An always-armed pipeline would
+// transcribe every Final segment without operator gesture; attestation lives
+// in session.Session, which signals WakeSeam after consent.
 type WakeSeam interface {
 	Events() <-chan struct{}
 }
@@ -38,12 +34,10 @@ type IntentRouterSeam interface {
 	Recognize(ctx context.Context, transcript string) (handled bool, err error)
 }
 
-// Config is the loop's seam bundle. All fields except Listener, Reasoner, and
-// TTS are optional; Session is held for future Transition wiring and is read
-// only for its Audit field today.
+// Config is the loop's seam bundle. Listener / Reasoner / TTS / Wake are
+// required; IntentRouter is optional.
 type Config struct {
-	Listener     Listener
-	Session      *session.Session
+	Listener     listener.Listener
 	Reasoner     ReasonerSeam
 	TTS          TTSSeam
 	Wake         WakeSeam
@@ -56,11 +50,16 @@ type Loop struct {
 	cfg Config
 }
 
+// errReasonFallback duplicates session.Session's literal — a third caller
+// (W15+ streaming reasoner) gates extraction to internal/voice/strings.
+const errReasonFallback = "I couldn't reason that through, try again."
+
+const errAnnounceTimeout = 1500 * time.Millisecond
+
 // New returns a Loop ready for Run.
 func New(cfg Config) *Loop { return &Loop{cfg: cfg} }
 
-// Run blocks until ctx is cancelled or the listener channel closes. Returns
-// the first non-nil error from the listener Start.
+// Run blocks until ctx is cancelled or the listener channel closes.
 func (l *Loop) Run(ctx context.Context) error {
 	if l.cfg.Listener == nil {
 		return errors.New("voice/loop: Listener required")
@@ -71,37 +70,44 @@ func (l *Loop) Run(ctx context.Context) error {
 	if l.cfg.TTS == nil {
 		return errors.New("voice/loop: TTS required")
 	}
+	if l.cfg.Wake == nil {
+		return errors.New("voice/loop: Wake required")
+	}
 
 	segs, err := l.cfg.Listener.Start(ctx)
 	if err != nil {
 		return err
 	}
 
-	var wakeCh <-chan struct{}
-	if l.cfg.Wake != nil {
-		wakeCh = l.cfg.Wake.Events()
-	}
-
-	armed := wakeCh == nil
+	wakeCh := l.cfg.Wake.Events()
+	armed := false
 
 	var (
 		turnCancel context.CancelFunc
-		turnWG     sync.WaitGroup
+		turnDone   chan struct{}
 	)
 	cancelTurn := func() {
-		if turnCancel != nil {
-			turnCancel()
-			turnCancel = nil
+		if turnCancel == nil {
+			return
 		}
-		turnWG.Wait()
+		turnCancel()
+		// Wait for the turn goroutine OR outer ctx — never block the arbiter
+		// when a reasoner ignores ctx.
+		select {
+		case <-turnDone:
+		case <-ctx.Done():
+		}
+		turnCancel = nil
+		turnDone = nil
 	}
 
 	startTurn := func(text string) {
 		tctx, tcancel := context.WithCancel(ctx)
+		done := make(chan struct{})
 		turnCancel = tcancel
-		turnWG.Add(1)
+		turnDone = done
 		go func() {
-			defer turnWG.Done()
+			defer close(done)
 			if l.cfg.IntentRouter != nil {
 				handled, ierr := l.cfg.IntentRouter.Recognize(tctx, text)
 				if ierr == nil && handled {
@@ -113,7 +119,9 @@ func (l *Loop) Run(ctx context.Context) error {
 				if errors.Is(tctx.Err(), context.Canceled) {
 					return
 				}
-				_ = l.cfg.TTS.Speak(tctx, "I couldn't reason that through, try again.")
+				errCtx, errCancel := context.WithTimeout(tctx, errAnnounceTimeout)
+				_ = l.cfg.TTS.Speak(errCtx, errReasonFallback)
+				errCancel()
 				return
 			}
 			_ = l.cfg.TTS.Speak(tctx, reply)
@@ -127,8 +135,7 @@ func (l *Loop) Run(ctx context.Context) error {
 			return nil
 		case _, ok := <-wakeCh:
 			if !ok {
-				wakeCh = nil
-				continue
+				return errors.New("voice/loop: Wake channel closed")
 			}
 			armed = true
 		case seg, ok := <-segs:
@@ -146,13 +153,9 @@ func (l *Loop) Run(ctx context.Context) error {
 			if !armed {
 				continue
 			}
-			if turnCancel != nil {
-				cancelTurn()
-			}
+			cancelTurn()
 			startTurn(text)
-			if wakeCh != nil {
-				armed = false
-			}
+			armed = false
 		}
 	}
 }
