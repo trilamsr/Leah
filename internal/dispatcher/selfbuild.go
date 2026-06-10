@@ -19,9 +19,6 @@ import (
 	"github.com/trilam/leah/internal/budget"
 )
 
-// selfBuildScope names the pool slot the dispatcher draws from. Adapters
-// (gmail/gcal) register their own scopes against the same Pool — this is the
-// dispatcher's hook.
 const selfBuildScope = "self-build"
 
 // SelfBuildRepo is the only repo SelfBuild ever targets. Hard-coded to prevent
@@ -335,9 +332,7 @@ func (s *SelfBuild) appendAuditSuccess(intent, issueURL string) {
 	})
 }
 
-// pickAttestationQuestion delegates to internal/attestation. Returns "" when
-// AttestationQuestionsPath is empty (gate disabled by config — only path tests
-// rely on). Fail-closed otherwise: pool load failure aborts the dispatch.
+// pickAttestationQuestion returns "" when path empty (gate disabled); fail-closed otherwise.
 func (s *SelfBuild) pickAttestationQuestion() (string, error) {
 	if s.AttestationQuestionsPath == "" {
 		return "", nil
