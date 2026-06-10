@@ -6,6 +6,13 @@ Single source of truth for any agent (main session, subagent, CI) operating in t
 
 UX > performance > long-term benefits. Default simpler. Three similar lines beat a premature abstraction.
 
+## Dispatch parallelism
+
+- File-disjoint code PRs (each touching its own `internal/<pkg>/`) parallelize up to 6.
+- Spec PRs (`docs/engineer/specs/` + `docs/engineer/briefs/`) SERIALIZE — 1 in flight at a time.
+- Shared roots (`Makefile`, `go.mod`, `CLAUDE.md`, autonomous-session-prompt.md, dispatch-templates) — single-owner per dispatch.
+- Why: parallel spec PRs branched off the same main produce stale-base regressions (PR-B's diff-vs-new-main appears to delete PR-A's just-merged files even when content is disjoint).
+
 ## Identity / output
 
 - No AI signatures anywhere (no Co-Authored-By, no "Generated with", no "written by Claude").
