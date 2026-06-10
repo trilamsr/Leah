@@ -274,6 +274,13 @@ silently degrading the signal. Detection tries paths in order:
 These feed both the `leah whoami --risk-history` surface (§11) and the
 nightly tier-rebalance cron (§3).
 
+### 6.4 args_hash collision
+
+One row per invocation already keeps siblings unique: two reviewer
+subagents in the same turn have distinct `turn_start_unix_nano`, so their
+SHA differs. Per-invocation nonce is an optional follow-up only if
+collisions are ever observed in audit replay.
+
 ## 7. Operator habituation defense
 
 Two mechanisms:
@@ -327,11 +334,14 @@ audit row matches a real question. Retention policy:
 - `prompts/attestation_pool_archive.jsonl` — append-only ledger of every
   retired question with `{question_hash, text, retired_at}`. Lives 90d,
   matching audit-row retention.
-- Hard-deleted by the existing `internal/audit` rotation pass at the same
-  90d cutoff — no new cron, no new code path.
+- Pool archive entries older than 90 days are pruned at load time by the
+  pool loader itself: `internal/attestation.Load` calls
+  `pruneOld(time.Now().Add(-90*24*time.Hour))` against the archive file
+  before returning. NO dependency on a future audit rotator — no new cron,
+  no new code path outside `pool.go`.
 - W117 test `TestPoolRetire_ArchiveAppend`: removing a question from
-  `attestation-hard.txt` appends to archive; `TestPoolArchive_RotationCutoff`:
-  archive entries older than 90d evicted by audit rotator.
+  `attestation-hard.txt` appends to archive; `TestPoolLoad_PrunesArchiveOlderThan90d`:
+  archive entries older than 90d evicted by `Load`.
 
 ### 7.3 Audit-row guardrail
 
