@@ -190,14 +190,15 @@ operator-editable):
 
 ```json
 {
-  "protocolVersion": "1.0",
   "name": "leah",
   "description": "Operator's local agent. Audit, memory, SelfBuild.",
   "version": "0.1.0",
-  "supportedInterfaces": [{ "url": "http://127.0.0.1:9876/a2a", "transport": "JSONRPC" }],
+  "supportedInterfaces": [
+    { "url": "http://127.0.0.1:9876/a2a", "protocolBinding": "JSONRPC", "protocolVersion": "1.0" }
+  ],
   "capabilities": { "streaming": false, "extendedAgentCard": false },
-  "defaultInputModes": ["text"],
-  "defaultOutputModes": ["text"],
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
   "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer" } },
   "securityRequirements": [ { "bearer": [] } ],
   "skills": [
