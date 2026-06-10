@@ -175,7 +175,7 @@ Phase 3 (frontier voice + moats):
 
 ## Source critiques (this session, 2026-06-10)
 
-- AI/ML feedback loop critique (agent aeba2c31): static α-blend ranking, no consolidation, SQLiteEngine orphan-rows, no knowledge-graph wiring, no exploration.
+- AI/ML feedback loop critique (agent aeba2c31): static α-blend ranking, no consolidation, `SQLiteEngine.RecordFeedback` W18-deferred-by-design wiring (owed work, not a bug — see S4), no knowledge-graph wiring, no exploration.
 - Voice + multimodal critique (agent a8fb8649): cascaded pipeline loses 600-1500ms vs native S2S, energy-threshold wake is 2015-era, no streaming Reasoner→TTS, no speaker-ID, hardware form-factor gap.
 - Agent loop + meta-learning critique (agent ab12f297): no benchmark → uncalibrated meta-learning, templates calcify, closed ecosystem (no MCP server, no A2A), single-vendor Claude-Code lock-in.
 - Obs + product critique (agent a1d62293): 2018-classical obs ported to 2026 (no prompt-version, no eval, no LLM dim on audit), per-process budget hides monthly cost, distribution gap blocks non-dev operators, no defensible moat artifacts.
