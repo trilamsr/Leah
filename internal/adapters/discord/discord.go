@@ -160,7 +160,7 @@ func (a *Adapter) PostMessage(ctx context.Context, channelID, body string) error
 		a.record(AuditRow{Kind: "discord_post", ChannelHash: hash, BodyLen: bodyLen, Reason: "http_error"})
 		return fmt.Errorf("%w: %v", ErrPostFailed, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		a.record(AuditRow{Kind: "discord_post", ChannelHash: hash, BodyLen: bodyLen, Reason: fmt.Sprintf("status_%d", resp.StatusCode)})
 		return fmt.Errorf("%w: status %d", ErrPostFailed, resp.StatusCode)
@@ -199,7 +199,7 @@ func (a *Adapter) ListChannels(ctx context.Context, guildID string) ([]Channel, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("discord: list channels status %d", resp.StatusCode)
 	}

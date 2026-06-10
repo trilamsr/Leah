@@ -378,7 +378,7 @@ func (h *HTTPTransport) post(ctx context.Context, bearer, query string, vars map
 	if err != nil {
 		return fmt.Errorf("linear: post: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("linear: read body: %w", err)
