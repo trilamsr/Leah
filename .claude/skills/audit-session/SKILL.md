@@ -39,7 +39,7 @@ Rules:
 - `state==MERGED AND body~/Reviewer-recommendation: (REVISE|BLOCK)/` → file `[SESSION-AUDIT][post-merge] PR#<N>`.
 - `mergeStateStatus IN (BLOCKED,DIRTY,UNSTABLE)` → file `[SESSION-AUDIT][automerge-stall] PR#<N>`.
 - `Reviewer-agent-id:` matches PR author login → file `[SESSION-AUDIT][self-approve-leak]` per CLAUDE.md "Never self-approve".
-- **`Reviewer-recommendation: merge-after-edits` or `block-on-findings` present + only ONE reviewer-id in body → file `[SESSION-AUDIT][self-approve-after-amend]`** per memory `feedback_no_self_approve_after_edits`. A re-spawned reviewer must exist for the amended head before merge.
+- **Self-approve-after-amend (binding gate, per `feedback_no_self_approve_after_edits`).** The reviewer template emits a single PR-body token `Reviewer-recommendation: APPROVE` after `clear-to-merge`. `merge-after-edits` and `block-on-findings` verdicts live in the inline review COMMENT bodies, not the PR-body footer. Detection: for each merged PR, scan `gh pr view N --json reviews,comments` for any review body containing `VERDICT: merge-after-edits` or `VERDICT: block-on-findings`. For each such verdict, walk forward in time and confirm a LATER review body containing `VERDICT: clear-to-merge` exists from a re-spawned `cavecrew-reviewer-*` (or distinct `a[0-9a-f]{16}`) agent-id targeting the amended HEAD. If no later clear-to-merge review exists before `mergedAt` → file `[SESSION-AUDIT][self-approve-after-amend] PR#<N>`. This catches author-applies-edits-then-merges without rechecking.
 
 ## Phase 2: Reviewer-comment audit
 

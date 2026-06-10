@@ -8,6 +8,11 @@
 /.leah-state/
 *.jsonl
 
+# Operator-local session handoffs (audit-session skill output)
+/.claude/session-handoffs/
+/.claude/worktrees/
+/.claude/notes/
+
 # macOS
 .DS_Store
 
