@@ -59,8 +59,11 @@ type GcalLister interface {
 // not configured → brief omits the corresponding sections entirely
 // (silent absence beats noisy "unavailable" for unconfigured features).
 type GatherOpts struct {
-	Gmail GmailLister
-	Gcal  GcalLister
+	Gmail   GmailLister
+	Gcal    GcalLister
+	Weather WeatherReporter
+	News    NewsReporter
+	Market  MarketReporter
 }
 
 // Data is the pure-data input to Render — all IO happens upstream so the
@@ -83,6 +86,15 @@ type Data struct {
 	MailUnavailable     bool
 	TodayEvents         []Event
 	CalendarUnavailable bool
+
+	// Weather / News / Market are nil when the operator hasn't wired the
+	// feed; *Unavailable flips on runtime failure (mirrors mail/calendar).
+	Weather            *Forecast
+	WeatherUnavailable bool
+	News               *Article
+	NewsUnavailable    bool
+	Market             *Pulse
+	MarketUnavailable  bool
 }
 
 // RegattaLister is the subset of regattaclient.Client Gather needs.
@@ -158,6 +170,9 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 			d.TodayEvents = evs
 		}
 	}
+
+	// Weather / News / Market — same soft-fail pattern, in feeds.go.
+	gatherFeeds(ctx, &d, o)
 
 	return d
 }
@@ -252,9 +267,32 @@ func Render(d Data) string {
 	}
 	fmt.Fprintln(&b)
 
-	// 5. Mail + Calendar render only when the operator has wired the
-	// integration — silent absence beats noisy "unavailable" for
-	// unconfigured features (UnavailableX is for runtime failure).
+	// 5. Feeds + Mail + Calendar render only when the operator has wired
+	// the integration — silent absence beats noisy "unavailable" for
+	// unconfigured features (UnavailableX is for runtime failure). Spec-
+	// pinned order: weather → calendar → mail → news → market.
+	renderWeather(&b, d)
+
+	if d.CalendarUnavailable || len(d.TodayEvents) > 0 {
+		fmt.Fprintln(&b, "## Calendar")
+		if d.CalendarUnavailable {
+			fmt.Fprintln(&b, "  (unavailable)")
+		} else {
+			max := gcalCap
+			if len(d.TodayEvents) < max {
+				max = len(d.TodayEvents)
+			}
+			fmt.Fprintf(&b, "  %d events\n", len(d.TodayEvents))
+			for _, ev := range d.TodayEvents[:max] {
+				fmt.Fprintf(&b, "  - %s %s\n", ev.Start.Format("15:04"), ev.Summary)
+			}
+			if len(d.TodayEvents) > max {
+				fmt.Fprintf(&b, "  …and %d more\n", len(d.TodayEvents)-max)
+			}
+		}
+		fmt.Fprintln(&b)
+	}
+
 	if d.MailUnavailable || d.UnreadMailTotal > 0 || len(d.UnreadMail) > 0 {
 		fmt.Fprintln(&b, "## Mail")
 		if d.MailUnavailable {
@@ -279,25 +317,8 @@ func Render(d Data) string {
 		fmt.Fprintln(&b)
 	}
 
-	if d.CalendarUnavailable || len(d.TodayEvents) > 0 {
-		fmt.Fprintln(&b, "## Calendar")
-		if d.CalendarUnavailable {
-			fmt.Fprintln(&b, "  (unavailable)")
-		} else {
-			max := gcalCap
-			if len(d.TodayEvents) < max {
-				max = len(d.TodayEvents)
-			}
-			fmt.Fprintf(&b, "  %d events\n", len(d.TodayEvents))
-			for _, ev := range d.TodayEvents[:max] {
-				fmt.Fprintf(&b, "  - %s %s\n", ev.Start.Format("15:04"), ev.Summary)
-			}
-			if len(d.TodayEvents) > max {
-				fmt.Fprintf(&b, "  …and %d more\n", len(d.TodayEvents)-max)
-			}
-		}
-		fmt.Fprintln(&b)
-	}
+	renderNews(&b, d)
+	renderMarket(&b, d)
 
 	// 6. Cost outlook.
 	fmt.Fprintln(&b, "## Cost")
