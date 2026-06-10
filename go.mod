@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/anthropics/anthropic-sdk-go v1.49.0
 	github.com/oklog/ulid/v2 v2.1.1
+	golang.org/x/oauth2 v0.30.0
 	modernc.org/sqlite v1.52.0
 )
 

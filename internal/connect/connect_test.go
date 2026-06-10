@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -247,4 +246,3 @@ func newTestRegistry(stateDir string) *Registry {
 	})
 }
 
-func init() { _ = fmt.Sprintf }
