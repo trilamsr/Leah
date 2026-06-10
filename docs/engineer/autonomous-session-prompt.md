@@ -28,8 +28,8 @@ WORKFLOW per item — use templates at [docs/engineer/dispatch-templates/](docs/
 2. Adversarial reviewer on spec → fix findings — [reviewer.md](docs/engineer/dispatch-templates/reviewer.md)
 3. Plan subagent → plan — [designer.md](docs/engineer/dispatch-templates/designer.md) (plans are spec-shaped)
 4. Parallel implementer subagents on file-disjoint tasks — [implementer.md](docs/engineer/dispatch-templates/implementer.md) (worktree + TDD + release-notes + doc-check)
-5. Adversarial reviewer per wave → fix → merge — `reviewer.md`
-6. Land / defer / reject decisions on issues + stale PRs — `triage.md`
+5. Adversarial reviewer per wave → fix → merge — [reviewer.md](docs/engineer/dispatch-templates/reviewer.md)
+6. Land / defer / reject decisions on issues + stale PRs — [triage.md](docs/engineer/dispatch-templates/triage.md)
 
 Templates encode the load-bearing preamble (worktree-first, TDD failing-first, adversarial reviewer, doc-check, release-notes fence, no-signatures, memory cites). Cite memory rules in dispatch prompts via the templates' `<MEMORY-RULES>` variable.
 
