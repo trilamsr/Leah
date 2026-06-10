@@ -17,11 +17,9 @@ else
   echo "  (skipped — install with: brew install golangci-lint)"
 fi
 
-<<<<<<< HEAD
 echo "==> check-comment-density"
 "$(dirname "$0")/check-comment-density.sh"
-||||||| parent of efc5067 (feat(ci): port check-pr-body-close-keywords from regatta)
-=======
+
 # Catch the space-separated `closes #N #M` form GitHub silently drops
 # (only the first issue auto-closes). Skips when no open PR matches HEAD.
 echo "==> pr-body close-keyword form"
@@ -36,6 +34,8 @@ if command -v gh >/dev/null 2>&1; then
 else
   echo "  (skipped — gh not installed)"
 fi
->>>>>>> efc5067 (feat(ci): port check-pr-body-close-keywords from regatta)
+
+echo "==> check-doc-links"
+"$(dirname "$0")/check-doc-links.sh"
 
 echo "==> all checks passed"
