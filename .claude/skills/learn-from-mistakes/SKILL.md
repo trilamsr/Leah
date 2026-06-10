@@ -54,6 +54,8 @@ Compose:
 - **Topic note — agent-internal.** A lesson a human contributor would not encounter: slash-command side effects, classifier behavior, durable agent memory, skill authoring, multi-agent review patterns, background-job session hygiene, self-approval gaps. Destination: `.claude/notes/<topic>.md`. If the topic file does not exist, create it and add one index line to `.claude/notes/INDEX.md`.
 - **Operator-personal `feedback_*` slug.** Cross-cutting agent behavior rule (e.g. `feedback_no_self_approve_after_edits`). Destination: `~/.claude/projects/<hash>/memory/feedback_<slug>.md` + index line in `MEMORY.md` (per leah memory convention).
 
+**Gate-boundary propagation check.** Operator-personal `feedback_*` files do NOT reach subagents (reviewers, workers) — only the main thread reads them. When a lesson addresses a reviewer-template, dispatch-template, CI-gate, or skill-execution failure, the same capture flow MUST also surface a candidate edit to the corresponding gate boundary (`docs/engineer/dispatch-templates/*.md`, `scripts/check-*.sh`, `.claude/skills/*/SKILL.md`, or `CLAUDE.md`) so the rule reaches the agents that need it. If no gate-edit candidate is appropriate, say so explicitly. Skipping this step makes the lesson decorative — operator catches the failure the next time too.
+
 ### 3. Run the format check
 
 Reject the draft if any of these is true:
