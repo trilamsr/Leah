@@ -70,6 +70,10 @@ func withAudioDevice(fn func() error) error {
 // each backend via withAudioDevice; the chain itself holds no lock.
 type ChainTTS struct {
 	backends []TTS
+	// OnSpeak fires once per successful Speak with the backend name
+	// ("kokoro" / "openai" / "say"). Wired by main.go to feed
+	// leah_voice_speak_total{backend}. nil-safe.
+	OnSpeak func(backend string)
 }
 
 // NewChain constructs a ChainTTS over the given backends in priority order.
@@ -90,9 +94,18 @@ func (c *ChainTTS) Speak(ctx context.Context, text string) error {
 			lastErr = err
 			continue
 		}
+		if c.OnSpeak != nil {
+			c.OnSpeak(backendName(b))
+		}
 		return nil
 	}
 	return fmt.Errorf("voice: all backends failed: %w", lastErr)
+}
+
+// Available reports whether the chain has any backends. Used by the
+// voice SelfChecker so /health surfaces "degraded" when TTS is fully unwired.
+func (c *ChainTTS) Available() bool {
+	return c != nil && len(c.backends) > 0
 }
 
 // NewTTS returns the default chain: Kokoro → OpenAI → say. Selection

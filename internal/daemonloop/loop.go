@@ -105,6 +105,9 @@ type Loop struct {
 	// the dashboard's Heartbeat surface reflects real loop liveness instead
 	// of the request time (BB-RETRO L3 #18). Zero pointer = no tick yet.
 	lastTick atomic.Pointer[time.Time]
+	// OnTick fires after lastTick is stamped each tick; wired by main.go to
+	// feed leah_daemonloop_tick_total + last_tick gauge. nil-safe.
+	OnTick func(time.Time)
 }
 
 // LastTick returns the wall-clock instant of the most recent tick, or the
@@ -154,6 +157,9 @@ func (l *Loop) tick(ctx context.Context) {
 	// or Regatta.List stalls on a slow network.
 	now := time.Now()
 	l.lastTick.Store(&now)
+	if l.OnTick != nil {
+		l.OnTick(now)
+	}
 	if l.Heartbeat != nil {
 		_ = l.Heartbeat.Ping(ctx)
 	}
