@@ -36,7 +36,6 @@ type Candidate struct {
 }
 
 // Name identifies the rule in audit logs + operator-facing output.
-// Satisfies selflearn.PanicDetector.
 func (r PanicRateRule) Name() string { return "panic_rate" }
 
 // Detect compares the latest metrics snapshot under
