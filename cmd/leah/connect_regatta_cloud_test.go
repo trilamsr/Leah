@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -364,4 +365,241 @@ func TestConnectRegattaCloud_DispatchedFromConnectRegatta(t *testing.T) {
 	// No docker container should have been touched — assertion is implicit:
 	// the dispatcher returned before reaching the docker provider, so the
 	// nil provider in args[3] never panicked.
+}
+
+// TestConnectRegattaCloud_ModeFileStripsUserinfoAndQuery — userinfo + ?token=…
+// must not land in the 0o600 mode file. Mode-file URL is scheme+host+path only.
+func TestConnectRegattaCloud_ModeFileStripsUserinfoAndQuery(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_CONNECT_AUTO_ATTEST", "1")
+
+	srv := newHealthzTLSServer(t, http.StatusOK)
+	defer srv.Close()
+
+	// Construct a URL with a query string. Userinfo is rejected outright by
+	// the validator (separate test), so the strip-on-write case targets query.
+	rawURL := srv.URL + "/?token=leaked-via-url&debug=1"
+	deps := &cloudDeps{
+		HTTP:      insecureClient(),
+		Attestor:  fakeAttestor{},
+		Allowlist: allowlistForServer(t, srv.URL),
+	}
+
+	var buf bytes.Buffer
+	if code := runConnectRegattaCloud(context.Background(),
+		[]string{"--cloud", "--url", rawURL, "--token", "sekret"},
+		&buf, deps); code != 0 {
+		t.Fatalf("exit %d: %s", code, buf.String())
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "secrets", "regatta-mode.json"))
+	if err != nil {
+		t.Fatalf("read mode: %v", err)
+	}
+	if bytes.Contains(raw, []byte("leaked-via-url")) {
+		t.Fatalf("query string leaked into mode file: %s", raw)
+	}
+	if bytes.Contains(raw, []byte("?")) || bytes.Contains(raw, []byte("debug=1")) {
+		t.Fatalf("query bytes leaked: %s", raw)
+	}
+}
+
+// TestConnectRegattaCloud_URLWithUserinfoRejected — `https://u:p@host` MUST
+// be rejected: it would land basic-auth credentials in the mode file AND
+// double-send creds (Basic + Bearer) on every healthz call.
+func TestConnectRegattaCloud_URLWithUserinfoRejected(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_CONNECT_AUTO_ATTEST", "1")
+
+	deps := &cloudDeps{
+		HTTP:      insecureClient(),
+		Attestor:  fakeAttestor{},
+		Allowlist: []string{"regatta.example.com"},
+	}
+
+	var buf bytes.Buffer
+	code := runConnectRegattaCloud(context.Background(),
+		[]string{"--cloud", "--url", "https://user:pass@regatta.example.com", "--token", "sekret"},
+		&buf, deps)
+	if code == 0 {
+		t.Fatalf("expected non-zero exit on userinfo URL")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "secrets", "regatta-token.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("token leaked on userinfo URL")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "secrets", "regatta-mode.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("mode file leaked on userinfo URL")
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "audit.jsonl"))
+	if !bytes.Contains(raw, []byte("url_has_userinfo")) {
+		t.Fatalf("expected url_has_userinfo audit detail: %s", raw)
+	}
+}
+
+// TestConnectRegattaCloud_HealthzURLBuiltWithJoinPath — a URL with a query
+// string must not produce a broken `…?x=1/healthz`; the request must hit
+// /healthz under the canonical base, query stripped.
+func TestConnectRegattaCloud_HealthzURLBuiltWithJoinPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_CONNECT_AUTO_ATTEST", "1")
+
+	var gotPath string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	rawURL := srv.URL + "/?x=1"
+	deps := &cloudDeps{
+		HTTP:      insecureClient(),
+		Attestor:  fakeAttestor{},
+		Allowlist: allowlistForServer(t, srv.URL),
+	}
+
+	var buf bytes.Buffer
+	if code := runConnectRegattaCloud(context.Background(),
+		[]string{"--cloud", "--url", rawURL, "--token", "sekret"},
+		&buf, deps); code != 0 {
+		t.Fatalf("exit %d: %s", code, buf.String())
+	}
+	if gotPath != "/healthz" {
+		t.Fatalf("healthz hit path %q, want /healthz (TrimRight + concat would have produced /?x=1/healthz)", gotPath)
+	}
+}
+
+// TestConnectRegattaCloud_AllowlistErrorMessageGeneric — the failure message
+// must not hardcode env name when an explicit allowlist is injected.
+func TestConnectRegattaCloud_AllowlistErrorMessageGeneric(t *testing.T) {
+	t.Setenv("LEAH_STATE_DIR", t.TempDir())
+	t.Setenv("LEAH_CONNECT_AUTO_ATTEST", "1")
+
+	deps := &cloudDeps{
+		HTTP:      insecureClient(),
+		Attestor:  fakeAttestor{},
+		Allowlist: []string{"regatta.example.com"},
+	}
+	// runConnectRegattaCloud writes the operator-visible error to os.Stderr,
+	// so capture stderr through a pipe.
+	r, wPipe, _ := os.Pipe()
+	origStderr := os.Stderr
+	os.Stderr = wPipe
+	defer func() { os.Stderr = origStderr }()
+
+	var buf bytes.Buffer
+	_ = runConnectRegattaCloud(context.Background(),
+		[]string{"--cloud", "--url", "https://other.example.com", "--token", "sekret"},
+		&buf, deps)
+	_ = wPipe.Close()
+	stderr, _ := io.ReadAll(r)
+
+	if bytes.Contains(stderr, []byte("LEAH_REGATTA_CLOUD_ALLOWLIST")) {
+		t.Fatalf("error message leaked env var name even though allowlist was injected: %s", stderr)
+	}
+	if !bytes.Contains(stderr, []byte("not in cloud allowlist")) {
+		t.Fatalf("expected 'not in cloud allowlist' phrase: %s", stderr)
+	}
+}
+
+// TestConnectRegattaCloud_CostPromptNonInteractiveDeclines — non-TTY callers
+// must not block on stdin; LEAH_NONINTERACTIVE=1 forces a safe decline so a
+// background `leah connect regatta --cloud` cannot hang indefinitely.
+func TestConnectRegattaCloud_CostPromptNonInteractiveDeclines(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_NONINTERACTIVE", "1")
+	// Important: do NOT set LEAH_CONNECT_AUTO_ATTEST — that would short-circuit
+	// the cost prompt to yes. We want to exercise the non-interactive branch.
+
+	srv := newHealthzTLSServer(t, http.StatusOK)
+	defer srv.Close()
+
+	deps := &cloudDeps{
+		HTTP:      insecureClient(),
+		Attestor:  fakeAttestor{},
+		Allowlist: allowlistForServer(t, srv.URL),
+	}
+
+	var buf bytes.Buffer
+	code := runConnectRegattaCloud(context.Background(),
+		[]string{"--cloud", "--url", srv.URL, "--token", "sekret"},
+		&buf, deps)
+	if code == 0 {
+		t.Fatalf("expected non-zero exit when non-interactive declines cost")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "secrets", "regatta-token.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("token leaked despite non-interactive decline")
+	}
+}
+
+// TestConnectRegattaCloud_AuditFailureIncludesHost — failed audit rows must
+// carry host detail so a denied connect attempt can be triaged without
+// re-running with verbose logging.
+func TestConnectRegattaCloud_AuditFailureIncludesHost(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_CONNECT_AUTO_ATTEST", "1")
+
+	srv := newHealthzTLSServer(t, http.StatusForbidden)
+	defer srv.Close()
+
+	deps := &cloudDeps{
+		HTTP:      insecureClient(),
+		Attestor:  fakeAttestor{},
+		Allowlist: allowlistForServer(t, srv.URL),
+	}
+
+	var buf bytes.Buffer
+	if code := runConnectRegattaCloud(context.Background(),
+		[]string{"--cloud", "--url", srv.URL, "--token", "sekret"},
+		&buf, deps); code == 0 {
+		t.Fatalf("expected non-zero exit on 403 healthz")
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("read audit: %v", err)
+	}
+	u, _ := url.Parse(srv.URL)
+	if !bytes.Contains(raw, []byte(u.Hostname())) {
+		t.Fatalf("expected host %q in failure audit detail: %s", u.Hostname(), raw)
+	}
+}
+
+// TestRunCommand_ConnectRegattaCloud_Dispatch — top-level dispatch
+// (runCommand → "connect" → regatta cloud) must reach the cloud handler.
+// Previously runConnect routed every name through the OAuth registry, so
+// `leah connect regatta --cloud …` was 646 LoC of dead code.
+func TestRunCommand_ConnectRegattaCloud_Dispatch(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_CONNECT_AUTO_ATTEST", "1")
+	t.Setenv("LEAH_REGATTA_CLOUD_ALLOWLIST", "regatta.example.com")
+	// Force the host to be allowlisted but unreachable — the handler still
+	// gets reached; failure mode is healthz_transport, not "unknown provider"
+	// from the OAuth registry.
+	code := runCommand(context.Background(), []string{
+		"connect", "regatta", "--cloud",
+		"--url", "https://regatta.example.com",
+		"--token", "sekret",
+	})
+	// We accept any non-zero exit — what matters is the audit row from the
+	// cloud handler, not the OAuth registry.
+	if code == 0 {
+		t.Fatalf("expected non-zero exit (unreachable host), got 0")
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("read audit: %v", err)
+	}
+	if !bytes.Contains(raw, []byte(`"connect_regatta_cloud"`)) {
+		t.Fatalf("expected connect_regatta_cloud audit row, got: %s", raw)
+	}
+	// Negative: must NOT be the OAuth registry's connect_regatta row.
+	if bytes.Contains(raw, []byte(`"kind":"connect_regatta"`)) {
+		t.Fatalf("OAuth registry path reached instead of cloud handler: %s", raw)
+	}
 }

@@ -17,9 +17,7 @@ import (
 	"github.com/trilam/leah/internal/contracts"
 )
 
-// cloudModeFile is the on-disk pointer at $LEAH_STATE_DIR/secrets/regatta-mode.json.
-// token_path holds the SEPARATE 0600 file holding the bearer — never inline the
-// token bytes here (spec §8: token leak surface is wider for the mode file).
+// cloudModeFile holds a path pointer to the token file — never the token bytes.
 type cloudModeFile struct {
 	Mode        string `json:"mode"`
 	URL         string `json:"url"`
@@ -31,25 +29,22 @@ type cloudTokenFile struct {
 	Token string `json:"token"`
 }
 
-// cloudDeps lets tests inject HTTP, Attestor, prompt and clock. Production
-// passes nil + a constructed default in the runner.
 type cloudDeps struct {
-	HTTP       contracts.HTTPClient
-	Attestor   contracts.Attestor
-	Now        func() time.Time
-	ConfirmFn  func() bool             // cost-implication confirmation; nil = auto-yes when LEAH_CONNECT_AUTO_ATTEST=1
-	Allowlist  []string                // host allowlist; empty = derived from env
+	HTTP      contracts.HTTPClient
+	Attestor  contracts.Attestor
+	Now       func() time.Time
+	ConfirmFn func() bool
+	Allowlist []string
 }
 
-// runConnectRegattaCloud handles `leah connect regatta --cloud --url <u> --token <t>`.
-// Ordering is load-bearing — attest → URL/allowlist → confirm → healthz → token write
-// → mode-file write → audit. Any failure short-circuits without writing the token.
+// runConnectRegattaCloud — ordering is load-bearing: attest → URL/allowlist →
+// confirm → healthz → token+mode write → audit. Any failure short-circuits
+// before token bytes touch disk.
 func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, deps *cloudDeps) int {
 	fs := flag.NewFlagSet("connect regatta --cloud", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	urlFlag := fs.String("url", "", "cloud regatta base URL (https://...)")
 	tokenFlag := fs.String("token", "", "bearer token")
-	// strip the leading --cloud that the dispatcher leaves in args
 	stripped := make([]string, 0, len(args))
 	for _, a := range args {
 		if a == "--cloud" {
@@ -81,7 +76,6 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 
 	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 
-	// 1. Attest. Higher-risk scope names the cost implication explicitly.
 	if err := deps.Attestor.Attest(ctx, "connect:regatta:cloud"); err != nil {
 		_ = a.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
@@ -93,7 +87,6 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 		return 1
 	}
 
-	// 2. Validate URL: parseable + HTTPS + allowlisted host.
 	u, err := url.Parse(*urlFlag)
 	if err != nil || u.Scheme != "https" || u.Host == "" {
 		_ = a.Append(audit.Entry{
@@ -105,6 +98,18 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 		_, _ = fmt.Fprintln(os.Stderr, "leah connect regatta --cloud: --url must be a valid https:// URL")
 		return 1
 	}
+	// userinfo would land credentials in the 0o600 mode file AND ship
+	// Basic + Bearer simultaneously on every healthz call.
+	if u.User != nil {
+		_ = a.Append(audit.Entry{
+			Kind:        "connect_regatta_cloud",
+			BlastRadius: 2,
+			Outcome:     "failed",
+			Detail:      "url_has_userinfo",
+		})
+		_, _ = fmt.Fprintln(os.Stderr, "leah connect regatta --cloud: --url must not include userinfo (user:pass@)")
+		return 1
+	}
 	allow := deps.Allowlist
 	if len(allow) == 0 {
 		allow = cloudAllowlistFromEnv()
@@ -114,34 +119,35 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
-			Detail:      "host_not_allowlisted",
+			Detail:      "host_not_allowlisted:" + u.Hostname(),
 		})
-		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: host %q not in LEAH_REGATTA_CLOUD_ALLOWLIST\n", u.Hostname())
+		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: host %q not in cloud allowlist\n", u.Hostname())
 		return 1
 	}
 
-	// 3. Cost-implication confirmation. Auto-attest env also auto-confirms so
-	//    tests don't need a TTY; interactive runs require an explicit "y".
+	canonURL := canonicalCloudURL(u)
+
 	if !confirmCost(w, deps.ConfirmFn) {
 		_ = a.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
-			Detail:      "cost_declined",
+			Detail:      "cost_declined:" + u.Hostname(),
 		})
 		_, _ = fmt.Fprintln(os.Stderr, "leah connect regatta --cloud: declined cost prompt")
 		return 1
 	}
 
-	// 4. Single GET /healthz with Bearer token. 2xx wins.
-	healthURL := strings.TrimRight(*urlFlag, "/") + "/healthz"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+	healthURL := u.JoinPath("healthz")
+	healthURL.RawQuery = ""
+	healthURL.Fragment = ""
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL.String(), nil)
 	if err != nil {
 		_ = a.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
-			Detail:      "request_build_failed",
+			Detail:      "request_build_failed:" + u.Hostname(),
 		})
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: %v\n", err)
 		return 1
@@ -153,70 +159,53 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
-			Detail:      "healthz_transport",
+			Detail:      "healthz_transport:" + u.Hostname(),
 		})
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: healthz: %v\n", err)
 		return 1
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		_ = a.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
-			Detail:      fmt.Sprintf("healthz_status_%d", resp.StatusCode),
+			Detail:      fmt.Sprintf("healthz_status_%d:%s", resp.StatusCode, u.Hostname()),
 		})
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: healthz returned %d\n", resp.StatusCode)
 		return 1
 	}
 
-	// 5. Write token + mode files. Token in a separate 0600 file; mode file
-	//    holds only a path pointer.
 	secretsDir := filepath.Join(stateDir(), "secrets")
 	if err := os.MkdirAll(secretsDir, 0o700); err != nil {
 		_ = a.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
-			Detail:      "secrets_mkdir_failed",
+			Detail:      "secrets_mkdir_failed:" + u.Hostname(),
 		})
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: %v\n", err)
 		return 1
 	}
 	tokenPath := filepath.Join(secretsDir, "regatta-token.json")
-	tokBuf, err := json.MarshalIndent(cloudTokenFile{Token: *tokenFlag}, "", "  ")
-	if err != nil {
-		return 1
-	}
-	if err := os.WriteFile(tokenPath, tokBuf, 0o600); err != nil {
+	if err := writeJSONFile0600(tokenPath, cloudTokenFile{Token: *tokenFlag}); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: write token: %v\n", err)
 		return 1
 	}
-	if err := os.Chmod(tokenPath, 0o600); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: chmod token: %v\n", err)
-		return 1
-	}
 	modePath := filepath.Join(secretsDir, "regatta-mode.json")
-	modeBuf, err := json.MarshalIndent(cloudModeFile{
+	if err := writeJSONFile0600(modePath, cloudModeFile{
 		Mode:        "cloud",
-		URL:         *urlFlag,
+		URL:         canonURL,
 		TokenPath:   tokenPath,
 		ConnectedAt: deps.Now().Format(time.RFC3339),
-	}, "", "  ")
-	if err != nil {
-		return 1
-	}
-	if err := os.WriteFile(modePath, modeBuf, 0o600); err != nil {
+	}); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: write mode: %v\n", err)
 		return 1
 	}
-	if err := os.Chmod(modePath, 0o600); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: chmod mode: %v\n", err)
-		return 1
-	}
 
-	// 6. Success audit row — host only, never the token, never the full URL
-	//    (a stray ?token=… in the future would leak otherwise).
 	_ = a.Append(audit.Entry{
 		Kind:        "connect_regatta_cloud",
 		BlastRadius: 2,
@@ -227,10 +216,35 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 	return 0
 }
 
-// cloudAllowlistFromEnv parses LEAH_REGATTA_CLOUD_ALLOWLIST (comma-separated).
-// Empty env returns nil → hostAllowed treats nil as "allow any host" so
-// operators with their own private cloud do not need to enumerate. Operators
-// who want pinned hosts set the env explicitly.
+// canonicalCloudURL strips userinfo / query / fragment so the mode file
+// never persists credentials or stray ?token=… remnants.
+func canonicalCloudURL(u *url.URL) string {
+	return u.Scheme + "://" + u.Host + u.Path
+}
+
+// writeJSONFile0600 atomically lands v at path with 0o600 (tmp + rename).
+// MarshalIndent of the local string-only structs is structurally infallible;
+// the panic flags a future field type slipping in.
+func writeJSONFile0600(path string, v any) error {
+	buf, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		panic(fmt.Sprintf("unreachable: marshal %T: %v", v, err))
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, buf, 0o600); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp, 0o600); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
 func cloudAllowlistFromEnv() []string {
 	raw := os.Getenv("LEAH_REGATTA_CLOUD_ALLOWLIST")
 	if raw == "" {
@@ -258,15 +272,17 @@ func hostAllowed(host string, allow []string) bool {
 	return false
 }
 
-// confirmCost shows the cost-implication prompt before any token write. The
-// auto-attest env shortcut keeps test runs hermetic; without it, the operator
-// must type "y".
+// confirmCost declines safely under LEAH_NONINTERACTIVE=1 so background
+// callers (cron, hooks) can never hang on stdin.
 func confirmCost(w io.Writer, fn func() bool) bool {
 	if fn != nil {
 		return fn()
 	}
 	if os.Getenv("LEAH_CONNECT_AUTO_ATTEST") == "1" {
 		return true
+	}
+	if os.Getenv("LEAH_NONINTERACTIVE") == "1" {
+		return false
 	}
 	_, _ = fmt.Fprint(w, "Cloud regatta is billed per use. Proceed? [y/N] ")
 	var resp string
