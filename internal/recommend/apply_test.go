@@ -60,7 +60,7 @@ func TestAutoApply_FormatGoOnSave_HappyPath(t *testing.T) {
 	logger, path := newAuditLogger(t)
 	ex := &fakeOSExec{}
 	now := func() time.Time { return time.Unix(1700000000, 0).UTC() }
-	app := NewAutoApplier(ex, logger, now)
+	app := NewAutoApplier(logger, now)
 	if err := app.Register(FormatGoOnSave(ex, "/tmp/foo.go")); err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestAutoApply_RateLimit_RejectsBurst(t *testing.T) {
 	logger, _ := newAuditLogger(t)
 	ex := &fakeOSExec{}
 	now := func() time.Time { return time.Unix(1700000000, 0).UTC() }
-	app := NewAutoApplier(ex, logger, now)
+	app := NewAutoApplier(logger, now)
 	if err := app.Register(FormatGoOnSave(ex, "/tmp/foo.go")); err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestAutoApply_FailureAuditsThenSurfaces(t *testing.T) {
 	gofmtErr := errors.New("gofmt: syntax error")
 	ex := &fakeOSExec{errs: []error{gofmtErr}}
 	now := func() time.Time { return time.Unix(1700000000, 0).UTC() }
-	app := NewAutoApplier(ex, logger, now)
+	app := NewAutoApplier(logger, now)
 	if err := app.Register(FormatGoOnSave(ex, "/tmp/bad.go")); err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -121,9 +121,8 @@ func TestAutoApply_FailureAuditsThenSurfaces(t *testing.T) {
 
 func TestAutoApply_NotRegistered_NoOp(t *testing.T) {
 	logger, _ := newAuditLogger(t)
-	ex := &fakeOSExec{}
 	now := func() time.Time { return time.Unix(1700000000, 0).UTC() }
-	app := NewAutoApplier(ex, logger, now)
+	app := NewAutoApplier(logger, now)
 
 	rec := Recommendation{ID: "r1", Pattern: "unknown_pattern", Tier: TierAuto}
 	if err := app.Apply(context.Background(), rec); !errors.Is(err, ErrPatternUnknown) {
@@ -135,7 +134,7 @@ func TestAutoApply_CommitAtFocusEnd_HappyPath(t *testing.T) {
 	logger, path := newAuditLogger(t)
 	ex := &fakeOSExec{}
 	now := func() time.Time { return time.Unix(1700000000, 0).UTC() }
-	app := NewAutoApplier(ex, logger, now)
+	app := NewAutoApplier(logger, now)
 	if err := app.Register(CommitAtFocusEnd(ex, "WIP: focus end")); err != nil {
 		t.Fatalf("register: %v", err)
 	}
