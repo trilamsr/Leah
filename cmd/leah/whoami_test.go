@@ -37,10 +37,10 @@ func TestWhoamiFull_ListsKnownStores(t *testing.T) {
 			t.Errorf("source %q missing from output", src)
 			continue
 		}
-		if r["count"] == nil {
-			t.Errorf("source %q: missing count field", src)
+		if _, hasRows := r["rows"]; !hasRows {
+			t.Errorf("source %q: missing rows field", src)
 		}
-		if r["path"] == "" {
+		if p, _ := r["path"].(string); p == "" {
 			t.Errorf("source %q: empty path", src)
 		}
 	}
@@ -66,9 +66,9 @@ func TestWhoamiFull_HandlesEmptyStateDir(t *testing.T) {
 			t.Errorf("source %q missing", src)
 			continue
 		}
-		// Empty state: count must be present (0) — first-run UX gate.
-		if n, _ := r["count"].(float64); n != 0 {
-			t.Errorf("source %q: empty-state count = %v, want 0", src, n)
+		// Empty state: rows must be present (0) — first-run UX gate.
+		if n, _ := r["rows"].(float64); n != 0 {
+			t.Errorf("source %q: empty-state rows = %v, want 0", src, n)
 		}
 	}
 }
@@ -109,6 +109,119 @@ func TestWhoamiFull_ClosedSetEnum_NoUnknownSource(t *testing.T) {
 	}
 }
 
+// TestWhoamiFull_StableSchema gates the JSON-lines schema against drift —
+// downstream tooling pipes to jq and depends on the exact field set per source
+// (spec trust-moats §2.2). Compares emitted rows against golden field sets,
+// not values (paths are temp-dir dependent, timestamps are wallclock).
+func TestWhoamiFull_StableSchema(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	seedAllSources(t, dir)
+
+	var buf bytes.Buffer
+	if code := runWhoami(context.Background(), []string{"--full"}, &buf); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	rows := parseWhoamiLines(t, buf.Bytes())
+
+	// Golden field set: every row MUST carry source/rows/path. last_modified
+	// + tables are conditional (omitempty). The contract is the closed set
+	// of allowed keys — additions are schema drift.
+	allowedKeys := map[string]struct{}{
+		"source": {}, "rows": {}, "path": {},
+		"last_modified": {}, "tables": {},
+	}
+	for src, r := range rows {
+		for k := range r {
+			if _, ok := allowedKeys[k]; !ok {
+				t.Errorf("source %q: unknown JSON key %q (schema drift)", src, k)
+			}
+		}
+		for _, required := range []string{"source", "rows", "path"} {
+			if _, ok := r[required]; !ok {
+				t.Errorf("source %q: missing required key %q", src, required)
+			}
+		}
+	}
+	// memory.db ships per-table breakdown (4 candidate tables); single-table
+	// sources omit `tables` via omitempty.
+	if memTables, _ := rows["memory"]["tables"].([]any); len(memTables) == 0 {
+		t.Errorf("memory: expected per-table breakdown, got none")
+	}
+	if _, hasTables := rows["events"]["tables"]; hasTables {
+		t.Errorf("events: single-table source must omit `tables`")
+	}
+}
+
+// TestWhoamiFull_OAuthCountsAuthorizedProviders writes a non-empty token file
+// for one provider and asserts the oauth source reports rows=1 (closed-set
+// parity with M2 purge --everything's revoke target).
+func TestWhoamiFull_OAuthCountsAuthorizedProviders(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	secretsDir := filepath.Join(dir, "secrets")
+	if err := os.MkdirAll(secretsDir, 0o700); err != nil {
+		t.Fatalf("mkdir secrets: %v", err)
+	}
+	// Authorized = non-empty token file (matches connect.tokenAuthorized).
+	if err := os.WriteFile(filepath.Join(secretsDir, "gmail-token.json"), []byte(`{"access_token":"x"}`), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if code := runWhoami(context.Background(), []string{"--full"}, &buf); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	rows := parseWhoamiLines(t, buf.Bytes())
+	r, ok := rows["oauth"]
+	if !ok {
+		t.Fatalf("oauth source missing from output")
+	}
+	if n, _ := r["rows"].(float64); n < 1 {
+		t.Errorf("oauth rows = %v, want >= 1 (gmail-token.json present)", n)
+	}
+}
+
+// TestWhoamiFull_AppendsBRTwoAuditRow asserts spec trust-moats §2.3: every
+// --full invocation appends one audit row Kind=whoami_full BlastRadius=2.
+// Detail must enumerate the same closed source set — downstream forensics
+// reconstructs what was enumerated without re-running the command.
+func TestWhoamiFull_AppendsBRTwoAuditRow(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+
+	var buf bytes.Buffer
+	if code := runWhoami(context.Background(), []string{"--full"}, &buf); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	auditPath := filepath.Join(dir, "audit.jsonl")
+	raw, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatalf("read audit: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+	var found map[string]any
+	for _, ln := range lines {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(ln), &m); err != nil {
+			continue
+		}
+		if k, _ := m["kind"].(string); k == "whoami_full" {
+			found = m
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("no whoami_full audit row found in %s", raw)
+	}
+	if br, _ := found["blast_radius"].(float64); br != 2 {
+		t.Errorf("blast_radius = %v, want 2 (spec trust-moats §2.3)", br)
+	}
+	if d, _ := found["detail"].(string); !strings.Contains(d, "oauth") || !strings.Contains(d, "mirror") {
+		t.Errorf("detail %q missing source enumeration (oauth, mirror)", d)
+	}
+}
+
 // TestWhoami_Short_NoFlag prints short form (operator email + workspace) on
 // bare `leah whoami`.
 func TestWhoami_Short_NoFlag(t *testing.T) {
@@ -145,6 +258,8 @@ func seedAllSources(t *testing.T, dir string) {
 	defer func() { _ = memDB.Close() }()
 	mustExec(t, memDB, `CREATE TABLE contact (id TEXT PRIMARY KEY, name TEXT)`)
 	mustExec(t, memDB, `INSERT INTO contact VALUES ('a','x')`)
+	mustExec(t, memDB, `CREATE TABLE project (id TEXT PRIMARY KEY)`)
+	mustExec(t, memDB, `INSERT INTO project VALUES ('p1')`)
 
 	// recommend.db — recommendations table row.
 	recDB := openSqlite(t, filepath.Join(dir, "recommend.db"))
@@ -158,7 +273,7 @@ func seedAllSources(t *testing.T, dir string) {
 	mustExec(t, knDB, `CREATE TABLE entities (kind TEXT, key TEXT, PRIMARY KEY(kind,key))`)
 	mustExec(t, knDB, `INSERT INTO entities VALUES ('person','k')`)
 
-	// macos_mirror — directory with a stub file.
+	// mirror — directory with a stub file.
 	mdir := filepath.Join(dir, "mirror")
 	if err := os.MkdirAll(mdir, 0o700); err != nil {
 		t.Fatalf("mkdir mirror: %v", err)
@@ -176,6 +291,15 @@ func seedAllSources(t *testing.T, dir string) {
 	// audit.jsonl — one row.
 	if err := os.WriteFile(filepath.Join(dir, "audit.jsonl"), []byte(`{"ts":"t","kind":"x"}`+"\n"), 0o600); err != nil {
 		t.Fatalf("write audit: %v", err)
+	}
+
+	// oauth — non-empty token file under secrets/.
+	secretsDir := filepath.Join(dir, "secrets")
+	if err := os.MkdirAll(secretsDir, 0o700); err != nil {
+		t.Fatalf("mkdir secrets: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(secretsDir, "gmail-token.json"), []byte(`{"access_token":"x"}`), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
 	}
 }
 
