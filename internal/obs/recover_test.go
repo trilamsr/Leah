@@ -7,10 +7,7 @@ import (
 	"testing"
 )
 
-// Pool reuse asserted via bytes-allocated/call: an unpooled captureStack
-// allocates a fresh 64KB buffer per call (~66 KB/op observed). A pooled
-// implementation only allocates the returned string (≪ 64 KB). Threshold
-// 32KB cleanly separates the two regimes.
+// Asserts pool reuse: pooled captureStack stays well under the 64KB fresh-buffer regime.
 func TestCaptureStack_PoolReusesBuffer(t *testing.T) {
 	captureStack() // warm pool
 	const iters = 50
@@ -37,7 +34,7 @@ func TestCaptureStack_ProducesNonEmptyStack(t *testing.T) {
 	}
 }
 
-// -race coverage for the shared pool path.
+// Race-detector coverage for the shared pool path.
 func TestCaptureStack_ConcurrentSafe(t *testing.T) {
 	const workers = 16
 	const iters = 32
@@ -62,5 +59,4 @@ func BenchmarkCaptureStack(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = captureStack()
 	}
-	runtime.KeepAlive(b)
 }

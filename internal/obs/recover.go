@@ -7,8 +7,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"sync"
 	"time"
 )
+
+// Pointer-to-slice per staticcheck SA6002: a bare []byte in sync.Pool
+// re-allocates the slice header on every Put.
+var stackBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 64*1024)
+		return &b
+	},
+}
 
 // maxPanicFiles caps $LEAH_STATE_DIR/panics/ — oldest entries get pruned
 // on each write so a wedged goroutine panicking in a tight loop cannot
@@ -60,9 +70,12 @@ func SafeRun(lg *slog.Logger, reg *Registry, name string, f func()) {
 }
 
 // captureStack returns a runtime stack dump for all goroutines, bounded
-// at 64KB to keep panic files grep-able.
+// at 64KB to keep panic files grep-able. Buffer comes from a sync.Pool
+// so the panic path does not allocate 64KB per fire.
 func captureStack() string {
-	buf := make([]byte, 64*1024)
+	bufPtr := stackBufPool.Get().(*[]byte)
+	defer stackBufPool.Put(bufPtr)
+	buf := *bufPtr
 	n := runtime.Stack(buf, true)
 	return string(buf[:n])
 }
