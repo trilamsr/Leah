@@ -1,44 +1,48 @@
+// Package recommend's SignalDispatcher routes obs.Broadcaster events to
+// SignalEngine.OnSignal. Bus uses dotted KnownEventKinds; matcher classes
+// use underscore form and never appear on the bus. Engine's lastFiredAt
+// debounce state is in-memory only — restart resets the 30s window.
 package recommend
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/trilam/leah/internal/obs"
 )
 
-// ContextProvider returns the operatormodel.ctxmgr.Current() label at call
-// time. Indirection avoids an internal/operatormodel import cycle (recommend
-// is imported by operatormodel, not the other way round).
 type ContextProvider func() string
 
-// SignalDispatcher subscribes to an obs.Broadcaster and translates Events
-// into recommend.Signals fed to engine.OnSignal. Wave-9 V8 replaces the
-// 60s daemon-tick Propose poll with this push path.
 type SignalDispatcher struct {
-	engine  SignalEngine
-	bus     *obs.Broadcaster
-	ctxFn   ContextProvider
-	kinds   []string
+	engine SignalEngine
+	bus    *obs.Broadcaster
+	ctxFn  ContextProvider
+	kinds  []string
+	reg    *obs.Registry
+	tick   time.Duration
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	mu       sync.Mutex
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	lastDrop uint64
 }
 
-// DefaultSignalKinds is the broadcaster filter used when caller passes none.
-// Mirrors the kinds the W18 propose-loop already cares about: app focus,
-// calendar imminence, voice wake, plus the audit-mirror class.
+// DefaultSignalKinds — every entry must exist in obs.KnownEventKinds.
+// recommendation.propose excluded: Seed publishes it; admitting it loops.
 var DefaultSignalKinds = []string{
-	"app.focus",
-	"calendar.imminent",
 	"voice.speak",
 	"audit.append",
-	"context.transition",
+	"dispatch.ship",
+	"hud.state",
+	"memory.upsert",
 }
 
-// NewSignalDispatcher wires engine to bus. ctxFn may be nil; Signal.Context
-// is "" in that case. Kinds defaults to DefaultSignalKinds when nil.
+const DropMonitorInterval = 10 * time.Second
+
+var ErrFeedbackLoopKind = errors.New("recommend: kind would feedback-loop into OnSignal")
+
 func NewSignalDispatcher(engine SignalEngine, bus *obs.Broadcaster, ctxFn ContextProvider) *SignalDispatcher {
 	return &SignalDispatcher{
 		engine: engine,
@@ -48,18 +52,26 @@ func NewSignalDispatcher(engine SignalEngine, bus *obs.Broadcaster, ctxFn Contex
 	}
 }
 
-// WithKinds overrides the default event-kind allowlist; nil/empty restores defaults.
-func (d *SignalDispatcher) WithKinds(kinds []string) *SignalDispatcher {
+// WithKinds rejects recommendation.propose to avoid Seed→OnSignal feedback.
+func (d *SignalDispatcher) WithKinds(kinds []string) (*SignalDispatcher, error) {
 	if len(kinds) == 0 {
 		d.kinds = DefaultSignalKinds
-	} else {
-		d.kinds = kinds
+		return d, nil
 	}
+	for _, k := range kinds {
+		if k == "recommendation.propose" {
+			return nil, ErrFeedbackLoopKind
+		}
+	}
+	d.kinds = kinds
+	return d, nil
+}
+
+func (d *SignalDispatcher) WithRegistry(reg *obs.Registry) *SignalDispatcher {
+	d.reg = reg
 	return d
 }
 
-// Start opens a Broadcaster subscription and pumps events into engine.OnSignal
-// on a single goroutine. Idempotent — second Start is a no-op until Stop.
 func (d *SignalDispatcher) Start(ctx context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -74,10 +86,17 @@ func (d *SignalDispatcher) Start(ctx context.Context) error {
 	d.cancel = cancel
 	d.wg.Add(1)
 	go d.pump(runCtx, sub)
+	if d.reg != nil {
+		d.wg.Add(1)
+		interval := d.tick
+		if interval <= 0 {
+			interval = DropMonitorInterval
+		}
+		go d.monitorDrops(runCtx, interval)
+	}
 	return nil
 }
 
-// Stop tears down the subscription goroutine and blocks until it returns.
 func (d *SignalDispatcher) Stop() {
 	d.mu.Lock()
 	cancel := d.cancel
@@ -101,15 +120,33 @@ func (d *SignalDispatcher) pump(ctx context.Context, sub obs.SSESubscriber) {
 			if !ok {
 				return
 			}
-			sig := Signal{
-				Kind:   e.Kind,
-				At:     e.TS,
-				Detail: e.Detail,
-			}
+			sig := Signal{Kind: e.Kind, At: e.TS, Detail: e.Detail}
 			if d.ctxFn != nil {
 				sig.Context = d.ctxFn()
 			}
 			_, _ = d.engine.OnSignal(ctx, sig)
+		}
+	}
+}
+
+func (d *SignalDispatcher) monitorDrops(ctx context.Context, interval time.Duration) {
+	defer d.wg.Done()
+	c := d.reg.Counter("leah_signal_dispatcher_dropped_total")
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			cur := d.bus.Dropped()
+			d.mu.Lock()
+			delta := cur - d.lastDrop
+			d.lastDrop = cur
+			d.mu.Unlock()
+			if delta > 0 {
+				c.Add(nil, int64(delta))
+			}
 		}
 	}
 }
