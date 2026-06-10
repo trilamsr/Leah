@@ -34,14 +34,21 @@ func main() {
 		_, _ = fmt.Println(version)
 		return
 	case "ask":
-		if len(os.Args) < 3 {
+		if len(os.Args) < 3 || shouldShowHelp(os.Args[2:]) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah ask \"<query>\"")
+			if len(os.Args) >= 3 && shouldShowHelp(os.Args[2:]) {
+				return
+			}
 			os.Exit(2)
 		}
 		runAsk(os.Args[2])
 	case "ship":
 		runShipArgs(os.Args[2:])
 	case "review":
+		if shouldShowHelp(os.Args[2:]) {
+			_, _ = fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
+			return
+		}
 		if len(os.Args) < 4 {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
 			os.Exit(2)
@@ -53,6 +60,10 @@ func main() {
 		}
 		runReview(os.Args[2], prNum)
 	case "status":
+		if shouldShowHelp(os.Args[2:]) {
+			_, _ = fmt.Fprintln(os.Stderr, "usage: leah status [--json]")
+			return
+		}
 		jsonMode := false
 		for _, a := range os.Args[2:] {
 			if a == "--json" {
@@ -92,6 +103,10 @@ func main() {
 	case "recall":
 		runRecall(os.Args[2:])
 	case "self-build":
+		if shouldShowHelp(os.Args[2:]) {
+			_, _ = fmt.Fprintln(os.Stderr, "usage: leah self-build \"<intent>\"")
+			return
+		}
 		if len(os.Args) < 3 {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah self-build \"<intent>\"")
 			os.Exit(2)

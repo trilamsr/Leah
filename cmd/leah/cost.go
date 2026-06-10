@@ -21,6 +21,10 @@ const defaultCostWindow = 30 * 24 * time.Hour
 // runCost is the `leah cost` entry point. Single positional command, three
 // flags: --since DURATION, --by kind|day|model, --json.
 func runCost(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah cost [--since D] [--by kind|day|model] [--json]")
+		return
+	}
 	window := defaultCostWindow
 	by := ""
 	jsonMode := false

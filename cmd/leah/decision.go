@@ -15,6 +15,10 @@ import (
 
 // runDecision dispatches `leah decision <action> ...`.
 func runDecision(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah decision <add|list|show> [args...]")
+		return
+	}
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah decision <add|list|show> [args...]")
 		os.Exit(2)

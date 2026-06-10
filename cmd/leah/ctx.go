@@ -12,6 +12,10 @@ import (
 
 // runCtx dispatches `leah ctx <action> ...`.
 func runCtx(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ctx <new|switch|show|history|list> [args...]")
+		return
+	}
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ctx <new|switch|show|history|list> [args...]")
 		os.Exit(2)

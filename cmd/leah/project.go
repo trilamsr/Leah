@@ -14,6 +14,10 @@ import (
 
 // runProject dispatches `leah project <action> ...`.
 func runProject(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah project <add|list|show> [args...]")
+		return
+	}
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah project <add|list|show> [args...]")
 		os.Exit(2)

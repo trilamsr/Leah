@@ -17,6 +17,10 @@ import (
 // composition logic lives in internal/brief so the daemon's daily-task
 // can reuse it without re-implementing the CLI wrapper.
 func runBrief(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah brief [--voice] [--silent]")
+		return
+	}
 	voiceMode := false
 	silentMode := false
 	for _, a := range args {

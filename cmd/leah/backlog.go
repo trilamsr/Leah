@@ -28,6 +28,10 @@ type backlogView struct {
 // and the last 10 PRs into one operator screen — replaces the three-tab
 // dashboard (regatta agents list + gh issue list + gh pr list).
 func runBacklog(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah backlog [repo] [--json]")
+		return
+	}
 	repo := defaultBacklogRepo
 	jsonMode := false
 	for _, a := range args {
