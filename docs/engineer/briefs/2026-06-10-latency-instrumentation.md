@@ -77,7 +77,7 @@ All names follow `leah_<surface>_<from>_to_<to>_seconds`. All histograms registe
 - **Metric:** `leah_voice_barge_in_cancel_seconds`
 - **Labels:** `backend`.
 - **Buckets:** `[0.01, 0.025, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 1]`.
-- **Start:** moment `cancelTurn()` is called — `internal/voice/loop/loop.go:89` (and the equivalent in `session/session.go:87`).
+- **Start:** moment `cancelTurn()` is called — `internal/voice/loop/loop.go:89` (and the equivalent `cancelReply` in `session/session.go:86`).
 - **Stop:** the `Speak` goroutine returns (ctx-canceled). Add a `tCancelStart` capture inside `cancelTurn`; the speak goroutine reads it on exit and observes.
 
 ### A9 — `brew install` → first useful reply ≤5 min
@@ -105,15 +105,15 @@ Rationale: an explicit cross-process timer is more code and another piece of sta
 
 | # | Package | Function | Timer start (file:line) | Timer stop |
 |---|---------|----------|-------------------------|------------|
-| A1 | `internal/voice/wake` | `EnergyDetector.Detect` → earcon player | `wake.go:32` return-true | earcon `Play` returns (player TBD) |
+| A1 | `internal/voice/wake` | `EnergyDetector.Detect` → earcon player | `wake.go:45` (return `rms >= e.threshold, nil`) | earcon `Play` returns (player TBD) |
 | A2 | `internal/voice` | `Listen` | `listen.go` silence-boundary | transcriber subprocess returns |
 | A3 | `internal/intent` | `Classify` | `intent.go` func entry | func return |
-| A4 | `internal/voice/loop` | `Run` per-turn | `loop.go:105` (post-classify) | first PCM frame in `voice.ChainTTS.Speak` |
-| A5 | `internal/hud` | SSE emitter | `ipc.go` `Broadcast` entry | `Broadcast` return |
+| A4 | `internal/voice/loop` | `Run` per-turn | `loop.go:104` (entry to `startTurn` closure, before `WithCancel` at :105) | first PCM frame in `voice.ChainTTS.Speak` |
+| A5 | `internal/hud` (SSE emitter does not exist yet) | n/a until UX-blocker #1 lands | interim: `leah_hud_widget_poll_total` counter at client poll site | (when daemon SSE ships) Broadcast write returns |
 | A6 | `cmd/leah` | `runCommand` | `main.go:50` entry | `firstByteRecorder.Write` first call |
 | A7 | `cmd/leah` | per-verb | `main.go:50` entry | first progress signal (verb-specific) |
-| A8 | `internal/voice/loop` + `session` | `cancelTurn` / barge-in | `loop.go:89` / `session.go:87` cancel call | `Speak` goroutine returns |
-| A9 | `internal/onboarding` | `MaybeObserve` | `install_at` file mtime | first audit-log `ok` row after install |
+| A8 | `internal/voice/loop` + `session` | `cancelTurn` / barge-in | `loop.go:89` / `session.go:86` cancel-fn definition | `Speak` goroutine returns |
+| A9 | `internal/onboarding` | `MaybeObserve` | `install_at` file mtime | first audit-log row with `BlastRadius >= 1` AND `Outcome == "success"` after install |
 
 All call sites use the existing instrumentation seam pattern (`internal/voice/instrumentation.go:15` — `OnSpeak` callback in `Config`). For each criterion, add an `OnLatency func(seconds float64, labels map[string]string)` hook to the owning package's `Config`, default no-op, daemon wires it to `registry.Histogram(name, buckets).Observe`. Keeps `internal/intent`, `internal/voice/*`, `internal/hud` registry-free — no import cycle, library-shape preserved.
 
