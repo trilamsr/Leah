@@ -7,7 +7,7 @@ Sibling specs: `2026-06-10-eval-pipeline.md` (S1), `2026-06-10-llm-ops.md` (S2)
 ## 1. Goal + non-goals
 
 ### Goal
-Promote operator memory entries under `~/.claude/projects/-Users-treedesk-Desktop-Projects-leah/memory/` from operator-readable markdown into a live input on every subagent dispatch. Collapse the prose-trap accretion in `docs/engineer/dispatch-templates/implementer.md` (now 6 meta-learned traps, ~200 LOC, growing every session) into executable gates fed by topic-matched memory rules + mechanical pre-Write hooks.
+Promote operator memory entries under `~/.claude/projects/-Users-treedesk-Desktop-Projects-leah/memory/` from operator-readable markdown into a live input on every subagent dispatch. Collapse the prose-trap accretion in `docs/engineer/dispatch-templates/implementer.md` (now 6+1 meta-learned traps — 1, 1a, 2, 3, 4, 5, 6; ~200 LOC, growing every session) into executable gates fed by topic-matched memory rules + mechanical pre-Write hooks.
 
 ### Non-goals
 - Editing memory content from inside dispatch (memory is operator-write-only; subagents read).
@@ -59,7 +59,14 @@ Per-rule fields:
 - `sha` — first 8 chars of SHA-256 of the file content at injection time.
 - `score` — BM25 or cosine score; informational, never load-bearing.
 
-Total `<memory-rules>` block hard-capped at 4096 tokens (≈16KB). Overflow → truncate longest entry first; emit `audit.Entry{Kind: "memory_inject_truncated"}`.
+Total `<memory-rules>` block hard-capped at 4096 tokens (≈16KB). Overflow → truncate longest entry first; emit `audit.Entry{Kind: "memory_inject_truncated"}` AND inject `<memory-truncated count="N" reason="token-budget"/>` as the first child of `<memory-rules>` so the subagent sees the signal in-band.
+
+### Subagent contract on truncation
+A "safety-class" rule is any rule whose content contains the keywords `never`, `always`, or `MUST` (case-insensitive, whole-word). If `<memory-truncated/>` is present AND any retained rule is safety-class AND ANY safety-class rule was truncated (recorded as `truncated_safety_class_count > 0` in the marker attributes), the subagent MUST refuse-dispatch with `error: memory_safety_class_truncated` and surface the marker back to the parent dispatcher. Non-safety truncations proceed; the subagent treats the marker as informational.
+
+### Cold edges
+- **Empty memory dir**: dispatch proceeds with NO `<memory-rules>` block (skip insertion entirely); emit `audit.Entry{Kind: "memory_inject"}` with `detail.memory_dir_empty=true` and `n=0`. Subagents see only the dispatch template; no soft-failure mode.
+- **`<memory-pin path="X">` not found**: dispatch FAILS with explicit error `memory_pin_not_found: <X>` returned to the operator (no silent skip — a missing pin is almost always an operator typo, and silently dropping it would defeat the override).
 
 ## 4. N selection
 
@@ -96,7 +103,9 @@ Schema reuses existing `audit.Entry` (no migration); the structured payload live
 Memory injection MUST be reproducible for a fixed `(task_description, memory_dir_state)` tuple. Mechanism:
 
 ### Cache key
-`SHA256(prompt_template_path || prompt_template_sha || memory_dir_sha || task_topic_tokens_sorted || N || rerank_enabled)`
+`SHA256(prompt_template_path || prompt_template_sha || memory_dir_sha || task_topic_tokens_sorted || N || rerank_enabled || model_sha)`
+
+`model_sha` is the pinned Ollama embedding model SHA (zero-valued string when `rerank_enabled=false`). Without it in the key, a `ollama pull` of a newer `all-MiniLM-L6-v2` revision would silently serve stale rerank results from cache — same precedent as `audit.Entry.Detail.model_sha` already records on the row (§5).
 
 ### Cache store
 In-memory `map[string][]InjectedRule` on the dispatcher process; persisted to `~/.leah/cache/memory-inject.jsonl` (append-only; cap 10MB rolling). On dispatcher restart, replay the file into the map.
@@ -202,9 +211,9 @@ Memory file content is operator-private. The injected block IS shown to subagent
 - No cross-session leak: a subagent dispatched in session A cannot read session B's injection content directly — they only see what their parent dispatcher injected into THEIR prompt.
 
 ### Network egress
-Default path (BM25 only) → zero network egress. Memory content stays on the operator's disk.
+BM25 selection runs LOCAL ONLY (zero egress) — file reads from the operator's memory dir, scoring in-process, no socket touched. The assembled prompt — including selected memory content — is then sent to the reasoner, which is operator-configured (Anthropic by default, Ollama with `LEAH_LOCAL_ONLY=1`). The operator must trust the reasoner with selected memory content per their reasoner-of-choice; this is the same trust boundary as CLAUDE.md content reaching the reasoner today (no new exposure surface).
 
-`LEAH_MEMORY_RERANK=1` → cosine call goes to local Ollama only (127.0.0.1). Hard rule: rerank MUST NOT hit external embedding APIs (no OpenAI, no Anthropic embeddings). Enforced by `internal/budget` egress check on the dispatcher process. `LEAH_LOCAL_ONLY=1` (per S10) forces rerank-off regardless of `LEAH_MEMORY_RERANK`.
+`LEAH_MEMORY_RERANK=1` → cosine call goes to local Ollama only (127.0.0.1). Hard rule: rerank MUST NOT hit external embedding APIs (no OpenAI, no Anthropic embeddings). Enforced by `internal/budget` egress check on the dispatcher process. `LEAH_LOCAL_ONLY=1` (per S10) forces rerank-off regardless of `LEAH_MEMORY_RERANK`, AND routes the reasoner itself through local Ollama (zero egress end-to-end).
 
 ### Audit retention
 `memory_inject` rows participate in the standard `audit.jsonl` retention (>30d per wave-8 P1 flag). Replay possible for any unpruned row. Consolidation (S9 nightly dream pass) MAY summarize `memory_inject` rows into per-week aggregates after 14d, but original `prompt_sha` + `memory_dir_sha` are preserved in the summary so replay still resolves.
@@ -246,6 +255,11 @@ Memory file with frontmatter `dispatch-inject: false` is excluded from the corpu
 - Memory file versioning beyond the archive-on-edit history dir (no git inside `~/.leah/memory-history/`; flat sha-prefix dirs suffice).
 - Reranker model selection UX — first impl pins `all-MiniLM-L6-v2`; later wave (TBD) may add operator-config.
 - Cross-dispatch memory bundling (e.g. share one injection across a 6-fan-out batch). Each dispatch re-runs §2 independently; cache may hit when payloads share tokens.
+
+### Deferred follow-ups (tracked, not blocking)
+- **Multi-process cache flock**: `~/.leah/cache/memory-inject.jsonl` is currently single-writer-safe by virtue of single-dispatcher-process. If a future fan-out spawns parallel dispatcher processes (not planned in v1), the append needs `flock(2)`. Track when fan-out parallelism lands.
+- **`memory-dir-sha` on `<memory-rules>` tag**: today the SHA lives in the audit row only. Adding `memory-dir-sha="..."` as an attribute on the `<memory-rules>` open tag would let the subagent self-verify against the parent's claim without reading audit. Deferred — needs subagent-side verification logic that doesn't exist yet.
+- **Compact-mode actor**: §4 says N=1 triggers when "parent context >80% full" but doesn't name who measures. Decision deferred to W98: dispatcher reads parent context-usage from the latest `audit.Entry{Kind: "context_usage"}` row (already emitted by §S2 LLM-dim observability) and selects N at assembly time. Locking this here would couple S3 to S2's exact row schema before S2 lands.
 
 ## 15. Acceptance criteria (per wave gate)
 
