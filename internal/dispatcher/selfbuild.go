@@ -118,8 +118,15 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 
 	title := SelfBuildTitlePrefix + deriveSelfBuildTitle(intent)
 
+	// SystemPrompt-once contract: the outer s.Reasoner already ran ONCE under
+	// the self-build system prompt to produce `spec`. Ship.Run will call
+	// Reasoner.Ask a second time with the regatta-issue template — we wrap
+	// the spec in prebakedReasoner so that second call returns the spec
+	// verbatim without re-charging the budget or re-prompting the model.
+	// Swapping prebakedReasoner for the outer Reasoner would silently double
+	// both cost and prompt (Wave2-5 retro H2; closes #3).
 	inner := &Ship{
-		Reasoner: passthrough{spec: specWithAttestation},
+		Reasoner: prebakedReasoner{spec: specWithAttestation},
 		GH:       s.GH,
 		Audit:    s.Audit,
 		Budget:   s.Budget,
@@ -155,13 +162,17 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 	return nil
 }
 
-// passthrough is a Reasoner that returns a pre-drafted spec unchanged. SelfBuild
-// runs Reasoner ONCE with the self-build system prompt, then hands the result
-// to Ship which would otherwise call Reasoner again with the regatta-issue
-// template.
-type passthrough struct{ spec string }
+// prebakedReasoner is a Reasoner that returns a pre-drafted spec verbatim,
+// ignoring the prompt argument. Pins the SystemPrompt-once contract: SelfBuild
+// runs the outer Reasoner ONCE with the self-build system prompt, then hands
+// the result here so Ship.Run's second Reasoner.Ask call returns the spec
+// unchanged instead of re-charging the budget + re-prompting the model with
+// the regatta-issue template. Renamed from `passthrough` per Wave2-5 retro H2;
+// the old name hid the contract from any future maintainer reaching for a
+// "real" Reasoner here.
+type prebakedReasoner struct{ spec string }
 
-func (p passthrough) Ask(ctx context.Context, _ string) (string, error) { return p.spec, nil }
+func (p prebakedReasoner) Ask(ctx context.Context, _ string) (string, error) { return p.spec, nil }
 
 // isClarifyResponse returns true when Reasoner returned a clarifying-question
 // block instead of a feature spec. Spec §3 / §6 says Reasoner emits a `##

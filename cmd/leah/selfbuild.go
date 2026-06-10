@@ -38,6 +38,11 @@ func runSelfBuild(intent string) {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
+	// SystemPrompt is load-bearing-once: dispatcher.SelfBuild.Run invokes this
+	// Reasoner a single time to draft the spec, then wraps the result in a
+	// prebakedReasoner so the inner Ship cannot re-prompt under the
+	// regatta-issue template. See dispatcher/selfbuild.go's prebakedReasoner
+	// docstring (Wave2-5 retro H2).
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(sysPrompt)}
 
 	tmp, err := os.MkdirTemp("", "leah-selfbuild-*")

@@ -15,7 +15,8 @@ import (
 )
 
 // Reasoner is the LLM surface dispatcher uses. Defined here so Ship/SelfBuild
-// can swap in a passthrough wrapper without dragging in reasoner package.
+// can swap in a prebakedReasoner wrapper (selfbuild.go) without dragging in
+// the reasoner package.
 type Reasoner interface {
 	Ask(ctx context.Context, user string) (string, error)
 }
