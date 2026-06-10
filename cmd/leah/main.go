@@ -158,6 +158,10 @@ func runCommand(ctx context.Context, args []string) int {
 		return runQuote(ctx, rest, os.Stdout)
 	case "whoami":
 		return runWhoami(ctx, rest, os.Stdout)
+	case "export":
+		return runExport(ctx, rest, os.Stderr)
+	case "import":
+		return runImport(ctx, rest, os.Stderr)
 	default:
 		usage()
 		return 2
@@ -466,5 +470,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  news                      synthesized daily news digest (RSS sources)")
 	_, _ = fmt.Fprintln(os.Stderr, "  quote <symbol>...         market quotes for given symbols (Alpha Vantage)")
 	_, _ = fmt.Fprintln(os.Stderr, "  whoami [--full]           print workspace + integrations, or enumerate persisted state (M1)")
+	_, _ = fmt.Fprintln(os.Stderr, "  export --all [--out PATH]  encrypted archive of ~/.leah-state (M3)")
+	_, _ = fmt.Fprintln(os.Stderr, "  import <archive> [--overwrite]  restore encrypted archive (M3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
