@@ -53,19 +53,42 @@ type Agent struct {
 	PR     int    `json:"pr"`
 }
 
+// RecentDecisionsLimit caps how many memory.Decision rows surface in MemoryView.
+// Single source of truth — was an inline literal 5 (BB-RETRO M3, #6).
+const RecentDecisionsLimit = 5
+
+// decisionChoiceMaxDisplay caps the visible Choice length; full text rides
+// along in ChoiceFull so the UI can render a tooltip on overflow.
+const decisionChoiceMaxDisplay = 80
+
 // MemoryView shows memory KB cardinality plus recent decisions.
 type MemoryView struct {
-	Contacts         int        `json:"contacts"`
-	Projects         int        `json:"projects"`
-	Decisions        int        `json:"decisions"`
-	RecentDecisions  []Decision `json:"recent_decisions"`
+	Contacts        int        `json:"contacts"`
+	Projects        int        `json:"projects"`
+	Decisions       int        `json:"decisions"`
+	RecentDecisions []Decision `json:"recent_decisions"`
 }
 
-// Decision is a memory.Decision projection (top-N recent).
+// Decision is a memory.Decision projection (top-N recent). ChoiceFull carries
+// the untruncated text so the dashboard tooltip can show it on hover.
 type Decision struct {
-	Topic     string `json:"topic"`
-	Choice    string `json:"choice"`
-	DecidedAt string `json:"decided_at"`
+	Topic      string `json:"topic"`
+	Choice     string `json:"choice"`
+	ChoiceFull string `json:"choice_full,omitempty"`
+	DecidedAt  string `json:"decided_at"`
+}
+
+// truncateForTooltip splits long text into a visible display (max runes, with
+// a trailing ellipsis when cut) and a tooltip carrying the original full text.
+func truncateForTooltip(s string, max int) (display, tooltip string) {
+	if max <= 0 {
+		return s, s
+	}
+	rs := []rune(s)
+	if len(rs) <= max {
+		return s, s
+	}
+	return string(rs[:max-1]) + "…", s
 }
 
 // OpsView captures daemon vitals + budget gauge.
@@ -235,13 +258,16 @@ func readMemory(m *memory.Store) MemoryView {
 	if d, err := m.ListDecisions(); err == nil {
 		mv.Decisions = len(d)
 		top := d
-		if len(top) > 5 {
-			top = top[:5]
+		if len(top) > RecentDecisionsLimit {
+			top = top[:RecentDecisionsLimit]
 		}
 		for _, x := range top {
-			mv.RecentDecisions = append(mv.RecentDecisions, Decision{
-				Topic: x.Topic, Choice: x.Choice, DecidedAt: x.DecidedAt,
-			})
+			display, full := truncateForTooltip(x.Choice, decisionChoiceMaxDisplay)
+			row := Decision{Topic: x.Topic, Choice: display, DecidedAt: x.DecidedAt}
+			if full != display {
+				row.ChoiceFull = full
+			}
+			mv.RecentDecisions = append(mv.RecentDecisions, row)
 		}
 	}
 	return mv

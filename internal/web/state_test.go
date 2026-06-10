@@ -283,6 +283,81 @@ func TestStaticDashboardServesHTML(t *testing.T) {
 	}
 }
 
+// TestMemoryView_RecentDecisions_RespectsLimit asserts the cap is the named constant.
+func TestMemoryView_RecentDecisions_RespectsLimit(t *testing.T) {
+	dir := t.TempDir()
+	store, err := memory.NewStore(filepath.Join(dir, "memory.db"))
+	if err != nil {
+		t.Fatalf("memory store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	for i := 0; i < RecentDecisionsLimit+3; i++ {
+		if _, err := store.AddDecision(memory.Decision{Topic: "t", Choice: "c"}); err != nil {
+			t.Fatalf("add decision: %v", err)
+		}
+	}
+	mv := readMemory(store)
+	if got := len(mv.RecentDecisions); got != RecentDecisionsLimit {
+		t.Errorf("RecentDecisions len: got %d, want %d", got, RecentDecisionsLimit)
+	}
+}
+
+// TestMemoryView_RecentDecisions_FewerThanLimit asserts no padding when source is short.
+func TestMemoryView_RecentDecisions_FewerThanLimit(t *testing.T) {
+	dir := t.TempDir()
+	store, err := memory.NewStore(filepath.Join(dir, "memory.db"))
+	if err != nil {
+		t.Fatalf("memory store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	want := RecentDecisionsLimit - 2
+	if want < 1 {
+		want = 1
+	}
+	for i := 0; i < want; i++ {
+		if _, err := store.AddDecision(memory.Decision{Topic: "t", Choice: "c"}); err != nil {
+			t.Fatalf("add decision: %v", err)
+		}
+	}
+	mv := readMemory(store)
+	if got := len(mv.RecentDecisions); got != want {
+		t.Errorf("RecentDecisions len: got %d, want %d", got, want)
+	}
+}
+
+// TestTruncateForTooltip_Short asserts strings within max pass through unchanged.
+func TestTruncateForTooltip_Short(t *testing.T) {
+	in := "short"
+	display, tooltip := truncateForTooltip(in, 80)
+	if display != in || tooltip != in {
+		t.Errorf("short: got (%q,%q), want (%q,%q)", display, tooltip, in, in)
+	}
+}
+
+// TestTruncateForTooltip_Long asserts long strings get ellipsis display + full tooltip.
+func TestTruncateForTooltip_Long(t *testing.T) {
+	in := strings.Repeat("x", 200)
+	display, tooltip := truncateForTooltip(in, 80)
+	if tooltip != in {
+		t.Errorf("tooltip: not full input")
+	}
+	if !strings.HasSuffix(display, "…") {
+		t.Errorf("display: missing ellipsis, got %q", display)
+	}
+	if len([]rune(display)) != 80 {
+		t.Errorf("display rune-len: got %d, want 80", len([]rune(display)))
+	}
+}
+
+// TestTruncateForTooltip_ExactMax asserts boundary input does not get truncated.
+func TestTruncateForTooltip_ExactMax(t *testing.T) {
+	in := strings.Repeat("y", 80)
+	display, tooltip := truncateForTooltip(in, 80)
+	if display != in || tooltip != in {
+		t.Errorf("boundary: got (%q,%q), want unchanged", display, tooltip)
+	}
+}
+
 func pickPort(t *testing.T) string {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
