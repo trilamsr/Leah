@@ -33,6 +33,14 @@ RCE: any peer agent on loopback could trigger `leah self-build <arbitrary
 spec>` against the operator's machine. The gate below is **blocking** — no
 S11.1 surface lands until §2 is green in CI.
 
+### 2.0 Threat model
+
+Same-UID is trusted (mirrors `ssh-agent`, `gpg-agent`, Keychain): any
+process running as the operator can `cat $LEAH_STATE_DIR/mcp_token`.
+Bearer auth gates *peer-agent* delegation, not host compromise.
+Mitigations: token rotation (paste-leak recovery), one-shot per-peer
+tokens (wave-12+), macOS native-messaging UID-scoped bridge (wave-12+).
+
 ### 2.1 Bind invariant
 
 Default and only v1 bind: `127.0.0.1:9876`. The listener refuses to bind on
@@ -44,8 +52,9 @@ enforced at the `net.Listen` call site with a startup check:
 if !host.IsLoopback() { return ErrNonLoopbackBindRefused }
 ```
 
-Audit row `mcp_server_start` records the bound address; selflearn flags any
-non-loopback string as a CVE-class regression.
+Audit row `mcp_server_start` records the bound address. A unit test
+(`TestMCPServer_RefusesNonLoopback`, §10) pins the regression — no selflearn
+detector is added, the bind check + test is the gate.
 
 ### 2.2 Caller identity
 
@@ -75,20 +84,27 @@ call:
 
 1. Inbound write call → server queues a pending task, returns
    `202 Accepted` with a `task_id`.
-2. HUD popup (or, if HUD daemon not running, TTY prompt on the operator's
-   active terminal) displays: peer identity, requested tool, args summary,
-   one question drawn from `prompts/self-build-attestations.txt`
-   (`attestation.Pool.Pick("self-build")`).
-3. Operator answers (Touch ID for HUD; typed `Attestation: <answer>` for
-   TTY). The voice surface is **out of scope for v1** — explicitly excluded
-   so an off-mic hot-mic attack can't impersonate the operator.
-4. Answer accepted → task dequeued + executed. Rejected/timeout (default
-   60s) → task discarded, `mcp_attestation_denied` audit row, peer gets
-   `403 attestation_failed`.
+2. **TTY prompt** on the operator's active `/dev/tty` displays: peer
+   identity, requested tool, args summary, one question drawn from
+   `prompts/self-build-attestations.txt`
+   (`attestation.Pool.Pick("self-build-a2a")`). HUD-popup confirm UX does
+   not exist in `internal/hud/` today (`config`/`focus`/`state`/`widgets`/
+   `recommendations`/`ipc` only) — deferred to W140.5 follow-up. v1 ships
+   TTY-only. Voice surface excluded from v1 (off-mic hot-mic attack risk).
+3. Operator types `Attestation: <answer>`.
+4. Accept → dequeue + execute. Reject/timeout (60s) → discard +
+   `mcp_attestation_denied` audit row + `403 attestation_failed`.
 
-Pool reuse: the same `internal/attestation.Pool` that gates GH SelfBuild
-PR-merge attestations is reused, scoped `"self-build-a2a"`. Adding the scope
-is a one-line registry change, not a new module.
+Scope `"self-build-a2a"` is distinct from the existing `"self-build"`
+(PR-merge gate) so habituation on one cannot satisfy the other and audit
+rows stay separable. One-line registry add, no new module.
+
+**Anti-DoS** (60s window invites flood-the-operator):
+- Per-peer rate limit: 1 attestation prompt/min per peer-id (bearer hash);
+  excess → `429 attestation_rate_limited`.
+- Global pending cap: 5 in-flight `self_build` tasks; 6th → `503` +
+  `mcp_attestation_queue_full` (cap=global).
+- Per-peer pending cap: 2/peer; 3rd → `503` (cap=peer).
 
 ### 2.4 Blast-radius floor
 
@@ -105,7 +121,7 @@ follow MCP 2025-09 tool-spec JSON-Schema.
 
 - Input: `{ name: string }`.
 - Output: `{ name, body_md, sha256, mtime_rfc3339 }`.
-- Source: `$MEMORY_DIR/<name>.md`. Symlink + path-traversal hardening:
+- Source: `$LEAH_STATE_DIR/memory/<name>.md`. Symlink + path-traversal hardening:
   `filepath.Clean(name)` MUST be a leaf basename (no `/`, no `..`) — fail
   with `400 invalid_name` otherwise. Closes the obvious LFI hole.
 - Not found → `404 unknown_rule`.
@@ -116,11 +132,31 @@ follow MCP 2025-09 tool-spec JSON-Schema.
   against `Kind`, `Outcome`, `Detail`, `Workspace` substring (case-fold).
 - Output: `{ rows: [Entry...], truncated: bool }`. Hard cap 200 rows; older
   matches dropped first; `truncated=true` signals more available.
-- Source: `audit.jsonl` reader reused from `internal/audit/`. **Privacy
-  hook**: each row passes through the existing redaction lints
-  (`internal/redact.Apply`) before egress; any row that fails redaction
-  (i.e. still matches a PII pattern) is dropped + `mcp_redact_drop` audit
-  row recorded with the offending row's args_hash.
+- Source: `audit.jsonl` reader reused from `internal/audit/`. Egress
+  redaction lint (see §3.2.1) drops any row whose `Detail`/`Workspace`
+  matches a PII pattern + emits `mcp_redact_drop` with the offending row's
+  args_hash. No `internal/redact` package exists today — lint set is
+  defined inline below and lives in `internal/mcp/redact.go`.
+
+### 3.2.1 Redaction lint set (inline, v1)
+
+Run on `Entry.Detail` and `Entry.Workspace` only (`Kind`/`Outcome` are
+enum-shape). Drop-the-row, not redact-in-place ("redacted but shape
+visible" still leaks). Seven patterns, all case-insensitive:
+
+| Lint name        | Pattern                                                  |
+|------------------|----------------------------------------------------------|
+| `email`          | `[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}`                  |
+| `bearer_token`   | `(bearer|token|api[_-]?key|secret)\s*[=:]\s*[a-z0-9_\-]{16,}` |
+| `ssh_private_key`| `-----BEGIN [A-Z ]*PRIVATE KEY-----`                     |
+| `home_path`      | `/Users/[a-z0-9._-]+/` (and Linux `/home/<u>/`)          |
+| `phone_us`       | `\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b`  |
+| `cc_number`      | `\b(?:\d[ -]?){13,19}\b` + Luhn check                    |
+| `aws_access_key` | `AKIA[0-9A-Z]{16}`                                       |
+
+~50 LOC in `internal/mcp/redact.go`, one regex slice. Minimal v1 floor;
+slips surface in weekly retro via existing audit corpus query and are
+added as new lints, not by widening these seven.
 
 ### 3.3 `leah_dispatch_status()`
 
@@ -134,8 +170,8 @@ follow MCP 2025-09 tool-spec JSON-Schema.
 
 - Input: `{}`.
 - Output: `{ queue: [...], in_flight: [...], dangling: [...] }`.
-  `dangling` = `selflearn.DanglingSelfBuild` (dispatched without outcome >
-  N days).
+  `dangling` = `selflearn.DetectDanglingSelfBuild(auditPath, time.Now)`
+  (`[]DanglingSelfBuild`; dispatched without outcome > 7d).
 - Source: `internal/selflearn/dangling_selfbuild.go` reused.
 
 ### 3.5 What is NOT exposed
@@ -148,36 +184,45 @@ follow MCP 2025-09 tool-spec JSON-Schema.
 
 ## 4. A2A 1.0 agent-card
 
-Served at `127.0.0.1:9876/.well-known/agent.json` per A2A 1.0 §3.2. Schema
-(stable on-disk, generated at first server start, operator-editable):
+Served at `127.0.0.1:9876/.well-known/agent-card.json` per A2A 1.0 §8.2
+(IANA-registered URI). Schema (generated at first start,
+operator-editable):
 
 ```json
 {
-  "schema_version": "a2a/1.0",
+  "protocolVersions": ["1.0"],
   "name": "leah",
   "description": "Operator's local agent. Audit, memory, SelfBuild.",
-  "endpoint": "http://127.0.0.1:9876/a2a",
-  "auth_scheme": "bearer+operator_attestation",
+  "version": "0.1.0",
+  "supportedInterfaces": [{ "url": "http://127.0.0.1:9876/a2a", "transport": "JSONRPC" }],
+  "capabilities": { "streaming": false, "extendedAgentCard": false },
+  "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer" } },
+  "security": [ { "bearer": [] } ],
   "skills": [
-    { "id": "self_build", "auth_scope": "self-build-a2a",
-      "blast_radius": 4, "requires_attestation": true,
-      "input_schema": { "intent": "string" } }
-  ],
-  "audit_trail": "127.0.0.1:9876/.well-known/audit.jsonl (bearer-gated)"
+    { "id": "self_build", "name": "Self-build",
+      "description": "Delegate spec → PR. Per-call operator attestation.",
+      "tags": ["write", "operator-attested"],
+      "x-leah": { "auth_scope": "self-build-a2a", "blast_radius": 4,
+                  "requires_attestation": true } }
+  ]
 }
 ```
 
+A2A 1.0 has no first-class `requires_attestation` field; Leah gate
+metadata lives under the `x-leah` extension namespace (A2A §10).
+
 The card is the **only** advertised skill surface — read-only MCP tools are
 NOT listed (peers discover them via MCP `tools/list`). A peer that submits a
-task delegation without `auth_scheme=bearer+operator_attestation` is rejected
-at the protocol layer; the gate is structural, not policy.
+task delegation for a skill flagged `x-leah.requires_attestation=true`
+without a fresh attestation handshake is rejected at the protocol layer; the
+gate is structural, not policy.
 
 Operator overrides: `agent_card.json` lives at `$LEAH_STATE_DIR/agent_card.json`.
-Operator may edit `description` / `name`. The `skills[*].requires_attestation`
-and `auth_scheme` fields are regenerated from code on every server start —
-operator-edits to those fields are overwritten + `mcp_card_reset` audit row
-appended. Closes the foot-gun where operator-edit silently downgrades the
-gate.
+Operator may edit `description` / `name` / `version`. The
+`skills[*].x-leah.*` and `securitySchemes` fields are regenerated from code
+on every server start — operator-edits to those fields are overwritten +
+`mcp_card_reset` audit row appended. Closes the foot-gun where operator-edit
+silently downgrades the gate.
 
 ## 5. SelfBuild over A2A
 
@@ -192,7 +237,7 @@ peer ──POST /a2a/tasks {skill:"self_build", intent:"..."}──> Leah
                                                               │
                                                   202 Accepted│
                                                               ▼
-                                      HUD popup / TTY: "peer X wants
+                                      TTY: "peer X wants
                                       self_build('...'); answer: <Q>"
                                                               │
                                             timeout 60s / deny│ → 403 + audit
@@ -239,6 +284,8 @@ compatible with `audit.Entry`'s existing JSON tags):
 | `mcp_redact_drop`       | 0  | row dropped by redact lint pre-egress    | `args_hash=<8>`             |
 | `mcp_card_reset`        | 0  | operator-edited gate field overwritten   | `field=<name>`              |
 | `mcp_malformed_task`    | 0  | A2A body unparseable / schema-violating  | `peer=<ua> err=<short>`     |
+| `mcp_attestation_rate_limited` | 0  | per-peer 1/min rate limit hit            | `peer=<ua>`                  |
+| `mcp_attestation_queue_full`   | 0  | global 5-pending or per-peer 2-pending cap hit | `peer=<ua> cap=<global\|peer>` |
 
 `mcp_call` BR mirrors the tool's intrinsic BR (read = 0, self_build = 4).
 Selflearn's existing `(Kind, ArgsHash)` queries scale unchanged.
@@ -252,34 +299,25 @@ Selflearn's existing `(Kind, ArgsHash)` queries scale unchanged.
 - `leah mcp rotate-token` → rotate; old token invalidated immediately.
 - `leah mcp tail` → `tail -f` the `mcp_call` audit rows.
 
-## 8. Bind invariant (recap, load-bearing)
+## 8. Remote enablement (deferred)
 
-127.0.0.1 only in v1. The string literal `"127.0.0.1"` is the bind host;
-`"0.0.0.0"` and `"::"` appear nowhere in `internal/mcp/`. A startup check
-+ unit test pins this:
-
-```go
-// TestMCPServer_RefusesNonLoopback ensures a regression here is caught
-// before merge, not after a peer scans the LAN.
-```
-
-Remote enablement = wave-12+ paired spec, blocked on:
-1. Tunnel/relay infra (Tailscale-style identity).
-2. Multi-operator auth model.
-3. Adversarial threat model for non-loopback peers.
+Wave-12+ paired spec, blocked on: tunnel/relay identity (Tailscale-style),
+multi-operator auth model, non-loopback adversarial threat model.
 
 ## 9. Wave plan (W137-W140, file-disjoint)
 
 | Wave | Files                                       | Deliverable                                  |
 |------|---------------------------------------------|----------------------------------------------|
-| W137 | `internal/mcp/server.go` + `_test.go`        | Loopback HTTP listener + bearer auth + token file. |
-| W138 | `internal/mcp/tools.go` + `_test.go`         | Read-only tools §3.1–§3.4 wrapped over audit/memory/dispatcher. |
-| W139 | `internal/mcp/a2a.go` + `_test.go`           | A2A agent-card + SelfBuild wrapper §4–§5.   |
+| W137 | `internal/mcp/server.go` + `_test.go`        | Loopback HTTP listener + bearer auth + token file + per-peer rate-limit + pending-task caps (§2.3). |
+| W138 | `internal/mcp/tools.go`, `internal/mcp/redact.go` + `_test.go` | Read-only tools §3.1–§3.4 + inline redact lint set §3.2.1. |
+| W139 | `internal/mcp/a2a.go` + `_test.go`           | A2A agent-card (§4) + SelfBuild wrapper §5 (TTY-only attestation). |
 | W140 | `cmd/leah/mcp.go` + `prompts/` updates       | CLI `leah mcp {serve,token,rotate-token,tail}` + scope registration. |
+| W140.5 (follow-up) | `internal/hud/popup.go` + IPC + listener wiring | HUD popup-confirm path (replaces TTY default once shipped). |
 
 Each wave is one PR. W137 must merge before W138; W138 and W139 are
 file-disjoint after W137 and can parallelize. W140 is single-owner against
-`cmd/leah/`.
+`cmd/leah/`. W140.5 is non-blocking — TTY attestation is the v1 shipped
+default.
 
 ## 10. Test plan (TDD, per wave)
 
@@ -289,6 +327,9 @@ W137:
 - `TestMCPServer_BearerWrong_401_AuditRow`.
 - `TestMCPServer_TokenRotate_OldTokenRejected_NewAccepted`.
 - `TestMCPServer_KillSwitch_LEAH_MCP_SERVER_0`.
+- `TestMCPServer_PerPeerRateLimit_429`.
+- `TestMCPServer_GlobalPendingCap_503`.
+- `TestMCPServer_PerPeerPendingCap_503`.
 
 W138:
 - `TestGetMemoryRule_PathTraversalRejected`.
@@ -297,6 +338,7 @@ W138:
 - `TestSearchAudit_TruncationFlag`.
 - `TestDispatchStatus_InFlightAndCompleted`.
 - `TestSelfBuildStatus_DanglingIncluded`.
+- `TestRedact_EachLintDropsAndAudits` (all §3.2.1 lints).
 
 W139:
 - `TestAgentCard_GateFieldsOverwriteOperatorEdit`.
@@ -319,10 +361,11 @@ each PR body.
 MCP responses leave Leah's process. Three layers protect operator data:
 
 1. **Bind invariant** — loopback-only; no LAN/WAN egress in v1.
-2. **Redact lints** — `internal/redact.Apply` runs over every
-   `leah_search_audit` row pre-egress; PII matches drop the row +
-   `mcp_redact_drop` audit. Reuses the same lint set as the existing
-   `leah audit export` path.
+2. **Redact lints** — the inline §3.2.1 lint set (lives in
+   `internal/mcp/redact.go`) runs over every `leah_search_audit` row
+   pre-egress; PII matches drop the row + `mcp_redact_drop` audit. No
+   `internal/redact` package and no `leah audit export` command exist
+   today — both were spec-author hallucinations, struck.
 3. **Surface allow-list** — only the 4 tools in §3 are exposed; no
    `tools/list` reflection over memory file paths or env vars.
 
@@ -336,25 +379,18 @@ surface. `budget.DefaultCeiling = 5.0` per-process gate applies unchanged.
 
 ## 13. Failure modes
 
-- **Malformed A2A task body** (missing fields, schema violation) →
-  protocol-level reject + `mcp_malformed_task` audit row. Never reaches the
-  reasoner or budget. Closes the obvious budget-DoS vector.
-- **Bearer leak** (operator pastes token in chat) → `leah mcp rotate-token`
-  is the documented recovery; old token invalidated immediately.
-- **Redact lint false-negative** (PII slips through) → `mcp_redact_drop`
-  miss surfaces in weekly retro via existing audit-row corpus query; not a
-  silent failure — operator sees the rows that egressed.
-- **Operator habituation on attestation** — reused pool already rotates
-  questions per-call; A2A path reuses the same retro flag from selflearn
-  that catches habituation in the GH SelfBuild path.
+- Malformed A2A body → `mcp_malformed_task` reject (never reaches
+  reasoner/budget). Closes budget-DoS vector.
+- Bearer leak (operator pastes token) → `leah mcp rotate-token`, old token
+  invalidated immediately.
+- Redact lint false-negative → `mcp_redact_drop` miss surfaces in weekly
+  retro; operator sees egressed rows (not silent).
+- Attestation habituation → reused pool rotates questions per-call;
+  selflearn habituation flag from GH SelfBuild path covers A2A too.
 
 ## 14. Open questions (resolve before W137)
 
-- **Token discovery for peer agents**: env var `LEAH_MCP_TOKEN` vs file
-  read — file read is more auditable (no token in `ps -ef`). Tentative:
-  file read only; env var unsupported in v1.
-- **A2A version pin**: A2A 1.0 is stable; pin via constant
-  `mcp.A2AVersion = "a2a/1.0"`. Bump = wave-spec, not a silent upgrade.
-- **HUD vs TTY fallback ordering**: if HUD daemon is running, popup wins;
-  otherwise TTY prompt on the operator's `/dev/tty`. No headless path —
-  no operator-present = no attestation = no write.
+- Token discovery: file read only (env var `LEAH_MCP_TOKEN` leaks via
+  `ps -ef`). Tentative — confirm in W137.
+- A2A version pin: const `mcp.A2AProtocolVersion = "1.0"`; bump =
+  wave-spec, not silent upgrade.
