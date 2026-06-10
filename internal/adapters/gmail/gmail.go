@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 // Sentinel errors are kept exported so callers can switch on the failure mode
@@ -62,6 +65,9 @@ type Config struct {
 	Attestor    Attestor
 	TokenSource TokenSource
 	Transport   Transport
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 // Client is the Gmail adapter the rest of Leah depends on. Lifecycle (open
@@ -72,6 +78,7 @@ type Client struct {
 	att Attestor
 	ts  TokenSource
 	tr  Transport
+	m   *connectadapter.Metrics
 }
 
 // New validates the wiring contract and returns a ready Client; no I/O.
@@ -85,7 +92,7 @@ func New(cfg Config) (*Client, error) {
 	if cfg.Transport == nil {
 		return nil, errors.New("gmail: Config.Transport required")
 	}
-	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport}, nil
+	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, m: cfg.Metrics}, nil
 }
 
 // ListUnread returns the IDs of unread messages in the operator's inbox.
@@ -94,7 +101,10 @@ func (c *Client) ListUnread(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.tr.ListUnread(ctx, tok)
+	start := time.Now()
+	ids, err := c.tr.ListUnread(ctx, tok)
+	c.m.ObserveAPI("list_unread", time.Since(start).Seconds())
+	return ids, err
 }
 
 // MarkRead clears the UNREAD label on the given message id.
@@ -106,7 +116,10 @@ func (c *Client) MarkRead(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return c.tr.MarkRead(ctx, tok, id)
+	start := time.Now()
+	err = c.tr.MarkRead(ctx, tok, id)
+	c.m.ObserveAPI("mark_read", time.Since(start).Seconds())
+	return err
 }
 
 // Send sends msg. Validation runs before the attestation gate so the operator
@@ -119,7 +132,10 @@ func (c *Client) Send(ctx context.Context, msg Message) error {
 	if err != nil {
 		return err
 	}
-	return c.tr.Send(ctx, tok, msg)
+	start := time.Now()
+	err = c.tr.Send(ctx, tok, msg)
+	c.m.ObserveAPI("send", time.Since(start).Seconds())
+	return err
 }
 
 // gateAndToken runs the attestation gate first; only on consent does the
