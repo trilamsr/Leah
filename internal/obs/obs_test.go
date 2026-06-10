@@ -167,7 +167,7 @@ func TestSafeGoRecoversPanicAndLogs(t *testing.T) {
 		if len(entries) > 0 {
 			break
 		}
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond) // allow-sleep: polling for async panic-file write; os.ReadDir has no notify channel
 	}
 	if len(entries) == 0 {
 		t.Fatalf("panic file never written in 2s")
@@ -273,7 +273,7 @@ func TestPanicFilesRotateOldest(t *testing.T) {
 	// gives a stable oldest-first ordering.
 	for i := 0; i < 5; i++ {
 		writePanicFile("test-rot", fmt.Sprintf("panic-%d", i), "stack")
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond) // allow-sleep: deliberate spacing so lexical-timestamp filename suffix gives stable oldest-first ordering
 	}
 	panicsDir := filepath.Join(dir, "panics")
 	entries, _ := os.ReadDir(panicsDir)
