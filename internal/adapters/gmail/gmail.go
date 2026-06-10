@@ -95,14 +95,6 @@ func New(cfg Config) (*Client, error) {
 	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, m: cfg.Metrics}, nil
 }
 
-// endpoint constants pin the api_call_total endpoint label so the dashboards
-// stay stable if a method gets renamed.
-const (
-	endpointListUnread = "list_unread"
-	endpointMarkRead   = "mark_read"
-	endpointSend       = "send"
-)
-
 // ListUnread returns the IDs of unread messages in the operator's inbox.
 func (c *Client) ListUnread(ctx context.Context) ([]string, error) {
 	tok, err := c.gateAndToken(ctx, ScopeList)
@@ -111,7 +103,7 @@ func (c *Client) ListUnread(ctx context.Context) ([]string, error) {
 	}
 	start := time.Now()
 	ids, err := c.tr.ListUnread(ctx, tok)
-	c.m.ObserveAPI(endpointListUnread, time.Since(start).Seconds())
+	c.m.ObserveAPI("list_unread", time.Since(start).Seconds())
 	return ids, err
 }
 
@@ -126,7 +118,7 @@ func (c *Client) MarkRead(ctx context.Context, id string) error {
 	}
 	start := time.Now()
 	err = c.tr.MarkRead(ctx, tok, id)
-	c.m.ObserveAPI(endpointMarkRead, time.Since(start).Seconds())
+	c.m.ObserveAPI("mark_read", time.Since(start).Seconds())
 	return err
 }
 
@@ -142,7 +134,7 @@ func (c *Client) Send(ctx context.Context, msg Message) error {
 	}
 	start := time.Now()
 	err = c.tr.Send(ctx, tok, msg)
-	c.m.ObserveAPI(endpointSend, time.Since(start).Seconds())
+	c.m.ObserveAPI("send", time.Since(start).Seconds())
 	return err
 }
 
