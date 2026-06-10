@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 const graphAPIVersion = "v22.0"
@@ -74,14 +76,18 @@ type Config struct {
 	HTTP               HTTPClient
 	Audit              AuditSink
 	RecipientAllowlist []string
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 type Adapter struct {
-	att     Attestor
-	ts      TokenSource
-	http    HTTPClient
-	audit   AuditSink
-	allow   map[string]struct{}
+	att   Attestor
+	ts    TokenSource
+	http  HTTPClient
+	audit AuditSink
+	allow map[string]struct{}
+	m     *connectadapter.Metrics
 }
 
 func New(cfg Config) (*Adapter, error) {
@@ -104,6 +110,7 @@ func New(cfg Config) (*Adapter, error) {
 		http:  cfg.HTTP,
 		audit: cfg.Audit,
 		allow: allow,
+		m:     cfg.Metrics,
 	}, nil
 }
 
@@ -144,7 +151,9 @@ func (a *Adapter) SendText(ctx context.Context, to, body string) error {
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("Content-Type", "application/json")
 
+	start := time.Now()
 	resp, err := a.http.Do(req)
+	a.m.ObserveAPI("send_text", time.Since(start).Seconds())
 	if err != nil {
 		a.record(AuditRow{Kind: "whatsapp_send_text", Success: false, RecipientHash: hashRecipient(to), BodyLen: len(body), Reason: err.Error()})
 		return fmt.Errorf("%w: %v", ErrSendFailed, err)
