@@ -43,6 +43,47 @@ func NewAnthropicClient() (*AnthropicClient, error) {
 	return &AnthropicClient{sdk: c, model: model}, nil
 }
 
+// anthropicStreamer is the subset of *ssestream.Stream consumeStream relies
+// on — narrowing it lets the test inject a fake without standing up an SSE
+// server, and makes the Close-deferral failure mode (reviewer #1) directly
+// observable in unit tests.
+type anthropicStreamer interface {
+	Next() bool
+	Current() anthropic.MessageStreamEventUnion
+	Err() error
+	Close() error
+}
+
+// consumeStream drains stream into an accumulated Message, surfacing text
+// deltas via onChunk. The defer is the whole point: NewStreaming hands back
+// an SSE body that leaks unless Close fires regardless of which return path
+// we take (clean drain, accumulate error, or stream.Err).
+func consumeStream(stream anthropicStreamer, onChunk func(string)) (anthropic.Message, error) {
+	defer func() { _ = stream.Close() }()
+	acc := anthropic.Message{}
+	for stream.Next() {
+		event := stream.Current()
+		if err := acc.Accumulate(event); err != nil {
+			return acc, fmt.Errorf("anthropic stream accumulate: %w", err)
+		}
+		if onChunk == nil {
+			continue
+		}
+		// Only text deltas reach the operator — thinking/tool-input deltas
+		// stay internal to the accumulator so the TUI doesn't surface
+		// partial JSON or chain-of-thought noise.
+		if d, ok := event.AsAny().(anthropic.ContentBlockDeltaEvent); ok {
+			if td, ok := d.Delta.AsAny().(anthropic.TextDelta); ok {
+				onChunk(td.Text)
+			}
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return acc, fmt.Errorf("anthropic stream: %w", err)
+	}
+	return acc, nil
+}
+
 // Complete sends one system + user message pair and returns the joined text
 // blocks plus the LLM-dim payload (cost, tokens, model, cache-hit, egress
 // bytes). Sonnet 4.6 pricing as of 2026-06.
@@ -84,23 +125,9 @@ func (c *AnthropicClient) complete(ctx context.Context, system, user string, onC
 	var resp anthropic.Message
 	if onChunk != nil {
 		stream := c.sdk.Messages.NewStreaming(ctx, params)
-		acc := anthropic.Message{}
-		for stream.Next() {
-			event := stream.Current()
-			if err := acc.Accumulate(event); err != nil {
-				return CompleteResult{Model: c.model, EgressBytes: egress}, fmt.Errorf("anthropic stream accumulate: %w", err)
-			}
-			// ContentBlockDeltaEvent + TextDelta is the only chunk shape the
-			// operator wants surfaced — other deltas (thinking, tool input)
-			// stay internal to the accumulator.
-			if d, ok := event.AsAny().(anthropic.ContentBlockDeltaEvent); ok {
-				if td, ok := d.Delta.AsAny().(anthropic.TextDelta); ok {
-					onChunk(td.Text)
-				}
-			}
-		}
-		if err := stream.Err(); err != nil {
-			return CompleteResult{Model: c.model, EgressBytes: egress}, fmt.Errorf("anthropic stream: %w", err)
+		acc, err := consumeStream(stream, onChunk)
+		if err != nil {
+			return CompleteResult{Model: c.model, EgressBytes: egress}, err
 		}
 		resp = acc
 	} else {

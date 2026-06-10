@@ -205,35 +205,27 @@ func runAsk(ctx context.Context, query string) int {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 1
 	}
-	streamed := false
+	// ChunkWriter flushes per chunk (piped stdout is fully buffered) and
+	// guarantees exactly one trailing newline. Dispatcher.Out is io.Discard
+	// when streaming so the dispatcher's trailing fmt.Fprintln doesn't echo
+	// the whole response a second time.
+	cw := reasoner.NewChunkWriter(os.Stdout)
 	r := &reasoner.Reasoner{
 		Client:        client,
 		Budget:        b,
 		SystemPrompt:  string(systemPrompt),
 		PersonaPrefix: personaPrefixForActive(),
-		// Print each decoded delta as it arrives so the operator sees
-		// tokens at ~50-200ms ttfb instead of waiting 3-8s for the full
-		// response. Dispatcher.Out below is io.Discard when streaming —
-		// the dispatcher's trailing fmt.Fprintln would otherwise echo
-		// the whole response twice.
 		Stream: func(chunk string) {
-			streamed = true
-			_, _ = os.Stdout.WriteString(chunk)
+			_, _ = cw.WriteChunk(chunk)
 		},
 	}
 
-	out := io.Writer(os.Stdout)
-	if r.Stream != nil {
-		out = io.Discard
-	}
-	ask := &dispatcher.Ask{Reasoner: r, Audit: a, Budget: b, Out: out}
+	ask := &dispatcher.Ask{Reasoner: r, Audit: a, Budget: b, Out: io.Discard}
 	if err := ask.Run(ctx, query); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", err)
 		return 1
 	}
-	if streamed {
-		_, _ = os.Stdout.WriteString("\n")
-	}
+	_ = cw.Finish()
 	return 0
 }
 
