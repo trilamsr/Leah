@@ -11,15 +11,19 @@ import (
 	"strings"
 )
 
+// ErrUnknownScope is returned by Pick when scope was not registered at Load time (fail-closed).
 var ErrUnknownScope = errors.New("attestation: scope not registered with pool")
 
+// ErrEmptyPool signals the question file yielded zero usable lines; validation gate at Load.
 var ErrEmptyPool = errors.New("attestation: question pool is empty")
 
+// Pool holds parsed questions + the scope set authorized to draw from them.
 type Pool struct {
 	questions []string
 	scopes    map[string]struct{}
 }
 
+// Load parses the question file and registers the scope allowlist (fail-closed on empty pool).
 func Load(path string, scopes ...string) (*Pool, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -49,6 +53,7 @@ func Load(path string, scopes ...string) (*Pool, error) {
 	return &Pool{questions: qs, scopes: sc}, nil
 }
 
+// Len exposes question count so tests can assert pool size after Load without reflection.
 func (p *Pool) Len() int { return len(p.questions) }
 
 // Pick fails-closed on unknown scope; silent fallback would mask audit-row drift across adapter wiring.
