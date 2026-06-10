@@ -189,13 +189,20 @@ func isClarifyResponse(s string) bool {
 
 // deriveSelfBuildTitle reuses ship's intent classifier but strips redundant
 // verb prefixes — every self-build is implicitly a feature add, so [FEAT] would
-// double-prefix with [SELF-BUILD].
+// double-prefix with [SELF-BUILD]. Truncates at the last whitespace before the
+// budget so `gh issue list` reads as complete words, not orphan prepositions
+// (closes #8).
 func deriveSelfBuildTitle(intent string) string {
 	t := strings.TrimSpace(intent)
-	if len(t) > 60-len(SelfBuildTitlePrefix) {
-		t = t[:60-len(SelfBuildTitlePrefix)-3] + "..."
+	budget := 60 - len(SelfBuildTitlePrefix)
+	if len(t) <= budget {
+		return t
 	}
-	return t
+	cut := budget - 3
+	if i := strings.LastIndexByte(t[:cut], ' '); i > 0 {
+		cut = i
+	}
+	return strings.TrimRight(t[:cut], " ") + "..."
 }
 
 // promptSHA returns a short prefix of the sha256 of the prompt file, recorded
