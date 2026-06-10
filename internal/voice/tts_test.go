@@ -6,7 +6,9 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // fakeExec records every Run/LookPath call and returns canned answers.
@@ -328,4 +330,98 @@ func TestKokoroEmptyTextNoop(t *testing.T) {
 	if len(fe.runs) != 0 {
 		t.Errorf("empty text shelled out: %v", fe.runs)
 	}
+}
+
+// slowSynthTTS sleeps in Speak to model OpenAI HTTP latency, then records
+// a play() callback. Used to assert ChainTTS no longer serializes synth.
+type slowSynthTTS struct {
+	delay time.Duration
+	play  func()
+}
+
+func (s *slowSynthTTS) Speak(ctx context.Context, text string) error {
+	time.Sleep(s.delay) // allow-sleep: wall-clock fixture for parallel-synth assertion
+	if s.play != nil {
+		s.play()
+	}
+	return nil
+}
+
+// TestChainTTS_SynthParallel asserts two concurrent Speak calls finish in
+// roughly one synth-delay, not two — proof the chain lock no longer wraps
+// synthesis.
+func TestChainTTS_SynthParallel(t *testing.T) {
+	const delay = 200 * time.Millisecond
+	c := NewChain(&slowSynthTTS{delay: delay})
+
+	start := time.Now()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer wg.Done()
+			if err := c.Speak(context.Background(), "x"); err != nil {
+				t.Errorf("speak: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	elapsed := time.Since(start)
+
+	// Serial = 2*delay = 400ms; parallel ≈ delay = 200ms. 1.8x leaves
+	// generous CI slack but still rejects the serial baseline.
+	if elapsed >= 2*delay*9/10 {
+		t.Fatalf("two parallel Speak took %v ; expected < %v (synth serialized)", elapsed, 2*delay*9/10)
+	}
+}
+
+// TestChainTTS_PlaybackSerial asserts the audio device step is observed
+// in serial order even when synth runs in parallel.
+func TestChainTTS_PlaybackSerial(t *testing.T) {
+	var active int32
+	var maxActive int32
+
+	play := func() {
+		n := atomic.AddInt32(&active, 1)
+		for {
+			m := atomic.LoadInt32(&maxActive)
+			if n <= m || atomic.CompareAndSwapInt32(&maxActive, m, n) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond) // allow-sleep: hold device long enough that an overlap would be observable
+		atomic.AddInt32(&active, -1)
+	}
+
+	c := NewChain(&slowSynthTTS{delay: 50 * time.Millisecond, play: play})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := c.Speak(context.Background(), "x"); err != nil {
+				t.Errorf("speak: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&maxActive); got != 1 {
+		t.Fatalf("max concurrent playback = %d ; want 1 (device must serialize)", got)
+	}
+}
+
+// TestChainTTS_Race exercises ChainTTS under -race; bare run, no asserts.
+func TestChainTTS_Race(t *testing.T) {
+	c := NewChain(&slowSynthTTS{delay: 5 * time.Millisecond})
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = c.Speak(context.Background(), "x")
+		}()
+	}
+	wg.Wait()
 }
