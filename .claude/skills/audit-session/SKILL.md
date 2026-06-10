@@ -22,6 +22,7 @@ End-of-session validator + handoff. Catches what slipped, codifies what was lear
 ## Default behavior
 
 - 9 phases sequential.
+- Phase 0 + 9 main phases sequential.
 - Silent per phase when clean; one line + action on finding.
 - After phase 9: ONE consolidated hand-back (≤30 lines).
 - Auto-file ONLY mechanically-derivable trackers. Never auto-close, auto-merge, auto-edit CLAUDE.md.
@@ -301,7 +302,10 @@ Scan the session for places where the operator was a bottleneck — an action th
 ```bash
 # Source (a) — session transcript when available.
 if [ -n "${CLAUDE_TRANSCRIPT:-}" ] && [ -r "$CLAUDE_TRANSCRIPT" ]; then
-  redirects=$(grep -ciE '\b(are we stuck|how do we|how can we|what now|are we|did we|why are we|wait\b)' "$CLAUDE_TRANSCRIPT" || true)
+  # Pattern is uncertainty-on-main-thread: "are we stuck", "how do we / can we", "what now",
+  # NOT directives like "wait for CI" or "wait on merge" — those are operator instructions,
+  # not redirects. Reviewer 2026-06-10 flagged bare `wait\b` as false-positive on directives.
+  redirects=$(grep -ciE '\b(are we stuck|are we stuck\?|how do we|how can we|what now|what next|why are we|did we (just|already))' "$CLAUDE_TRANSCRIPT" || true)
 else
   # Source (b) — fallback: scan conversation context. Same pattern as Phase 1
   # detection algorithm's transcript-unavailable sentinel. Surface in hand-back
