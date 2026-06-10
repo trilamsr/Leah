@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/gcal"
 	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/regattaclient"
 )
@@ -255,11 +254,11 @@ func (f *fakeGmail) ListUnread(ctx context.Context) ([]string, error) {
 
 // fakeGcal returns a canned events+err pair to Render-side tests.
 type fakeGcal struct {
-	events []gcal.Event
+	events []Event
 	err    error
 }
 
-func (f *fakeGcal) ListToday(ctx context.Context) ([]gcal.Event, error) {
+func (f *fakeGcal) ListToday(ctx context.Context) ([]Event, error) {
 	return f.events, f.err
 }
 
@@ -289,7 +288,7 @@ func TestBrief_GcalTodayRendered_HappyPath(t *testing.T) {
 	loc := time.UTC
 	d := Data{
 		Now: time.Date(2026, 6, 9, 9, 0, 0, 0, loc),
-		TodayEvents: []gcal.Event{
+		TodayEvents: []Event{
 			{Summary: "Standup", Start: time.Date(2026, 6, 9, 10, 30, 0, 0, loc)},
 			{Summary: "Design review", Start: time.Date(2026, 6, 9, 14, 0, 0, 0, loc)},
 		},
@@ -362,6 +361,23 @@ func TestBrief_GmailCapAt5Subjects(t *testing.T) {
 	}
 }
 
+// TestBrief_EventTime_RendersLocal pins HH:MM to the Event's own zone — a
+// UTC-only formatter would silently shift the operator's day by 8 hours.
+func TestBrief_EventTime_RendersLocal(t *testing.T) {
+	pst := time.FixedZone("PST", -8*3600)
+	d := Data{
+		Now:         time.Date(2026, 6, 9, 9, 0, 0, 0, time.UTC),
+		TodayEvents: []Event{{Summary: "Standup", Start: time.Date(2026, 6, 9, 10, 30, 0, 0, pst)}},
+	}
+	out := Render(d)
+	if !strings.Contains(out, "10:30 Standup") {
+		t.Errorf("expected zone-local HH:MM '10:30', got:\n%s", out)
+	}
+	if strings.Contains(out, "18:30") {
+		t.Errorf("rendered UTC-shifted time '18:30' — formatter ignored Event zone:\n%s", out)
+	}
+}
+
 // TestGatherCallsGmailLister wires Gather → fakeGmail and confirms subjects propagate.
 func TestGatherCallsGmailLister(t *testing.T) {
 	dir := t.TempDir()
@@ -385,7 +401,7 @@ func TestGatherGmailErrorMarksUnavailable(t *testing.T) {
 // TestGatherCallsGcalLister wires Gather → fakeGcal and confirms events propagate.
 func TestGatherCallsGcalLister(t *testing.T) {
 	dir := t.TempDir()
-	c := &fakeGcal{events: []gcal.Event{{Summary: "x", Start: time.Now()}}}
+	c := &fakeGcal{events: []Event{{Summary: "x", Start: time.Now()}}}
 	d := Gather(context.Background(), time.Now(), dir, nil, GatherOpts{Gcal: c})
 	if len(d.TodayEvents) != 1 || d.CalendarUnavailable {
 		t.Errorf("gcal events not propagated: %+v unavail=%v", d.TodayEvents, d.CalendarUnavailable)

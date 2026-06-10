@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/gcal"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/costview"
 	"github.com/trilam/leah/internal/memory"
@@ -42,9 +41,18 @@ type GmailLister interface {
 	ListUnread(ctx context.Context) ([]string, error)
 }
 
+// Event is the brief-local calendar shape; defining it here keeps the brief
+// package free of any concrete adapter import (callers map gcal.Event →
+// brief.Event at the wire-up site). Only the fields Render actually uses
+// live here — adding a field is cheaper than removing one.
+type Event struct {
+	Start   time.Time
+	Summary string
+}
+
 // GcalLister mirrors GmailLister for calendar events.
 type GcalLister interface {
-	ListToday(ctx context.Context) ([]gcal.Event, error)
+	ListToday(ctx context.Context) ([]Event, error)
 }
 
 // GatherOpts carries the optional adapter listers. Zero value = adapters
@@ -73,7 +81,7 @@ type Data struct {
 	UnreadMail          []string
 	UnreadMailTotal     int
 	MailUnavailable     bool
-	TodayEvents         []gcal.Event
+	TodayEvents         []Event
 	CalendarUnavailable bool
 }
 
