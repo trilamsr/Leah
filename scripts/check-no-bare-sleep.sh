@@ -12,6 +12,19 @@
 #   - filenames ending `_bench_test.go` (benchmarks measure wall-clock by design)
 #   - lines carrying `// allow-sleep: <reason>` directive
 #
+# Annotation contract for `// allow-sleep: <reason>`:
+#   - MUST appear as a LINE-TRAILING comment on the SAME LINE as the
+#     `time.Sleep(...)` call. Preceding-line comments do NOT count. Block
+#     comments (`/* allow-sleep: ... */`) do NOT count — only `//` form.
+#   - Reason text is free-form but should be one short clause naming the
+#     non-polling property (wall-clock observation, mtime resolution,
+#     goroutine-leak settle, poll-interval inside Eventually helper, etc).
+#
+#   GOOD:  time.Sleep(20 * time.Millisecond) // allow-sleep: mtime resolution on darwin
+#   BAD:   // allow-sleep: mtime resolution
+#          time.Sleep(20 * time.Millisecond)
+#   BAD:   /* allow-sleep: mtime resolution */ time.Sleep(20 * time.Millisecond)
+#
 # Scope: every `*_test.go` file under TESTS_ROOT (defaults to repo root).
 # Exit: 0 clean, 1 on first violation (lists every hit before exit).
 
@@ -117,13 +130,22 @@ while IFS= read -r -d '' f; do
     n=$(printf '%s\n' "$hits" | grep -c .)
     violations=$((violations + n))
   fi
+# Exclusions use the `-prune` form so they skip the matching directory
+# wherever it appears beneath TESTS_ROOT, regardless of whether TESTS_ROOT
+# itself sits inside one of the excluded paths. The bare `-not -path '*/X/*'`
+# form filters by absolute-path substring, which silently skips the ENTIRE
+# scan when TESTS_ROOT itself contains an excluded segment (e.g. invoking
+# this script from `.claude/worktrees/<name>/` — the worktree root path
+# matches `*/.claude/worktrees/*` so every descendant is rejected, scan
+# count is 0, and the gate returns a false PASS).
 done < <(find "$TESTS_ROOT" \
-  -type f -name '*_test.go' \
-  -not -path '*/vendor/*' \
-  -not -path '*/.git/*' \
-  -not -path '*/.claude/worktrees/*' \
-  -not -path '*/scripts/testdata/*' \
-  -print0)
+  \( -type d \( \
+       -name vendor \
+       -o -path '*/.git' \
+       -o -path '*/.claude/worktrees' \
+       -o -path '*/scripts/testdata' \
+     \) -prune \) \
+  -o \( -type f -name '*_test.go' -print0 \))
 
 if [ "$violations" -gt 0 ]; then
   echo "check-no-bare-sleep: $violations bare-Sleep-in-for-loop violation(s) across $scanned test file(s):"
