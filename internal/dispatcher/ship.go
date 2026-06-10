@@ -79,6 +79,11 @@ type Ship struct {
 	// by SelfBuild to surface the URL on its BR=4 self-build audit row so
 	// the H3 attestation gate can correlate dispatches to PRs.
 	LastURL string
+
+	// OnOutcome fires once per Run with the terminal outcome ("pending" on
+	// successful file, "failed" on auditFail). Wired by main.go to feed
+	// leah_dispatcher_ship_total{outcome}. nil-safe.
+	OnOutcome func(outcome string)
 }
 
 // Run drafts the issue body, files via gh, and (when Watch=true) polls
@@ -164,6 +169,9 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 	}
 
 	s.LastURL = url
+	if s.OnOutcome != nil {
+		s.OnOutcome("pending")
+	}
 	_, _ = fmt.Fprintln(s.Out, url)
 
 	if s.Watch {
@@ -225,6 +233,9 @@ func (s *Ship) auditFail(detail, intent string) {
 		CostDollars: s.Budget.Spent(),
 		Detail:      detail,
 	})
+	if s.OnOutcome != nil {
+		s.OnOutcome("failed")
+	}
 }
 
 // isMissingLabelErr decides whether a CreateIssue failure looks like

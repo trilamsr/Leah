@@ -20,8 +20,10 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/daemonloop"
+	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/watchdog"
 )
 
@@ -67,13 +69,27 @@ func main() {
 	loop.Weekly = buildWeeklyTasks(sd, auditPath, a, os.Stdout)
 	wireBriefSchedule(loop, sd, buildBriefTask(sd, rc, os.Stdout), os.Stdout)
 
+	store, err := memory.NewStore(filepath.Join(sd, "memory.db"))
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: memory: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() { _ = store.Close() }()
+
+	var chain *voice.ChainTTS
+	if t, ok := voice.NewTTS().(*voice.ChainTTS); ok {
+		chain = t
+	}
+
+	wireObs(registry, health, a, store, loop, chain)
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)
 
 	if *dashboardAddr != "" {
-		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc, loop, registry, health)
+		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc, loop, registry, health, store)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
 			os.Exit(1)

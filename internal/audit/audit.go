@@ -39,12 +39,20 @@ type Logger struct {
 	// workspace once at logger construction and forget about it at every
 	// callsite. Caller-supplied Entry.Workspace always wins.
 	DefaultWorkspace func() string
+	// OnAppend fires once per Append with the error result (nil on success).
+	// Wired by cmd/leah-daemon to feed obs counters. nil-safe.
+	OnAppend func(error)
 }
 
 // Append writes e as a single JSON line, stamping Timestamp from Now (or
 // time.Now().UTC() when unset). File is opened 0600 to keep the operator's
 // audit history off other users' read paths.
-func (l *Logger) Append(e Entry) error {
+func (l *Logger) Append(e Entry) (retErr error) {
+	defer func() {
+		if l.OnAppend != nil {
+			l.OnAppend(retErr)
+		}
+	}()
 	if l.Now != nil {
 		e.Timestamp = l.Now().Format(time.RFC3339)
 	} else {

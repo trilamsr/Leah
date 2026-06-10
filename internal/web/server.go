@@ -96,6 +96,10 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 }
 
+// EnforceLoopback exposes the loopback check so out-of-package wrappers
+// (cmd/leah-daemon middleware) reuse the same guard as Server.Start.
+func EnforceLoopback(addr string) error { return enforceLoopback(addr) }
+
 func enforceLoopback(addr string) error {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -115,6 +119,17 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(state); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// BuildMux is the exported handler-graph constructor; production wraps it
+// with MetricsMiddleware in the daemon composition root. Identical semantics
+// to the legacy buildMux (which now delegates here).
+func (s *Server) BuildMux() (http.Handler, error) {
+	m, err := s.buildMux()
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // buildMux wires every route once so both Start (production) and tests
