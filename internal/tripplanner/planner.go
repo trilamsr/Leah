@@ -162,17 +162,20 @@ type Composer struct {
 	geocoder Geocoder
 	nearby   NearbySearcher
 	flights  FlightFinder // optional; nil = no flight search
+	now      func() time.Time
 }
 
 // Config carries the Composer's seam wiring. Router/Corridor/Geocoder/
 // Nearby are required; Flights is optional (SuggestTrip degrades to a
-// days-only Trip when absent).
+// days-only Trip when absent). Now is optional; nil = time.Now — tests
+// inject a fixed clock so depart-date assertions are deterministic.
 type Config struct {
 	Router   Router
 	Corridor CorridorSearcher
 	Geocoder Geocoder
 	Nearby   NearbySearcher
 	Flights  FlightFinder
+	Now      func() time.Time
 }
 
 // New builds a Composer. Each missing required seam is a distinct config
@@ -189,12 +192,17 @@ func New(cfg Config) (*Composer, error) {
 	case cfg.Nearby == nil:
 		return nil, errors.New("tripplanner: Nearby required")
 	}
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
 	return &Composer{
 		router:   cfg.Router,
 		corridor: cfg.Corridor,
 		geocoder: cfg.Geocoder,
 		nearby:   cfg.Nearby,
 		flights:  cfg.Flights,
+		now:      now,
 	}, nil
 }
 

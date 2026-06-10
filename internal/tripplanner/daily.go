@@ -27,23 +27,39 @@ func (c *Composer) DailyItinerary(ctx context.Context, city string, on time.Time
 	if len(cands) == 0 {
 		return Itinerary{}, fmt.Errorf("%w: %q", ErrUnknownCity, city)
 	}
-	center := cands[0]
+	return c.dailyAt(ctx, cands[0], on, profile)
+}
 
+// dailyAt is the geocode-free composition core shared by DailyItinerary
+// and SuggestTrip. SuggestTrip geocodes once and reuses the centroid
+// across days; DailyItinerary geocodes per call.
+func (c *Composer) dailyAt(ctx context.Context, center Place, on time.Time, profile Profile) (Itinerary, error) {
 	interests := profile.Interests
 	if len(interests) == 0 {
 		interests = defaultInterests
 	}
 
 	itin := Itinerary{Date: on}
+	// Two interest fan-outs can return the same Place (e.g. a venue tagged
+	// both "restaurant" and "attraction"); dedup by ID so the operator
+	// doesn't see the same row twice.
+	seen := make(map[string]bool)
 	for _, cat := range interests {
 		places, err := c.nearby.POINearby(ctx, center, dailyRadiusM, cat)
 		if err != nil {
 			return Itinerary{}, fmt.Errorf("tripplanner: daily: nearby %q: %w", cat, err)
 		}
 		for _, p := range places {
-			if isOpenAt(p, on) {
-				itin.Places = append(itin.Places, p)
+			if !isOpenAt(p, on) {
+				continue
 			}
+			if p.ID != "" && seen[p.ID] {
+				continue
+			}
+			if p.ID != "" {
+				seen[p.ID] = true
+			}
+			itin.Places = append(itin.Places, p)
 		}
 	}
 	return itin, nil

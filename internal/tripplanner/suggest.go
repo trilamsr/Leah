@@ -3,7 +3,6 @@ package tripplanner
 import (
 	"context"
 	"fmt"
-	"time"
 )
 
 // suggestDepartLeadDays is the default offset between "now" and the
@@ -19,7 +18,7 @@ func (c *Composer) SuggestTrip(ctx context.Context, dest string, durationDays in
 		return Trip{}, fmt.Errorf("%w: got %d", ErrInvalidDuration, durationDays)
 	}
 
-	depart := time.Now().AddDate(0, 0, suggestDepartLeadDays)
+	depart := c.now().AddDate(0, 0, suggestDepartLeadDays)
 	ret := depart.AddDate(0, 0, durationDays)
 
 	trip := Trip{Destination: dest}
@@ -32,10 +31,21 @@ func (c *Composer) SuggestTrip(ctx context.Context, dest string, durationDays in
 		}
 	}
 
+	// Geocode the destination once; the daily loop reuses the centroid so
+	// SuggestTrip costs 1 geocode, not durationDays geocodes.
+	cands, err := c.geocoder.Geocode(ctx, dest)
+	if err != nil {
+		return Trip{}, fmt.Errorf("tripplanner: suggest trip: geocode: %w", err)
+	}
+	if len(cands) == 0 {
+		return Trip{}, fmt.Errorf("%w: %q", ErrUnknownCity, dest)
+	}
+	center := cands[0]
+
 	trip.Days = make([]Itinerary, 0, durationDays)
 	for d := 0; d < durationDays; d++ {
 		dayDate := depart.AddDate(0, 0, d)
-		itin, err := c.DailyItinerary(ctx, dest, dayDate, profile)
+		itin, err := c.dailyAt(ctx, center, dayDate, profile)
 		if err != nil {
 			return Trip{}, fmt.Errorf("tripplanner: suggest trip: day %d: %w", d, err)
 		}
