@@ -34,7 +34,7 @@ func seedFixture(t *testing.T, path string) {
 	if err != nil {
 		t.Fatalf("seed open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	stmts := []string{
 		`CREATE TABLE ZABCDRECORD (
 			Z_PK INTEGER PRIMARY KEY,
@@ -181,7 +181,7 @@ func TestContacts_Query_ReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ro open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	if _, err := db.Exec(`INSERT INTO ZABCDRECORD VALUES (3, 'Mallory', 'M', NULL)`); err == nil {
 		t.Fatal("write succeeded against mode=ro DSN; adapter is not opening read-only")
 	}

@@ -87,7 +87,7 @@ func (a *Adapter) Query(ctx context.Context, q Query) ([]Item, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: open: %v", ErrSourceUnavailable, err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	rows, err := db.QueryContext(ctx, `
 		SELECT Z_PK, COALESCE(ZFIRSTNAME,''), COALESCE(ZLASTNAME,''), COALESCE(ZORGANIZATION,'')
@@ -97,7 +97,7 @@ func (a *Adapter) Query(ctx context.Context, q Query) ([]Item, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: select: %v", ErrSourceUnavailable, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []Item
 	for rows.Next() {
@@ -145,12 +145,12 @@ func contactRefs(ctx context.Context, db *sql.DB, pk int64) ([]string, error) {
 	for emails.Next() {
 		var s string
 		if err := emails.Scan(&s); err != nil {
-			emails.Close()
+			_ = emails.Close()
 			return nil, err
 		}
 		refs = append(refs, s)
 	}
-	emails.Close()
+	_ = emails.Close()
 	if err := emails.Err(); err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func contactRefs(ctx context.Context, db *sql.DB, pk int64) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer phones.Close()
+	defer func() { _ = phones.Close() }()
 	for phones.Next() {
 		var s string
 		if err := phones.Scan(&s); err != nil {
