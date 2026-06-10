@@ -16,12 +16,11 @@ import (
 // top-N recommendations from operator_profile for the current (ctx, time).
 // Prints "not ready" when the cold-start gate (50 rows + 7 days) hasn't
 // fired yet.
-func runSuggest(args []string) {
+func runSuggest(ctx context.Context, args []string) {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah suggest [--context X] [--llm]")
 		return
 	}
-	ctx := context.Background()
 
 	activeContext := ""
 	useLLM := false

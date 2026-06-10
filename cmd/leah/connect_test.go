@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ func TestRunConnect_List(t *testing.T) {
 	t.Setenv("LEAH_STATE_DIR", dir)
 
 	var buf bytes.Buffer
-	if code := runConnect([]string{"--list"}, &buf); code != 0 {
+	if code := runConnect(context.Background(), []string{"--list"}, &buf); code != 0 {
 		t.Fatalf("exit %d, out=%s", code, buf.String())
 	}
 	out := buf.String()
@@ -36,7 +37,7 @@ func TestRunConnect_List(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	buf.Reset()
-	if code := runConnect([]string{"--list"}, &buf); code != 0 {
+	if code := runConnect(context.Background(), []string{"--list"}, &buf); code != 0 {
 		t.Fatalf("exit2 %d", code)
 	}
 	if !strings.Contains(buf.String(), "authorized") {
@@ -49,7 +50,7 @@ func TestRunConnect_UnknownProvider(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", dir)
 	var buf bytes.Buffer
-	if code := runConnect([]string{"slack"}, &buf); code != 2 {
+	if code := runConnect(context.Background(), []string{"slack"}, &buf); code != 2 {
 		t.Fatalf("exit %d, want 2", code)
 	}
 }
@@ -57,7 +58,7 @@ func TestRunConnect_UnknownProvider(t *testing.T) {
 // TestRunConnect_NoArgs prints usage + exits 2.
 func TestRunConnect_NoArgs(t *testing.T) {
 	var buf bytes.Buffer
-	if code := runConnect([]string{}, &buf); code != 2 {
+	if code := runConnect(context.Background(), []string{}, &buf); code != 2 {
 		t.Fatalf("exit %d, want 2", code)
 	}
 }
@@ -65,7 +66,7 @@ func TestRunConnect_NoArgs(t *testing.T) {
 // TestRunConnect_Help short-circuits with exit 0 before any state work.
 func TestRunConnect_Help(t *testing.T) {
 	var buf bytes.Buffer
-	if code := runConnect([]string{"--help"}, &buf); code != 0 {
+	if code := runConnect(context.Background(), []string{"--help"}, &buf); code != 0 {
 		t.Fatalf("exit %d, want 0", code)
 	}
 }

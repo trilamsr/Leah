@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
@@ -23,49 +25,67 @@ import (
 const version = "0.0.1-mvp5"
 
 func main() {
-	if len(os.Args) < 2 {
+	// One signal-aware ctx for the whole process — every subcommand shares it
+	// so Ctrl-C cancels in-flight work AND triggers writeInterruptedAudit
+	// before exit (BB-RETRO L1 / #16: previously each runX called
+	// context.Background() and the audit row was dropped on SIGINT).
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	auditPath := filepath.Join(stateDir(), "audit.jsonl")
+	defer writeInterruptedAudit(ctx, auditPath)
+
+	os.Exit(runCommand(ctx, os.Args[1:]))
+}
+
+// runCommand dispatches argv (without the program name) under a shared ctx.
+// Extracted from main() so tests can drive the dispatcher with an arbitrary
+// (possibly canceled) ctx without spawning a subprocess.
+func runCommand(ctx context.Context, args []string) int {
+	if len(args) < 1 {
 		usage()
-		os.Exit(2)
+		return 2
 	}
 
-	cmd := os.Args[1]
+	cmd := args[0]
+	rest := args[1:]
 	switch cmd {
 	case "version", "-v", "--version":
 		_, _ = fmt.Println(version)
-		return
+		return 0
 	case "ask":
-		if len(os.Args) < 3 || shouldShowHelp(os.Args[2:]) {
+		if len(rest) < 1 || shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah ask \"<query>\"")
-			if len(os.Args) >= 3 && shouldShowHelp(os.Args[2:]) {
-				return
+			if len(rest) >= 1 && shouldShowHelp(rest) {
+				return 0
 			}
-			os.Exit(2)
+			return 2
 		}
-		runAsk(os.Args[2])
+		runAsk(ctx, rest[0])
 	case "ship":
-		runShipArgs(os.Args[2:])
+		runShipArgs(ctx, rest)
 	case "review":
-		if shouldShowHelp(os.Args[2:]) {
+		if shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
-			return
+			return 0
 		}
-		if len(os.Args) < 4 {
+		if len(rest) < 2 {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
-			os.Exit(2)
+			return 2
 		}
 		var prNum int
-		if _, err := fmt.Sscanf(os.Args[3], "%d", &prNum); err != nil {
+		if _, err := fmt.Sscanf(rest[1], "%d", &prNum); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, "pr# must be an integer")
-			os.Exit(2)
+			return 2
 		}
-		runReview(os.Args[2], prNum)
+		runReview(ctx, rest[0], prNum)
 	case "status":
-		if shouldShowHelp(os.Args[2:]) {
+		if shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah status [--json]")
-			return
+			return 0
 		}
 		jsonMode := false
-		for _, a := range os.Args[2:] {
+		for _, a := range rest {
 			if a == "--json" {
 				jsonMode = true
 			}
@@ -78,59 +98,75 @@ func main() {
 		}
 		if err := s.Run(); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah status: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 	case "contact":
-		runContact(os.Args[2:])
+		runContact(rest)
 	case "project":
-		runProject(os.Args[2:])
+		runProject(rest)
 	case "decision":
-		runDecision(os.Args[2:])
+		runDecision(rest)
 	case "ctx":
-		runCtx(os.Args[2:])
+		runCtx(rest)
 	case "workspace":
-		runWorkspace(os.Args[2:])
+		runWorkspace(rest)
 	case "mistake":
-		runMistake(os.Args[2:])
+		runMistake(rest)
 	case "retro":
-		runRetro(os.Args[2:])
+		runRetro(rest)
 	case "patterns":
-		runPatterns(os.Args[2:])
+		runPatterns(rest)
 	case "suggest":
-		runSuggest(os.Args[2:])
+		runSuggest(ctx, rest)
 	case "backlog":
-		runBacklog(os.Args[2:])
+		runBacklog(ctx, rest)
 	case "recall":
-		runRecall(os.Args[2:])
+		runRecall(ctx, rest)
 	case "self-build":
-		if shouldShowHelp(os.Args[2:]) {
+		if shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah self-build \"<intent>\"")
-			return
+			return 0
 		}
-		if len(os.Args) < 3 {
+		if len(rest) < 1 {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah self-build \"<intent>\"")
-			os.Exit(2)
+			return 2
 		}
-		runSelfBuild(os.Args[2])
+		runSelfBuild(ctx, rest[0])
 	case "cost":
-		runCost(os.Args[2:])
+		runCost(rest)
 	case "brief":
-		runBrief(os.Args[2:])
+		runBrief(ctx, rest)
 	case "listen":
-		runListen(os.Args[2:])
+		runListen(ctx, rest)
 	case "backup":
-		runBackup(os.Args[2:])
+		runBackup(ctx, rest)
 	case "connect":
-		os.Exit(runConnect(os.Args[2:], os.Stdout))
+		return runConnect(ctx, rest, os.Stdout)
 	default:
 		usage()
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
 
-func runAsk(query string) {
-	ctx := context.Background()
+// writeInterruptedAudit appends one Outcome="interrupted" row when ctx was
+// canceled (SIGINT/SIGTERM). No-op on clean exit. Errors are dropped on
+// purpose — the program is already tearing down and stderr noise from a
+// best-effort flush helps nobody.
+func writeInterruptedAudit(ctx context.Context, auditPath string) {
+	if ctx.Err() == nil {
+		return
+	}
+	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
+	_ = a.Append(audit.Entry{
+		Kind:        "cli.interrupted",
+		BlastRadius: 0,
+		Outcome:     "interrupted",
+		Detail:      ctx.Err().Error(),
+	})
+}
 
+func runAsk(ctx context.Context, query string) {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
@@ -162,7 +198,7 @@ func runAsk(query string) {
 // Each --from-* flag fetches a context block (via gh / shell history); blocks
 // are composed in PR → issue → thread order and prepended to the Reasoner
 // draft prompt so the model sees the referenced artifacts before drafting.
-func runShipArgs(args []string) {
+func runShipArgs(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("ship", flag.ExitOnError)
 	fromPR := fs.Int("from-pr", 0, "prepend gh pr view + diff for PR #N from the same repo")
 	fromIssue := fs.Int("from-issue", 0, "prepend gh issue view + comments for issue #N from the same repo")
@@ -184,7 +220,6 @@ func runShipArgs(args []string) {
 	// Build optional context block(s). Each fetcher is soft-fail: warn,
 	// continue without that block — operator dispatching shouldn't be blocked
 	// by a stale PR number or a missing zsh history file.
-	ctx := context.Background()
 	exec := ghclient.ShellExec{}
 	var prCtx, issueCtx, threadCtx string
 	if *fromPR > 0 {
@@ -210,16 +245,14 @@ func runShipArgs(args []string) {
 		}
 	}
 	composed := dispatcher.ComposeContext(prCtx, issueCtx, threadCtx)
-	runShipWithContext(repo, intent, composed)
+	runShipWithContext(ctx, repo, intent, composed)
 }
 
-func runShip(repo, intent string) {
-	runShipWithContext(repo, intent, "")
+func runShip(ctx context.Context, repo, intent string) {
+	runShipWithContext(ctx, repo, intent, "")
 }
 
-func runShipWithContext(repo, intent, contextBlock string) {
-	ctx := context.Background()
-
+func runShipWithContext(ctx context.Context, repo, intent, contextBlock string) {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
@@ -280,9 +313,7 @@ func defaultHistoryPath() string {
 	return filepath.Join(home, ".bash_history")
 }
 
-func runReview(repo string, prNum int) {
-	ctx := context.Background()
-
+func runReview(ctx context.Context, repo string, prNum int) {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()

@@ -16,7 +16,7 @@ import (
 // regatta CLI + bug-fix-candidates.md) — no LLM call by default. All
 // composition logic lives in internal/brief so the daemon's daily-task
 // can reuse it without re-implementing the CLI wrapper.
-func runBrief(args []string) {
+func runBrief(parent context.Context, args []string) {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah brief [--voice] [--silent]")
 		return
@@ -35,7 +35,7 @@ func runBrief(args []string) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 
 	now := time.Now()

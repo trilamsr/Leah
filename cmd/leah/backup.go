@@ -24,7 +24,7 @@ import (
 //
 // Audit: every operation (snapshot / restore / verify) logs to audit.jsonl
 // with BlastRadius=2 (state-mutating but reversible — the source is read-only).
-func runBackup(args []string) {
+func runBackup(parent context.Context, args []string) {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
 	target := fs.String("target", "both", "snapshot target: local|b2|both")
 	restore := fs.Bool("restore", false, "restore latest snapshot instead of writing one")
@@ -49,7 +49,7 @@ func runBackup(args []string) {
 		os.Exit(1)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Minute)
 	defer cancel()
 
 	sd := stateDir()

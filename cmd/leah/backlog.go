@@ -27,7 +27,7 @@ type backlogView struct {
 // runBacklog aggregates active regatta agents, open ready-for-agent issues,
 // and the last 10 PRs into one operator screen — replaces the three-tab
 // dashboard (regatta agents list + gh issue list + gh pr list).
-func runBacklog(args []string) {
+func runBacklog(parent context.Context, args []string) {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah backlog [repo] [--json]")
 		return
@@ -46,7 +46,7 @@ func runBacklog(args []string) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 
 	view := backlogView{Repo: repo}

@@ -36,7 +36,7 @@ type recallResult struct {
 // (schema v5). Backend picked by LEAH_EMBED_BACKEND env (hash | openai).
 // Tier 2 (--llm): pass hits to the Reasoner for a single synthesis call
 // (budget-gated). --semantic and --llm compose: semantic feeds the LLM.
-func runRecall(args []string) {
+func runRecall(ctx context.Context, args []string) {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] <query>")
 		return
@@ -68,7 +68,7 @@ func runRecall(args []string) {
 
 	var results []recallResult
 	if useSemantic {
-		semHits, err := semanticRecall(context.Background(), store.DB(), query)
+		semHits, err := semanticRecall(ctx, store.DB(), query)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah recall: semantic: %v\n", err)
 			os.Exit(1)
@@ -136,7 +136,7 @@ func runRecall(args []string) {
 		_, _ = fmt.Fprintf(&sb, "- [%s %s] %s\n", hit.Source, hit.Timestamp, hit.Text)
 	}
 
-	text, err := r.Ask(context.Background(), sb.String())
+	text, err := r.Ask(ctx, sb.String())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
 		_ = a.Append(audit.Entry{

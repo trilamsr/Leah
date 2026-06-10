@@ -20,8 +20,7 @@ import (
 
 // runSelfBuild wires SelfBuild against trilamsr/Leah (repo locked in
 // dispatcher; CLI cannot override).
-func runSelfBuild(intent string) {
-	ctx := context.Background()
+func runSelfBuild(ctx context.Context, intent string) {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath}
 	b := budget.New()
