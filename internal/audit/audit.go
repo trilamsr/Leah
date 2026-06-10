@@ -28,14 +28,16 @@ type Entry struct {
 	// are treated as the implicit "default" workspace by downstream readers.
 	Workspace string `json:"workspace,omitempty"`
 
-	// W94 LLM-dim schema extension (S2 §2). All omitempty so legacy rows
-	// stay byte-identical and pre-W94 readers ignore unknown keys.
+	// W92+W93 LLM-dim schema extension (S2 §2). All omitempty so legacy
+	// rows stay byte-identical and pre-W92 readers ignore unknown keys.
+	// LatencyMS / EgressBytes are int64 per spec §2 — guards against a
+	// hypothetical 32-bit build target silently truncating.
 	Model        string `json:"model,omitempty"`
 	PromptSHA    string `json:"prompt_sha,omitempty"`
 	InputTokens  int    `json:"input_tokens,omitempty"`
 	OutputTokens int    `json:"output_tokens,omitempty"`
-	LatencyMS    int    `json:"latency_ms,omitempty"`
-	EgressBytes  int    `json:"egress_bytes,omitempty"`
+	LatencyMS    int64  `json:"latency_ms,omitempty"`
+	EgressBytes  int64  `json:"egress_bytes,omitempty"`
 	CacheHit     bool   `json:"cache_hit,omitempty"`
 }
 

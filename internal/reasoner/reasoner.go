@@ -22,20 +22,20 @@ type CompleteResult struct {
 	Model        string
 	InputTokens  int
 	OutputTokens int
-	EgressBytes  int
+	EgressBytes  int64
 	CacheHit     bool
 }
 
 // CallInfo is the LLM-dim slice of the most recent Ask, stamped onto
 // the audit row by dispatcher.Ask.Run via type-assertion. Mirrors the
-// W94 omitempty fields on audit.Entry.
+// omitempty fields on audit.Entry (spec §2).
 type CallInfo struct {
 	Model        string
 	PromptSHA    string
 	InputTokens  int
 	OutputTokens int
-	LatencyMS    int
-	EgressBytes  int
+	LatencyMS    int64
+	EgressBytes  int64
 	CacheHit     bool
 }
 
@@ -80,10 +80,13 @@ func (r *Reasoner) Ask(ctx context.Context, user string) (string, error) {
 		system = r.PersonaPrefix + "\n\n" + r.SystemPrompt
 	}
 	res, err := r.Client.Complete(ctx, system, user)
-	durMs := int(time.Since(start).Milliseconds())
+	durMs := time.Since(start).Milliseconds()
+	// PromptSHA hashes SystemPrompt only — registry-keyed audit replay
+	// (spec §4.1/§4.2) needs SHA → SystemPrompt to resolve; PersonaPrefix
+	// is a per-workspace overlay tracked elsewhere.
 	r.lastCall = CallInfo{
 		Model:        res.Model,
-		PromptSHA:    PromptSHA(system),
+		PromptSHA:    PromptSHA(r.SystemPrompt),
 		InputTokens:  res.InputTokens,
 		OutputTokens: res.OutputTokens,
 		LatencyMS:    durMs,

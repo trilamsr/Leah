@@ -20,7 +20,7 @@ type fakeClient struct {
 	respModel  string
 	respIn     int
 	respOut    int
-	respEgress int
+	respEgress int64
 	respCache  bool
 }
 
@@ -174,6 +174,30 @@ func TestReasoner_WritesLLMDimFields(t *testing.T) {
 	}
 	if len(info.PromptSHA) != 16 {
 		t.Errorf("PromptSHA length %d, want 16", len(info.PromptSHA))
+	}
+}
+
+// TestPromptSHA_ExcludesPersonaPrefix asserts the audit row's
+// PromptSHA hashes only SystemPrompt — persona prefix is a per-
+// workspace overlay and must not perturb the registry-keyed SHA
+// (spec §4.1/§4.2 audit-replay contract).
+func TestPromptSHA_ExcludesPersonaPrefix(t *testing.T) {
+	c := &fakeClient{respText: "ok"}
+	r := &Reasoner{
+		Client:        c,
+		Budget:        &budget.Budget{Ceiling: 1.0},
+		SystemPrompt:  "you are leah",
+		PersonaPrefix: "Workspace: acme.",
+	}
+	if _, err := r.Ask(context.Background(), "hi"); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	got := r.LastCallInfo().PromptSHA
+	if got != PromptSHA("you are leah") {
+		t.Errorf("PromptSHA hashed persona+system; got %q want %q", got, PromptSHA("you are leah"))
+	}
+	if got == PromptSHA("Workspace: acme.\n\nyou are leah") {
+		t.Errorf("PromptSHA matches assembled blob — persona prefix leaked into SHA")
 	}
 }
 

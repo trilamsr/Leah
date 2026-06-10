@@ -58,12 +58,17 @@ func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (Co
 			anthropic.NewUserMessage(anthropic.NewTextBlock(user)),
 		},
 	}
-	// Egress is request-body bytes — the SDK does not expose the serialized
-	// payload, so marshal a parallel best-effort copy. Failure is non-fatal:
-	// EgressBytes stays 0 (omitempty drops it from the audit row).
-	egress := 0
-	if b, mErr := json.Marshal(params); mErr == nil {
-		egress = len(b)
+	// EgressBytes is gated behind LEAH_AUDIT_EGRESS_BYTES=1 — the SDK
+	// doesn't surface the wire-serialized payload, so deriving it
+	// requires a parallel json.Marshal on every call (best-effort
+	// approximation, not the actual TLS-frame byte count). Default OFF
+	// keeps the unconditional CPU cost out of the hot path; operators
+	// who want byte-level egress accounting opt in.
+	var egress int64
+	if os.Getenv("LEAH_AUDIT_EGRESS_BYTES") == "1" {
+		if b, mErr := json.Marshal(params); mErr == nil {
+			egress = int64(len(b))
+		}
 	}
 
 	resp, err := c.sdk.Messages.New(ctx, params)
