@@ -33,8 +33,17 @@ type Server struct {
 	Heartbeat   func() time.Time // optional; last successful regatta poll.
 	// Metrics, when non-nil, receives observability signals from the dashboard's
 	// snapshot path — currently leah_audit_parse_errors_total (BB-RETRO M2, #5).
-	// nil is safe; production wires the daemon's shared registry.
+	// nil is safe; production wires the daemon's shared registry. Also exposed
+	// at /metrics in Prometheus text format.
 	Metrics *obs.Registry
+
+	// Health, when non-nil, fans out registered SelfChecker probes for /health.
+	// nil is safe; /health returns 503 in that case.
+	Health *obs.HealthRegistry
+
+	// HealthProbeTimeout caps each SelfCheck call; zero defaults to 2s so a
+	// stuck dependency cannot wedge the liveness endpoint.
+	HealthProbeTimeout time.Duration
 
 	// CacheTTL caps how often Snapshot does the full audit-scan + sqlite +
 	// metrics-read aggregation. Dashboard polls at 3s; without a cache,
@@ -115,6 +124,8 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 func (s *Server) buildMux() (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/state", s.handleState)
+	mux.HandleFunc("/health", s.handleHealth)
+	mux.HandleFunc("/metrics", s.handleMetrics)
 	// /dashboard is a permanent redirect to the embed-FS path so the file
 	// server is the single serving path (kills handleDashboard's
 	// per-request ReadFile of the same bytes — wave2-5 retro M1, #4).
@@ -126,6 +137,35 @@ func (s *Server) buildMux() (*http.ServeMux, error) {
 	}
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(sub))))
 	return mux, nil
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if s.Health == nil {
+		http.Error(w, "health registry not wired", http.StatusServiceUnavailable)
+		return
+	}
+	timeout := s.HealthProbeTimeout
+	if timeout <= 0 {
+		timeout = 2 * time.Second
+	}
+	rep := s.Health.Probe(r.Context(), timeout)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(rep); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if s.Metrics == nil {
+		http.Error(w, "metrics registry not wired", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := s.Metrics.WritePrometheus(w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {

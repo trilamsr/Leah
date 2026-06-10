@@ -10,6 +10,7 @@ import (
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/web"
 )
@@ -19,7 +20,7 @@ import (
 // listen address; auditPath + snapPath feed /api/state. The 10s cache TTL
 // absorbs the dashboard's 3s poll cadence so /api/state re-scans
 // audit.jsonl + sqlite at most ~once every 10s (H4 audit fix).
-func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, rc *regattaclient.Client, loop *daemonloop.Loop) (func(), error) {
+func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, rc *regattaclient.Client, loop *daemonloop.Loop, registry *obs.Registry, health *obs.HealthRegistry) (func(), error) {
 	store, err := memory.NewStore(filepath.Join(sd, "memory.db"))
 	if err != nil {
 		return nil, fmt.Errorf("memory store: %w", err)
@@ -34,6 +35,8 @@ func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, r
 		StartTime:   time.Now(),
 		Heartbeat:   loop.LastTick,
 		CacheTTL:    10 * time.Second,
+		Metrics:     registry,
+		Health:      health,
 	}
 	go func() {
 		if err := srv.Start(ctx); err != nil {
