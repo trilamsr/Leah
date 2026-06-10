@@ -52,6 +52,13 @@ LENSES (apply in order)
    - Output `## Comment sweep` section listing offenders by `path:line` with severity tag, OR `## Comment sweep: clean` if zero. Silence = failure.
 10. **Citation resolve (HIGH severity)** — for brief / spec / dispatch-template diffs: every cited path resolves via `git ls-tree origin/main --name-only | grep -F <path>` (NOT worktree-local Read). Every numeric claim (file count, rule count, LoC) pairs with the exact command that produced it; reviewer re-runs the command. Every OSS prior-art cite names LICENSE-file URL + resolvable tag-ref. HIGH on any unresolved citation, mismatched numeric, or unverified license.
 
+STALE-BASE RECALL FAILURE (HARD GATE)
+- If `git diff origin/main..HEAD --stat` shows DELETIONS for files OUTSIDE the PR's declared scope (i.e. files that BELONG to sibling work but were not authored by this PR), AUTO-BLOCK regardless of code quality on the additions. Reviewer MUST verify:
+  1. Look at the PR's title + description for declared scope (e.g. "W41 regatta attestation" → only `internal/regattaclient/*`).
+  2. If deletions touch files OUTSIDE that scope, the PR is branched from stale main and rebasing will revive them.
+  3. Example failure: PR #129 W41 deleted 1229 lines of `internal/brief/feeds.go` + HUD config + HUD focus (sibling PRs that merged AFTER #129 was branched). Reviewer initially APPROVED because the additions were clean — missed the deletion context entirely.
+  4. Block-on-findings with text: `Stale-base regression: PR's diff against main deletes <N> lines of files outside declared scope (<paths>). Rebase onto current main before re-review.`
+
 RUN LOCAL LINTS (do not infer from PR description)
 - Fetch branch + run `./scripts/check.sh` (build, test, vet, comment-density, pr-body close-keyword, doc-links).
 - Compare actual exit codes against author's claim.
