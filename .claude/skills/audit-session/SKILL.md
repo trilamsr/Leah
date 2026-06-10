@@ -39,7 +39,7 @@ Rules:
 - `state==MERGED AND body~/Reviewer-recommendation: (REVISE|BLOCK)/` → file `[SESSION-AUDIT][post-merge] PR#<N>`.
 - `mergeStateStatus IN (BLOCKED,DIRTY,UNSTABLE)` → file `[SESSION-AUDIT][automerge-stall] PR#<N>`.
 - `Reviewer-agent-id:` matches PR author login → file `[SESSION-AUDIT][self-approve-leak]` per CLAUDE.md "Never self-approve".
-- **Self-approve-after-amend (binding gate, per `feedback_no_self_approve_after_edits` + S5 reflexion-loop spec `docs/engineer/specs/2026-06-10-reflexion-loop.md`).** The reviewer template emits a single PR-body token `Reviewer-recommendation: APPROVE` after a `clear-to-merge` verdict. The canonical verdict set is `clear-to-merge` | `block-on-findings` | `re-spawn-design`; verdict strings appear in inline review COMMENT bodies (typical shape: a line containing `Verdict: <name>` or the bare verdict-name token), not the PR-body footer. Detection: for each merged PR, scan `gh pr view N --json reviews,comments` for any review body containing the substring `block-on-findings`. For each such verdict, walk forward in time and confirm a LATER review body containing `clear-to-merge` exists from a re-spawned `cavecrew-reviewer-*` (or distinct `a[0-9a-f]{16}`) agent-id targeting the amended HEAD. If no later clear-to-merge review exists before `mergedAt` → file `[SESSION-AUDIT][self-approve-after-amend] PR#<N>`. This catches author-applies-edits-then-merges without rechecking. (Does NOT detect `re-spawn-design` slips — those rebuild the change wholesale and bypass the simple later-review heuristic; flag as future-lever in Phase A2.)
+- **Self-approve-after-amend (binding gate, per `feedback_no_self_approve_after_edits` + S5 reflexion-loop spec `docs/engineer/specs/2026-06-10-reflexion-loop.md`).** The canonical verdict set is `clear-to-merge` | `block-on-findings` | `re-spawn-design`; verdict strings appear EITHER (a) in inline review COMMENT bodies on GitHub OR (b) in this session's transcript when reviewers were spawned as inline Agent tool calls whose output never reached GitHub. **Both surfaces must be scanned** — defaulting to (a) alone silently passes reviewer-runs that never posted (the common case in this codebase). Detection algorithm: for each merged PR, build a chronological event list pooled from BOTH sources — (a) `gh pr view N --json reviews,comments` review/comment bodies, AND (b) session transcript matches via `grep -nE 'PR\s*#?$N\b' "$CLAUDE_TRANSCRIPT"` (or the conversation context if transcript file unavailable) for blocks containing `block-on-findings` / `clear-to-merge` substrings. Walk forward in time. If a `block-on-findings` event has no LATER `clear-to-merge` event from a distinct re-spawned `cavecrew-reviewer-*` (or distinct `a[0-9a-f]{16}`) agent-id before `mergedAt` → file `[SESSION-AUDIT][self-approve-after-amend] PR#<N>`. The transcript-pool path catches the most common failure mode in this codebase (inline Agent reviewers). (Does NOT detect `re-spawn-design` slips — those rebuild the change wholesale and bypass the simple later-clear-to-merge heuristic; flag as future-lever in Phase A2.)
 
 ## Phase 2: Reviewer-comment audit
 
@@ -90,10 +90,15 @@ Unfiled → operator hand-back list. **Do NOT auto-file** (noise).
 
 Deletion debt:
 ```bash
-git log --since "$SESSION_START" --author "$GIT_AUTHOR" --shortstat --merges \
+# --merges filter misses squash-and-merge (the common GH path), which
+# lands as a single non-merge commit on origin/main. Use --first-parent
+# against origin/main to enumerate squash-merged commits and --no-merges
+# to drop true merge commits if any exist; --shortstat surfaces ins/del.
+git log --since "$SESSION_START" --author "$GIT_AUTHOR" \
+  --first-parent --no-merges --shortstat origin/main \
   | awk '/insertions/ && !/deletion/ {print}'
 ```
-≥3 pure-add merged PRs → `[DELETION-DEBT]` audit issue.
+≥3 pure-add commits on origin/main → `[DELETION-DEBT]` audit issue.
 
 ## Phase 6: Worktree + branch cleanup
 
