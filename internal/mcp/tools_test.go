@@ -113,6 +113,61 @@ func TestGetMemoryRule_UnknownReturns404(t *testing.T) {
 	}
 }
 
+// Regression: name="rule.md" must resolve to rule.md, not rule.md.md.
+func TestGetMemoryRule_StripsTrailingMD(t *testing.T) {
+	_, tools, _, dir := newToolsServer(t)
+	if err := os.WriteFile(filepath.Join(dir, "memory", "myrule.md"), []byte("ok"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]string{"name": "myrule.md"})
+	_, code, err := tools.toolGetMemoryRule(body)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if code != 200 {
+		t.Fatalf("want 200, got %d", code)
+	}
+}
+
+// Regression: pre-fix `info, _ := os.Stat(path)` after ReadFile dereferenced
+// nil FileInfo when the file vanished mid-call → panic. Post-fix Stat-first
+// ordering converts the race into a clean 404. The returned mtime must
+// reflect the file's actual ModTime (proves we read it from FileInfo, not a
+// zero-value fallback that would mask a regression).
+func TestGetMemoryRule_StatRace_NoPanic(t *testing.T) {
+	_, tools, _, dir := newToolsServer(t)
+	path := filepath.Join(dir, "memory", "racy.md")
+	if err := os.WriteFile(path, []byte("body"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panic: %v", r)
+		}
+	}()
+	body, _ := json.Marshal(map[string]string{"name": "racy"})
+	out, code, err := tools.toolGetMemoryRule(body)
+	if err != nil || code != 200 {
+		t.Fatalf("first call: code=%d err=%v", code, err)
+	}
+	mr, ok := out.(memoryRuleOut)
+	if !ok {
+		t.Fatalf("want memoryRuleOut, got %T", out)
+	}
+	zero := (time.Time{}).UTC().Format(time.RFC3339)
+	if mr.MtimeRFC3339 == "" || mr.MtimeRFC3339 == zero {
+		t.Fatalf("want real mtime, got %q", mr.MtimeRFC3339)
+	}
+	// File now removed → must not panic; must return 404.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	_, code, _ = tools.toolGetMemoryRule(body)
+	if code != http.StatusNotFound {
+		t.Fatalf("post-remove want 404, got %d", code)
+	}
+}
+
 func TestSearchAudit_RedactDropDropsAndAudits(t *testing.T) {
 	s, _, logger, _ := newToolsServer(t)
 	if err := logger.Append(audit.Entry{Kind: "ship", Outcome: "ok", Detail: "user email is alice@example.com"}); err != nil {

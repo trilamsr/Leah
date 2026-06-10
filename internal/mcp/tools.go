@@ -38,10 +38,10 @@ func (t *Tools) Register() {
 }
 
 type memoryRuleOut struct {
-	Name        string `json:"name"`
-	BodyMD      string `json:"body_md"`
-	SHA256      string `json:"sha256"`
-	MtimeRFC339 string `json:"mtime_rfc3339"`
+	Name         string `json:"name"`
+	BodyMD       string `json:"body_md"`
+	SHA256       string `json:"sha256"`
+	MtimeRFC3339 string `json:"mtime_rfc3339"`
 }
 
 func (t *Tools) toolGetMemoryRule(body []byte) (any, int, error) {
@@ -51,11 +51,22 @@ func (t *Tools) toolGetMemoryRule(body []byte) (any, int, error) {
 	if err := json.Unmarshal(body, &in); err != nil {
 		return nil, http.StatusBadRequest, errors.New("invalid_json")
 	}
-	clean := filepath.Clean(in.Name)
-	if clean != in.Name || clean == "" || clean == "." || strings.ContainsAny(clean, "/\\") || strings.HasPrefix(clean, ".") {
+	// Strip trailing .md so name="rule" and name="rule.md" both resolve.
+	name := strings.TrimSuffix(in.Name, ".md")
+	clean := filepath.Clean(name)
+	if clean != name || clean == "" || clean == "." || strings.ContainsAny(clean, "/\\") || strings.HasPrefix(clean, ".") {
 		return nil, http.StatusBadRequest, errors.New("invalid_name")
 	}
 	path := filepath.Join(t.MemoryDir, clean+".md")
+	// Stat BEFORE ReadFile: a race that removes the file converts to a clean
+	// ENOENT on ReadFile rather than panicking on a nil FileInfo.
+	info, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, http.StatusNotFound, errors.New("unknown_rule")
+		}
+		return nil, http.StatusInternalServerError, err
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -63,13 +74,12 @@ func (t *Tools) toolGetMemoryRule(body []byte) (any, int, error) {
 		}
 		return nil, http.StatusInternalServerError, err
 	}
-	info, _ := os.Stat(path)
 	sum := sha256.Sum256(raw)
 	return memoryRuleOut{
-		Name:        in.Name,
-		BodyMD:      string(raw),
-		SHA256:      hex.EncodeToString(sum[:]),
-		MtimeRFC339: info.ModTime().UTC().Format(time.RFC3339),
+		Name:         clean,
+		BodyMD:       string(raw),
+		SHA256:       hex.EncodeToString(sum[:]),
+		MtimeRFC3339: info.ModTime().UTC().Format(time.RFC3339),
 	}, 200, nil
 }
 
@@ -175,7 +185,10 @@ func (t *Tools) toolDispatchStatus(_ []byte) (any, int, error) {
 	return out, 200, nil
 }
 
-// dispatchStatus filters audit to dispatcher kinds; in-flight = dispatched without matching outcome row.
+// dispatchStatus filters audit to dispatcher kinds; in-flight = dispatched
+// without matching outcome row. Scope: only `self-build` emits
+// outcome="dispatched", so InFlight is effectively self-build-only today.
+// `ship` and `ask` rows show up in Recent but never InFlight.
 func (t *Tools) dispatchStatus() (dispatchStatusOut, error) {
 	entries, err := readEntries(t.AuditPath)
 	if err != nil {

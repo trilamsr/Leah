@@ -7,10 +7,13 @@ var redactLints = []struct {
 	re   *regexp.Regexp
 }{
 	{"email", regexp.MustCompile(`(?i)[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`)},
-	{"bearer_token", regexp.MustCompile(`(?i)(bearer|token|api[_\-]?key|secret)\s*[=:]\s*[a-z0-9_\-]{16,}`)},
+	{"bearer_token", regexp.MustCompile(`(?i)(bearer|token|api[_\-]?key|secret)\s*[=:]?\s+[a-z0-9_\-]{16,}`)},
 	{"ssh_private_key", regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)},
 	{"home_path", regexp.MustCompile(`(?i)/(users|home)/[a-z0-9._\-]+/`)},
-	{"phone_us", regexp.MustCompile(`(?:\+?1[\-.\s]?)?\(?\d{3}\)?[\-.\s]?\d{3}[\-.\s]?\d{4}`)},
+	// phone_us requires structural anchor (parenthesized area code, +1 prefix,
+	// or explicit `phone:` context) to avoid swallowing build IDs / PR numbers
+	// / hash-dash IDs and silently dropping clean audit rows.
+	{"phone_us", regexp.MustCompile(`(?i)(?:\(\d{3}\)\s?\d{3}[-.\s]\d{4}|\+1[\s\-.]\d{3}[\s\-.]\d{3}[\s\-.]\d{4}|phone:\s*\+?1?[\s\-.]?\d{3}[\s\-.]?\d{3}[\s\-.]?\d{4})`)},
 	{"aws_access_key", regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
 }
 
