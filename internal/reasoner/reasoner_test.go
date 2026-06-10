@@ -16,11 +16,25 @@ type fakeClient struct {
 	respText    string
 	respCostUSD float64
 	respErr     error
+	// Optional LLM-dim fields surfaced through CompleteResult (W94).
+	respModel  string
+	respIn     int
+	respOut    int
+	respEgress int
+	respCache  bool
 }
 
-func (f *fakeClient) Complete(ctx context.Context, system, user string) (text string, costUSD float64, err error) {
+func (f *fakeClient) Complete(ctx context.Context, system, user string) (CompleteResult, error) {
 	f.lastPrompt = system + "\n---\n" + user
-	return f.respText, f.respCostUSD, f.respErr
+	return CompleteResult{
+		Text:         f.respText,
+		CostUSD:      f.respCostUSD,
+		Model:        f.respModel,
+		InputTokens:  f.respIn,
+		OutputTokens: f.respOut,
+		EgressBytes:  f.respEgress,
+		CacheHit:     f.respCache,
+	}, f.respErr
 }
 
 func TestAskCallsClientWithSystemAndUser(t *testing.T) {
@@ -113,6 +127,70 @@ func TestAskEmptyPersonaPrefixUnchanged(t *testing.T) {
 	// whitespace or newline that an unguarded join would introduce.
 	if !strings.HasPrefix(c.lastPrompt, "base") {
 		t.Errorf("empty persona must not alter system prompt prefix: %q", c.lastPrompt)
+	}
+}
+
+// TestReasoner_WritesLLMDimFields asserts Ask captures the W94 LLM-dim
+// data (model, prompt_sha, input/output tokens, latency, egress, cache
+// hit) into LastCallInfo so dispatcher.Ask.Run can stamp it on the
+// audit row.
+func TestReasoner_WritesLLMDimFields(t *testing.T) {
+	c := &fakeClient{
+		respText:    "hi",
+		respCostUSD: 0.01,
+		respModel:   "claude-sonnet-4-6",
+		respIn:      42,
+		respOut:     7,
+		respEgress:  256,
+		respCache:   true,
+	}
+	r := &Reasoner{Client: c, Budget: &budget.Budget{Ceiling: 1.0}, SystemPrompt: "you are leah"}
+	if _, err := r.Ask(context.Background(), "say hi"); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	info := r.LastCallInfo()
+	if info.Model != "claude-sonnet-4-6" {
+		t.Errorf("Model: got %q", info.Model)
+	}
+	if info.InputTokens != 42 {
+		t.Errorf("InputTokens: got %d", info.InputTokens)
+	}
+	if info.OutputTokens != 7 {
+		t.Errorf("OutputTokens: got %d", info.OutputTokens)
+	}
+	if info.EgressBytes != 256 {
+		t.Errorf("EgressBytes: got %d", info.EgressBytes)
+	}
+	if !info.CacheHit {
+		t.Errorf("CacheHit: got false")
+	}
+	if info.LatencyMS < 0 {
+		t.Errorf("LatencyMS negative: %d", info.LatencyMS)
+	}
+	// PromptSHA = 16 hex chars derived from the assembled system prompt.
+	wantSHA := PromptSHA("you are leah")
+	if info.PromptSHA != wantSHA {
+		t.Errorf("PromptSHA: got %q want %q", info.PromptSHA, wantSHA)
+	}
+	if len(info.PromptSHA) != 16 {
+		t.Errorf("PromptSHA length %d, want 16", len(info.PromptSHA))
+	}
+}
+
+// TestPromptSHA_Stable asserts PromptSHA(b) returns a stable 16-hex
+// truncated SHA256 — same input bytes → same prefix forever (audit
+// replay depends on it).
+func TestPromptSHA_Stable(t *testing.T) {
+	got := PromptSHA("you are leah")
+	if len(got) != 16 {
+		t.Fatalf("length %d, want 16", len(got))
+	}
+	again := PromptSHA("you are leah")
+	if got != again {
+		t.Errorf("non-deterministic: %q vs %q", got, again)
+	}
+	if PromptSHA("you are leah") == PromptSHA("you are different") {
+		t.Errorf("SHA collision on distinct inputs")
 	}
 }
 
