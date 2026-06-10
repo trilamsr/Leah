@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 // Sentinel errors are exported so callers can switch on the failure mode
@@ -77,6 +79,10 @@ type Config struct {
 	// Attestor is the operator-consent gate; missing → New refuses
 	// construction because a nil gate would silently bypass attestation.
 	Attestor Attestor
+
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 // calendarService is the seam the adapter talks through so tests can
@@ -96,6 +102,7 @@ type Adapter struct {
 	att Attestor
 	ts  TokenSource
 	now func() time.Time
+	m   *connectadapter.Metrics
 }
 
 // New constructs an Adapter and validates the TokenPath + Attestor
@@ -111,7 +118,7 @@ func New(cfg Config) (*Adapter, error) {
 	if cfg.CalendarID == "" {
 		cfg.CalendarID = "primary"
 	}
-	return &Adapter{cfg: cfg, att: cfg.Attestor, now: time.Now}, nil
+	return &Adapter{cfg: cfg, att: cfg.Attestor, now: time.Now, m: cfg.Metrics}, nil
 }
 
 // ListToday returns events whose start falls in the operator's local
@@ -124,7 +131,10 @@ func (a *Adapter) ListToday(ctx context.Context) ([]Event, error) {
 	if a.svc == nil {
 		return nil, ErrAuthRequired
 	}
-	return a.svc.ListToday(ctx, a.now())
+	start := time.Now()
+	evs, err := a.svc.ListToday(ctx, a.now())
+	a.m.ObserveAPI("list_today", time.Since(start).Seconds())
+	return evs, err
 }
 
 // CreateEvent inserts an event into the configured calendar and returns
@@ -138,7 +148,10 @@ func (a *Adapter) CreateEvent(ctx context.Context, ev Event) (*Event, error) {
 	if a.svc == nil {
 		return nil, ErrAuthRequired
 	}
-	return a.svc.Create(ctx, ev)
+	start := time.Now()
+	out, err := a.svc.Create(ctx, ev)
+	a.m.ObserveAPI("create_event", time.Since(start).Seconds())
+	return out, err
 }
 
 // gateAndToken runs the attestation gate first; only on consent does the
