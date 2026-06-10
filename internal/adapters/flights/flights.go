@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 var (
@@ -81,6 +82,9 @@ type Config struct {
 	TokenSource TokenSource
 	HTTPClient  HTTPClient
 	BaseURL     string
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 // Adapter is the flights adapter; lifecycle owned by the caller, no goroutines.
@@ -89,6 +93,7 @@ type Adapter struct {
 	ts      TokenSource
 	http    HTTPClient
 	baseURL string
+	m       *connectadapter.Metrics
 
 	mu      sync.Mutex
 	watches map[string]watch
@@ -119,6 +124,7 @@ func New(cfg Config) (*Adapter, error) {
 		ts:      cfg.TokenSource,
 		http:    cfg.HTTPClient,
 		baseURL: base,
+		m:       cfg.Metrics,
 		watches: make(map[string]watch),
 	}, nil
 }
@@ -136,7 +142,10 @@ func (a *Adapter) gateAndToken(ctx context.Context, scope string) (string, error
 	return tok, nil
 }
 
-func (a *Adapter) do(ctx context.Context, scope, path string, q url.Values, out any) error {
+// do issues the HTTP GET and records api_call_total + api_latency_seconds for
+// endpoint on both success and failure — spec §4.7 measures wire-time regardless
+// of outcome. Timing starts AFTER attestation/token to exclude consent-prompt time.
+func (a *Adapter) do(ctx context.Context, scope, endpoint, path string, q url.Values, out any) error {
 	tok, err := a.gateAndToken(ctx, scope)
 	if err != nil {
 		return err
@@ -145,6 +154,8 @@ func (a *Adapter) do(ctx context.Context, scope, path string, q url.Values, out 
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
+	start := time.Now()
+	defer func() { a.m.ObserveAPI(endpoint, time.Since(start).Seconds()) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return fmt.Errorf("flights: build request: %w", err)
@@ -201,7 +212,7 @@ func (a *Adapter) SearchOffers(ctx context.Context, req SearchReq) ([]FlightOffe
 		q.Set("maxNumberOfConnections", strconv.Itoa(req.MaxStops))
 	}
 	var body offersResp
-	if err := a.do(ctx, ScopeSearch, "/v2/shopping/flight-offers", q, &body); err != nil {
+	if err := a.do(ctx, ScopeSearch, "search_offers", "/v2/shopping/flight-offers", q, &body); err != nil {
 		return nil, err
 	}
 	out := make([]FlightOffer, 0, len(body.Data))
@@ -262,7 +273,7 @@ func (a *Adapter) FlightStatus(ctx context.Context, flightNumber string, on time
 	q.Set("flightNumber", num)
 	q.Set("scheduledDepartureDate", on.Format("2006-01-02"))
 	var body statusResp
-	if err := a.do(ctx, ScopeStatus, "/v2/schedule/flights", q, &body); err != nil {
+	if err := a.do(ctx, ScopeStatus, "flight_status", "/v2/schedule/flights", q, &body); err != nil {
 		return Status{}, err
 	}
 	if len(body.Data) == 0 {
@@ -310,7 +321,7 @@ func (a *Adapter) AirportInfo(ctx context.Context, iata string) (Airport, error)
 	q.Set("subType", "AIRPORT")
 	q.Set("keyword", iata)
 	var body locationResp
-	if err := a.do(ctx, ScopeAirport, "/v1/reference-data/locations", q, &body); err != nil {
+	if err := a.do(ctx, ScopeAirport, "airport_info", "/v1/reference-data/locations", q, &body); err != nil {
 		return Airport{}, err
 	}
 	if len(body.Data) == 0 {
