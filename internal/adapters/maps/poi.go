@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // placesNearbyResponse mirrors the Google Places Nearby Search JSON; only the
@@ -40,6 +41,8 @@ func (a *Adapter) POINearby(ctx context.Context, center Place, radiusM int, cate
 	q.Set("radius", strconv.Itoa(radiusM))
 	q.Set("type", category)
 	q.Set("key", a.apiKey)
+	start := time.Now()
+	defer func() { a.m.ObserveAPI("poi_nearby", time.Since(start).Seconds()) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/place/nearbysearch/json?"+q.Encode(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("maps: build nearby request: %w", err)

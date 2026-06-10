@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 // Sentinel errors are exported so callers switch on failure mode instead of
@@ -96,6 +98,9 @@ type Config struct {
 	BaseURL    string
 	// Cache is optional — nil disables persistence (each RPC hits the wire).
 	Cache *Cache
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 // Adapter is the Maps adapter the rest of Leah depends on. No background
@@ -106,6 +111,7 @@ type Adapter struct {
 	apiKey  string
 	baseURL string
 	cache   *Cache
+	m       *connectadapter.Metrics
 }
 
 // defaultBaseURL points at Google's Maps REST endpoints; tests override via
@@ -128,7 +134,7 @@ func New(cfg Config) (*Adapter, error) {
 	if base == "" {
 		base = defaultBaseURL
 	}
-	return &Adapter{att: cfg.Attestor, http: hc, apiKey: cfg.APIKey, baseURL: base, cache: cfg.Cache}, nil
+	return &Adapter{att: cfg.Attestor, http: hc, apiKey: cfg.APIKey, baseURL: base, cache: cfg.Cache, m: cfg.Metrics}, nil
 }
 
 // gate runs the attestation gate; only on consent does the caller issue HTTP.

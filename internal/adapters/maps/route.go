@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // directionsResponse mirrors the Google Directions API JSON; W56 only decodes
@@ -46,6 +47,10 @@ func (a *Adapter) Route(ctx context.Context, origin, dest string, mode Transport
 	q.Set("destination", dest)
 	q.Set("mode", string(mode))
 	q.Set("key", a.apiKey)
+	// defer observe so every wire-touching exit (transport error, decode
+	// error, non-OK status) lands in api_call_total.
+	start := time.Now()
+	defer func() { a.m.ObserveAPI("route", time.Since(start).Seconds()) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/directions/json?"+q.Encode(), nil)
 	if err != nil {
 		return Route{}, fmt.Errorf("maps: build directions request: %w", err)
