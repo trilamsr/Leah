@@ -14,6 +14,18 @@ const Scope = "macos:activeapp:query"
 
 const redactedLabel = "(redacted)"
 
+// DefaultBlocklist is the operator-trust default for foreground-app
+// observation. Prefix match — applies to Query() redaction and to the push
+// source (osevent.Config.Blocklist), so the same privacy floor holds whether
+// the active app is sampled pull-style or pushed via NSWorkspace.
+var DefaultBlocklist = []string{
+	"com.bank.",
+	"com.chase.",
+	"com.apple.Passwords",
+	"com.1password.",
+	"com.agilebits.onepassword",
+}
+
 const script = `tell application "System Events"
 	set frontApp to first application process whose frontmost is true
 	set appName to name of frontApp
@@ -74,6 +86,9 @@ func (a *ActiveApp) Available(ctx context.Context) bool {
 	return err == nil
 }
 
+// Query is DEPRECATED for hot-path use; prefer PushSource via osevent. Kept
+// for caller-driven inspection, tests, and cold start before the first push
+// event arrives.
 func (a *ActiveApp) Query(ctx context.Context) (Item, error) {
 	if err := a.att.Attest(ctx, Scope); err != nil {
 		return Item{}, fmt.Errorf("%w: %v", ErrAttestationDenied, err)

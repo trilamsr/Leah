@@ -20,6 +20,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/daemonloop"
+	"github.com/trilam/leah/internal/macos/activeapp"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
@@ -98,6 +99,8 @@ func main() {
 	}); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: regatta boot non-fatal: %v\n", err)
 	}
+
+	startActiveAppPush(ctx, lg, registry, activeapp.DefaultBlocklist)
 
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)
 
