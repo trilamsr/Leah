@@ -2,7 +2,7 @@
 
 Copy-paste this prompt to bootstrap a fully autonomous leah dev session. Designed for max velocity: subagent-heavy, decision-deferred-to-review, no user round-trips.
 
-This prompt EXTENDS `CLAUDE.md` (auto-loaded for every agent in the tree). It only captures rules specific to the indefinite-autonomous-loop mode that wouldn't make sense in a one-off dev session. For per-agent role rules (designer / implementer / reviewer / triage), see `docs/engineer/dispatch-templates/*.md`.
+This prompt EXTENDS `CLAUDE.md` (auto-loaded for every agent in the tree). It only captures rules specific to the indefinite-autonomous-loop mode that wouldn't make sense in a one-off dev session. For per-agent role rules (designer / implementer / reviewer / triage), see the per-role templates under [docs/engineer/dispatch-templates/](docs/engineer/dispatch-templates/).
 
 In leah, the autonomous session IS the orchestrator — the operator + Claude main session dispatches subagents via the Agent tool. There is no separate `leah-the-binary` running as a service the way regatta runs itself; this prompt is the session-level operating rules for that operator+Claude loop.
 
@@ -23,11 +23,11 @@ BOOT
 PRIORITY
 Pick the highest-priority unblocked item from the issue tracker on `trilamsr/Leah`. When no explicit roadmap is loaded into context, default to the order: critical-path blockers (`label:blocker`) → in-flight wave items the operator named in the seed prompt → `label:followup` sweep → architectural reviews. Trigger-gated items (`label:phase-x`, `label:soak-gated`) STAY parked; do NOT pre-build them.
 
-WORKFLOW per item — use templates at `docs/engineer/dispatch-templates/`. Substitute variables; do NOT inline-repeat preamble.
-1. Design subagent → spec — `designer.md`
-2. Adversarial reviewer on spec → fix findings — `reviewer.md`
-3. Plan subagent → plan — `designer.md` (plans are spec-shaped)
-4. Parallel implementer subagents on file-disjoint tasks — `implementer.md` (worktree + TDD + release-notes + doc-check)
+WORKFLOW per item — use templates at [docs/engineer/dispatch-templates/](docs/engineer/dispatch-templates/). Substitute variables; do NOT inline-repeat preamble.
+1. Design subagent → spec — [designer.md](docs/engineer/dispatch-templates/designer.md)
+2. Adversarial reviewer on spec → fix findings — [reviewer.md](docs/engineer/dispatch-templates/reviewer.md)
+3. Plan subagent → plan — [designer.md](docs/engineer/dispatch-templates/designer.md) (plans are spec-shaped)
+4. Parallel implementer subagents on file-disjoint tasks — [implementer.md](docs/engineer/dispatch-templates/implementer.md) (worktree + TDD + release-notes + doc-check)
 5. Adversarial reviewer per wave → fix → merge — `reviewer.md`
 6. Land / defer / reject decisions on issues + stale PRs — `triage.md`
 
@@ -55,7 +55,7 @@ AUTONOMOUS-LOOP CADENCE
 - TaskCreate usage: use for ≥4 discrete dispatches, multi-wave roadmap, crash-prone work. Skip for single-pass audits, 1-2 step atomic edits, Q&A.
 - Boot-prompt per-wave refresh: after wave merges, edit PRIORITY section if the operator named explicit items in the seed prompt; open `docs(engineer):` PR. Drop entries >2 waves old.
 - Self-improvement: when session friction observed (slow ops, repeated lookups, ambiguous dispatch prompts), self-diagnose root cause + ship fix in same session.
-- Meta-codify repeat directives: when operator repeats a directive ≥2 times in same session AND it's not yet codified in CLAUDE.md / autonomous-prompt / dispatch templates → file as memory rule THIS session AND queue codification PR. Route by rule type — universal → CLAUDE.md, autonomous-loop-only → this prompt, role-specific → dispatch-templates/{implementer,reviewer,designer,triage}.md.
+- Meta-codify repeat directives: when operator repeats a directive ≥2 times in same session AND it's not yet codified in CLAUDE.md / autonomous-prompt / dispatch templates → file as memory rule THIS session AND queue codification PR. Route by rule type — universal → CLAUDE.md, autonomous-loop-only → this prompt, role-specific → one of [implementer.md](docs/engineer/dispatch-templates/implementer.md) / [reviewer.md](docs/engineer/dispatch-templates/reviewer.md) / [designer.md](docs/engineer/dispatch-templates/designer.md) / [triage.md](docs/engineer/dispatch-templates/triage.md).
 
 AUTOMERGE GATING
 - Review before automerge: automerge fires ONLY when (1) independent reviewer ran on current head (not stale rev) AND (2) every Risk-tier+ finding addressed (inline-fix OR tracking issue #).
@@ -117,7 +117,7 @@ Begin BOOT. After boot, pick highest priority + dispatch design subagent.
 ## How this composes
 
 - `CLAUDE.md` (auto-loaded for every agent) — universal rules: decision priority, identity, comments, TDD+review, worktree, token economy.
-- `docs/engineer/dispatch-templates/{designer,implementer,reviewer,triage}.md` (Wave 9-G5) — per-agent role rules cited in the workflow above.
+- The per-role templates under [docs/engineer/dispatch-templates/](docs/engineer/dispatch-templates/) — [designer.md](docs/engineer/dispatch-templates/designer.md), [implementer.md](docs/engineer/dispatch-templates/implementer.md), [reviewer.md](docs/engineer/dispatch-templates/reviewer.md), [triage.md](docs/engineer/dispatch-templates/triage.md) (Wave 9-G5) — per-agent role rules cited in the workflow above.
 - `docs/engineer/autonomous-session-prompt.md` (this file) — session-level operating rules for the operator+Claude indefinite loop.
 
 CLAUDE.md is the foundation, templates are the per-agent contract, this prompt is the session-level loop. Each layer adds rules the layer below cannot encode.
@@ -128,4 +128,4 @@ CLAUDE.md is the foundation, templates are the per-agent contract, this prompt i
 - New gate added to `./scripts/check.sh` → reference if pre-push-relevant.
 - Priorities shift → re-seed via operator prompt; do not bake roadmap into this file.
 - Drop-ceremony adds/removes items → adjust RULES brevity.
-- Dispatch preamble drift detected → update `docs/engineer/dispatch-templates/*.md` instead of inlining rules back into this prompt.
+- Dispatch preamble drift detected → update the per-role templates under [docs/engineer/dispatch-templates/](docs/engineer/dispatch-templates/) instead of inlining rules back into this prompt.
