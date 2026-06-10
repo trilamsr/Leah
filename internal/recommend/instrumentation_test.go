@@ -1,86 +1,36 @@
 package recommend
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/obs/obstest"
 )
 
-func TestRegisterMetrics_AddsToRegistry(t *testing.T) {
+// TestRegisterMetrics_AddsSeries asserts recommendation-engine series
+// surface pre-event (spec §4.13).
+func TestRegisterMetrics_AddsSeries(t *testing.T) {
 	r := obs.NewRegistry()
 	RegisterMetrics(r)
-	got := snapshotKeys(t, r)
+	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
 		"leah_recommendation_proposed_total",
 		"leah_recommendation_accepted_total",
 		"leah_recommendation_rejected_total",
 		"leah_recommendation_applied_total",
 	} {
-		if !containsPrefix(got, want) {
-			t.Fatalf("series %q missing from snapshot keys %v", want, got)
+		if !obstest.ContainsPrefix(keys, want) {
+			t.Fatalf("series %q missing from %v", want, keys)
 		}
 	}
 }
 
-func TestObserve_IncrementsCounter(t *testing.T) {
+// TestEmitApplied_IncrementsCounter pins the call-site contract.
+func TestEmitApplied_IncrementsCounter(t *testing.T) {
 	r := obs.NewRegistry()
 	EmitApplied(r, "habit", "ok")
-	keys := snapshotKeys(t, r)
 	want := "leah_recommendation_applied_total|kind=habit,outcome=ok"
-	if !containsExact(keys, want) {
-		t.Fatalf("expected counter key %q; got %v", want, keys)
+	if !obstest.ContainsExact(obstest.SnapshotKeys(t, r), want) {
+		t.Fatalf("expected %q", want)
 	}
-}
-
-func snapshotKeys(t *testing.T, r *obs.Registry) []string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "m.json")
-	if err := r.Snapshot(path); err != nil {
-		t.Fatalf("snapshot: %v", err)
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	var out struct {
-		Counters   map[string]int64       `json:"counters"`
-		Gauges     map[string]float64     `json:"gauges"`
-		Histograms map[string]interface{} `json:"histograms"`
-	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	var keys []string
-	for k := range out.Counters {
-		keys = append(keys, k)
-	}
-	for k := range out.Gauges {
-		keys = append(keys, k)
-	}
-	for k := range out.Histograms {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func containsPrefix(keys []string, prefix string) bool {
-	for _, k := range keys {
-		if k == prefix || strings.HasPrefix(k, prefix+"|") {
-			return true
-		}
-	}
-	return false
-}
-
-func containsExact(keys []string, want string) bool {
-	for _, k := range keys {
-		if k == want {
-			return true
-		}
-	}
-	return false
 }

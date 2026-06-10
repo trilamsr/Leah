@@ -95,6 +95,18 @@ func (c *Counter) Add(labels map[string]string, n int64) {
 	c.values[c.flattenKey(labels)] += n
 }
 
+// Declare materializes the series at labels with zero count without
+// recording any observation. Use for cold-seeding /metrics so the series
+// surfaces pre-event.
+func (c *Counter) Declare(labels map[string]string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := c.flattenKey(labels)
+	if _, ok := c.values[key]; !ok {
+		c.values[key] = 0
+	}
+}
+
 func (c *Counter) flattenKey(labels map[string]string) string {
 	return cachedFlatten(c.name, labels, &c.keyCache)
 }
@@ -112,6 +124,17 @@ func (g *Gauge) Set(labels map[string]string, v float64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.values[g.flattenKey(labels)] = v
+}
+
+// Declare materializes the series at labels with zero value without
+// disturbing an existing value. Use for cold-seeding /metrics.
+func (g *Gauge) Declare(labels map[string]string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	key := g.flattenKey(labels)
+	if _, ok := g.values[key]; !ok {
+		g.values[key] = 0
+	}
 }
 
 func (g *Gauge) flattenKey(labels map[string]string) string {
@@ -135,6 +158,18 @@ type histSeries struct {
 	count   int64
 	sum     float64
 	buckets []int64 // parallel to Histogram.buckets; final slot = +Inf
+}
+
+// Declare materializes the series at labels with count=0, sum=0 without
+// recording an observation. Use for cold-seeding /metrics — Observe(0)
+// would record a real sample and skew p50.
+func (h *Histogram) Declare(labels map[string]string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	key := h.flattenKey(labels)
+	if _, ok := h.values[key]; !ok {
+		h.values[key] = &histSeries{buckets: make([]int64, len(h.buckets)+1)}
+	}
 }
 
 // Observe records v in the histogram at the given label set.

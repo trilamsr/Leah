@@ -1,87 +1,32 @@
 package connect
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/obs/obstest"
 )
 
-func TestRegisterMetrics_AddsToRegistry(t *testing.T) {
+// TestRegisterMetrics_NoPhantomColdSeries asserts the connect-level
+// RegisterMetrics no longer emits provider=cold series (F4): adapters
+// own the per-provider seed via connectadapter.Register.
+func TestRegisterMetrics_NoPhantomColdSeries(t *testing.T) {
 	r := obs.NewRegistry()
 	RegisterMetrics(r)
-	got := snapshotKeys(t, r)
-	for _, want := range []string{
-		"leah_connect_api_call_total",
-		"leah_connect_exchange_total",
-		"leah_connect_refresh_total",
-		"leah_connect_token_age_seconds",
-		"leah_connect_api_latency_seconds",
-	} {
-		if !containsPrefix(got, want) {
-			t.Fatalf("series %q missing from snapshot keys %v", want, got)
+	keys := obstest.SnapshotKeys(t, r)
+	for _, k := range keys {
+		if k != "" {
+			t.Fatalf("RegisterMetrics introduced series %q; expected no-op", k)
 		}
 	}
 }
 
-func TestObserve_IncrementsCounter(t *testing.T) {
+// TestEmitExchange_BumpsCounter pins the EmitExchange call-site contract.
+func TestEmitExchange_BumpsCounter(t *testing.T) {
 	r := obs.NewRegistry()
 	EmitExchange(r, "gmail", "ok")
-	keys := snapshotKeys(t, r)
 	want := "leah_connect_exchange_total|outcome=ok,provider=gmail"
-	if !containsExact(keys, want) {
-		t.Fatalf("expected counter key %q; got %v", want, keys)
+	if !obstest.ContainsExact(obstest.SnapshotKeys(t, r), want) {
+		t.Fatalf("expected counter key %q", want)
 	}
-}
-
-func snapshotKeys(t *testing.T, r *obs.Registry) []string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "m.json")
-	if err := r.Snapshot(path); err != nil {
-		t.Fatalf("snapshot: %v", err)
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	var out struct {
-		Counters   map[string]int64       `json:"counters"`
-		Gauges     map[string]float64     `json:"gauges"`
-		Histograms map[string]interface{} `json:"histograms"`
-	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	var keys []string
-	for k := range out.Counters {
-		keys = append(keys, k)
-	}
-	for k := range out.Gauges {
-		keys = append(keys, k)
-	}
-	for k := range out.Histograms {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func containsPrefix(keys []string, prefix string) bool {
-	for _, k := range keys {
-		if k == prefix || strings.HasPrefix(k, prefix+"|") {
-			return true
-		}
-	}
-	return false
-}
-
-func containsExact(keys []string, want string) bool {
-	for _, k := range keys {
-		if k == want {
-			return true
-		}
-	}
-	return false
 }
