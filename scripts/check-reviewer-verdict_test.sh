@@ -88,9 +88,29 @@ EOF
   rm -f "$body"
 }
 
+# Automerge + Reviewer-agent-id on load-bearing PR → exit 1.
+# Closes the "agent writes own APPROVE + enables automerge" zero-window loophole.
+run_case_automerge_with_agent_id_rejected() {
+  local body
+  body=$(mktemp)
+  cat > "$body" <<'EOF'
+Reviewer-agent-id: aabbccddeeff00112
+Reviewer-recommendation: APPROVE
+EOF
+  "$GATE" --body-file "$body" --load-bearing --pr-author trilamsr --automerge-enabled >/dev/null 2>&1
+  local rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "automerge + agent-id on load-bearing exits 1"
+  else
+    fail "automerge + agent-id should exit 1 (got $rc)"
+  fi
+  rm -f "$body"
+}
+
 run_case_load_bearing_missing_token
 run_case_load_bearing_approve_passes
 run_case_self_tag_rejected
+run_case_automerge_with_agent_id_rejected
 
 echo "---"
 echo "passed: $PASS  failed: $FAIL"
