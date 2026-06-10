@@ -72,7 +72,7 @@ func main() {
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)
 
 	if *dashboardAddr != "" {
-		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc)
+		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc, loop)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
 			os.Exit(1)
