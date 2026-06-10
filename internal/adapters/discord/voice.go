@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"strings"
+	"time"
 )
 
 const ScopePostVoice = "discord:post_voice"
@@ -78,7 +79,9 @@ func (a *Adapter) PostVoice(ctx context.Context, channelID string, audio []byte)
 	req.Header.Set("Authorization", "Bot "+tok)
 	req.Header.Set("Content-Type", ctype)
 
+	start := time.Now()
 	resp, err := a.http.Do(req)
+	a.m.ObserveAPI("post_voice", time.Since(start).Seconds())
 	if err != nil {
 		a.record(AuditRow{Kind: "discord_post_voice", ChannelHash: hash, VoiceSHA: voiceHash, Reason: "http_error"})
 		return fmt.Errorf("%w: %v", ErrPostFailed, err)
@@ -146,7 +149,9 @@ func (a *Adapter) fetchVoiceAttachment(ctx context.Context, url string) []byte {
 		return nil
 	}
 	req.Header.Set("Authorization", "Bot "+tok)
+	start := time.Now()
 	resp, err := a.http.Do(req)
+	a.m.ObserveAPI("fetch_voice", time.Since(start).Seconds())
 	if err != nil {
 		return nil
 	}
