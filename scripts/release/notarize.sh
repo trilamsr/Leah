@@ -17,9 +17,15 @@ fi
 # notarytool requires a container; bundle all targets into one zip so a single
 # submission covers every binary in this release.
 ZIP="$(mktemp -t leah-notarize.XXXXXX).zip"
-trap 'rm -f "$ZIP"' EXIT
+STAGE="$(mktemp -d -t leah-notarize-stage.XXXXXX)"
+trap 'rm -rf "$ZIP" "$STAGE"' EXIT
 
-ditto -c -k --keepParent "$(dirname "$1")" "$ZIP"
+# Stage every arg into one directory so ditto's --keepParent zips them together
+# instead of capturing only dirname($1)'s siblings.
+for bin in "$@"; do
+  cp "$bin" "$STAGE/"
+done
+ditto -c -k --keepParent "$STAGE" "$ZIP"
 
 echo "submitting $ZIP to notarytool..."
 SUBMIT_LOG="$(mktemp -t leah-notarytool.XXXXXX)"

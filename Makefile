@@ -73,20 +73,25 @@ eval-all:
 	  go run ./cmd/leah-eval --base=$${BASE:-origin/main} --json=$${JSON:-0}
 
 # Reproducibility gate (S10 M6 + S12 §8). Rebuild from source with the release
-# flags, then diff against the published SHA256SUMS. Pre-signing — catches a
-# malicious GHA before trusting Apple's signature.
+# flags, then diff against the published SHA256SUMS.unsigned. Pre-signing —
+# signed+stapled tarballs (SHA256SUMS) can never hash-match a local rebuild
+# because codesign rewrites Mach-O bytes; the .unsigned file fixes the
+# checkpoint at the pre-signing tarball so the rebuild can match exactly.
 # Use: make verify-checksums TAG=vX.Y.Z
 verify-checksums:
 	@test -n "$(TAG)" || (echo "set TAG=vX.Y.Z" && exit 1)
-	@rm -rf dist && mkdir -p dist
-	@CGO_ENABLED=0 GOFLAGS='-trimpath -mod=readonly' bash -c '\
-	  for cmd in leah leah-daemon leah-hud; do \
-	    go build -ldflags="-s -w -buildid=" -o dist/$$cmd ./cmd/$$cmd; \
-	  done'
-	@cd dist && tar czf "leah-$(TAG)-darwin-arm64.tar.gz" leah leah-daemon leah-hud
-	@cd dist && shasum -a 256 ./*.tar.gz > SHA256SUMS.local
-	@curl -fsSL "https://github.com/trilamsr/Leah/releases/download/$(TAG)/SHA256SUMS" -o dist/SHA256SUMS.upstream
-	@diff -u dist/SHA256SUMS.upstream dist/SHA256SUMS.local && echo "checksums match"
+	@os="$$(uname -s | tr '[:upper:]' '[:lower:]')"; arch="$$(uname -m)"; \
+	  case "$$arch" in arm64|aarch64) arch=arm64;; x86_64|amd64) arch=amd64;; esac; \
+	  test "$$os" = darwin || (echo "verify-checksums: macOS only (got $$os)" && exit 1); \
+	  rm -rf dist && mkdir -p dist; \
+	  CGO_ENABLED=0 GOFLAGS='-trimpath -mod=readonly' bash -c '\
+	    for cmd in leah leah-daemon leah-hud; do \
+	      go build -ldflags="-s -w -buildid=" -o dist/$$cmd ./cmd/$$cmd; \
+	    done'; \
+	  cd dist && tar czf "leah-$(TAG)-$$os-$$arch-unsigned.tar.gz" leah leah-daemon leah-hud; \
+	  shasum -a 256 ./*-unsigned.tar.gz > SHA256SUMS.unsigned.local; \
+	  curl -fsSL "https://github.com/trilamsr/Leah/releases/download/$(TAG)/SHA256SUMS.unsigned" -o SHA256SUMS.unsigned.upstream; \
+	  diff -u SHA256SUMS.unsigned.upstream SHA256SUMS.unsigned.local && echo "checksums match"
 
 help:
 	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>"
