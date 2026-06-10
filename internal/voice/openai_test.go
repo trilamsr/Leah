@@ -68,6 +68,32 @@ func TestOpenAITTS_CopyError_PrefixBounded(t *testing.T) {
 	}
 }
 
+// TestOpenAITTS_FallbackClientIsSingleton asserts repeated fallback resolutions reuse one client.
+func TestOpenAITTS_FallbackClientIsSingleton(t *testing.T) {
+	o := &OpenAITTS{}
+	a := o.resolveHTTPClient()
+	b := o.resolveHTTPClient()
+	if a == nil {
+		t.Fatal("fallback client is nil")
+	}
+	if a != b {
+		t.Fatalf("fallback client not a singleton: %p vs %p", a, b)
+	}
+	o2 := &OpenAITTS{}
+	if c := o2.resolveHTTPClient(); c != a {
+		t.Fatalf("fallback client not shared across instances: %p vs %p", c, a)
+	}
+}
+
+// TestOpenAITTS_HTTPClientOverrideRespected asserts a non-nil HTTPClient wins over the singleton.
+func TestOpenAITTS_HTTPClientOverrideRespected(t *testing.T) {
+	custom := &http.Client{}
+	o := &OpenAITTS{HTTPClient: custom}
+	if got := o.resolveHTTPClient(); got != custom {
+		t.Fatalf("override ignored: got %p want %p", got, custom)
+	}
+}
+
 // TestOpenAITTS_HappyPath_NoBodyCapture asserts a valid 200 response does not surface body-capture noise.
 func TestOpenAITTS_HappyPath_NoBodyCapture(t *testing.T) {
 	// 4-byte payload, accurate content-length → io.Copy succeeds.

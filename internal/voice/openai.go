@@ -9,8 +9,15 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 )
+
+// One shared fallback client so a future reader sees the singleton intent;
+// callers that want a custom Transport set OpenAITTS.HTTPClient.
+var defaultHTTPClient = sync.OnceValue(func() *http.Client {
+	return &http.Client{Timeout: 30 * time.Second}
+})
 
 // OpenAITTS posts text to /v1/audio/speech, writes the returned audio to
 // a temp file, then plays via `afplay`. Used as a fallback when Kokoro is
@@ -46,6 +53,15 @@ func (c *writerCap) Write(p []byte) (int, error) {
 		}
 	}
 	return len(p), nil
+}
+
+// Single doorway for picking the request client; keeps the fallback singleton
+// invisible from Speak and gives tests a non-flaky pointer-identity hook.
+func (o *OpenAITTS) resolveHTTPClient() *http.Client {
+	if o.HTTPClient != nil {
+		return o.HTTPClient
+	}
+	return defaultHTTPClient()
 }
 
 // Speak synthesizes via OpenAI and plays the resulting audio via afplay.
@@ -86,11 +102,7 @@ func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
 	req.Header.Set("Authorization", "Bearer "+o.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := o.HTTPClient
-	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
-	}
-	resp, err := client.Do(req)
+	resp, err := o.resolveHTTPClient().Do(req)
 	if err != nil {
 		return fmt.Errorf("openai tts: post: %w", err)
 	}
