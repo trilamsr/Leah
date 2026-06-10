@@ -564,6 +564,71 @@ type errString string
 
 func (e errString) Error() string { return string(e) }
 
+// TestLoop_LastTick_ZeroBeforeFirstTick: fresh Loop reports zero LastTick so dashboard renders "starting up", not a lie.
+func TestLoop_LastTick_ZeroBeforeFirstTick(t *testing.T) {
+	l := New(&fakeRegatta{resps: [][]regattaclient.Agent{{}}}, &fakeHb{}, &fakeNf{},
+		&audit.Logger{Path: t.TempDir() + "/audit.jsonl"}, &bytes.Buffer{}, time.Millisecond)
+	if got := l.LastTick(); !got.IsZero() {
+		t.Errorf("LastTick before first tick: want zero, got %v", got)
+	}
+}
+
+// TestLoop_LastTick_UpdatesPerTick: each tick advances LastTick monotonically — the value reflects real loop liveness.
+func TestLoop_LastTick_UpdatesPerTick(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}, {}}}
+	l := New(rc, &fakeHb{}, &fakeNf{}, &audit.Logger{Path: t.TempDir() + "/audit.jsonl"},
+		&bytes.Buffer{}, time.Millisecond)
+
+	before := time.Now()
+	l.tick(context.Background())
+	first := l.LastTick()
+	if first.Before(before) {
+		t.Fatalf("LastTick %v predates pre-tick instant %v", first, before)
+	}
+	time.Sleep(2 * time.Millisecond)
+	l.tick(context.Background())
+	second := l.LastTick()
+	if !second.After(first) {
+		t.Errorf("second LastTick %v should be after first %v", second, first)
+	}
+}
+
+// TestLoop_LastTick_RaceFree: concurrent LastTick reads against tick writes are race-detector clean.
+func TestLoop_LastTick_RaceFree(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	l := New(rc, &fakeHb{}, &fakeNf{}, &audit.Logger{Path: t.TempDir() + "/audit.jsonl"},
+		&bytes.Buffer{}, time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	var reads atomic.Int64
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					_ = l.LastTick()
+					reads.Add(1)
+				}
+			}
+		}()
+	}
+	for i := 0; i < 200; i++ {
+		l.tick(context.Background())
+	}
+	cancel()
+	wg.Wait()
+	if reads.Load() == 0 {
+		t.Error("expected at least one concurrent LastTick read")
+	}
+}
+
 func TestLoopRespectsContextCancellation(t *testing.T) {
 	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
 	l := New(rc, &fakeHb{}, &fakeNf{}, &audit.Logger{Path: t.TempDir() + "/audit.jsonl"},
