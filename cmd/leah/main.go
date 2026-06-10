@@ -150,6 +150,8 @@ func runCommand(ctx context.Context, args []string) int {
 		return runConnect(ctx, rest, os.Stdout)
 	case "disconnect":
 		return runDisconnect(ctx, rest, os.Stdout)
+	case "forget":
+		return runForget(ctx, rest, os.Stdout)
 	default:
 		usage()
 		return 2
@@ -454,5 +456,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]  restic snapshot of ~/.leah-state")
 	_, _ = fmt.Fprintln(os.Stderr, "  connect <integration>|--list  first-launch OAuth device-code for shipped adapters (gmail, gcal)")
 	_, _ = fmt.Fprintln(os.Stderr, "  disconnect <integration>|--list  revoke + remove on-disk token for a shipped adapter")
+	_, _ = fmt.Fprintln(os.Stderr, "  forget <pattern-id|all> [--dry-run] [--yes]  wipe pattern(s) from operator-model recs")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
