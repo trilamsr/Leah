@@ -150,3 +150,37 @@ WINDOWS PATH TESTS
    ```
 
 6. **Double-fail = root cause, not flake**. Same test/gate failing twice in one session is a real defect. Stop retrying; investigate root cause.
+
+## Recurring traps (meta-learned)
+
+Session 2026-06-10 observed six trap classes recurring across dispatched subagents. Each rule below: 1-line WHY + 1-line HOW.
+
+1. **Subagent commits land on PRIMARY worktree, not the assigned worktree.**
+   - WHY: `cd` does NOT persist across separate `Bash` tool calls; the next call starts back in the primary checkout, so `git commit` mutates main. Recovery requires `git reset --hard <pre-stray>` on primary.
+   - HOW: every mutating Bash call MUST be self-contained — start with `cd "$WORKTREE_PATH"` (or use an absolute `git -C "$WORKTREE_PATH" ...` form) inside the SAME call as the mutation. Never rely on a previous call having set the directory.
+   - Observed: session 2026-06-10 multiple subagent dispatches; recovery via `git reset --hard b749fe4`.
+
+2. **Implementer subagents over-self-review instead of shipping.**
+   - WHY: adversarial review is the reviewer subagent's job; implementer self-review burns hours producing findings that the independent reviewer would have surfaced anyway, and delays RED→GREEN→PR.
+   - HOW: implementer's loop is RED → GREEN → PR. Do NOT generate adversarial findings beyond the dispatch-spec's test plan. Ship; let the operator dispatch `cavecrew-reviewer`.
+   - Observed: session 2026-06-10, PR W56 (maps, 9 self-findings) and PR W25 (calendar, 4 self-findings).
+
+3. **Stale-base regressions in serial-merger flows — REBASE at TWO points, not one.**
+   - WHY: a docs/spec PR branched at T1 produces "deletion" diffs vs main at T2 if sibling PRs merged in between. The spec-PR serialize rule (PR #83) only covers dispatch ordering; an in-flight implementer that edits then pushes much later still hits stale-base.
+   - HOW: `git fetch origin && git rebase origin/main` IMMEDIATELY before the first edit AND IMMEDIATELY before `git push`. Two rebase points per dispatch, not one.
+   - Observed: session 2026-06-10 spec-PR series; mitigation codified in PR #83 (dispatch-side), this rule codifies the implementer-side.
+
+4. **`defer X.Close()` on SQL types trips errcheck.**
+   - WHY: `(*sql.Rows).Close()` and `(*sql.Stmt).Close()` return `error`, and `errcheck` flags the discarded return — every SQLite-using adapter (calendar, reminders, contacts, notes, future macOS readers) hits this.
+   - HOW: always wrap as `defer func() { _ = X.Close() }()`. Never bare `defer X.Close()` on any `database/sql` type.
+   - Observed: PR #100 (contacts, 7 violations blocked CI); same shape lurks in every adapter package using `database/sql`.
+
+5. **≤5% comment-density ceiling trips on tiny new packages — density-justified marker is the standard exit, not an exception.**
+   - WHY: a new package with 5 exported symbols × 1-line WHY-godoc each = 5 comment lines, and at ~60 LOC that's 8% — above the 5% gate. The arithmetic is unwinnable on small files; stripping the WHY-godocs to pass the gate violates the comments-discipline rule itself.
+   - HOW: for new packages ≤100 LOC with N exported symbols, add `<!-- comment-density-justified: new pkg ≤100 LOC, N exported symbols, each WHY-godoc 1 line -->` to the PR body. Treat this as the standard exit, not an exception.
+   - Observed: PR #67, PR #81, multiple macOS adapter PRs in session 2026-06-10.
+
+6. **Worktree-held branches block local cleanup.**
+   - WHY: `git branch -D feat/X` fails with "branch used by worktree at .claude/worktrees/agent-X" because the worktree still holds the branch ref, even after the PR merged on remote.
+   - HOW: after PR merge, the next dispatch (or harness janitor) MUST run `git worktree remove --force .claude/worktrees/agent-<id>` BEFORE `git branch -D <branch>`. Free the worktree, then the branch namespace.
+   - Observed: session 2026-06-10 multiple post-merge cleanups required `git worktree remove -f -f` recovery.
