@@ -9,6 +9,11 @@ import (
 	"strconv"
 )
 
+// cachedPlaces is the on-disk envelope for Geocode/ReverseGeocode results.
+type cachedPlaces struct {
+	Places []Place `json:"places"`
+}
+
 // geocodeResponse mirrors the Google Geocoding API JSON; only fields the
 // adapter projects into Place are decoded.
 type geocodeResponse struct {
@@ -31,10 +36,19 @@ func (a *Adapter) Geocode(ctx context.Context, address string) ([]Place, error) 
 	if err := a.gate(ctx, ScopeGeocode); err != nil {
 		return nil, err
 	}
+	ck := keyHash("geocode", address)
+	if p, ok := a.cacheGetPlaces(ctx, ck); ok {
+		return p, nil
+	}
 	q := url.Values{}
 	q.Set("address", address)
 	q.Set("key", a.apiKey)
-	return a.doGeocode(ctx, q)
+	out, err := a.doGeocode(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	a.cachePutPlaces(ctx, ck, out)
+	return out, nil
 }
 
 // ReverseGeocode resolves a lat/lng to candidate Places.
@@ -42,10 +56,45 @@ func (a *Adapter) ReverseGeocode(ctx context.Context, lat, lng float64) ([]Place
 	if err := a.gate(ctx, ScopeGeocode); err != nil {
 		return nil, err
 	}
+	ck := keyHash("revgeocode", lat, lng)
+	if p, ok := a.cacheGetPlaces(ctx, ck); ok {
+		return p, nil
+	}
 	q := url.Values{}
 	q.Set("latlng", strconv.FormatFloat(lat, 'f', -1, 64)+","+strconv.FormatFloat(lng, 'f', -1, 64))
 	q.Set("key", a.apiKey)
-	return a.doGeocode(ctx, q)
+	out, err := a.doGeocode(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	a.cachePutPlaces(ctx, ck, out)
+	return out, nil
+}
+
+func (a *Adapter) cacheGetPlaces(ctx context.Context, key string) ([]Place, bool) {
+	if a.cache == nil {
+		return nil, false
+	}
+	raw, ok, err := a.cache.Get(ctx, ScopeGeocode, key)
+	if err != nil || !ok {
+		return nil, false
+	}
+	var env cachedPlaces
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return nil, false
+	}
+	return env.Places, true
+}
+
+func (a *Adapter) cachePutPlaces(ctx context.Context, key string, places []Place) {
+	if a.cache == nil {
+		return
+	}
+	blob, err := json.Marshal(cachedPlaces{Places: places})
+	if err != nil {
+		return
+	}
+	_ = a.cache.Set(ctx, ScopeGeocode, key, blob, TTLFor(ScopeGeocode))
 }
 
 func (a *Adapter) doGeocode(ctx context.Context, q url.Values) ([]Place, error) {
