@@ -227,18 +227,35 @@ func flatten(name string, labels map[string]string) string {
 
 // Snapshot atomically writes the current registry state to path as JSON
 // matching spec §3.2. Parent dir is created with 0700.
+//
+// Copy-and-release: r.mu is held only long enough to snapshot the series
+// handles, and each per-series lock only long enough to copy its values.
+// Marshal and file I/O run lock-free so concurrent observers never stall
+// on snapshot duration.
 func (r *Registry) Snapshot(path string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	type histOut struct {
 		Count   int64            `json:"count"`
 		Sum     float64          `json:"sum"`
 		Buckets map[string]int64 `json:"buckets"`
 	}
 
-	counters := map[string]int64{}
+	r.mu.Lock()
+	counterHandles := make([]*Counter, 0, len(r.counters))
 	for _, c := range r.counters {
+		counterHandles = append(counterHandles, c)
+	}
+	gaugeHandles := make([]*Gauge, 0, len(r.gauges))
+	for _, g := range r.gauges {
+		gaugeHandles = append(gaugeHandles, g)
+	}
+	histHandles := make([]*Histogram, 0, len(r.histograms))
+	for _, h := range r.histograms {
+		histHandles = append(histHandles, h)
+	}
+	r.mu.Unlock()
+
+	counters := map[string]int64{}
+	for _, c := range counterHandles {
 		c.mu.Lock()
 		for k, v := range c.values {
 			counters[k] = v
@@ -246,7 +263,7 @@ func (r *Registry) Snapshot(path string) error {
 		c.mu.Unlock()
 	}
 	gauges := map[string]float64{}
-	for _, g := range r.gauges {
+	for _, g := range gaugeHandles {
 		g.mu.Lock()
 		for k, v := range g.values {
 			gauges[k] = v
@@ -254,17 +271,31 @@ func (r *Registry) Snapshot(path string) error {
 		g.mu.Unlock()
 	}
 	hists := map[string]histOut{}
-	for _, h := range r.histograms {
+	for _, h := range histHandles {
 		h.mu.Lock()
+		// Buckets list is immutable post-construction; snapshot the per-key
+		// counters + sum into a local copy so marshal runs unlocked.
+		type localSeries struct {
+			count   int64
+			sum     float64
+			buckets []int64
+		}
+		local := make(map[string]localSeries, len(h.values))
 		for k, s := range h.values {
+			cp := make([]int64, len(s.buckets))
+			copy(cp, s.buckets)
+			local[k] = localSeries{count: s.count, sum: s.sum, buckets: cp}
+		}
+		buckets := h.buckets
+		h.mu.Unlock()
+		for k, s := range local {
 			bk := map[string]int64{}
-			for i, b := range h.buckets {
+			for i, b := range buckets {
 				bk[strconv.FormatFloat(b, 'f', -1, 64)] = s.buckets[i]
 			}
-			bk["+Inf"] = s.buckets[len(h.buckets)]
+			bk["+Inf"] = s.buckets[len(buckets)]
 			hists[k] = histOut{Count: s.count, Sum: s.sum, Buckets: bk}
 		}
-		h.mu.Unlock()
 	}
 
 	out := map[string]any{
