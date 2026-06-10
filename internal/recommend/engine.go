@@ -18,6 +18,10 @@ type MemoryEngine struct {
 	mu       sync.Mutex
 	pending  map[string]Recommendation // id → rec, awaiting decision
 	accepted map[string]bool           // id → true once Accept lands
+
+	matchers      []SignalMatcher
+	lastFiredAt   map[string]time.Time // pattern → last OnSignal fire
+	now           func() time.Time     // test seam; default time.Now().UTC()
 }
 
 // NewMemoryEngine constructs an empty engine. The audit Logger may be nil
@@ -25,10 +29,53 @@ type MemoryEngine struct {
 // silently skip the row — keeps unit-test setup minimal.
 func NewMemoryEngine(logger *audit.Logger) *MemoryEngine {
 	return &MemoryEngine{
-		audit:    logger,
-		pending:  make(map[string]Recommendation),
-		accepted: make(map[string]bool),
+		audit:       logger,
+		pending:     make(map[string]Recommendation),
+		accepted:    make(map[string]bool),
+		lastFiredAt: make(map[string]time.Time),
+		now:         func() time.Time { return time.Now().UTC() },
 	}
+}
+
+// RegisterMatcher attaches m to the engine's OnSignal fan-out. Safe to
+// call from init; engine doesn't dedup matchers — caller owns identity.
+func (e *MemoryEngine) RegisterMatcher(m SignalMatcher) {
+	e.mu.Lock()
+	e.matchers = append(e.matchers, m)
+	e.mu.Unlock()
+}
+
+// OnSignal fans sig out to every registered matcher, then Seeds + returns
+// the resulting Recommendations. Per-pattern debounce: a Recommendation
+// whose Pattern fired within SignalDebounceWindow is silently dropped so a
+// noisy upstream (NSWorkspace push, EventKit) cannot saturate downstream.
+func (e *MemoryEngine) OnSignal(ctx context.Context, sig Signal) ([]Recommendation, error) {
+	e.mu.Lock()
+	matchers := make([]SignalMatcher, len(e.matchers))
+	copy(matchers, e.matchers)
+	e.mu.Unlock()
+
+	var out []Recommendation
+	now := e.now()
+	for _, m := range matchers {
+		recs, err := m.Match(ctx, sig)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range recs {
+			e.mu.Lock()
+			last, seen := e.lastFiredAt[r.Pattern]
+			if seen && now.Sub(last) < SignalDebounceWindow {
+				e.mu.Unlock()
+				continue
+			}
+			e.lastFiredAt[r.Pattern] = now
+			e.mu.Unlock()
+			e.Seed(r)
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }
 
 // Seed inserts a Recommendation into the pending pool. Provided for tests

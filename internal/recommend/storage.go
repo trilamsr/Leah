@@ -58,8 +58,11 @@ type SQLiteEngine struct {
 	audit *audit.Logger
 	db    *sql.DB
 
-	mu      sync.Mutex
-	actions map[string]Action // id → in-memory Action; lost on restart
+	mu          sync.Mutex
+	actions     map[string]Action    // id → in-memory Action; lost on restart
+	matchers    []SignalMatcher      // V8: registered for OnSignal fan-out
+	lastFiredAt map[string]time.Time // V8: pattern → last OnSignal fire
+	now         func() time.Time     // test seam; default time.Now().UTC()
 }
 
 // NewSQLiteEngine opens (creating if needed) the SQLite file at path with
@@ -92,7 +95,13 @@ func NewSQLiteEngine(path string, logger *audit.Logger) (*SQLiteEngine, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping: %w", err)
 	}
-	e := &SQLiteEngine{audit: logger, db: db, actions: make(map[string]Action)}
+	e := &SQLiteEngine{
+		audit:       logger,
+		db:          db,
+		actions:     make(map[string]Action),
+		lastFiredAt: make(map[string]time.Time),
+		now:         func() time.Time { return time.Now().UTC() },
+	}
 	if err := e.migrate(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -307,6 +316,47 @@ func (e *SQLiteEngine) Apply(ctx context.Context, rec Recommendation) error {
 		return fmt.Errorf("apply stamp: %w", err)
 	}
 	return e.logDecision("recommendation_apply", rec, "success")
+}
+
+// RegisterMatcher attaches m to the engine's OnSignal fan-out (Wave-9 V8).
+func (e *SQLiteEngine) RegisterMatcher(m SignalMatcher) {
+	e.mu.Lock()
+	e.matchers = append(e.matchers, m)
+	e.mu.Unlock()
+}
+
+// OnSignal fans sig through every registered matcher and persists the
+// matched Recommendations via Seed. Per-pattern debounce drops any rec
+// whose Pattern fired within SignalDebounceWindow — see MemoryEngine.OnSignal.
+func (e *SQLiteEngine) OnSignal(ctx context.Context, sig Signal) ([]Recommendation, error) {
+	e.mu.Lock()
+	matchers := make([]SignalMatcher, len(e.matchers))
+	copy(matchers, e.matchers)
+	e.mu.Unlock()
+
+	var out []Recommendation
+	now := e.now()
+	for _, m := range matchers {
+		recs, err := m.Match(ctx, sig)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range recs {
+			e.mu.Lock()
+			last, seen := e.lastFiredAt[r.Pattern]
+			if seen && now.Sub(last) < SignalDebounceWindow {
+				e.mu.Unlock()
+				continue
+			}
+			e.lastFiredAt[r.Pattern] = now
+			e.mu.Unlock()
+			if err := e.Seed(r); err != nil {
+				return nil, err
+			}
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }
 
 // RecordFeedback persists one feedback row keyed by recommendation id; the
