@@ -39,7 +39,51 @@ Rules:
 - `state==MERGED AND body~/Reviewer-recommendation: (REVISE|BLOCK)/` → file `[SESSION-AUDIT][post-merge] PR#<N>`.
 - `mergeStateStatus IN (BLOCKED,DIRTY,UNSTABLE)` → file `[SESSION-AUDIT][automerge-stall] PR#<N>`.
 - `Reviewer-agent-id:` matches PR author login → file `[SESSION-AUDIT][self-approve-leak]` per CLAUDE.md "Never self-approve".
-- **Self-approve-after-amend (binding gate, per `feedback_no_self_approve_after_edits` + S5 reflexion-loop spec `docs/engineer/specs/2026-06-10-reflexion-loop.md`).** The canonical verdict set is `clear-to-merge` | `block-on-findings` | `re-spawn-design`; verdict strings appear EITHER (a) in inline review COMMENT bodies on GitHub OR (b) in this session's transcript when reviewers were spawned as inline Agent tool calls whose output never reached GitHub. **Both surfaces must be scanned** — defaulting to (a) alone silently passes reviewer-runs that never posted (the common case in this codebase). Detection algorithm: for each merged PR, build a chronological event list pooled from BOTH sources — (a) `gh pr view N --json reviews,comments` review/comment bodies, AND (b) session transcript matches via `grep -nE 'PR\s*#?$N\b' "$CLAUDE_TRANSCRIPT"` (or the conversation context if transcript file unavailable) for blocks containing `block-on-findings` / `clear-to-merge` substrings. Walk forward in time. If a `block-on-findings` event has no LATER `clear-to-merge` event from a distinct re-spawned `cavecrew-reviewer-*` (or distinct `a[0-9a-f]{16}`) agent-id before `mergedAt` → file `[SESSION-AUDIT][self-approve-after-amend] PR#<N>`. The transcript-pool path catches the most common failure mode in this codebase (inline Agent reviewers). (Does NOT detect `re-spawn-design` slips — those rebuild the change wholesale and bypass the simple later-clear-to-merge heuristic; flag as future-lever in Phase A2.)
+- **Self-approve-after-amend (binding gate, per `feedback_no_self_approve_after_edits` + S5 reflexion-loop spec `docs/engineer/specs/2026-06-10-reflexion-loop.md`).** The canonical verdict set is `clear-to-merge` | `block-on-findings` | `re-spawn-design`. Verdict strings appear in TWO surfaces — (a) inline review/comment bodies on GitHub, AND (b) this session's transcript when reviewers were spawned as inline Agent tool calls whose output never reached GitHub. **Both surfaces must be scanned** — defaulting to (a) alone silently passes reviewer-runs that never posted (the common case in this codebase).
+
+  Per-PR algorithm:
+
+  ```bash
+  events=()  # each: <iso-timestamp>\t<verdict>\t<agent-id-or-source>
+
+  # Source (a) — GitHub review/comment bodies, timestamped by submittedAt/createdAt.
+  jq -r '
+    (.reviews // [])[] | select(.body | test("block-on-findings|clear-to-merge")) |
+      "\(.submittedAt)\t\((.body | capture("(?<v>block-on-findings|clear-to-merge)").v))\tgh-review-\(.author.login)",
+    (.comments // [])[] | select(.body | test("block-on-findings|clear-to-merge")) |
+      "\(.createdAt)\t\((.body | capture("(?<v>block-on-findings|clear-to-merge)").v))\tgh-comment-\(.author.login)"
+  ' "$HANDOFF_DIR/pr-$N.json" >> "$HANDOFF_DIR/pr-$N-events.tsv"
+
+  # Source (b) — session transcript. Resolution: line-order ≈ wall-clock order, so
+  # synthesize a monotonic timestamp from `mergedAt - (line_count - line_number) seconds`
+  # which preserves ordering across the merged event list (a-events stay at their real
+  # ISO time; b-events sort into the same chronological slot relative to mergedAt).
+  if [ -n "${CLAUDE_TRANSCRIPT:-}" ] && [ -r "$CLAUDE_TRANSCRIPT" ]; then
+    total=$(wc -l < "$CLAUDE_TRANSCRIPT")
+    merged_epoch=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$(jq -r .mergedAt "$HANDOFF_DIR/pr-$N.json")" '+%s')
+    grep -nE "PR\s*#?$N\b" "$CLAUDE_TRANSCRIPT" |
+      grep -E 'block-on-findings|clear-to-merge' |
+      awk -F: -v t="$total" -v m="$merged_epoch" '{
+        ts = m - (t - $1);
+        printf "%s\t%s\ttranscript-line-%d\n", strftime("%Y-%m-%dT%H:%M:%SZ", ts), ($0 ~ /block-on-findings/ ? "block-on-findings" : "clear-to-merge"), $1
+      }' >> "$HANDOFF_DIR/pr-$N-events.tsv"
+  else
+    # Fallback: $CLAUDE_TRANSCRIPT unset or unreadable → main thread surfaces
+    # the gap interactively in the consolidated hand-back instead of auto-filing
+    # an issue. Phase 7 cross-ref still records "transcript unavailable" so the
+    # operator knows the GH-only path is the only signal.
+    echo "transcript_unavailable" >> "$HANDOFF_DIR/pr-$N-events.tsv"
+  fi
+
+  # Walk forward. For each block-on-findings event, require a later clear-to-merge
+  # from a distinct agent-id (cavecrew-reviewer-* OR a[0-9a-f]{16}) before mergedAt.
+  sort "$HANDOFF_DIR/pr-$N-events.tsv" |
+    awk -F'\t' 'BEGIN{block=""} $2=="block-on-findings"{block=$3; next}
+                $2=="clear-to-merge" && block!="" && $3!=block {block=""}
+                END{if(block!="") exit 1}'
+  ```
+
+  Exit 1 → file `[SESSION-AUDIT][self-approve-after-amend] PR#<N>`. "transcript_unavailable" sentinel → main thread surfaces gap in hand-back, never auto-files (per Hard Nos `NO auto-file on uncertain detection`). (Does NOT detect `re-spawn-design` slips — those rebuild the change wholesale and bypass the simple later-clear-to-merge heuristic; flag as future-lever in Phase A2.)
 
 ## Phase 2: Reviewer-comment audit
 
@@ -90,6 +134,11 @@ Unfiled → operator hand-back list. **Do NOT auto-file** (noise).
 
 Deletion debt:
 ```bash
+# Refresh origin/main first — local ref can lag the remote if no fetch
+# fired this session, undercounting pure-add commits merged after the
+# last fetch. Read-only; safe in primary checkout.
+git fetch origin main --quiet
+
 # --merges filter misses squash-and-merge (the common GH path), which
 # lands as a single non-merge commit on origin/main. Use --first-parent
 # against origin/main to enumerate squash-merged commits and --no-merges
@@ -245,3 +294,4 @@ NEXT-SESSION FIRST ACTION: <from frontmatter>
 - NO `git gc --prune=now` or reflog-destructive cleanup.
 - NO auto-invoke other skills (including learn-from-mistakes — only surface gaps).
 - NO unbounded CI poll.
+- NO auto-file on uncertain detection (e.g. Phase 1 transcript-unavailable sentinel → surface gap in hand-back, never auto-file).
