@@ -16,9 +16,17 @@ import (
 // top-N recommendations from operator_profile for the current (ctx, time).
 // Prints "not ready" when the cold-start gate (50 rows + 7 days) hasn't
 // fired yet.
+//
+// Sub-verbs: `leah suggest replay --since=<RFC3339>` enumerates the
+// consolidated + raw rows since a point in time (S9 §7 — kept here vs a
+// new top-level command to match the forget/quote per-verb pattern).
 func runSuggest(ctx context.Context, args []string) int {
+	if len(args) > 0 && args[0] == "replay" {
+		return runSuggestReplay(ctx, args[1:])
+	}
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah suggest [--context X] [--llm]")
+		_, _ = fmt.Fprintln(os.Stderr, "       leah suggest replay --since=<RFC3339>")
 		return 0
 	}
 
@@ -84,6 +92,75 @@ func runSuggest(ctx context.Context, args []string) int {
 	for i, r := range recs {
 		fmt.Printf("%d. %s — %s (weight %.2f)\n", i+1, r.Kind, r.Reason, r.Weight)
 	}
+	return 0
+}
+
+// runSuggestReplay implements `leah suggest replay --since=<RFC3339>
+// [--no-archive]`. Lists the durable consolidated rows whose
+// source_window_end >= since so the operator can audit what the model
+// summarized at any past instant without re-running the daemon pass.
+func runSuggestReplay(ctx context.Context, args []string) int {
+	since := ""
+	noArchive := false
+	for i, a := range args {
+		switch a {
+		case "--since":
+			if i+1 < len(args) {
+				since = args[i+1]
+			}
+		case "--no-archive":
+			noArchive = true
+		}
+		if len(a) > 8 && a[:8] == "--since=" {
+			since = a[8:]
+		}
+	}
+	if since == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah suggest replay --since=<RFC3339>")
+		return 2
+	}
+	if _, err := time.Parse(time.RFC3339, since); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "replay: invalid --since %q: %v\n", since, err)
+		return 2
+	}
+
+	memPath := filepath.Join(stateDir(), "memory.db")
+	store, err := memory.NewStore(memPath)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "open memory: %v\n", err)
+		return 1
+	}
+	defer func() { _ = store.Close() }()
+
+	rows, err := store.DB().QueryContext(ctx, `
+		SELECT class, key, slot, weight, count, first_seen_ts, last_consolidated_at, source_window_end
+		FROM operator_profile_consolidated
+		WHERE source_window_end >= ?
+		ORDER BY source_window_end DESC`, since)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "replay query: %v\n", err)
+		return 1
+	}
+	defer func() { _ = rows.Close() }()
+	var printed int
+	for rows.Next() {
+		var class, key, slot, firstSeen, lastCons, srcEnd string
+		var weight float64
+		var count int
+		if err := rows.Scan(&class, &key, &slot, &weight, &count, &firstSeen, &lastCons, &srcEnd); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "scan: %v", err)
+			return 1
+		}
+		fmt.Printf("%s/%s/%s weight=%.2f count=%d window_end=%s\n",
+			class, key, slot, weight, count, srcEnd)
+		printed++
+	}
+	_ = ctx
+	if noArchive {
+		fmt.Printf("(%d consolidated rows since %s; archive skipped)\n", printed, since)
+		return 0
+	}
+	fmt.Printf("(%d consolidated rows since %s)\n", printed, since)
 	return 0
 }
 

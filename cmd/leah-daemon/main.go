@@ -84,6 +84,7 @@ func main() {
 	}
 
 	wireObs(registry, health, a, store, loop, chain)
+	wireConsolidation(loop, store, a, auditPath, sd)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

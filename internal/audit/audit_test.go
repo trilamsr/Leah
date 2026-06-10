@@ -215,6 +215,55 @@ func TestEntry_DecodesLegacyEntries(t *testing.T) {
 	}
 }
 
+// TestAuditQuiesce_BlocksAppendDuringPass asserts QuiesceForConsolidation
+// serializes Append calls; an Append issued mid-pass blocks until the
+// release handle fires (§4 step 7 contract).
+func TestAuditQuiesce_BlocksAppendDuringPass(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.jsonl")
+	logger := &Logger{Path: path, Now: func() time.Time { return time.Unix(1700000000, 0).UTC() }}
+
+	release := logger.QuiesceForConsolidation()
+	appended := make(chan error, 1)
+	go func() {
+		appended <- logger.Append(Entry{Kind: "post-quiesce", Outcome: "success"})
+	}()
+
+	select {
+	case err := <-appended:
+		t.Fatalf("Append returned during quiesce (err=%v): contract violated", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	release()
+	select {
+	case err := <-appended:
+		if err != nil {
+			t.Fatalf("Append after release: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Append did not unblock after release")
+	}
+
+	data, _ := os.ReadFile(path)
+	lines := splitLines(string(data))
+	if len(lines) != 1 {
+		t.Fatalf("want 1 post-release line, got %d", len(lines))
+	}
+}
+
+// TestAuditQuiesce_NestedReleaseSafe asserts release is idempotent.
+func TestAuditQuiesce_NestedReleaseSafe(t *testing.T) {
+	dir := t.TempDir()
+	logger := &Logger{Path: filepath.Join(dir, "audit.jsonl")}
+	release := logger.QuiesceForConsolidation()
+	release()
+	release()
+	if err := logger.Append(Entry{Kind: "post"}); err != nil {
+		t.Fatalf("Append after double-release: %v", err)
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

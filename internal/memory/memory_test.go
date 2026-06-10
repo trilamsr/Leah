@@ -488,3 +488,103 @@ func TestAuditHook(t *testing.T) {
 		}
 	}
 }
+
+// TestSchema_Consolidated_UpsertOnConflict asserts duplicate
+// (class, key, slot) inserts via ON CONFLICT DO UPDATE replace in place —
+// the real production path used by ConsolidatePass.
+func TestSchema_Consolidated_UpsertOnConflict(t *testing.T) {
+	s := newTestStore(t)
+	upsert := `INSERT INTO operator_profile_consolidated
+		(class, key, slot, weight, count, first_seen_ts, last_consolidated_at, source_window_end)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(class, key, slot) DO UPDATE SET
+			weight=excluded.weight,
+			count=excluded.count,
+			last_consolidated_at=excluded.last_consolidated_at,
+			source_window_end=excluded.source_window_end`
+	if _, err := s.db.Exec(upsert, "time_of_day", "ask", "09", 1.5, 3,
+		"2026-05-01T00:00:00Z", "2026-06-01T00:00:00Z", "2026-05-27T00:00:00Z"); err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	if _, err := s.db.Exec(upsert, "time_of_day", "ask", "09", 9.9, 11,
+		"2026-05-01T00:00:00Z", "2026-06-10T00:00:00Z", "2026-05-27T00:00:00Z"); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	var count int
+	if err := s.db.QueryRow(
+		`SELECT count FROM operator_profile_consolidated WHERE class=? AND key=? AND slot=?`,
+		"time_of_day", "ask", "09",
+	).Scan(&count); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if count != 11 {
+		t.Fatalf("upsert did not replace: count=%d, want 11", count)
+	}
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM operator_profile_consolidated`).Scan(&n); err != nil {
+		t.Fatalf("count rows: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("row count = %d, want 1", n)
+	}
+}
+
+// TestSchema_Snapshot_UpsertOnConflict mirrors the consolidated upsert
+// contract for operator_profile_snapshot (§3.3 anchor table).
+func TestSchema_Snapshot_UpsertOnConflict(t *testing.T) {
+	s := newTestStore(t)
+	upsert := `INSERT INTO operator_profile_snapshot
+		(class, key, slot, weight_at_snapshot, snapshot_ts)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(class, key, slot) DO UPDATE SET
+			weight_at_snapshot=excluded.weight_at_snapshot,
+			snapshot_ts=excluded.snapshot_ts`
+	if _, err := s.db.Exec(upsert, "cadence", "ask", "Mon", 2.0, "2026-05-27T00:00:00Z"); err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	if _, err := s.db.Exec(upsert, "cadence", "ask", "Mon", 4.4, "2026-06-10T00:00:00Z"); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	var w float64
+	if err := s.db.QueryRow(
+		`SELECT weight_at_snapshot FROM operator_profile_snapshot WHERE class=? AND key=? AND slot=?`,
+		"cadence", "ask", "Mon",
+	).Scan(&w); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if w != 4.4 {
+		t.Fatalf("upsert did not replace: w=%v, want 4.4", w)
+	}
+}
+
+// TestSchema_Consolidated_MigrationIdempotent asserts re-opening a store
+// preserves consolidated rows (no DDL reset of existing data).
+func TestSchema_Consolidated_MigrationIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "memory.db")
+	s1, err := NewStore(path)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	if _, err := s1.db.Exec(`INSERT INTO operator_profile_consolidated
+		(class, key, slot, weight, count, first_seen_ts, last_consolidated_at, source_window_end)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"time_of_day", "ask", "09", 1.0, 1,
+		"2026-05-01T00:00:00Z", "2026-06-01T00:00:00Z", "2026-05-27T00:00:00Z"); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	_ = s1.Close()
+
+	s2, err := NewStore(path)
+	if err != nil {
+		t.Fatalf("re-open: %v", err)
+	}
+	defer func() { _ = s2.Close() }()
+	var n int
+	if err := s2.db.QueryRow(`SELECT COUNT(*) FROM operator_profile_consolidated`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("row count after re-open = %d, want 1 (DDL clobbered data)", n)
+	}
+}
