@@ -1,9 +1,11 @@
 # HUD Form-Factor — decision spec (stub)
 
 **Date:** 2026-06-10
-**Status:** STUB — placeholder filed to honor pointer in UX audit v4.
-**Decision owner:** operator (Tri).
-**Source:** flagged by UX audit (`docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md`) §3, moved out of audit findings because form-factor is orthogonal to UX criteria audit. Lives here for a focused decision.
+**Status:** STUB — placeholder filed to honor pointer in UX audit v4. Options listed, NOT ranked. Engineering writes options; UX designer + owner pick.
+**Decision owner:** operator (Tri) + UX designer (TBD). Engineering author defers the pick.
+**Source:** flagged by UX audit (`docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md`) §3. Audit explicitly says "Audit doesn't answer" — that disclaimer carries into this stub.
+
+**Shipping impact:** Form-factor is **NOT a blocker for the 8 UX-audit top blockers** (polling state machine, voice earcons, memory inspector, first-launch wizard, undo, daemon-offline, accessibility, environmental robustness). Path (a) full ship per project memory `Leah ships path (a) full` proceeds in parallel. Form-factor decision can land before or after those blockers; current detached-window form is the interim default.
 
 ---
 
@@ -27,16 +29,20 @@ Cons:
 
 ---
 
-## Competitive baseline (2026)
+## Competitive baseline (2026, claims UNSOURCED — verify before deciding)
 
-| Product | Form-factor | Trade-off |
-|---------|-------------|-----------|
-| Apple Intelligence | Rendered into the active app via system extension (Mail, Notes, Notification Center) | Tight system integration; OS-locked |
-| Granola | Inline floating panel that follows active meeting context | Context-aware; meeting-only scope |
-| Limitless (post-acquisition) | Pendant + always-on inline overlay; minimal chrome | Hardware tie-in; overlay needs OS hook |
+Claims below are the stub author's understanding as of 2026-06-10 and NOT linked to primary sources. Treat as starting point for owner's research, not as evidence.
+
+| Product | Form-factor (claimed) | Trade-off (claimed) |
+|---------|----------------------|---------------------|
+| Apple Intelligence | Rendered into active app via system extensions (Mail, Notes, Notification Center) | Tight system integration; OS-locked |
+| Granola | Inline floating panel following active meeting context | Context-aware; meeting-only scope |
+| Limitless | Pendant + always-on inline overlay | Hardware tie-in; overlay needs OS hook |
 | ChatGPT Voice | Full-screen takeover, no ambient | Modal; assumes singular attention |
-| Rabbit R1 | Dedicated device | Different tradeoff — separates input surface entirely |
+| Rabbit R1 | Dedicated device | Separates input surface entirely |
 | Leah today | Detached browser window | Portable; un-integrated |
+
+**Before owner picks:** verify each row against primary source (WWDC video, product blog, hands-on review). Drop or correct any row that doesn't survive verification.
 
 ---
 
@@ -68,21 +74,70 @@ Combine B's menubar pull-down for at-a-glance, Notification Center widget for am
 Pros: native, low-chrome ambient; respects OS conventions; cross-app stays in Leah's own context engine (not Apple's).
 Cons: three surfaces to maintain; design coherence overhead.
 
+### E. Web app + Progressive Web App (PWA)
+
+Leverage existing browser-shaped HUD; ship as installable PWA across macOS / Linux / iOS / Android.
+
+Pros: zero new tech stack; cross-platform free; existing HTML/JS/CSS in `internal/hud/static/` reused.
+Cons: same un-integrated detached-window feel as A; PWA install adoption uncertain; iOS Safari PWA support patchy.
+
+### F. Mobile companion (iOS/Android native)
+
+Native phone app as primary ambient surface; macOS HUD optional secondary.
+
+Pros: ambient where user actually looks (phone); push notifications native; LiveActivities/widgets on iOS.
+Cons: out of scope for v1 per audit; adds entire second codebase + app-store overhead; not what user asked for today.
+
+### G. IDE extension (VS Code / JetBrains side panel)
+
+Inline Leah inside the IDE the user is already in.
+
+Pros: zero glance-tax for code-focused users; matches user's actual primary task; rich context (open file, selection).
+Cons: only useful for code workflow — Leah's broader scope (calendar/mail/trip-planning) doesn't fit IDE surface; needs separate ambient surface for non-coding moments.
+
+### H. Voice-only (no visual)
+
+No HUD window. Audio-only ambient. Leah speaks status, summaries, recommendations.
+
+Pros: zero attention tax; works for eyes-busy/blind users; environmental robustness (no public-space screen-glance issue).
+Cons: discoverability cliff; no glanceable status; high accessibility cost for deaf users; no visual confirmation of what Leah heard.
+
 ---
 
-## Recommended (NOT YET DECIDED — owner picks)
+## Option matrix (axis × option)
 
-Audit's instinct: **D (hybrid).** Best matches "personal-OS that sees everything, never demands attention." But cost is high. Decision deferred to owner.
+| Axis | A: detached | B: menubar+Spotlight | C: system-ext | D: hybrid | E: PWA | F: mobile | G: IDE | H: voice-only |
+|------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| macOS native feel | ✗ | ✓✓ | ✓✓✓ | ✓✓✓ | ✗ | n/a | ✓ | n/a |
+| Linux support | ✓ | ✗ | ✗ | ✗ | ✓✓ | n/a | ✓ | ✓ |
+| Cross-app context | ✗ | ✗ | ✓✓✓ | ✓ | ✗ | ✗ | partial | ✗ |
+| Glance-tax | high | low | none | low | high | none | low | none |
+| Impl effort (weeks) | 0 | 4–6 | 12+ | 8–10 | 2 | 16+ | 4 | 3 |
+| Eyes-busy support | ✗ | ✗ | ✗ | ✗ | ✗ | partial | ✗ | ✓✓✓ |
+| Public-space friendly | ✗ | ✓ | ✓ | ✓ | ✗ | ✓✓ | ✓ | ✗ (audio leaks) |
+| Reuses existing code | ✓✓ | partial | ✗ | partial | ✓✓✓ | ✗ | partial | partial |
+
+(Effort estimates by stub author; verify before commitment.)
 
 ---
 
-## Decision required
+## Recommendation
 
-- [ ] Pick A / B / C / D / other.
-- [ ] If B or D: macOS-only acceptable for v1? Linux deferred?
-- [ ] If C: which apps to extend first?
-- [ ] Target version for form-factor change?
-- [ ] Owner who designs (this stub author is engineering, not UX designer).
+**No recommendation from engineering.** All eight options remain open. UX designer + operator pick based on:
+- which axes matter most for personal-use bar (probably: native feel + cross-app context + low glance-tax),
+- platform commitment (macOS-only vs Linux-included),
+- effort budget per project memory `Leah ships path (a) full`.
+
+---
+
+## Decision & planning
+
+- [ ] **Owner confirms:** form-factor decision IS / IS NOT a blocker for v1 ship. (Default per `Leah ships path (a) full`: NOT a blocker — current detached-window form is interim default.)
+- [ ] **If blocker:** Owner + UX designer pick option (A–H) by [DATE]; engineering expands stub to full spec.
+- [ ] **If not blocker:** Status quo (A) ships as interim. Form-factor research scheduled for [WEEK X] post-blockers.
+- [ ] **Platform decision:** macOS-only acceptable for v1, or Linux parity required? (Eliminates B/C/D if Linux required.)
+- [ ] **UX designer assigned** (NOT the stub author — engineering).
+- [ ] **Competitive table verified** against primary sources before any pick.
 
 ---
 
@@ -97,4 +152,4 @@ Audit's instinct: **D (hybrid).** Best matches "personal-OS that sees everything
 
 ## Next step
 
-Operator selects option. Author expands stub into full spec with chosen path's wireframes, IPC contract, packaging plan, migration sequencing. Spec ships as separate PR; this stub merges as-is to honor v4 audit pointer.
+This stub merges as-is to close v4 UX-audit's dangling pointer. Path (a) shipping continues in parallel on the 8 UX-audit blockers; form-factor research is non-blocking. When owner + UX designer are ready, this stub expands to a full spec with chosen path's wireframes, IPC contract, packaging plan, migration sequencing.
