@@ -52,6 +52,7 @@ type AuditRow struct {
 	ChannelHash string
 	GuildHash   string
 	BodyLen     int
+	VoiceSHA    string
 	Reason      string
 }
 
