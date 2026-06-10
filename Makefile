@@ -1,4 +1,4 @@
-.PHONY: dev verify-pr baseline check smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums help
+.PHONY: dev verify-pr baseline check smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation help
 
 # Run leah-daemon against ~/.leah-state-dev/ sandbox.
 # Opens browser to dashboard. Tails audit log in foreground.
@@ -93,5 +93,31 @@ verify-checksums:
 	  curl -fsSL "https://github.com/trilamsr/Leah/releases/download/$(TAG)/SHA256SUMS.unsigned" -o SHA256SUMS.unsigned.upstream; \
 	  diff -u SHA256SUMS.unsigned.upstream SHA256SUMS.unsigned.local && echo "checksums match"
 
+# W135/S10/M6: verify SLSA L2 provenance + cosign keyless signature over
+# SHA256SUMS (signed+stapled tarball checksums published by W141 release.yml).
+# Use: make verify-attestation TAG=vX.Y.Z
+# Requires cosign + slsa-verifier installed locally. End-to-end attestation chain:
+#   SHA256SUMS.sig -> Sigstore Rekor entry -> GHA OIDC identity -> repo ref.
+verify-attestation:
+	@test -n "$(TAG)" || (echo "set TAG=vX.Y.Z" && exit 1)
+	@command -v cosign >/dev/null 2>&1 || (echo "install cosign: brew install cosign" && exit 1)
+	@command -v slsa-verifier >/dev/null 2>&1 || (echo "install slsa-verifier: brew install slsa-verifier" && exit 1)
+	@DEST="dist-verify/$(TAG)"; \
+	    mkdir -p "$$DEST"; \
+	    gh release download "$(TAG)" --repo trilamsr/Leah --dir "$$DEST" --clobber; \
+	    echo "verifying cosign keyless signature on SHA256SUMS"; \
+	    cosign verify-blob \
+	        --certificate "$$DEST/SHA256SUMS.pem" \
+	        --signature "$$DEST/SHA256SUMS.sig" \
+	        --certificate-identity-regexp "^https://github.com/trilamsr/Leah/" \
+	        --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+	        "$$DEST/SHA256SUMS"; \
+	    echo "verifying SLSA L2 provenance"; \
+	    slsa-verifier verify-artifact \
+	        --provenance-path "$$DEST/leah.intoto.jsonl" \
+	        --source-uri github.com/trilamsr/Leah \
+	        --source-tag "$(TAG)" \
+	        "$$DEST"/leah-*-* "$$DEST"/leah-daemon-*-* "$$DEST"/leah-hud-*-*
+
 help:
-	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>"
+	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>"

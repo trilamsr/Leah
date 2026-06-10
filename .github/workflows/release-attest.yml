@@ -1,0 +1,217 @@
+name: release-attest
+
+# W135 / S10 / M6: reproducible build + SBOM (syft) + SLSA L2 provenance
+# (slsa-github-generator) + cosign keyless sign-blob. Triggered on v* tag push.
+# Spec: docs/engineer/specs/2026-06-10-trust-moats.md §7
+# Operator doc: docs/operator/reproducible-build.md
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref (tag) to build'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  # Reproducibility flags — every byte of the binary must be deterministic.
+  # -trimpath strips $GOPATH; -mod=readonly forbids go.mod mutation;
+  # -buildid= zeroes the build-id stamp; -s -w drops symbol + DWARF tables.
+  GOFLAGS: '-trimpath -mod=readonly'
+  CGO_ENABLED: '0'
+  LDFLAGS: '-s -w -buildid='
+
+jobs:
+  build:
+    name: build + sbom + checksum
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # GHA matrix builds cannot share a single output key — every leg would race
+    # to the same slot. Per-leg hash-<os>-<arch> keys are merged into one
+    # base64 payload by the combine_hashes aggregator (slsa-github-generator
+    # canonical pattern, see generator_generic_slsa3 README).
+    outputs:
+      hash-linux-amd64: ${{ steps.hash.outputs.hash-linux-amd64 }}
+      hash-linux-arm64: ${{ steps.hash.outputs.hash-linux-arm64 }}
+      hash-darwin-amd64: ${{ steps.hash.outputs.hash-darwin-amd64 }}
+      hash-darwin-arm64: ${{ steps.hash.outputs.hash-darwin-arm64 }}
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Verify go.mod
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Build leah, leah-daemon, leah-hud
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          for cmd in leah leah-daemon leah-hud; do
+            go build -ldflags="${LDFLAGS}" -o "dist/${cmd}-${GOOS}-${GOARCH}" "./cmd/${cmd}"
+          done
+
+      - name: Reproducibility self-test (build twice, assert byte-identical)
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        # Spec §7.3: repro check rebuilds every binary and diffs sha256.
+        # A non-deterministic ldflag or toolchain flag would diverge here.
+        run: |
+          for cmd in leah leah-daemon leah-hud; do
+            go build -ldflags="${LDFLAGS}" -o "/tmp/${cmd}-rebuild-${GOOS}-${GOARCH}" "./cmd/${cmd}"
+            a=$(sha256sum "dist/${cmd}-${GOOS}-${GOARCH}" | cut -d' ' -f1)
+            b=$(sha256sum "/tmp/${cmd}-rebuild-${GOOS}-${GOARCH}" | cut -d' ' -f1)
+            if [ "$a" != "$b" ]; then
+              echo "::error::non-reproducible build for ${cmd} ${GOOS}/${GOARCH}: $a != $b"
+              exit 1
+            fi
+            echo "reproducible: ${cmd} ${GOOS}/${GOARCH} sha256=$a"
+          done
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          artifact-name: leah-${{ matrix.goos }}-${{ matrix.goarch }}.spdx.json
+          output-file: dist/leah-${{ matrix.goos }}-${{ matrix.goarch }}.spdx.json
+
+      - name: Compute SHA256 checksums
+        working-directory: dist
+        run: |
+          sha256sum leah-${{ matrix.goos }}-${{ matrix.goarch }} \
+                    leah-daemon-${{ matrix.goos }}-${{ matrix.goarch }} \
+                    leah-hud-${{ matrix.goos }}-${{ matrix.goarch }} \
+                    leah-${{ matrix.goos }}-${{ matrix.goarch }}.spdx.json \
+            > SHA256SUMS-${{ matrix.goos }}-${{ matrix.goarch }}
+
+      - name: Export per-leg digests for SLSA provenance
+        id: hash
+        working-directory: dist
+        # base64-encoded SHA256SUMS payload — input format expected by
+        # slsa-github-generator's combine_hashes pattern. `base64 | tr -d` keeps
+        # us portable to BSD base64 (macOS runners lack `-w0`).
+        run: |
+          digests=$(sha256sum leah-${{ matrix.goos }}-${{ matrix.goarch }} \
+                              leah-daemon-${{ matrix.goos }}-${{ matrix.goarch }} \
+                              leah-hud-${{ matrix.goos }}-${{ matrix.goarch }} \
+                    | base64 | tr -d '\n')
+          echo "hash-${{ matrix.goos }}-${{ matrix.goarch }}=${digests}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: leah-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/
+          retention-days: 7
+
+  combine_hashes:
+    name: combine matrix hashes
+    runs-on: ubuntu-latest
+    needs: [build]
+    outputs:
+      hashes: ${{ steps.hashes.outputs.hashes }}
+    env:
+      # toJSON over needs.build.outputs gives all 4 hash-<os>-<arch> values.
+      HASHES: ${{ toJSON(needs.build.outputs) }}
+    steps:
+      - name: Aggregate
+        id: hashes
+        # Decode each leg's base64 payload, concat into one hashes.txt, then
+        # re-base64 the merged file. Generator signs every line as a subject.
+        # Fail closed on empty input — an upstream matrix-leg crash would
+        # otherwise hand SLSA an empty subject list and pass silently.
+        run: |
+          set -euo pipefail
+          echo "$HASHES" | jq -r '.[] | @base64d' | sed '/^$/d' > hashes.txt
+          [ -s hashes.txt ] || { echo "::error::no matrix-leg digests collected"; exit 1; }
+          cat hashes.txt
+          echo "hashes=$(base64 < hashes.txt | tr -d '\n')" >> "$GITHUB_OUTPUT"
+
+  provenance:
+    name: slsa L2 provenance
+    needs: [combine_hashes]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    # Pin to v2.1.0 (GA 2025-02-24, spec §15 risk #2: no @main drift).
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.combine_hashes.outputs.hashes }}
+      upload-assets: true
+      provenance-name: leah.intoto.jsonl
+
+  sign:
+    name: cosign keyless sign
+    needs: [build, provenance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Aggregate SHA256SUMS
+        working-directory: dist
+        run: |
+          # Per-matrix SHA256SUMS-* files merge into one signed top-level file.
+          cat ./*/SHA256SUMS-* > SHA256SUMS
+          shasum -a 256 SHA256SUMS
+
+      - name: cosign sign-blob (keyless, Sigstore OIDC)
+        working-directory: dist
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+        run: |
+          cosign sign-blob --yes \
+            --output-signature SHA256SUMS.sig \
+            --output-certificate SHA256SUMS.pem \
+            SHA256SUMS
+
+      - name: Attach signed checksums to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            dist/SHA256SUMS \
+            dist/SHA256SUMS.sig \
+            dist/SHA256SUMS.pem \
+            --clobber
