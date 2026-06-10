@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=320,initial-scale=1" />
+<title>Leah HUD — Ambient</title>
+<link rel="stylesheet" href="/static/ambient.css" />
+</head>
+<body class="ambient">
+<main id="hud" aria-label="Leah ambient HUD">
+  <section class="row time">
+    <div id="clock" class="big">--:--</div>
+    <div id="date" class="muted">—</div>
+  </section>
+  <section class="row weather">
+    <span id="loc">—</span>
+    <span id="cond" class="muted">—</span>
+    <span id="temp" class="mono">—</span>
+  </section>
+  <section class="row cal">
+    <span id="cal-time" class="mono">—</span>
+    <span id="cal-title">no upcoming event</span>
+  </section>
+  <section class="row news">
+    <span id="headline">…</span>
+  </section>
+  <section class="row market">
+    <span id="ticker" class="mono">—</span>
+  </section>
+  <footer class="rings">
+    <span id="state" class="pill">hidden</span>
+    <span id="listen" class="ring" title="listening"></span>
+    <span id="think" class="ring" title="thinking"></span>
+  </footer>
+</main>
+<script src="/static/ambient.js"></script>
+</body>
+</html>
