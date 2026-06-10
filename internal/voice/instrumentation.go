@@ -26,6 +26,20 @@ func EmitSpeak(registry *obs.Registry, backend string) {
 	registry.Counter("leah_voice_speak_total").Inc(map[string]string{"backend": backend})
 }
 
+// StreamToolUseSuppressedHook returns a callback that increments
+// leah_voice_stream_tool_use_suppressed_total once per tool-use delta dropped
+// by reasoner.AskStream. Wire on Reasoner.OnStreamToolUseSuppressed so an
+// operator can distinguish "model didn't invoke tools" from "tools invoked
+// but V10 silently dropped them". Returns nil when registry is nil so the
+// caller can leave the hook unset.
+func StreamToolUseSuppressedHook(registry *obs.Registry) func() {
+	if registry == nil {
+		return nil
+	}
+	cnt := registry.Counter("leah_voice_stream_tool_use_suppressed_total")
+	return func() { cnt.Inc(nil) }
+}
+
 type SelfChecker struct{ Chain *ChainTTS }
 
 func (c *SelfChecker) SelfCheck(ctx context.Context) error {
@@ -138,9 +152,10 @@ type TurnTimer struct {
 	instr          *TurnInstrumentation
 	turnStart      time.Time
 	turnEnd        time.Time
-	reasonerAskAt  time.Time
-	reasonerDoneAt time.Time
-	ttsFirstByteAt time.Time
+	reasonerAskAt        time.Time
+	reasonerFirstTokenAt time.Time
+	reasonerDoneAt       time.Time
+	ttsFirstByteAt       time.Time
 	// stage is an atomic.Pointer because BargeIn reads it from the loop
 	// goroutine while Mark* writes from the reply goroutine. Atomic swap is
 	// cheaper than a mutex on a 1-byte-string-equivalent classification.
@@ -165,6 +180,20 @@ func (tt *TurnTimer) MarkReasonerAsk(at time.Time) {
 	tt.reasonerAskAt = at
 	s := "reasoner"
 	tt.stage.Store(&s)
+}
+
+// MarkReasonerFirstToken records the reasoner_first_token stage (W109/V10):
+// reasoner-ask → first text delta. The stage histogram targets ≤300ms p95
+// per the voice-frontier spec §2.5. Intentional no-op if MarkReasonerAsk
+// hasn't fired (out-of-order call) or first-token has already been recorded
+// on this turn — runStreamingTurn always Marks Ask first, so this is a guard
+// against misuse, not a defensive default.
+func (tt *TurnTimer) MarkReasonerFirstToken(at time.Time) {
+	if tt == nil || tt.reasonerAskAt.IsZero() || !tt.reasonerFirstTokenAt.IsZero() {
+		return
+	}
+	tt.reasonerFirstTokenAt = at
+	tt.instr.RecordStage("reasoner_first_token", "completed", at.Sub(tt.reasonerAskAt))
 }
 
 func (tt *TurnTimer) MarkReasonerDone(at time.Time, outcome string) {

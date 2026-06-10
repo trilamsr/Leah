@@ -24,6 +24,14 @@ type Reasoner interface {
 	Ask(ctx context.Context, prompt string) (string, error)
 }
 
+// StreamReasoner is the W109 streaming surface. When the configured Reason
+// satisfies it, Session takes the sentence-boundary streaming path; otherwise
+// it falls back to the original Ask → Speak flow.
+type StreamReasoner interface {
+	Reasoner
+	AskStream(ctx context.Context, prompt string) (<-chan string, error)
+}
+
 // TTSSpeaker is the speak-with-cancel surface session needs. Matches
 // voice.TTS but kept anonymous here so this package stays import-light.
 type TTSSpeaker interface {
@@ -132,6 +140,10 @@ func (s *Session) Run(ctx context.Context) error {
 		go func() {
 			defer replyWG.Done()
 			tt.MarkReasonerAsk(s.Now())
+			if sr, ok := s.Reason.(StreamReasoner); ok {
+				s.runStreamingTurn(rctx, tt, sr, prompt)
+				return
+			}
 			reply, rerr := s.Reason.Ask(rctx, prompt)
 			if rerr != nil {
 				if errors.Is(rctx.Err(), context.Canceled) {
@@ -223,6 +235,95 @@ func (s *Session) Run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// runStreamingTurn drives the W109 sentence-boundary path. Reasoner deltas
+// fill a SentenceChunker; each emitted chunk is spoken serially via the same
+// Speak surface (audio device serialization is the backend's job — see
+// voice/tts.go withAudioDevice). First-token timing is captured for the
+// reasoner_first_token V1 stage. Stream-error or speak-error unwinds the
+// timer + audit row identically to the non-streaming path.
+func (s *Session) runStreamingTurn(rctx context.Context, tt *voice.TurnTimer, sr StreamReasoner, prompt string) {
+	deltas, err := sr.AskStream(rctx, prompt)
+	if err != nil {
+		if errors.Is(rctx.Err(), context.Canceled) {
+			tt.MarkReasonerDone(s.Now(), "barged_in")
+			s.recordTurn("interrupted")
+			tt.Finish(s.Now(), "barged_in")
+			return
+		}
+		tt.MarkReasonerDone(s.Now(), "error")
+		_ = s.Speak.Speak(rctx, "I couldn't reason that through, try again.")
+		s.recordTurn("reasoner_error")
+		tt.Finish(s.Now(), "error")
+		return
+	}
+
+	chunker := &SentenceChunker{}
+	firstTokenSeen := false
+	firstSpeakSeen := false
+
+	speak := func(text string) bool {
+		if text == "" {
+			return true
+		}
+		if !firstSpeakSeen {
+			tt.MarkTTSFirstByte(s.Now(), "completed")
+			firstSpeakSeen = true
+		}
+		if err := s.Speak.Speak(rctx, text); err != nil {
+			if errors.Is(rctx.Err(), context.Canceled) {
+				tt.MarkTTSDone(s.Now(), "barged_in")
+				s.recordTurn("interrupted")
+				tt.Finish(s.Now(), "barged_in")
+				return false
+			}
+			tt.MarkTTSDone(s.Now(), "error")
+			s.recordTurn("tts_error")
+			tt.Finish(s.Now(), "error")
+			return false
+		}
+		return true
+	}
+
+	for d := range deltas {
+		if !firstTokenSeen {
+			tt.MarkReasonerFirstToken(s.Now())
+			firstTokenSeen = true
+		}
+		if chunk, ok := chunker.Push(d); ok {
+			if !speak(chunk) {
+				// Drain on Speak failure where rctx is NOT cancelled
+				// (e.g. tts_error) — AskStream's goroutine already exits
+				// on ctx-cancel via its own select-send.
+				for range deltas {
+				}
+				return
+			}
+		}
+	}
+
+	// Stream ended — flush trailing.
+	if errors.Is(rctx.Err(), context.Canceled) {
+		tt.MarkReasonerDone(s.Now(), "barged_in")
+		s.recordTurn("interrupted")
+		tt.Finish(s.Now(), "barged_in")
+		return
+	}
+	tt.MarkReasonerDone(s.Now(), "completed")
+	if tail := chunker.Flush(); tail != "" {
+		if !speak(tail) {
+			return
+		}
+	}
+	if !firstSpeakSeen {
+		// Empty reply — record TTS first-byte anyway so the stage histogram
+		// doesn't silently drop turns.
+		tt.MarkTTSFirstByte(s.Now(), "completed")
+	}
+	tt.MarkTTSDone(s.Now(), "completed")
+	s.recordTurn("success")
+	tt.Finish(s.Now(), "completed")
 }
 
 // speakControl speaks a session-control phrase (attestation prompt, idle
