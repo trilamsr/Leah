@@ -83,3 +83,50 @@ func TestRunCommand_DispatchesVersion(t *testing.T) {
 		t.Errorf("runCommand version = %d; want 0", got)
 	}
 }
+
+// TestRunCommand_BriefBadFlag_ReturnsTwo pins the subcommand-returns-int
+// contract: an unknown flag must propagate exit code 2 back through
+// runCommand instead of os.Exit-ing the process (review #55: subcommand
+// os.Exit skips the deferred writeInterruptedAudit in main()).
+func TestRunCommand_BriefBadFlag_ReturnsTwo(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", tmp)
+	if got := runCommand(context.Background(), []string{"brief", "--no-such-flag"}); got != 2 {
+		t.Errorf("runCommand brief --no-such-flag = %d; want 2", got)
+	}
+}
+
+// TestRunCommand_BackupBadTarget_ReturnsTwo same pin for backup —
+// unknown --target value used to call os.Exit(2) inside runBackup,
+// bypassing main()'s defer. After the fix it returns 2.
+func TestRunCommand_BackupBadTarget_ReturnsTwo(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", tmp)
+	if got := runCommand(context.Background(), []string{"backup", "--target", "bogus"}); got != 2 {
+		t.Errorf("runCommand backup --target bogus = %d; want 2", got)
+	}
+}
+
+// TestRun_FlushesInterruptedAudit pins the end-to-end fix: when run()
+// finishes with a canceled ctx, the deferred writeInterruptedAudit MUST
+// produce a row before main() calls os.Exit. Previously the defer was
+// either skipped (os.Exit inside subcommand) or never reached (os.Exit
+// in main() bypassing defers).
+func TestRun_FlushesInterruptedAudit(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", tmp)
+	auditPath := filepath.Join(tmp, "audit.jsonl")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	// run() owns the defer chain; emulate by calling the layered helper.
+	_ = runAndFlush(ctx, auditPath, []string{"version"})
+
+	b, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatalf("audit.jsonl missing — defer writeInterruptedAudit never fired: %v", err)
+	}
+	if !strings.Contains(string(b), `"outcome":"interrupted"`) {
+		t.Errorf("audit body lacks interrupted row: %q", string(b))
+	}
+}
