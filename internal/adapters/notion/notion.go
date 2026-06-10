@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 // Sentinel errors are exported so callers switch on failure mode without
@@ -88,6 +91,9 @@ type Config struct {
 	Attestor    Attestor
 	TokenSource TokenSource
 	Transport   Transport
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 // Adapter is the Notion adapter. No background goroutines; lifecycle is
@@ -96,6 +102,7 @@ type Adapter struct {
 	att Attestor
 	ts  TokenSource
 	tr  Transport
+	m   *connectadapter.Metrics
 }
 
 // New validates the wiring contract and returns a ready Adapter; no I/O.
@@ -109,7 +116,7 @@ func New(cfg Config) (*Adapter, error) {
 	if cfg.Transport == nil {
 		return nil, errors.New("notion: Config.Transport required")
 	}
-	return &Adapter{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport}, nil
+	return &Adapter{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, m: cfg.Metrics}, nil
 }
 
 // ListDatabases returns the databases the operator's integration can see.
@@ -120,7 +127,10 @@ func (a *Adapter) ListDatabases(ctx context.Context) ([]DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.tr.ListDatabases(ctx, tok)
+	start := time.Now()
+	dbs, err := a.tr.ListDatabases(ctx, tok)
+	a.m.ObserveAPI("list_databases", time.Since(start).Seconds())
+	return dbs, err
 }
 
 // QueryDatabase returns pages from dbID matching f. ID-validation runs
@@ -133,7 +143,10 @@ func (a *Adapter) QueryDatabase(ctx context.Context, dbID string, f Filter) ([]P
 	if err != nil {
 		return nil, err
 	}
-	return a.tr.QueryDatabase(ctx, tok, dbID, f)
+	start := time.Now()
+	pages, err := a.tr.QueryDatabase(ctx, tok, dbID, f)
+	a.m.ObserveAPI("query_database", time.Since(start).Seconds())
+	return pages, err
 }
 
 // GetPage fetches a single page by id.
@@ -145,7 +158,10 @@ func (a *Adapter) GetPage(ctx context.Context, id string) (Page, error) {
 	if err != nil {
 		return Page{}, err
 	}
-	return a.tr.GetPage(ctx, tok, id)
+	start := time.Now()
+	page, err := a.tr.GetPage(ctx, tok, id)
+	a.m.ObserveAPI("get_page", time.Since(start).Seconds())
+	return page, err
 }
 
 // CreatePage creates a page in dbID with p as its title + simple-string
@@ -162,7 +178,10 @@ func (a *Adapter) CreatePage(ctx context.Context, dbID string, p Props) (Page, e
 	if err != nil {
 		return Page{}, err
 	}
-	return a.tr.CreatePage(ctx, tok, dbID, p)
+	start := time.Now()
+	page, err := a.tr.CreatePage(ctx, tok, dbID, p)
+	a.m.ObserveAPI("create_page", time.Since(start).Seconds())
+	return page, err
 }
 
 // gateAndToken runs the attestation gate first; only on consent does the
