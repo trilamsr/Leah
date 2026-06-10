@@ -125,6 +125,10 @@ func (c *AnthropicClient) Stream(ctx context.Context, system, user string) (<-ch
 	stream := c.sdk.Messages.NewStreaming(ctx, params)
 	out := make(chan Delta, 16)
 	go func() {
+		// Close the SSE response body explicitly on every exit path —
+		// http.Transport observes ctx-cancel, but the contract-correct
+		// release is Stream.Close → res.Body.Close.
+		defer stream.Close()
 		defer close(out)
 		var inTok, outTok int
 		for stream.Next() {

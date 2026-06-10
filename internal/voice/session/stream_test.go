@@ -124,18 +124,21 @@ func newStreamSession(t *testing.T, fl *listener.Fake, tts *chunkTTS, rs *fakeSt
 	}
 }
 
-// TestSession_StreamsFirstSentence_Under500ms — first speakable sentence
-// boundary in the stream must reach Speak well before the whole reply finishes.
-// The reasoner emits "Hello world. " in the first chunk and then stalls 200ms
-// before the trailing tail; first Speak must fire near the boundary, not after
-// the stall.
+// TestSession_StreamsFirstSentence_Under500ms — simulates realistic cloud
+// TTFT (300ms preDelay) + a long post-first-sentence stall (800ms gapDelay).
+// First speak must fire DURING the gap (≤500ms after Final), proving the
+// sentence boundary emits before the whole reply lands. A non-streaming path
+// would not finish until preDelay+gapDelay ≈ 1.1s and would blow this budget.
 func TestSession_StreamsFirstSentence_Under500ms(t *testing.T) {
 	t.Parallel()
 	fl := listener.NewFake()
 	tts := &chunkTTS{}
 	rs := &fakeStreamReasoner{
-		chunks:   []string{"Hello world. ", "Trailing tail without terminator"},
-		gapDelay: 250 * time.Millisecond,
+		// First chunk clears the SentenceChunker 12-speakable-char floor so
+		// the boundary emits mid-stream rather than buffering until Flush.
+		chunks:   []string{"Hello there world. ", "Trailing tail without terminator"},
+		preDelay: 300 * time.Millisecond,
+		gapDelay: 800 * time.Millisecond,
 	}
 	s := newStreamSession(t, fl, tts, rs)
 
@@ -150,8 +153,9 @@ func TestSession_StreamsFirstSentence_Under500ms(t *testing.T) {
 	utterAt := time.Now()
 	fl.Emit(listener.Segment{Text: "say hi", Final: true})
 
-	// Expect first reply chunk to land within 500ms (gapDelay is 250ms before
-	// the trailing tail, so sentence-boundary emission must happen first).
+	// First reply chunk must land within 500ms — i.e. before the 800ms
+	// post-first-sentence stall completes. Total reply finishes at ~1.1s, so
+	// a non-streaming path (await full reply, then speak) would fail.
 	waitForChunk(t, tts, 2)
 	dt := tts.firstSpeakAfter(utterAt)
 	if dt < 0 {

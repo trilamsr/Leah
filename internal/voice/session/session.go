@@ -293,7 +293,9 @@ func (s *Session) runStreamingTurn(rctx context.Context, tt *voice.TurnTimer, sr
 		}
 		if chunk, ok := chunker.Push(d); ok {
 			if !speak(chunk) {
-				// Drain remaining deltas so AskStream goroutine exits.
+				// Drain on Speak failure where rctx is NOT cancelled
+				// (e.g. tts_error) — AskStream's goroutine already exits
+				// on ctx-cancel via its own select-send.
 				for range deltas {
 				}
 				return

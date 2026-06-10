@@ -87,6 +87,12 @@ type Reasoner struct {
 	SystemPrompt  string
 	PersonaPrefix string
 
+	// OnStreamToolUseSuppressed fires once per tool-use delta dropped by
+	// AskStream. Voice instrumentation binds this to
+	// leah_voice_stream_tool_use_suppressed_total so suppressed-vs-not-invoked
+	// is visible. nil-safe.
+	OnStreamToolUseSuppressed func()
+
 	lastCall CallInfo
 }
 
@@ -120,6 +126,9 @@ func (r *Reasoner) AskStream(ctx context.Context, user string) (<-chan string, e
 	go func() {
 		defer close(out)
 		for d := range deltas {
+			if d.ToolUse != nil && r.OnStreamToolUseSuppressed != nil {
+				r.OnStreamToolUseSuppressed()
+			}
 			if d.Text == "" {
 				continue
 			}

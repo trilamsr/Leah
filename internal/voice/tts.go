@@ -81,17 +81,6 @@ func NewChain(backends ...TTS) *ChainTTS {
 	return &ChainTTS{backends: backends}
 }
 
-// SpeakChunk speaks one sentence-boundary chunk from the streaming
-// Reasoner→TTS path (W109). Each chunk goes through Speak which holds the
-// per-backend audio-device lock for the synthesis + playback span; successive
-// chunks therefore serialize cleanly on the lock without the chain itself
-// needing a higher-level mutex. Kept as a named seam so V11+ work (true
-// streaming TTS) can swap chunked playback for a single persistent connection
-// without disturbing call sites.
-func (c *ChainTTS) SpeakChunk(ctx context.Context, text string) error {
-	return c.Speak(ctx, text)
-}
-
 // Speak tries each backend in order; returns nil on first success.
 // Returns the last backend's error if all fail, or a sentinel error if
 // the chain is empty.
