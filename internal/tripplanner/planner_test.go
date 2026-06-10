@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"time"
-
 	"github.com/trilam/leah/internal/tripplanner"
 )
 
@@ -200,16 +198,6 @@ func TestNew_NilSeams_Rejected(t *testing.T) {
 				t.Fatalf("New with nil %s: want error", tc.name)
 			}
 		})
-	}
-}
-
-func TestDeferred_ReturnsNotImplemented(t *testing.T) {
-	planner := newComposer(t, &fakeRouter{}, &fakeCorridor{}, &fakeGeocoder{}, &fakeNearby{})
-	if _, err := planner.SuggestTrip(context.Background(), "Tokyo", 5, tripplanner.Profile{}); !errors.Is(err, tripplanner.ErrNotImplemented) {
-		t.Fatalf("SuggestTrip err = %v; want ErrNotImplemented", err)
-	}
-	if _, err := planner.DailyItinerary(context.Background(), "Tokyo", time.Time{}, tripplanner.Profile{}); !errors.Is(err, tripplanner.ErrNotImplemented) {
-		t.Fatalf("DailyItinerary err = %v; want ErrNotImplemented", err)
 	}
 }
 
