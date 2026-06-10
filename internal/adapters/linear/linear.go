@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 // Endpoint is Linear's GraphQL endpoint. Linear is GraphQL-only — no REST.
@@ -75,6 +77,9 @@ type Config struct {
 	TokenSource TokenSource
 	Transport   Transport
 	Now         func() time.Time
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 type Client struct {
@@ -82,6 +87,7 @@ type Client struct {
 	ts  TokenSource
 	tr  Transport
 	now func() time.Time
+	m   *connectadapter.Metrics
 
 	mu     sync.Mutex
 	writes []time.Time // sliding-window timestamps for create+comment
@@ -101,7 +107,7 @@ func New(cfg Config) (*Client, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, now: now}, nil
+	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, now: now, m: cfg.Metrics}, nil
 }
 
 func (c *Client) ListMyIssues(ctx context.Context) ([]Issue, error) {
@@ -109,7 +115,10 @@ func (c *Client) ListMyIssues(ctx context.Context) ([]Issue, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.tr.ListMyIssues(ctx, tok)
+	start := time.Now()
+	out, err := c.tr.ListMyIssues(ctx, tok)
+	c.m.ObserveAPI("list_my_issues", time.Since(start).Seconds())
+	return out, err
 }
 
 func (c *Client) GetIssue(ctx context.Context, id string) (Issue, error) {
@@ -120,7 +129,10 @@ func (c *Client) GetIssue(ctx context.Context, id string) (Issue, error) {
 	if err != nil {
 		return Issue{}, err
 	}
-	return c.tr.GetIssue(ctx, tok, id)
+	start := time.Now()
+	out, err := c.tr.GetIssue(ctx, tok, id)
+	c.m.ObserveAPI("get_issue", time.Since(start).Seconds())
+	return out, err
 }
 
 func (c *Client) CreateIssue(ctx context.Context, req IssueReq) (Issue, error) {
@@ -137,7 +149,10 @@ func (c *Client) CreateIssue(ctx context.Context, req IssueReq) (Issue, error) {
 	if err != nil {
 		return Issue{}, err
 	}
-	return c.tr.CreateIssue(ctx, tok, req)
+	start := time.Now()
+	out, err := c.tr.CreateIssue(ctx, tok, req)
+	c.m.ObserveAPI("create_issue", time.Since(start).Seconds())
+	return out, err
 }
 
 func (c *Client) Comment(ctx context.Context, id, body string) error {
@@ -154,7 +169,10 @@ func (c *Client) Comment(ctx context.Context, id, body string) error {
 	if err != nil {
 		return err
 	}
-	return c.tr.Comment(ctx, tok, id, body)
+	start := time.Now()
+	err = c.tr.Comment(ctx, tok, id, body)
+	c.m.ObserveAPI("comment", time.Since(start).Seconds())
+	return err
 }
 
 // gateAndToken: attestation runs before TokenSource.Token so a denied call
