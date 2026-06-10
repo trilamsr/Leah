@@ -2,6 +2,7 @@ package obs
 
 import (
 	"encoding/json"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"sort"
@@ -75,9 +76,13 @@ func (r *Registry) Histogram(name string, buckets []float64) *Histogram {
 
 // Counter is a monotonic per-label-set counter.
 type Counter struct {
-	name   string
-	mu     sync.Mutex
-	values map[string]int64
+	name string
+	mu   sync.Mutex
+	// keyCache amortizes the sort+build cost of flatten over repeated
+	// observations of the same label-set — the hot-path optimization for
+	// #22. Per-series scope bounds growth to the metric's lifetime.
+	keyCache map[uint64]string
+	values   map[string]int64
 }
 
 // Inc adds 1 to the counter at the given label set.
@@ -87,29 +92,43 @@ func (c *Counter) Inc(labels map[string]string) { c.Add(labels, 1) }
 func (c *Counter) Add(labels map[string]string, n int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.values[flatten(c.name, labels)] += n
+	c.values[c.flattenKey(labels)] += n
+}
+
+func (c *Counter) flattenKey(labels map[string]string) string {
+	return cachedFlatten(c.name, labels, &c.keyCache)
 }
 
 // Gauge holds a settable float value per label set.
 type Gauge struct {
-	name   string
-	mu     sync.Mutex
-	values map[string]float64
+	name     string
+	mu       sync.Mutex
+	keyCache map[uint64]string
+	values   map[string]float64
 }
 
 // Set overwrites the gauge value at the given label set.
 func (g *Gauge) Set(labels map[string]string, v float64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.values[flatten(g.name, labels)] = v
+	g.values[g.flattenKey(labels)] = v
+}
+
+func (g *Gauge) flattenKey(labels map[string]string) string {
+	return cachedFlatten(g.name, labels, &g.keyCache)
 }
 
 // Histogram records counted observations into fixed buckets.
 type Histogram struct {
-	name    string
-	buckets []float64
-	mu      sync.Mutex
-	values  map[string]*histSeries
+	name     string
+	buckets  []float64
+	mu       sync.Mutex
+	keyCache map[uint64]string
+	values   map[string]*histSeries
+}
+
+func (h *Histogram) flattenKey(labels map[string]string) string {
+	return cachedFlatten(h.name, labels, &h.keyCache)
 }
 
 type histSeries struct {
@@ -122,7 +141,7 @@ type histSeries struct {
 func (h *Histogram) Observe(labels map[string]string, v float64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	key := flatten(h.name, labels)
+	key := h.flattenKey(labels)
 	s, ok := h.values[key]
 	if !ok {
 		s = &histSeries{buckets: make([]int64, len(h.buckets)+1)}
@@ -141,6 +160,43 @@ func (h *Histogram) Observe(labels map[string]string, v float64) {
 	if !placed {
 		s.buckets[len(h.buckets)]++ // +Inf bucket
 	}
+}
+
+// cachedFlatten returns the canonical flattened key, computing it on first
+// sight and serving cached entries thereafter. Caller MUST hold the
+// owning series' mutex — cache writes are not concurrency-safe alone.
+func cachedFlatten(name string, labels map[string]string, cache *map[uint64]string) string {
+	if len(labels) == 0 {
+		return name
+	}
+	fp := labelFingerprint(labels)
+	if *cache != nil {
+		if s, ok := (*cache)[fp]; ok {
+			return s
+		}
+	}
+	s := flatten(name, labels)
+	if *cache == nil {
+		*cache = map[uint64]string{}
+	}
+	(*cache)[fp] = s
+	return s
+}
+
+// labelFingerprint hashes the label-set order-independently so the cache
+// key is computable without sorting on the hot path. Per-pair FNV-1a is
+// XOR-combined; collision is astronomically unlikely for typical N≲10³
+// distinct sets per series.
+func labelFingerprint(labels map[string]string) uint64 {
+	var fp uint64
+	for k, v := range labels {
+		h := fnv.New64a()
+		_, _ = h.Write([]byte(k))
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write([]byte(v))
+		fp ^= h.Sum64()
+	}
+	return fp
 }
 
 // flatten produces the canonical "name|k1=v1,k2=v2" key. Label keys are
