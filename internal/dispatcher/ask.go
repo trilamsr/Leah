@@ -12,7 +12,17 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/reasoner"
 )
+
+// LLMDimReporter is the optional rich-info side of dispatcher.Reasoner.
+// Implementations (notably *reasoner.Reasoner) expose the LLM-dim slice
+// of the most recent Ask so Run can stamp it on the audit row. Wrappers
+// that do not surface LLM-dim data (prebakedReasoner) simply do not
+// implement this — Run falls back to the legacy audit shape.
+type LLMDimReporter interface {
+	LastCallInfo() reasoner.CallInfo
+}
 
 // Reasoner is the LLM surface dispatcher uses. Defined here so Ship/SelfBuild
 // can swap in a prebakedReasoner wrapper (selfbuild.go) without dragging in
@@ -39,6 +49,16 @@ func (a *Ask) Run(ctx context.Context, query string) error {
 		ArgsHash:    argsHash(query),
 		BlastRadius: 0,
 		CostDollars: a.Budget.Spent(),
+	}
+	if rich, ok := a.Reasoner.(LLMDimReporter); ok {
+		info := rich.LastCallInfo()
+		entry.Model = info.Model
+		entry.PromptSHA = info.PromptSHA
+		entry.InputTokens = info.InputTokens
+		entry.OutputTokens = info.OutputTokens
+		entry.LatencyMS = info.LatencyMS
+		entry.EgressBytes = info.EgressBytes
+		entry.CacheHit = info.CacheHit
 	}
 	if err != nil {
 		entry.Outcome = "failed"

@@ -1,6 +1,19 @@
 package reasoner
 
-import "github.com/anthropics/anthropic-sdk-go"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+
+	"github.com/anthropics/anthropic-sdk-go"
+)
+
+// PromptSHA returns the first 16 hex chars of SHA256(text). Stable
+// across processes; used as the audit `prompt_sha` label so an audit
+// replay can resolve back to the exact system prompt bytes.
+func PromptSHA(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:8])
+}
 
 const (
 	CacheableThresholdTokens = 1024 // Sonnet drops cache_control below this; 25% write surcharge sunk.

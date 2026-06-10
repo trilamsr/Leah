@@ -148,6 +148,73 @@ func TestAppendDefaultWorkspaceCallback(t *testing.T) {
 	}
 }
 
+// TestEntry_NewFields_OmitEmptyOnZero asserts the seven W94 LLM-dim
+// fields (Model, PromptSHA, InputTokens, OutputTokens, LatencyMS,
+// EgressBytes, CacheHit) all carry omitempty so legacy rows stay
+// byte-for-byte identical when callers leave them zero.
+func TestEntry_NewFields_OmitEmptyOnZero(t *testing.T) {
+	buf, err := json.Marshal(Entry{Kind: "ask", Outcome: "success"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got := string(buf)
+	for _, key := range []string{
+		`"model"`, `"prompt_sha"`, `"input_tokens"`, `"output_tokens"`,
+		`"latency_ms"`, `"egress_bytes"`, `"cache_hit"`,
+	} {
+		if contains(got, key) {
+			t.Errorf("zero-value Entry leaked %s: %s", key, got)
+		}
+	}
+}
+
+// TestEntry_NewFields_RoundTrip asserts the seven new LLM-dim fields
+// round-trip through JSON marshal/unmarshal so downstream readers
+// (patterns, retro) get the values back unchanged.
+func TestEntry_NewFields_RoundTrip(t *testing.T) {
+	want := Entry{
+		Kind:         "ask",
+		Outcome:      "success",
+		Model:        "claude-sonnet-4-6",
+		PromptSHA:    "deadbeefcafef00d",
+		InputTokens:  1234,
+		OutputTokens: 567,
+		LatencyMS:    890,
+		EgressBytes:  2048,
+		CacheHit:     true,
+	}
+	buf, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got Entry
+	if err := json.Unmarshal(buf, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got != want {
+		t.Errorf("round-trip mismatch:\n got  %+v\n want %+v", got, want)
+	}
+}
+
+// TestEntry_DecodesLegacyEntries asserts pre-W94 audit.jsonl rows
+// (no model/prompt_sha/token/latency/egress/cache_hit keys) decode
+// cleanly with zero values for the new fields — back-compat for
+// patterns.Detect, selflearn.Resolver, operatormodel.Observe*.
+func TestEntry_DecodesLegacyEntries(t *testing.T) {
+	legacy := []byte(`{"ts":"2023-11-14T22:13:20Z","kind":"ask","args_hash":"abc","blast_radius":0,"outcome":"success","cost_dollars":0.012}`)
+	var e Entry
+	if err := json.Unmarshal(legacy, &e); err != nil {
+		t.Fatalf("unmarshal legacy: %v", err)
+	}
+	if e.Kind != "ask" || e.ArgsHash != "abc" || e.Outcome != "success" || e.CostDollars != 0.012 {
+		t.Errorf("legacy fields lost: %+v", e)
+	}
+	if e.Model != "" || e.PromptSHA != "" || e.InputTokens != 0 || e.OutputTokens != 0 ||
+		e.LatencyMS != 0 || e.EgressBytes != 0 || e.CacheHit {
+		t.Errorf("new fields not zero on legacy row: %+v", e)
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

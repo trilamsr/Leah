@@ -2,6 +2,7 @@ package reasoner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -43,21 +44,36 @@ func NewAnthropicClient() (*AnthropicClient, error) {
 }
 
 // Complete sends one system + user message pair and returns the joined text
-// blocks plus the computed dollar cost (Sonnet 4.6 pricing as of 2026-06).
-func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (string, float64, error) {
+// blocks plus the LLM-dim payload (cost, tokens, model, cache-hit, egress
+// bytes). Sonnet 4.6 pricing as of 2026-06.
+func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (CompleteResult, error) {
 	sysBlock := buildSystemBlock(system)
 	cacheEnabled := string(sysBlock.CacheControl.Type) != ""
 
-	resp, err := c.sdk.Messages.New(ctx, anthropic.MessageNewParams{
+	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(c.model),
 		MaxTokens: 4096,
 		System:    []anthropic.TextBlockParam{sysBlock},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(user)),
 		},
-	})
+	}
+	// EgressBytes is gated behind LEAH_AUDIT_EGRESS_BYTES=1 — the SDK
+	// doesn't surface the wire-serialized payload, so deriving it
+	// requires a parallel json.Marshal on every call (best-effort
+	// approximation, not the actual TLS-frame byte count). Default OFF
+	// keeps the unconditional CPU cost out of the hot path; operators
+	// who want byte-level egress accounting opt in.
+	var egress int64
+	if os.Getenv("LEAH_AUDIT_EGRESS_BYTES") == "1" {
+		if b, mErr := json.Marshal(params); mErr == nil {
+			egress = int64(len(b))
+		}
+	}
+
+	resp, err := c.sdk.Messages.New(ctx, params)
 	if err != nil {
-		return "", 0, fmt.Errorf("anthropic api: %w", err)
+		return CompleteResult{Model: c.model, EgressBytes: egress}, fmt.Errorf("anthropic api: %w", err)
 	}
 	text := ""
 	for _, blk := range resp.Content {
@@ -70,13 +86,23 @@ func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (st
 		float64(resp.Usage.CacheReadInputTokens)*inputCostPerToken*0.10 +
 		float64(resp.Usage.OutputTokens)*outputCostPerToken
 
+	cacheHit := false
 	switch {
 	case !cacheEnabled:
 		RecordCacheOutcome(c.Registry, OutcomeDisabled, 0)
 	case resp.Usage.CacheReadInputTokens > 0:
 		RecordCacheOutcome(c.Registry, OutcomeHit, resp.Usage.CacheReadInputTokens)
+		cacheHit = true
 	default:
 		RecordCacheOutcome(c.Registry, OutcomeMiss, 0)
 	}
-	return text, cost, nil
+	return CompleteResult{
+		Text:         text,
+		CostUSD:      cost,
+		Model:        c.model,
+		InputTokens:  int(resp.Usage.InputTokens),
+		OutputTokens: int(resp.Usage.OutputTokens),
+		EgressBytes:  egress,
+		CacheHit:     cacheHit,
+	}, nil
 }
