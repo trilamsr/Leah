@@ -128,7 +128,13 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 		Title:    title,
 		TmpDir:   s.TmpDir,
 
-		Watch:     s.Watch,
+		// Watch is force-disabled on the inner Ship so inner.Run returns
+		// synchronously after gh-create. SelfBuild runs the watcher itself
+		// below — split is load-bearing for Defect-2: the BR=4 dispatched
+		// audit row MUST land after gh-create and BEFORE the watcher
+		// (which may block indefinitely / be aborted by Ctrl-C when
+		// regatta isn't running locally).
+		Watch:     false,
 		Regatta:   s.Regatta,
 		Heartbeat: s.Heartbeat,
 		Notify:    s.Notify,
@@ -142,7 +148,22 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 	if err := inner.Run(ctx, intent); err != nil {
 		return err
 	}
+
+	// Defect-2 fix: emit BR=4 dispatched row IMMEDIATELY after inner.Run
+	// returns (which means gh-create succeeded). Prior code gated this
+	// behind inner.Run() returning AFTER the watcher — which never happens
+	// when the operator aborts the watcher (regatta not running locally).
 	s.appendAuditSuccess(intent, inner.LastURL)
+
+	// Watcher runs in SelfBuild's frame so we can append a second
+	// kind=self-build.outcome row with the terminal state once it returns.
+	// Operator abort during watch leaves the dispatched row landed +
+	// no outcome row — the selflearn resolver can flag the
+	// dangling-dispatched after N days.
+	if s.Watch {
+		state := inner.watch(ctx)
+		s.appendAuditOutcome(intent, state, inner.LastURL)
+	}
 	return nil
 }
 
@@ -228,6 +249,31 @@ func (s *SelfBuild) appendAuditClarify(intent string) {
 		Outcome:     "clarify",
 		CostDollars: s.Budget.Spent(),
 		Detail:      "prompt_sha=" + s.promptSHA(),
+	})
+}
+
+// appendAuditOutcome records the terminal watcher state for a self-build
+// dispatch on a separate kind=self-build.outcome row referencing the same
+// args_hash as the dispatched row. selflearn correlates the pair via
+// (ArgsHash, Kind ∈ {self-build, self-build.outcome}); a dangling
+// dispatched row with no outcome after N days flags an operator-abort or
+// regatta-watcher failure.
+func (s *SelfBuild) appendAuditOutcome(intent, state, issueURL string) {
+	if state == "" {
+		// No Regatta client wired → nothing observed → nothing to record.
+		return
+	}
+	detail := "state=" + state
+	if issueURL != "" {
+		detail += " url=" + issueURL
+	}
+	_ = s.Audit.Append(audit.Entry{
+		Kind:        "self-build.outcome",
+		ArgsHash:    argsHash(intent),
+		BlastRadius: 4,
+		Outcome:     state,
+		CostDollars: s.Budget.Spent(),
+		Detail:      detail,
 	})
 }
 
