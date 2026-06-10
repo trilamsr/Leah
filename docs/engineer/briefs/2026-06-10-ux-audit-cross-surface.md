@@ -1,13 +1,17 @@
-# UX Audit — Cross-Surface (CLI / HUD / Voice) — v3
+# UX Audit — Cross-Surface (CLI / HUD / Voice) — v4
 
 **Date:** 2026-06-10
+**Baseline SHA:** `fc01ee2d12d5bacbd762ccd6919b1fd27b0675bd` (origin/main at audit time). All code-line references below are valid against this commit. Re-validate before acting if working tree has drifted.
 **Scope:** All three primary user surfaces (`cmd/leah`, `cmd/leah-hud`, `internal/voice` + intent + recommend + brief + notify + memory/persona).
 **Goal:** Define the criteria that make Leah's UX best-in-class, then audit current product against those criteria. Flag gaps as Severity (🔴 critical / 🟡 needs-work / 🟢 acceptable / ⚪ unverified).
+
+**Decision owner:** operator (Tri). Ship-gate decision required before any consumer launch — see Part 4.
 
 **Version log:**
 - v1: initial pass, 7 pillars, surface-level audit.
 - v2: applied reviewer #1 fact-corrections (forget DOES prompt; usage IS narrative-grouped); added pillars H (Attention), I (Network-Trust), J (Accessibility); deepened 9 surfaces.
-- v3: applied reviewer #2 findings. New pillar K (Memory & Personalization Trust). New pillar L (Environmental Robustness — noisy environments, public spaces). Re-ranked top blockers — HUD state machine now #1, first-launch wizard demoted to #3 (existing-user pain hits 100×/day vs onboarding 1×). Added HUD form-factor critique. Added latency calibration vs 2026 baselines.
+- v3: applied reviewer #2 findings. New pillar K (Memory & Personalization Trust). New pillar L (Environmental Robustness). Re-ranked top blockers. Added HUD form-factor critique. Added latency calibration vs 2026 baselines.
+- v4: applied reviewer #3 findings. Pinned baseline SHA. Reframed 80/20 ranking as funnel-stage-conditional (current-product = bootstrap; ranking shifts after PMF). Bolder ship-gate (NO consumer ship until blockers #1–#3 + accessibility clear). Decision owner named. Form-factor critique moved to follow-up spec stub. Added competitive positioning paragraph.
 
 ---
 
@@ -313,21 +317,9 @@ Voice surface today assumes quiet home office. Real users: cafés, cars, kids in
 
 ---
 
-### HUD Form-Factor — *meta-critique (NEW in v3)*
+### HUD Form-Factor — flagged for follow-up spec (NEW in v3, moved out of audit in v4)
 
-Today: separate 720px focus window + 320px ambient HUD window. Compare to 2026 market:
-
-- **Granola**: inline floating panel that follows the active meeting context.
-- **Limitless** (post-acquisition): pendant + always-on inline overlay; minimal chrome.
-- **Apple Intelligence**: rendered *into* the active app via system extension (Mail, Notes, Notification Center).
-- **Rabbit R1**: dedicated device — different tradeoff.
-- **ChatGPT Voice**: full-screen takeover, no ambient.
-
-Leah's form: detached browser window. Pros: portable across screens. Cons: no system integration, no per-app context, requires explicit user attention to peek at it. **Should HUD be a system tray menulet + spotlight-overlay panel + per-app sheet instead of a free-floating browser window?** Audit doesn't answer — flagged as form-factor open question.
-
-| # | Status | Finding |
-|---|--------|---------|
-| Form-factor | 🔴 | Detached window competes with user's primary task. Granola/Apple Intelligence integrate inline; Leah does not. Form-factor decision predates competitive baseline shift. **Worth a separate spec.** |
+HUD form-factor critique (detached 720px focus + 320px ambient browser windows vs Granola inline / Apple Intelligence system extension / Limitless overlay) is **out of scope for this audit**. Tracked separately: see follow-up spec `docs/engineer/specs/2026-06-10-hud-form-factor.md` (to be created). One-line summary: Leah's detached-window form may compete with user's primary task; needs separate decision-doc, not audit findings.
 
 ---
 
@@ -335,17 +327,35 @@ Leah's form: detached browser window. Pros: portable across screens. Cons: no sy
 
 Ranked by user-visible impact × implementation cost. Reviewer's reordering applied.
 
-### Top blockers (must fix before any consumer launch) — re-ranked per reviewer #2
+### Top blockers (must fix before any consumer launch) — funnel-stage conditional
 
-**v2 ranking over-corrected toward onboarding. For the 80/20 existing user (post-day-1), polling-stale-data + no-state-machine hits 100× per day. Onboarding cliff hits 1× per install. Re-ordered.**
+**Two rankings depending on funnel stage:**
 
-1. **🔴 HUD widget state machine + kill client polling (C2, B1, B5, A5, I2)** — Combine three v2 items into one. Replace `if (!r.ok) return;` silent fail. States: loading skeleton / loaded / stale (TTL exceeded, show "as of HH:MM") / failed (explicit "couldn't load — retry"). Push via SSE — kill `data-ttl-ms` and `setInterval(load, 15000)`. **Recurring daily blocker — promoted to #1.**
+- **Bootstrap stage (current, ~zero users):** Onboarding IS the funnel. First-launch wizard, API-key gate, sample-data HUD = #1. Polling-staleness is rare (no users to hit it 100×/day). Use BOOTSTRAP column below.
+- **Post-PMF stage (after first 100 retained users):** Existing-user daily pain dominates. HUD widget state machine + kill polling = #1. Use POST-PMF column below.
+
+**Default to BOOTSTRAP ranking today.** Re-rank to POST-PMF once retention cohort exists.
+
+| Rank | BOOTSTRAP (today) | POST-PMF |
+|------|------------------|----------|
+| #1 | First-launch wizard + API-key gate (G1, G3, G6, G7, D3) | HUD widget state machine + kill polling (C2, B1, B5, A5, I2) |
+| #2 | Voice earcons + lighter attestation (A1, C1, C4, L3) | Voice earcons + lighter attestation |
+| #3 | Recommendation explainability + Memory inspector (I3, K1, K4) | Recommendation explainability + Memory inspector |
+| #4 | HUD widget state machine + kill polling | First-launch wizard |
+| #5 | Undo for destructive actions (F1, F2, C5) | Undo for destructive actions |
+| #6 | Daemon-offline indicator (I1, F5) | Daemon-offline indicator |
+| #7 | Accessibility minimum (J1, J2, J4, J5) | Accessibility minimum |
+| #8 | Environmental robustness (L1, L3) | Environmental robustness |
+
+**Block-detail per item:**
+
+1. **🔴 First-launch wizard + API-key gate (G1, G3, G6, G7, D3)** — `leah` with no args + no config → interactive wizard: check `ANTHROPIC_API_KEY` with plain "get one free at console.anthropic.com", walk user to one integration, launch HUD with sample data. Single change unlocks 5 criteria. **Bootstrap #1 because today onboarding = the funnel.**
 2. **🔴 Voice earcons + lighter attestation (A1, C1, C4, L3)** — Three short sounds (wake-ack, processing, error). **Replace heavy verbal attestation with silent gate**: gesture (Touch ID / global hotkey / menubar click) for public-space consent. Verbal opt-in only when user explicitly enables. Café user not embarrassed. AirPods user hears wake-ack.
-3. **🔴 Recommendation explainability + Memory inspector (I3, K1, K4)** — Combined v2's #6 with new K-pillar. Wire `recommendation.go:31` Reason field through JSON → JS card "Why this?" disclosure. Add `leah profile show` + HUD "What Leah knows" screen listing patterns, sources, last-seen. Memory user can't see = memory user won't trust.
-4. **🔴 First-launch wizard + API-key gate (G1, G3, G6, G7, D3)** — `leah` with no args + no config → interactive wizard: check `ANTHROPIC_API_KEY` with plain "get one free at console.anthropic.com", walk user to one integration, launch HUD with sample data. **Demoted from #1 — high impact but hits each user only once.**
+3. **🔴 Recommendation explainability + Memory inspector (I3, K1, K4)** — Wire the `Reason` field (currently TODO at `internal/recommend/recommendation.go` per baseline SHA — comment "wait for surface layer (W19)") through JSON → JS card "Why this?" disclosure. Add `leah profile show` + HUD "What Leah knows" screen listing patterns, sources, last-seen. Memory user can't see = memory user won't trust.
+4. **🔴 HUD widget state machine + kill client polling (C2, B1, B5, A5, I2)** — Replace silent fetch fail in `internal/hud/static/widgets.js`. States: loading skeleton / loaded / stale (TTL exceeded, show "as of HH:MM") / failed (explicit "couldn't load — retry"). Push via SSE — kill TTL polling and `setInterval(load, 15000)` in `recommendations.js`. **Post-PMF #1, bootstrap #4.**
 5. **🔴 Undo for destructive actions (F1, F2, C5)** — `leah forget --undo` (last N), HUD recommendation toast with 10s "Undo", voice "cancel that" intent. Eliminates mis-tap data loss.
 6. **🔴 Daemon-offline indicator (I1, F5)** — When EventSource fails or `/api/state` 5xx: show "Leah reconnecting…" banner. Don't hide failure behind em-dashes.
-7. **🔴 Accessibility minimum (J1, J2, J4, J5)** — Move from "before consumer ship" footnote to top-blocker: WCAG AA contrast pass, voice errors spoken, focus panel keyboard nav, voice replies captioned. **Liability + table stakes.**
+7. **🔴 Accessibility minimum (J1, J2, J4, J5)** — WCAG AA contrast pass, voice errors spoken, focus panel keyboard nav, voice replies captioned. **Liability + table stakes — non-negotiable regardless of funnel stage.**
 8. **🔴 Environmental robustness (L1, L3)** — Wake detector beyond pure RMS (Porcupine integration). Silent attestation as default. Without these, voice surface is home-office-only — Leah is not a personal assistant if it dies in a Starbucks.
 
 ### Major fixes (post-launch)
@@ -392,12 +402,34 @@ Ranked by user-visible impact × implementation cost. Reviewer's reordering appl
 - Accessibility: blind users get blank, deaf users get silence (J1–J6)
 - Environmental: voice surface dies in 60dB ambient (L1)
 
-**Cost-of-delay note:** Two paths exist:
-- (a) Fix all 8 blockers → 8–12 weeks → ship at 100% UX.
-- (b) Fix #1, #2, #3 + accessibility minimum → 3–4 weeks → ship at 70% with known limitations documented.
-Path (b) is defensible IF the documented limitations include: voice English-only, public-space mode opt-in beta, memory editor read-only, mobile companion not shipped. Path (a) means competitive baseline (Apple Intelligence, Granola) ships first.
+### Ship gate (binding)
 
-**Recommendation: path (b) with explicit beta-quality labeling.**
+**NO consumer ship until BOOTSTRAP #1, #2, #3 + Pillar J (accessibility minimum) all merged and verified.** Path (b) below is contingency only.
+
+**Path (a) — full ship:** Fix all 8 blockers → 8–12 weeks → ship at 100% UX. Competitive risk: Apple Intelligence / Granola ship overlapping surfaces first.
+
+**Path (b) — constrained beta:** Fix bootstrap #1–#3 + accessibility minimum → 3–4 weeks → ship publicly tagged "beta" with documented limitations: voice English-only, public-space mode opt-in beta, memory editor read-only, mobile companion not shipped, ambient HUD form-factor under review.
+
+**Decision required from owner (Tri) BEFORE ship-prep work begins:**
+- [ ] Path (a) full OR Path (b) beta?
+- [ ] If (b): which limitations are acceptable to document publicly?
+- [ ] Target ship date?
+- [ ] Reviewer who signs off on each blocker's merge?
+
+**Until decided, the audit's standing recommendation is: BLOCK ship. Pick a path before any user-facing "Leah is ready" announcement.**
+
+### Competitive positioning (why ship at all?)
+
+Leah is not a slower Granola. Differentiation must be explicit before the audit's "ship broken" tradeoff is even rational:
+
+- **vs Apple Intelligence:** runs cross-OS, owns its data layer, scriptable via CLI, no walled garden.
+- **vs Granola:** broader scope (full personal-OS, not meeting-only); local-first memory.
+- **vs ChatGPT Voice:** persistent memory + cross-app actions, not stateless chat.
+- **vs Limitless / Rabbit:** no dedicated device; runs on hardware the user already owns.
+
+If these differentiators don't hold, the UX gaps are unacceptable. If they do, path (b) is defensible because the alternative (waiting 8–12 weeks while competitors take the surface) costs more than the documented beta gaps.
+
+**Open question for owner:** is the differentiation list above the actual positioning, or is the audit guessing? Confirm or rewrite before path (a)/(b) decision.
 
 ---
 
@@ -448,8 +480,18 @@ CLI (35 verbs, main.go + 30 sibling files) · HUD ambient/widgets/focus/recommen
 - Accessibility moved from footnote to top-blocker #7 (liability).
 - Cost-of-delay path (a) vs (b) added to verdict.
 
-**v3 still gets wrong / unresolved:**
+**v3 → v4 (reviewer #3):**
+- Baseline SHA pinned (`fc01ee2`) so line refs don't rot.
+- 80/20 ranking assumption reframed as funnel-stage-conditional (bootstrap vs post-PMF rankings shown as separate columns; default to bootstrap today).
+- Verdict tightened from "Recommendation: path (b)" to "BLOCK ship until #1–#3 + accessibility; path (b) contingency only".
+- Decision owner named (operator/Tri). Ship-gate checklist added.
+- HUD form-factor critique moved out of audit findings to follow-up spec stub.
+- Competitive positioning paragraph added — explicit Leah differentiation vs Apple Intelligence, Granola, ChatGPT Voice, Limitless/Rabbit.
+- Verified ✓ all code claims still hold against baseline SHA: `recommendation.go` Reason TODO, `widgets.js` TTL polling, `wake/wake.go` no earcon, `session.go` "yes leah" attestation, `forget.go` does prompt.
+
+**v4 still unresolved:**
 - Latency targets aspirational — no Prometheus measurement.
-- HUD form-factor flagged but not resolved (needs separate spec).
-- Memory editor scope (read vs read-write) not decided.
+- HUD form-factor decision deferred to separate spec.
+- Memory editor read vs read-write scope not decided.
 - Multi-language story missing entirely.
+- Competitive positioning paragraph is the AUDIT's guess; needs owner confirmation.
