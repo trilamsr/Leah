@@ -14,7 +14,7 @@ import (
 
 // runConnect is `leah connect`. w is stdout (test seam); stderr stays
 // process-global for usage + error lines.
-func runConnect(args []string, w io.Writer) int {
+func runConnect(ctx context.Context, args []string, w io.Writer) int {
 	if shouldShowHelp(args) {
 		printConnectUsage(w)
 		return 0
@@ -51,7 +51,7 @@ func runConnect(args []string, w io.Writer) int {
 		_, _ = fmt.Fprintf(w, "Open %s and enter code: %s\n", verificationURL, userCode)
 	}
 
-	if _, err := connect.Authorize(context.Background(), p, att, prompt); err != nil {
+	if _, err := connect.Authorize(ctx, p, att, prompt); err != nil {
 		_ = a.Append(audit.Entry{
 			Kind:        "connect_" + name,
 			BlastRadius: 2,

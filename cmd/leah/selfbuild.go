@@ -20,8 +20,7 @@ import (
 
 // runSelfBuild wires SelfBuild against trilamsr/Leah (repo locked in
 // dispatcher; CLI cannot override).
-func runSelfBuild(intent string) {
-	ctx := context.Background()
+func runSelfBuild(ctx context.Context, intent string) int {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath}
 	b := budget.New()
@@ -30,13 +29,13 @@ func runSelfBuild(intent string) {
 	sysPrompt, err := os.ReadFile(promptPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read self-build prompt: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	client, err := reasoner.NewAnthropicClient()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	// SystemPrompt is load-bearing-once: dispatcher.SelfBuild.Run invokes this
 	// Reasoner a single time to draft the spec, then wraps the result in a
@@ -48,7 +47,7 @@ func runSelfBuild(intent string) {
 	tmp, err := os.MkdirTemp("", "leah-selfbuild-*")
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "tmp dir: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 
@@ -72,9 +71,10 @@ func runSelfBuild(intent string) {
 	if err := sb.Run(ctx, intent); err != nil {
 		if errors.Is(err, dispatcher.ErrSelfBuildClarify) {
 			// Reasoner printed questions; non-fatal exit code 0.
-			return
+			return 0
 		}
 		_, _ = fmt.Fprintf(os.Stderr, "leah self-build: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }

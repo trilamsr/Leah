@@ -19,75 +19,75 @@ import (
 // §2.1). The list/new/switch/show subcommands are thin aliases that delegate
 // to runCtx so behavior stays single-sourced; persona set/show is new and
 // owned here.
-func runWorkspace(args []string) {
+func runWorkspace(args []string) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah workspace <list|new|switch|show|persona> [args...]")
-		return
+		return 0
 	}
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah workspace <list|new|switch|show|persona> [args...]")
-		os.Exit(2)
+		return 2
 	}
 	switch args[0] {
 	case "list":
-		runCtx([]string{"list"})
+		return runCtx([]string{"list"})
 	case "new":
 		// `leah workspace new <name> [--desc ...]` — accept positional name
 		// before delegating to runCtx (which uses --name).
-		runCtxNewFromWorkspace(args[1:])
+		return runCtxNewFromWorkspace(args[1:])
 	case "switch":
-		runCtxSwitchFromWorkspace(args[1:])
+		return runCtxSwitchFromWorkspace(args[1:])
 	case "show":
-		runCtx(append([]string{"show"}, args[1:]...))
+		return runCtx(append([]string{"show"}, args[1:]...))
 	case "persona":
-		runWorkspacePersona(args[1:])
+		return runWorkspacePersona(args[1:])
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "leah workspace: unknown action %q\n", args[0])
-		os.Exit(2)
+		return 2
 	}
 }
 
 // runCtxNewFromWorkspace adapts positional `leah workspace new <name>` form
 // to runCtx's --name flag form. Operator ergonomics: `workspace new acme`
 // reads more naturally than `workspace new --name acme`.
-func runCtxNewFromWorkspace(args []string) {
+func runCtxNewFromWorkspace(args []string) int {
 	fs := flag.NewFlagSet("workspace new", flag.ExitOnError)
 	desc := fs.String("desc", "", "human-readable description")
 	if err := fs.Parse(args); err != nil {
-		os.Exit(2)
+		return 2
 	}
 	if fs.NArg() < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah workspace new <name> [--desc ...]")
-		os.Exit(2)
+		return 2
 	}
-	runCtx([]string{"new", "--name", fs.Arg(0), "--description", *desc})
+	return runCtx([]string{"new", "--name", fs.Arg(0), "--description", *desc})
 }
 
 // runCtxSwitchFromWorkspace adapts positional `leah workspace switch <name>`
 // to runCtx's --name flag form.
-func runCtxSwitchFromWorkspace(args []string) {
+func runCtxSwitchFromWorkspace(args []string) int {
 	fs := flag.NewFlagSet("workspace switch", flag.ExitOnError)
 	reason := fs.String("reason", "cli", "free-form reason recorded in switch log")
 	if err := fs.Parse(args); err != nil {
-		os.Exit(2)
+		return 2
 	}
 	if fs.NArg() < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah workspace switch <name> [--reason ...]")
-		os.Exit(2)
+		return 2
 	}
-	runCtx([]string{"switch", "--name", fs.Arg(0), "--reason", *reason})
+	return runCtx([]string{"switch", "--name", fs.Arg(0), "--reason", *reason})
 }
 
 // runWorkspacePersona dispatches `leah workspace persona <show|set> ...`.
-func runWorkspacePersona(args []string) {
+func runWorkspacePersona(args []string) int {
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah workspace persona <show|set> [args...]")
-		os.Exit(2)
+		return 2
 	}
 	ps, err := persona.Open(memoryPath())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "open persona store: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() { _ = ps.Close() }()
 	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
@@ -105,12 +105,12 @@ func runWorkspacePersona(args []string) {
 		p, err := ps.Load(name)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "load persona: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_ = a.Append(audit.Entry{Kind: "workspace.persona.show", BlastRadius: 0, Outcome: "success", Detail: name, Workspace: name})
 		if *jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(p)
-			return
+			return 0
 		}
 		fmt.Printf("workspace: %s\n", p.Workspace)
 		if p.IsDefault {
@@ -136,7 +136,7 @@ func runWorkspacePersona(args []string) {
 		cur, err := ps.Load(name)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "load persona: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		next := persona.Persona{Workspace: name, Tone: cur.Tone, Signature: cur.Signature, VoiceID: cur.VoiceID}
 		if cur.IsDefault {
@@ -163,20 +163,21 @@ func runWorkspacePersona(args []string) {
 		}
 		if err := ps.Set(next); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "set persona: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_ = a.Append(audit.Entry{Kind: "workspace.persona.set", BlastRadius: 1, Outcome: "success", Detail: name, Workspace: name})
 		fmt.Printf("persona updated for workspace %q\n", name)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "leah workspace persona: unknown action %q\n", args[0])
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
 
 // workspaceExists returns true when name has a row in the context table.
 // Soft-fail to false on any error path (caller emits a WARN).
 func workspaceExists(name string) bool {
-	mgr, err := openCtxManagerSoft()
+	mgr, err := openCtxManager()
 	if err != nil {
 		return false
 	}
@@ -198,7 +199,7 @@ func workspaceExists(name string) bool {
 // so the only realistic error path is a corrupted DB — surfaced as WARN by
 // callers that care, default lets daily CLI invocations keep working).
 func activeWorkspace() string {
-	mgr, err := openCtxManagerSoft()
+	mgr, err := openCtxManager()
 	if err != nil {
 		return "default"
 	}

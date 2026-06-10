@@ -27,10 +27,10 @@ type backlogView struct {
 // runBacklog aggregates active regatta agents, open ready-for-agent issues,
 // and the last 10 PRs into one operator screen — replaces the three-tab
 // dashboard (regatta agents list + gh issue list + gh pr list).
-func runBacklog(args []string) {
+func runBacklog(parent context.Context, args []string) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah backlog [repo] [--json]")
-		return
+		return 0
 	}
 	repo := defaultBacklogRepo
 	jsonMode := false
@@ -40,13 +40,13 @@ func runBacklog(args []string) {
 			jsonMode = true
 		case strings.HasPrefix(a, "--"):
 			_, _ = fmt.Fprintf(os.Stderr, "leah backlog: unknown flag %q\n", a)
-			os.Exit(2)
+			return 2
 		default:
 			repo = a
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 
 	view := backlogView{Repo: repo}
@@ -80,11 +80,12 @@ func runBacklog(args []string) {
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(view); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah backlog: encode json: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		return
+		return 0
 	}
 	printBacklog(os.Stdout, view)
+	return 0
 }
 
 // filterActive drops terminal-state agents so the human view only shows what

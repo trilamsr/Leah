@@ -29,7 +29,7 @@ import (
 //
 // One audit row per invocation: kind=voice.input, BR=0, detail=truncated
 // transcript + classified verb.
-func runListen(args []string) {
+func runListen(ctx context.Context, args []string) int {
 	fs := flag.NewFlagSet("listen", flag.ExitOnError)
 	duration := fs.Duration("duration", 0, "max recording length (e.g. 30s); 0 = silence-detector only")
 	model := fs.String("model", "ggml-large-v3-turbo-q5_0.bin", "whisper.cpp model filename in --model-dir")
@@ -37,7 +37,6 @@ func runListen(args []string) {
 	repo := fs.String("repo", "", "repo to use when transcript classifies as ship/review")
 	_ = fs.Parse(args)
 
-	ctx := context.Background()
 	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
 
 	_, _ = fmt.Println("listening... (Ctrl-C to stop)")
@@ -49,11 +48,11 @@ func runListen(args []string) {
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah listen: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	if transcript == "" {
 		_, _ = fmt.Fprintln(os.Stderr, "leah listen: empty transcript")
-		os.Exit(1)
+		return 1
 	}
 
 	kind := intent.Classify(transcript)
@@ -69,24 +68,24 @@ func runListen(args []string) {
 
 	switch kind {
 	case intent.KindAsk:
-		runAsk(transcript)
+		return runAsk(ctx, transcript)
 	case intent.KindShip:
 		if *repo == "" {
 			_, _ = fmt.Println("ship intent detected — re-run with --repo <repo> to dispatch")
-			return
+			return 0
 		}
-		runShip(*repo, transcript)
+		return runShip(ctx, *repo, transcript)
 	case intent.KindReview:
 		if *repo == "" {
 			_, _ = fmt.Println("review intent detected — re-run with --repo <repo> to dispatch")
-			return
+			return 0
 		}
 		prNum, ok := extractPRNumber(transcript)
 		if !ok {
 			_, _ = fmt.Fprintln(os.Stderr, "could not parse PR number from transcript")
-			os.Exit(1)
+			return 1
 		}
-		runReview(*repo, prNum)
+		return runReview(ctx, *repo, prNum)
 	case intent.KindStatus:
 		s := &dispatcher.Status{
 			AuditPath: filepath.Join(stateDir(), "audit.jsonl"),
@@ -95,9 +94,10 @@ func runListen(args []string) {
 		}
 		if err := s.Run(); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah status: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 	}
+	return 0
 }
 
 // extractPRNumber pulls the first integer token from s. Returns false when

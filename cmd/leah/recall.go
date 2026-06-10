@@ -36,10 +36,10 @@ type recallResult struct {
 // (schema v5). Backend picked by LEAH_EMBED_BACKEND env (hash | openai).
 // Tier 2 (--llm): pass hits to the Reasoner for a single synthesis call
 // (budget-gated). --semantic and --llm compose: semantic feeds the LLM.
-func runRecall(args []string) {
+func runRecall(ctx context.Context, args []string) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] <query>")
-		return
+		return 0
 	}
 	useLLM := false
 	useSemantic := false
@@ -58,32 +58,36 @@ func runRecall(args []string) {
 	query := strings.TrimSpace(strings.Join(rest, " "))
 	if query == "" {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] <query>")
-		os.Exit(2)
+		return 2
 	}
 
 	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
 
-	store := openMemoryStore()
+	store, err := openMemoryStore()
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		return 1
+	}
 	defer func() { _ = store.Close() }()
 
 	var results []recallResult
 	if useSemantic {
-		semHits, err := semanticRecall(context.Background(), store.DB(), query)
+		semHits, err := semanticRecall(ctx, store.DB(), query)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah recall: semantic: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		results = semHits
 	} else {
 		auditHits, err := grepAudit(a.Path, query, 30*24*time.Hour, time.Now())
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah recall: audit scan: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		memHits, err := grepMemory(store.DB(), query)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah recall: memory scan: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		results = append(auditHits, memHits...)
 		sort.SliceStable(results, func(i, j int) bool {
@@ -100,7 +104,7 @@ func runRecall(args []string) {
 			Outcome:     "success",
 			Detail:      "matches=0",
 		})
-		return
+		return 0
 	}
 
 	if !useLLM {
@@ -114,7 +118,7 @@ func runRecall(args []string) {
 			Outcome:     "success",
 			Detail:      fmt.Sprintf("matches=%d", len(results)),
 		})
-		return
+		return 0
 	}
 
 	// Tier 2: LLM synthesis.
@@ -122,7 +126,7 @@ func runRecall(args []string) {
 	client, err := reasoner.NewAnthropicClient()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	sys := "You are Leah's recall synthesizer. Given audit + memory hits, " +
 		"summarize in 3-5 sentences what the operator was doing related to the query. " +
@@ -136,7 +140,7 @@ func runRecall(args []string) {
 		_, _ = fmt.Fprintf(&sb, "- [%s %s] %s\n", hit.Source, hit.Timestamp, hit.Text)
 	}
 
-	text, err := r.Ask(context.Background(), sb.String())
+	text, err := r.Ask(ctx, sb.String())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
 		_ = a.Append(audit.Entry{
@@ -147,7 +151,7 @@ func runRecall(args []string) {
 			CostDollars: b.Spent(),
 			Detail:      err.Error(),
 		})
-		os.Exit(1)
+		return 1
 	}
 	_, _ = fmt.Println(text)
 	_ = a.Append(audit.Entry{
@@ -158,6 +162,7 @@ func runRecall(args []string) {
 		CostDollars: b.Spent(),
 		Detail:      fmt.Sprintf("matches=%d llm=1", len(results)),
 	})
+	return 0
 }
 
 // grepAudit scans the audit JSONL for case-insensitive substring matches

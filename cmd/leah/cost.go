@@ -20,10 +20,10 @@ const defaultCostWindow = 30 * 24 * time.Hour
 
 // runCost is the `leah cost` entry point. Single positional command, three
 // flags: --since DURATION, --by kind|day|model, --json.
-func runCost(args []string) {
+func runCost(args []string) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah cost [--since D] [--by kind|day|model] [--json]")
-		return
+		return 0
 	}
 	window := defaultCostWindow
 	by := ""
@@ -38,19 +38,19 @@ func runCost(args []string) {
 			d, err := parseCostDuration(strings.TrimPrefix(a, "--since="))
 			if err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "leah cost: %v\n", err)
-				os.Exit(2)
+				return 2
 			}
 			window = d
 		case a == "--since":
 			if i+1 >= len(args) {
 				_, _ = fmt.Fprintln(os.Stderr, "leah cost: --since needs DURATION (e.g. 7d, 24h)")
-				os.Exit(2)
+				return 2
 			}
 			i++
 			d, err := parseCostDuration(args[i])
 			if err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "leah cost: %v\n", err)
-				os.Exit(2)
+				return 2
 			}
 			window = d
 		case strings.HasPrefix(a, "--by="):
@@ -58,13 +58,13 @@ func runCost(args []string) {
 		case a == "--by":
 			if i+1 >= len(args) {
 				_, _ = fmt.Fprintln(os.Stderr, "leah cost: --by needs kind|day|model")
-				os.Exit(2)
+				return 2
 			}
 			i++
 			by = args[i]
 		default:
 			_, _ = fmt.Fprintf(os.Stderr, "leah cost: unknown arg %q\n", a)
-			os.Exit(2)
+			return 2
 		}
 	}
 
@@ -73,7 +73,7 @@ func runCost(args []string) {
 	summary, err := costview.Aggregate(auditPath, since)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah cost: aggregate: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	if jsonMode {
@@ -81,17 +81,17 @@ func runCost(args []string) {
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(summary); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah cost: encode: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		return
+		return 0
 	}
 
-	printCostText(os.Stdout, summary, window, by)
+	return printCostText(os.Stdout, summary, window, by)
 }
 
 // printCostText renders the terse 2-column layout. Header always shows
 // total + count + window; body switches on --by.
-func printCostText(w *os.File, s costview.Summary, window time.Duration, by string) {
+func printCostText(w *os.File, s costview.Summary, window time.Duration, by string) int {
 	_, _ = fmt.Fprintf(w, "leah cost — last %s\n", humanDuration(window))
 	_, _ = fmt.Fprintf(w, "  total   $%.4f\n", s.TotalUSD)
 	_, _ = fmt.Fprintf(w, "  rows    %d\n", s.Count)
@@ -108,8 +108,9 @@ func printCostText(w *os.File, s costview.Summary, window time.Duration, by stri
 		printBuckets(w, "top kinds", s.TopKinds(3))
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "leah cost: --by %q not in {kind,day,model}\n", by)
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
 
 func printBuckets(w *os.File, title string, buckets []costview.Bucket) {

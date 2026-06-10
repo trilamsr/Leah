@@ -24,7 +24,7 @@ import (
 //
 // Audit: every operation (snapshot / restore / verify) logs to audit.jsonl
 // with BlastRadius=2 (state-mutating but reversible — the source is read-only).
-func runBackup(args []string) {
+func runBackup(parent context.Context, args []string) int {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
 	target := fs.String("target", "both", "snapshot target: local|b2|both")
 	restore := fs.Bool("restore", false, "restore latest snapshot instead of writing one")
@@ -35,21 +35,21 @@ func runBackup(args []string) {
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
-		os.Exit(2)
+		return 2
 	}
 
 	if *target != "local" && *target != "b2" && *target != "both" {
 		_, _ = fmt.Fprintf(os.Stderr, "leah backup: unknown --target %q (expect local|b2|both)\n", *target)
-		os.Exit(2)
+		return 2
 	}
 
 	r := &backup.Restic{}
 	if !r.Available() {
 		_, _ = fmt.Fprintln(os.Stderr, "leah backup: restic not on PATH — run `brew install restic`")
-		os.Exit(1)
+		return 1
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Minute)
 	defer cancel()
 
 	sd := stateDir()
@@ -58,7 +58,7 @@ func runBackup(args []string) {
 	repos := selectRepos(*target)
 	if len(repos) == 0 {
 		_, _ = fmt.Fprintln(os.Stderr, "leah backup: no repos selected — set LEAH_BACKUP_LOCAL_PATH and/or LEAH_BACKUP_B2_REPO")
-		os.Exit(2)
+		return 2
 	}
 
 	switch {
@@ -69,7 +69,7 @@ func runBackup(args []string) {
 		}
 		if err := doRestore(ctx, r, repos, dst, a); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah backup --restore: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_, _ = fmt.Printf("restored latest snapshot → %s\n", dst)
 	case *verify:
@@ -85,7 +85,7 @@ func runBackup(args []string) {
 			_ = a.Append(audit.Entry{Kind: "backup.verify", ArgsHash: repo, BlastRadius: 1, Outcome: "success"})
 		}
 		if failed > 0 {
-			os.Exit(1)
+			return 1
 		}
 	default:
 		failed := 0
@@ -100,9 +100,10 @@ func runBackup(args []string) {
 			_ = a.Append(audit.Entry{Kind: "backup.snapshot", ArgsHash: repo, BlastRadius: 2, Outcome: "success"})
 		}
 		if failed > 0 {
-			os.Exit(1)
+			return 1
 		}
 	}
+	return 0
 }
 
 // selectRepos returns the resolved repo URLs for the requested target,

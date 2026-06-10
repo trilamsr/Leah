@@ -16,10 +16,10 @@ import (
 // regatta CLI + bug-fix-candidates.md) — no LLM call by default. All
 // composition logic lives in internal/brief so the daemon's daily-task
 // can reuse it without re-implementing the CLI wrapper.
-func runBrief(args []string) {
+func runBrief(parent context.Context, args []string) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah brief [--voice] [--silent]")
-		return
+		return 0
 	}
 	voiceMode := false
 	silentMode := false
@@ -31,11 +31,11 @@ func runBrief(args []string) {
 			silentMode = true
 		default:
 			_, _ = fmt.Fprintf(os.Stderr, "leah brief: unknown flag %q\n", a)
-			os.Exit(2)
+			return 2
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 
 	now := time.Now()
@@ -47,9 +47,9 @@ func runBrief(args []string) {
 	if silentMode {
 		if err := brief.WriteFile(stateDir(), now, body); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah brief: write file: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		return
+		return 0
 	}
 
 	_, _ = fmt.Print(body)
@@ -64,4 +64,5 @@ func runBrief(args []string) {
 			// Not fatal — text already printed.
 		}
 	}
+	return 0
 }

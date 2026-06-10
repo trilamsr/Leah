@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
@@ -22,50 +24,74 @@ import (
 
 const version = "0.0.1-mvp5"
 
-func main() {
-	if len(os.Args) < 2 {
+func main() { os.Exit(run()) }
+
+// run owns the defer chain that os.Exit would otherwise skip. Subcommands
+// MUST return int (no os.Exit) so writeInterruptedAudit fires on SIGINT
+// (review #55: previous version's os.Exit inside subcommands bypassed
+// the audit-flush this PR is supposed to deliver).
+func run() int {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	auditPath := filepath.Join(stateDir(), "audit.jsonl")
+	return runAndFlush(ctx, auditPath, os.Args[1:])
+}
+
+// runAndFlush is run() minus the signal wiring — extracted so tests can
+// drive the defer-flush path with a pre-canceled ctx without forking.
+func runAndFlush(ctx context.Context, auditPath string, args []string) int {
+	defer writeInterruptedAudit(ctx, auditPath)
+	return runCommand(ctx, args)
+}
+
+// runCommand dispatches argv (without the program name) under a shared ctx.
+// Extracted from main() so tests can drive the dispatcher with an arbitrary
+// (possibly canceled) ctx without spawning a subprocess.
+func runCommand(ctx context.Context, args []string) int {
+	if len(args) < 1 {
 		usage()
-		os.Exit(2)
+		return 2
 	}
 
-	cmd := os.Args[1]
+	cmd := args[0]
+	rest := args[1:]
 	switch cmd {
 	case "version", "-v", "--version":
 		_, _ = fmt.Println(version)
-		return
+		return 0
 	case "ask":
-		if len(os.Args) < 3 || shouldShowHelp(os.Args[2:]) {
+		if len(rest) < 1 || shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah ask \"<query>\"")
-			if len(os.Args) >= 3 && shouldShowHelp(os.Args[2:]) {
-				return
+			if len(rest) >= 1 && shouldShowHelp(rest) {
+				return 0
 			}
-			os.Exit(2)
+			return 2
 		}
-		runAsk(os.Args[2])
+		return runAsk(ctx, rest[0])
 	case "ship":
-		runShipArgs(os.Args[2:])
+		return runShipArgs(ctx, rest)
 	case "review":
-		if shouldShowHelp(os.Args[2:]) {
+		if shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
-			return
+			return 0
 		}
-		if len(os.Args) < 4 {
+		if len(rest) < 2 {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
-			os.Exit(2)
+			return 2
 		}
 		var prNum int
-		if _, err := fmt.Sscanf(os.Args[3], "%d", &prNum); err != nil {
+		if _, err := fmt.Sscanf(rest[1], "%d", &prNum); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, "pr# must be an integer")
-			os.Exit(2)
+			return 2
 		}
-		runReview(os.Args[2], prNum)
+		return runReview(ctx, rest[0], prNum)
 	case "status":
-		if shouldShowHelp(os.Args[2:]) {
+		if shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah status [--json]")
-			return
+			return 0
 		}
 		jsonMode := false
-		for _, a := range os.Args[2:] {
+		for _, a := range rest {
 			if a == "--json" {
 				jsonMode = true
 			}
@@ -78,59 +104,75 @@ func main() {
 		}
 		if err := s.Run(); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah status: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 	case "contact":
-		runContact(os.Args[2:])
+		return runContact(rest)
 	case "project":
-		runProject(os.Args[2:])
+		return runProject(rest)
 	case "decision":
-		runDecision(os.Args[2:])
+		return runDecision(rest)
 	case "ctx":
-		runCtx(os.Args[2:])
+		return runCtx(rest)
 	case "workspace":
-		runWorkspace(os.Args[2:])
+		return runWorkspace(rest)
 	case "mistake":
-		runMistake(os.Args[2:])
+		return runMistake(rest)
 	case "retro":
-		runRetro(os.Args[2:])
+		return runRetro(rest)
 	case "patterns":
-		runPatterns(os.Args[2:])
+		return runPatterns(rest)
 	case "suggest":
-		runSuggest(os.Args[2:])
+		return runSuggest(ctx, rest)
 	case "backlog":
-		runBacklog(os.Args[2:])
+		return runBacklog(ctx, rest)
 	case "recall":
-		runRecall(os.Args[2:])
+		return runRecall(ctx, rest)
 	case "self-build":
-		if shouldShowHelp(os.Args[2:]) {
+		if shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah self-build \"<intent>\"")
-			return
+			return 0
 		}
-		if len(os.Args) < 3 {
+		if len(rest) < 1 {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah self-build \"<intent>\"")
-			os.Exit(2)
+			return 2
 		}
-		runSelfBuild(os.Args[2])
+		return runSelfBuild(ctx, rest[0])
 	case "cost":
-		runCost(os.Args[2:])
+		return runCost(rest)
 	case "brief":
-		runBrief(os.Args[2:])
+		return runBrief(ctx, rest)
 	case "listen":
-		runListen(os.Args[2:])
+		return runListen(ctx, rest)
 	case "backup":
-		runBackup(os.Args[2:])
+		return runBackup(ctx, rest)
 	case "connect":
-		os.Exit(runConnect(os.Args[2:], os.Stdout))
+		return runConnect(ctx, rest, os.Stdout)
 	default:
 		usage()
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
 
-func runAsk(query string) {
-	ctx := context.Background()
+// writeInterruptedAudit appends one Outcome="interrupted" row when ctx was
+// canceled (SIGINT/SIGTERM). No-op on clean exit. Errors are dropped on
+// purpose — the program is already tearing down and stderr noise from a
+// best-effort flush helps nobody.
+func writeInterruptedAudit(ctx context.Context, auditPath string) {
+	if ctx.Err() == nil {
+		return
+	}
+	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
+	_ = a.Append(audit.Entry{
+		Kind:        "cli.interrupted",
+		BlastRadius: 0,
+		Outcome:     "interrupted",
+		Detail:      ctx.Err().Error(),
+	})
+}
 
+func runAsk(ctx context.Context, query string) int {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
@@ -138,21 +180,22 @@ func runAsk(query string) {
 	systemPrompt, err := os.ReadFile(filepath.Join(promptDir(), "system.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read system prompt: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	client, err := reasoner.NewAnthropicClient()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt), PersonaPrefix: personaPrefixForActive()}
 
 	ask := &dispatcher.Ask{Reasoner: r, Audit: a, Budget: b, Out: os.Stdout}
 	if err := ask.Run(ctx, query); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 // runShipArgs parses the `leah ship` flag set + dispatches. Supports:
@@ -162,7 +205,7 @@ func runAsk(query string) {
 // Each --from-* flag fetches a context block (via gh / shell history); blocks
 // are composed in PR → issue → thread order and prepended to the Reasoner
 // draft prompt so the model sees the referenced artifacts before drafting.
-func runShipArgs(args []string) {
+func runShipArgs(ctx context.Context, args []string) int {
 	fs := flag.NewFlagSet("ship", flag.ExitOnError)
 	fromPR := fs.Int("from-pr", 0, "prepend gh pr view + diff for PR #N from the same repo")
 	fromIssue := fs.Int("from-issue", 0, "prepend gh issue view + comments for issue #N from the same repo")
@@ -172,11 +215,11 @@ func runShipArgs(args []string) {
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
-		os.Exit(2)
+		return 2
 	}
 	if fs.NArg() < 2 {
 		fs.Usage()
-		os.Exit(2)
+		return 2
 	}
 	repo := fs.Arg(0)
 	intent := fs.Arg(1)
@@ -184,7 +227,6 @@ func runShipArgs(args []string) {
 	// Build optional context block(s). Each fetcher is soft-fail: warn,
 	// continue without that block — operator dispatching shouldn't be blocked
 	// by a stale PR number or a missing zsh history file.
-	ctx := context.Background()
 	exec := ghclient.ShellExec{}
 	var prCtx, issueCtx, threadCtx string
 	if *fromPR > 0 {
@@ -210,16 +252,14 @@ func runShipArgs(args []string) {
 		}
 	}
 	composed := dispatcher.ComposeContext(prCtx, issueCtx, threadCtx)
-	runShipWithContext(repo, intent, composed)
+	return runShipWithContext(ctx, repo, intent, composed)
 }
 
-func runShip(repo, intent string) {
-	runShipWithContext(repo, intent, "")
+func runShip(ctx context.Context, repo, intent string) int {
+	return runShipWithContext(ctx, repo, intent, "")
 }
 
-func runShipWithContext(repo, intent, contextBlock string) {
-	ctx := context.Background()
-
+func runShipWithContext(ctx context.Context, repo, intent, contextBlock string) int {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
@@ -227,20 +267,20 @@ func runShipWithContext(repo, intent, contextBlock string) {
 	issueTpl, err := os.ReadFile(filepath.Join(promptDir(), "regatta-issue.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read issue template: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	client, err := reasoner.NewAnthropicClient()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(issueTpl), PersonaPrefix: personaPrefixForActive()}
 
 	tmp, err := os.MkdirTemp("", "leah-ship-*")
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "tmp dir: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
 
@@ -262,8 +302,9 @@ func runShipWithContext(repo, intent, contextBlock string) {
 	}
 	if err := ship.Run(ctx, intent); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah ship: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 // defaultHistoryPath returns ~/.zsh_history if $SHELL is zsh, else
@@ -280,9 +321,7 @@ func defaultHistoryPath() string {
 	return filepath.Join(home, ".bash_history")
 }
 
-func runReview(repo string, prNum int) {
-	ctx := context.Background()
-
+func runReview(ctx context.Context, repo string, prNum int) int {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
@@ -290,13 +329,13 @@ func runReview(repo string, prNum int) {
 	sysPrompt, err := os.ReadFile(filepath.Join(reviewerPromptDir(), "independent-reviewer.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read reviewer prompt: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	sub, err := reviewer.NewAnthropicSubagent()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	r := &reviewer.Reviewer{Subagent: sub, Budget: b, SystemPrompt: string(sysPrompt)}
 
@@ -305,14 +344,14 @@ func runReview(repo string, prNum int) {
 		[]string{"number", "title", "body", "headRefName", "url"})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "view pr: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	diffOut, err := ghclient.ShellExec{}.Run(ctx,
 		[]string{"gh", "pr", "diff", fmt.Sprintf("%d", prNum), "--repo", repo})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "fetch diff: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	body, _ := pr["body"].(string)
@@ -320,7 +359,7 @@ func runReview(repo string, prNum int) {
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "review: %v\n", err)
 		_ = a.Append(audit.Entry{Kind: "review", BlastRadius: 3, Outcome: "failed", Detail: err.Error()})
-		os.Exit(1)
+		return 1
 	}
 
 	_, _ = fmt.Println(v.Body)
@@ -335,6 +374,7 @@ func runReview(repo string, prNum int) {
 		CostDollars: b.Spent(),
 		Detail:      v.Recommendation + " " + v.AgentID,
 	})
+	return 0
 }
 
 // personaPrefixForActive loads the persona row for the operator's active
