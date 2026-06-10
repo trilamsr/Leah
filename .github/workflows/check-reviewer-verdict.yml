@@ -1,0 +1,79 @@
+name: check-reviewer-verdict
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check-reviewer-verdict:
+    name: check-reviewer-verdict
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Live PR body fetch w/ event-payload snapshot fallback.
+      # Originated in regatta (#1265); ported to leah 2026-06-10.
+      # The github.event.pull_request.body context is captured at
+      # trigger time and goes stale on body edits, forcing operator
+      # empty-commit refreshes. Live fetch eliminates the snapshot lag.
+      - name: check-reviewer-verdict
+        if: github.event.pull_request.draft == false && github.actor != 'dependabot[bot]'
+        env:
+          SNAPSHOT_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body' 2>/dev/null) && [ -n "$BODY" ]; then
+            echo "::notice::pr-body fetched live via gh pr view at $(date -u +%FT%TZ)"
+          else
+            BODY="$SNAPSHOT_BODY"
+            echo "::warning::pr-body live fetch failed; falling back to event-payload snapshot"
+          fi
+          # Load-bearing classification lives in scripts/check-reviewer-verdict.sh
+          # so this workflow stays a thin caller — originated in regatta
+          # (#986 cascade divergence where inline YAML path list shadowed
+          # the script's extended list); ported to leah 2026-06-10.
+          base="${BASE_SHA}"
+          if git rev-parse --verify origin/main >/dev/null 2>&1; then
+            live_base="$(git merge-base origin/main "${HEAD_SHA}" 2>/dev/null || echo "")"
+            if [ -n "$live_base" ]; then base="$live_base"; fi
+          fi
+          paths_file=$(mktemp)
+          git diff --name-only "$base" "${HEAD_SHA}" > "$paths_file"
+          body_file=$(mktemp)
+          printf '%s' "$BODY" > "$body_file"
+          # --automerge-enabled closes the agent-self-merge loophole
+          # (originated in regatta #1046; ported to leah 2026-06-10):
+          # if autoMergeRequest != null AND the PR is load-bearing AND
+          # Reviewer-agent-id is present, the gate fails closed.
+          # `${arr[@]+"${arr[@]}"}` conditional expansion is required
+          # under `set -u`: bare `"${arr[@]}"` on an empty array crashes
+          # with 'unbound variable'.
+          automerge_flag=()
+          if automerge_state=$(gh pr view "$PR_NUMBER" --json autoMergeRequest --jq '.autoMergeRequest' 2>/dev/null) \
+            && [ -n "$automerge_state" ] && [ "$automerge_state" != "null" ]; then
+            automerge_flag=(--automerge-enabled)
+          fi
+          # Script also independently re-runs load-bearing classification
+          # against the path list, so --load-bearing here only adds the
+          # explicit force; passing --changed-paths-file is sufficient.
+          bash scripts/check-reviewer-verdict.sh \
+            --body-file "$body_file" \
+            --changed-paths-file "$paths_file" \
+            --pr-author "$PR_AUTHOR" \
+            ${automerge_flag[@]+"${automerge_flag[@]}"}
