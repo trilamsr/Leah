@@ -3,7 +3,7 @@
 Date: 2026-06-10
 Scope: MVP-5 (Wave-8 S9)
 Owners: `internal/operatormodel/`, `internal/audit/`, `internal/daemonloop/`,
-`internal/memory/` (schema), `cmd/leah/profile.go`
+`internal/memory/` (schema), `cmd/leah/suggest.go`
 
 Companion docs:
 - `docs/engineer/briefs/2026-06-10-wave-8-aiml-upgrade.md` — wave-8 synthesis (§S9)
@@ -26,7 +26,7 @@ thousands of rows and `audit.jsonl` rotates at 100MB. Reading the
 whole window every Update tick is wasted work for cells whose
 weight has not meaningfully changed in two weeks.
 
-S9 collapses stable, decayed `(kind, slot)` cells into a durable
+S9 collapses stable, decayed `(class, key, slot)` cells into a durable
 summary row, archives the underlying audit rows ≥14d to a separate
 append-only file, and prunes them from the live `audit.jsonl`. Result:
 - live audit stays bounded by ≤14d of raw rows + recent rotation tail,
@@ -54,11 +54,15 @@ append-only file, and prunes them from the live `audit.jsonl`. Result:
 
 ## 2. Stability gate
 
-A cell `(kind, slot)` is eligible at tick T when ALL hold:
+A cell `(class, key, slot)` is eligible at tick T when ALL hold:
 
 1. `last_consolidated_at IS NULL OR last_consolidated_at < T - 14d`
 2. Rolling 14d decayed-weight delta < 5%:
    `|w(T) - w(T - 14d)| / max(w(T), w(T - 14d), epsilon) < 0.05`
+   where `w(T - 14d) :=` weight in `operator_profile_snapshot` for this
+   cell (see §3.3), or `0` if no prior snapshot exists. Snapshots are
+   written by each consolidation pass, so the 14d anchor never depends
+   on raw audit rows older than the ≤14d retention window.
 3. `first_seen <= T - 14d` (cell has at least 14 days of history)
 4. At least one underlying audit row with `ts < T - 14d` exists
 
@@ -75,14 +79,15 @@ Cells failing the gate are skipped this pass and re-evaluated next tick.
 
 ```sql
 CREATE TABLE IF NOT EXISTS operator_profile_consolidated (
-  kind                   TEXT NOT NULL,
-  slot                   TEXT NOT NULL,
+  class                  TEXT NOT NULL,   -- mirrors operator_profile.class
+  key                    TEXT NOT NULL,   -- mirrors operator_profile.key
+  slot                   TEXT NOT NULL,   -- mirrors operator_profile.slot
   weight                 REAL NOT NULL,
   count                  INTEGER NOT NULL,
   first_seen_ts          TEXT NOT NULL,   -- RFC3339
   last_consolidated_at   TEXT NOT NULL,   -- RFC3339
   source_window_end      TEXT NOT NULL,   -- RFC3339 — newest row consolidated
-  PRIMARY KEY (kind, slot)
+  PRIMARY KEY (class, key, slot)
 );
 
 CREATE INDEX IF NOT EXISTS idx_consolidated_last
@@ -90,42 +95,94 @@ CREATE INDEX IF NOT EXISTS idx_consolidated_last
 ```
 
 Operator-readable on disk (`~/.leah-state/leah.db`) and exposed via
-`leah whoami --consolidated` (§7). The PK is `(kind, slot)` — re-runs
-upsert, no row growth past the cell cardinality.
+`leah whoami --consolidated` (§7). The PK triple `(class, key, slot)`
+matches the live `operator_profile` schema exactly — no dimension
+collapse, no `time_of_day` × `cadence` slot collisions, and
+`context_transition` keys on `action_kind` rather than going unkeyed.
 
-### 3.2 New archive — `~/.leah-state/consolidated.jsonl`
+### 3.2 Archive — `~/.leah-state/consolidated.jsonl`
 
 Append-only JSONL, same `audit.Entry` shape, no schema change.
 0600 perms. Rotated at 100MB matching `audit.jsonl` semantics.
 
-### 3.3 Migration
+### 3.3 New table — `operator_profile_snapshot` (stability-gate anchor)
 
-`internal/memory/schema.go` adds the `CREATE TABLE IF NOT EXISTS`.
-Idempotent — replays of `Init` are no-ops.
+The §2 rule 2 delta requires `w(T - 14d)`. Raw audit retention is ≤14d
+(§1), so the anchor cannot come from re-reading raw rows. Each
+consolidation pass writes one snapshot row per consolidated cell;
+the next pass reads it back as the 14d-old anchor.
 
-## 4. Consolidation step (per (kind, slot) cell)
+```sql
+CREATE TABLE IF NOT EXISTS operator_profile_snapshot (
+  class                  TEXT NOT NULL,
+  key                    TEXT NOT NULL,
+  slot                   TEXT NOT NULL,
+  weight_at_snapshot     REAL NOT NULL,   -- w at snapshot_ts
+  snapshot_ts            TEXT NOT NULL,   -- RFC3339 — pass-fire time
+  PRIMARY KEY (class, key, slot)
+);
+```
 
-In a single SQL transaction + serialized file move:
+Tradeoff: one extra upsert per consolidated cell per 14d cycle.
+Empirically <200 cells/operator (§13) → <200 rows/14d → negligible.
+
+### 3.4 Per-class slot derivation
+
+Step 3 of §4 filters source audit rows whose derived slot matches the
+cell's slot. Derivation is class-specific:
+
+| class                | slot derivation                                |
+|----------------------|------------------------------------------------|
+| `time_of_day`        | hour-of-day, `HH` in 00-23 (`ts.Hour()`)       |
+| `cadence`            | weekday-name, `Mon`/`Tue`/.../`Sun`            |
+| `context_transition` | `action_kind` field of the audit row           |
+
+W125 implementer reads this table verbatim; no per-class branching
+buried in code review.
+
+### 3.5 Migration
+
+`internal/memory/schema.go` adds both `CREATE TABLE IF NOT EXISTS`
+statements. Idempotent — replays of `Init` are no-ops.
+
+## 4. Consolidation step (per `(class, key, slot)` cell)
+
+In a single SQL transaction + serialized file move + an audit-logger
+quiesce window:
 
 1. Compute summary:
    `weight = decayedWeight(times[ts < T-14d], now=T-14d, halflife)`
    `count = len(times[ts < T-14d])`
    `first_seen_ts = min(times)`
-2. `INSERT … ON CONFLICT(kind,slot) DO UPDATE` into
-   `operator_profile_consolidated` with the summary + `last_consolidated_at = T`.
+2. `INSERT … ON CONFLICT(class,key,slot) DO UPDATE` into
+   `operator_profile_consolidated` with the summary +
+   `last_consolidated_at = T`.
 3. Append all source rows where `ts < T - 14d` AND
-   `kind = <cell.kind>` AND `(slot derived from row matches <cell.slot>)`
-   to `~/.leah-state/consolidated.jsonl`.
+   `class = <cell.class>` AND `key = <cell.key>` AND
+   (slot derived from the row per §3.4 equals `<cell.slot>`) to
+   `~/.leah-state/consolidated.jsonl`.
 4. fsync archive file (durability barrier).
-5. Commit DB transaction.
-6. Rewrite `audit.jsonl` minus the moved rows via tmp-file + rename
-   (POSIX atomic on same filesystem).
+5. `INSERT … ON CONFLICT(class,key,slot) DO UPDATE` into
+   `operator_profile_snapshot` with `weight_at_snapshot = w(T)` and
+   `snapshot_ts = T` (§3.3 anchor for the next pass).
+6. Commit DB transaction.
+7. Acquire `audit.Logger.QuiesceForConsolidation(ctx)` (see contract
+   below); rewrite `audit.jsonl` minus the moved rows via tmp-file +
+   rename (POSIX atomic on same filesystem); release quiesce.
+
+**`audit.Logger.QuiesceForConsolidation` contract (new, mandatory).**
+Returns a `func()` release handle. Between acquire and release, all
+`audit.Logger.Append` calls block on the same mutex; the rename swaps
+the inode atomically; the next `Append` reopens with `O_APPEND` on
+the new inode. Without this contract, an `Append` that opened the
+old inode between step-7 read and rename writes to the orphaned file
+descriptor and the row is silently lost.
 
 If step 4 fails: DB transaction rolled back, archive append rolled
 back via truncate-to-pre-append-offset, source `audit.jsonl` untouched.
-If step 6 fails: summary row durable + archive durable; source rows
+If step 7 fails: summary row durable + archive durable; source rows
 still present → next pass re-detects them as already-consolidated via
-`last_consolidated_at >= row.ts` and only does step 6. Idempotent.
+`last_consolidated_at >= row.ts` and only does step 7. Idempotent.
 
 Failure mode (CLAUDE.md root-cause discipline): source rows are NOT
 deleted until summary row is durably written AND archive is fsync'd.
@@ -189,15 +246,29 @@ consolidation moment, not the current Update tick. Update applies an
 additional decay of `(p.now() - source_window_end)` to keep the
 ranking comparable to fresh raw rows.
 
+Bucket re-decay is not equivalent to summing per-event decay over the
+same interval (`Σ exp ≠ exp Σ`). The error is bounded by the bucket
+window: empirically <14% on typical operator distributions across one
+14d window. Re-consolidation of already-consolidated rows is banned
+(§14 non-goal) to prevent the error from compounding across passes.
+
 Cold-start gates (`ColdStartMinRows`, `ColdStartMinDays`) sum both
-slices — a consolidated cell counts as `count` rows.
+slices with class-specific rules:
+- `ColdStartMinRows`: a consolidated cell contributes `count` rows;
+  a raw row contributes 1.
+- `ColdStartMinDays` (DaysObserved): a consolidated cell contributes
+  `max(7, days_in_window)` days where `days_in_window` is
+  `(source_window_end - first_seen_ts).Days()`; raw rows contribute
+  distinct calendar dates. Union, not sum — overlap is OK.
 
 ## 7. Replay
 
-New subcommand `cmd/leah/profile.go`:
+New subcommand wired in the existing `cmd/leah/suggest.go` (matches
+the one-file-per-verb pattern of `forget.go`, `quote.go`, etc. — no
+new top-level file):
 
 ```
-leah profile replay --since=<RFC3339>
+leah suggest replay --since=<RFC3339>
 ```
 
 Reads `operator_profile_consolidated` rows with
@@ -211,19 +282,23 @@ Flags:
 - `--json` machine-readable output.
 - `--no-archive` skip `consolidated.jsonl` (debug: pure-DB view).
 
-## 8. Wave plan (file-disjoint, parallel up to 4)
+## 8. Wave plan (serial-by-data-flow, single-owner per wave)
 
 | Wave | Files (single owner) | Goal |
 |------|----------------------|------|
-| W124 | `internal/memory/schema.go` + `_test.go` | Add `operator_profile_consolidated` table; migration test |
-| W125 | `internal/operatormodel/consolidate.go` + `_test.go` | `ConsolidatePass`, stability gate, atomic move |
+| W124 | `internal/memory/schema.go` + `_test.go` | Add `operator_profile_consolidated` + `operator_profile_snapshot` tables; migration test |
+| W125 | `internal/operatormodel/consolidate.go` + `_test.go` | `ConsolidatePass`, stability gate, atomic move, snapshot upsert |
 | W126 | `internal/operatormodel/profile.go` (Update path), `consolidated_loader.go` + `_test.go` | Dual-read in Update; cold-start sums both slices |
-| W127 | `cmd/leah-daemon/main.go` (wire Daily task), `cmd/leah/profile.go` (replay), `internal/operatormodel/replay.go` + `_test.go` | Daemon wiring + replay subcommand |
+| W127 | `cmd/leah-daemon/main.go` (wire Daily task), `cmd/leah/suggest.go` (replay verb), `internal/operatormodel/replay.go` + `_test.go` | Daemon wiring + replay subcommand |
 
-W124 → W125 → W126 → W127 serializes by data flow but each wave is
-single-package, so file-disjoint dispatch within a wave is moot. Cross-wave
-parallelism: W124 + W125 can race once schema is checked in; W126 + W127
-serial after W125 lands the helpers they call.
+W124 → W125 → W126 → W127 serialize by data flow.
+- **W125 + W126 same package** (`internal/operatormodel/`): W126 depends
+  on W125's helper symbols (`loadConsolidatedSince`, snapshot reader).
+  Serialize despite different filenames; file-disjointness inside one
+  package is not enough when symbols cross files.
+- W127 serial after W126.
+- File-disjoint cross-wave dispatch is moot here; this is a 4-wave
+  serial chain.
 
 ## 9. Test plan (TDD — failing test first per wave)
 
@@ -231,8 +306,14 @@ serial after W125 lands the helpers they call.
 
 - `TestSchema_Consolidated_CreateIdempotent` — calls `Init` twice; second
   call MUST NOT error and MUST NOT drop rows.
-- `TestSchema_Consolidated_PrimaryKey` — duplicate `(kind, slot)`
-  insert returns `UNIQUE` constraint error.
+- `TestSchema_Consolidated_UpsertOnConflict` — duplicate
+  `(class, key, slot)` row exercises the real
+  `INSERT … ON CONFLICT(class,key,slot) DO UPDATE` production path:
+  second insert replaces `weight`/`count`/`last_consolidated_at` in
+  place; row count stays 1. (The bare UNIQUE-error path is unreachable
+  in production code; testing it asserts nothing useful.)
+- `TestSchema_Snapshot_UpsertOnConflict` — same upsert contract for
+  `operator_profile_snapshot`.
 
 ### W125 — consolidation pass
 
@@ -246,6 +327,13 @@ serial after W125 lands the helpers they call.
   fsync failure → DB unchanged, `audit.jsonl` unchanged.
 - `TestConsolidate_Idempotent_ReRunNoOp` — second pass over same
   state writes no new rows, archives no new lines.
+- `TestConsolidate_AuditQuiesce_NoLostAppend` — concurrent
+  `audit.Logger.Append` racing with the step-7 rewrite must serialize
+  through `QuiesceForConsolidation`; the appended row lands in the
+  post-rename `audit.jsonl`, not the orphaned inode.
+- `TestConsolidate_Snapshot_AnchorsNextPass` — first pass writes a
+  snapshot; second pass 14d later reads `w(T-14d)` from it (not from
+  raw audit) when evaluating §2 rule 2.
 - `TestConsolidate_KillSwitch_EnvDisables` — `LEAH_CONSOLIDATION=0`
   → ConsolidatePass returns nil immediately, no side effects.
 
@@ -314,7 +402,7 @@ daemon restart.
   ratio).
 - CPU: O(N) where N = audit rows in 30d window; consolidation is one
   linear scan + bounded SQL upserts.
-- Memory: O(distinct cells) — bounded by `(kind, slot)` cardinality,
+- Memory: O(distinct cells) — bounded by `(class, key, slot)` cardinality,
   empirically <200 cells per operator.
 
 ## 14. Out of scope (explicit deferrals)
