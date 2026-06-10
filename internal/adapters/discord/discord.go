@@ -64,13 +64,15 @@ type Attestor = contracts.Attestor
 type TokenSource = contracts.TokenSource
 
 type Config struct {
-	Attestor       Attestor
-	TokenSource    TokenSource
-	HTTPClient     contracts.HTTPClient
-	BaseURL        string
-	GuildAllowlist []string
-	Audit          AuditSink
-	Now            func() time.Time
+	Attestor        Attestor
+	TokenSource     TokenSource
+	HTTPClient      contracts.HTTPClient
+	BaseURL         string
+	GuildAllowlist  []string
+	Audit           AuditSink
+	Now             func() time.Time
+	WebSocketDialer WebSocketDialer
+	GatewayURL      string
 }
 
 type Adapter struct {
@@ -81,6 +83,8 @@ type Adapter struct {
 	guildAllowlist []string
 	audit          AuditSink
 	now            func() time.Time
+	dialer         WebSocketDialer
+	gatewayURL     string
 
 	mu    sync.Mutex
 	sends map[string][]time.Time
@@ -113,6 +117,8 @@ func New(cfg Config) (*Adapter, error) {
 		guildAllowlist: cfg.GuildAllowlist,
 		audit:          cfg.Audit,
 		now:            now,
+		dialer:         cfg.WebSocketDialer,
+		gatewayURL:     cfg.GatewayURL,
 		sends:          map[string][]time.Time{},
 	}, nil
 }
