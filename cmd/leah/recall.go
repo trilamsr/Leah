@@ -37,6 +37,10 @@ type recallResult struct {
 // Tier 2 (--llm): pass hits to the Reasoner for a single synthesis call
 // (budget-gated). --semantic and --llm compose: semantic feeds the LLM.
 func runRecall(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] <query>")
+		return
+	}
 	useLLM := false
 	useSemantic := false
 	rest := make([]string, 0, len(args))

@@ -18,10 +18,13 @@ import (
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
-// GHClient is the gh-create-issue surface Ship needs; abstracted so tests
-// can capture the issue payload without forking gh.
+// GHClient is the gh surface Ship + SelfBuild need; abstracted so tests can
+// capture the issue payload without forking gh. EnsureLabel is the
+// idempotent label-create used by the Defect-1 retry path when CreateIssue
+// fails because the `ready-for-agent` label is missing on the target repo.
 type GHClient interface {
 	CreateIssue(ctx context.Context, args ghclient.CreateIssueArgs) (string, error)
+	EnsureLabel(ctx context.Context, repo, label string) error
 }
 
 // RegattaClient is the regatta-list surface used by the optional watcher.
@@ -109,12 +112,33 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		title = deriveTitle(intent)
 	}
 
-	url, err := s.GH.CreateIssue(ctx, ghclient.CreateIssueArgs{
+	createArgs := ghclient.CreateIssueArgs{
 		Repo:     s.Repo,
 		Title:    title,
 		BodyFile: bodyFile,
 		Labels:   []string{"ready-for-agent"},
-	})
+	}
+	url, err := s.GH.CreateIssue(ctx, createArgs)
+	if err != nil && isMissingLabelErr(err) {
+		// Defect-1 retry: gh failed because `ready-for-agent` does not
+		// exist on the target repo. Auto-create the label and retry once.
+		// Original error is preserved if the retry also fails so the
+		// operator sees the actionable root cause.
+		lg.Warn("dispatcher.issue.label_missing_retry", "repo", s.Repo, "err", err.Error())
+		if ensureErr := s.GH.EnsureLabel(ctx, s.Repo, "ready-for-agent"); ensureErr != nil {
+			lg.Error("dispatcher.issue.ensure_label_error", "repo", s.Repo, "err", ensureErr.Error())
+			s.auditFail("gh label create: "+ensureErr.Error(), intent)
+			return ensureErr
+		}
+		var retryErr error
+		url, retryErr = s.GH.CreateIssue(ctx, createArgs)
+		if retryErr != nil {
+			lg.Error("dispatcher.issue.error", "repo", s.Repo, "err", err.Error(), "retry_err", retryErr.Error())
+			s.auditFail("gh issue create: "+err.Error(), intent)
+			return err
+		}
+		err = nil
+	}
 	if err != nil {
 		lg.Error("dispatcher.issue.error", "repo", s.Repo, "err", err.Error())
 		s.auditFail("gh issue create: "+err.Error(), intent)
@@ -143,12 +167,18 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 	return nil
 }
 
-func (s *Ship) watch(ctx context.Context) {
+// watch polls regatta until a terminal agent transition, MaxPolls, or
+// ctx.Done. The returned string is the terminal-state classifier used by
+// SelfBuild to emit a second audit row (kind=self-build.outcome): one of
+// "merged" / "escalated" / "failed" (regatta agent transitioned),
+// "timeout" (MaxPolls exhausted without a transition), or "cancelled"
+// (ctx.Done — typically operator Ctrl-C).
+func (s *Ship) watch(ctx context.Context) string {
 	lg := obs.LoggerFromCtx(ctx).With("package", "dispatcher")
 	polls := 0
 	for {
 		if s.MaxPolls > 0 && polls >= s.MaxPolls {
-			return
+			return "timeout"
 		}
 		polls++
 		if s.Heartbeat != nil {
@@ -168,13 +198,13 @@ func (s *Ship) watch(ctx context.Context) {
 						_ = s.Notify.Notify(ctx, "Leah",
 							fmt.Sprintf("agent %s: %s (PR #%d)", a.ID, a.State, a.PR))
 					}
-					return
+					return a.State
 				}
 			}
 		}
 		select {
 		case <-ctx.Done():
-			return
+			return "cancelled"
 		case <-time.After(s.PollEvery):
 		}
 	}
@@ -189,6 +219,31 @@ func (s *Ship) auditFail(detail, intent string) {
 		CostDollars: s.Budget.Spent(),
 		Detail:      detail,
 	})
+}
+
+// isMissingLabelErr decides whether a CreateIssue failure looks like
+// "the --label we passed does not exist on the repo". Pattern-matches gh's
+// known stderr surfaces:
+//   - `could not add label: 'ready-for-agent' not found`
+//   - `label not found`
+//   - REST/GraphQL `validation failed` (404 from labels mutation)
+//
+// Deliberately does NOT match bare `not found` — that would swallow auth /
+// repo-not-found errors and mask the actual root cause. The retry only fires
+// when the message names a label or labels API failure.
+func isMissingLabelErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "'ready-for-agent' not found"),
+		strings.Contains(msg, "label not found"),
+		strings.Contains(msg, "could not add label"),
+		strings.Contains(msg, "validation failed"):
+		return true
+	}
+	return false
 }
 
 func deriveTitle(intent string) string {

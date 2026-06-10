@@ -20,6 +20,10 @@ import (
 // to runCtx so behavior stays single-sourced; persona set/show is new and
 // owned here.
 func runWorkspace(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah workspace <list|new|switch|show|persona> [args...]")
+		return
+	}
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah workspace <list|new|switch|show|persona> [args...]")
 		os.Exit(2)

@@ -128,7 +128,8 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 		Title:    title,
 		TmpDir:   s.TmpDir,
 
-		Watch:     s.Watch,
+		// Watch=false on inner Ship: dispatched audit row MUST land before watcher (Defect-2).
+		Watch:     false,
 		Regatta:   s.Regatta,
 		Heartbeat: s.Heartbeat,
 		Notify:    s.Notify,
@@ -142,7 +143,15 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 	if err := inner.Run(ctx, intent); err != nil {
 		return err
 	}
+
+	// Land dispatched row before watcher so operator-abort still leaves a self-build trace (Defect-2).
 	s.appendAuditSuccess(intent, inner.LastURL)
+
+	// Outcome row pairs with dispatched; dangling dispatched-without-outcome is flagged by selflearn.
+	if s.Watch {
+		state := inner.watch(ctx)
+		s.appendAuditOutcome(intent, state, inner.LastURL)
+	}
 	return nil
 }
 
@@ -228,6 +237,31 @@ func (s *SelfBuild) appendAuditClarify(intent string) {
 		Outcome:     "clarify",
 		CostDollars: s.Budget.Spent(),
 		Detail:      "prompt_sha=" + s.promptSHA(),
+	})
+}
+
+// appendAuditOutcome records the terminal watcher state for a self-build
+// dispatch on a separate kind=self-build.outcome row referencing the same
+// args_hash as the dispatched row. selflearn correlates the pair via
+// (ArgsHash, Kind ∈ {self-build, self-build.outcome}); a dangling
+// dispatched row with no outcome after N days flags an operator-abort or
+// regatta-watcher failure.
+func (s *SelfBuild) appendAuditOutcome(intent, state, issueURL string) {
+	if state == "" {
+		// No Regatta client wired → nothing observed → nothing to record.
+		return
+	}
+	detail := "state=" + state
+	if issueURL != "" {
+		detail += " url=" + issueURL
+	}
+	_ = s.Audit.Append(audit.Entry{
+		Kind:        "self-build.outcome",
+		ArgsHash:    argsHash(intent),
+		BlastRadius: 4,
+		Outcome:     state,
+		CostDollars: s.Budget.Spent(),
+		Detail:      detail,
 	})
 }
 

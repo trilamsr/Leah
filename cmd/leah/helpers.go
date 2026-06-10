@@ -56,3 +56,18 @@ func hasFlag(args []string, flag string) bool {
 	}
 	return false
 }
+
+// shouldShowHelp returns true when args contain `--help` or `-h` anywhere.
+// Subcommand handlers MUST call this before any LLM dispatch or
+// state-changing op so `leah <cmd> --help` prints usage instead of being
+// forwarded to the Reasoner as intent text (Defect-3: self-build --help
+// burned $0.0059 returning clarifying questions). Exact-match only —
+// substrings like `--helpme` or bare words must not trip the gate.
+func shouldShowHelp(args []string) bool {
+	for _, a := range args {
+		if a == "--help" || a == "-h" {
+			return true
+		}
+	}
+	return false
+}

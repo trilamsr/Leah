@@ -14,6 +14,10 @@ import (
 
 // runContact dispatches `leah contact <action> ...`.
 func runContact(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah contact <add|list|show> [args...]")
+		return
+	}
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah contact <add|list|show> [args...]")
 		os.Exit(2)

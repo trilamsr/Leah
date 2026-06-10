@@ -17,6 +17,10 @@ import (
 // Prints "not ready" when the cold-start gate (50 rows + 7 days) hasn't
 // fired yet.
 func runSuggest(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah suggest [--context X] [--llm]")
+		return
+	}
 	ctx := context.Background()
 
 	activeContext := ""

@@ -22,9 +22,34 @@ type fakeGh struct {
 	createdBody  string
 	createdLabel []string
 	createURL    string
+
+	// createErrs is consumed FIFO on each CreateIssue call. A non-nil entry
+	// returns that error before the success path; an exhausted/empty slice
+	// returns createURL. Lets a single test drive the "fail-then-succeed"
+	// label-retry shape without forking the fake.
+	createErrs  []error
+	createCalls int
+
+	// ensureLabelCalls captures every (repo, label) pair EnsureLabel saw.
+	// ensureLabelErr (when set) is returned on each invocation.
+	ensureLabelCalls []ensureLabelCall
+	ensureLabelErr   error
+}
+
+type ensureLabelCall struct {
+	repo  string
+	label string
 }
 
 func (f *fakeGh) CreateIssue(ctx context.Context, a ghclient.CreateIssueArgs) (string, error) {
+	f.createCalls++
+	if len(f.createErrs) > 0 {
+		err := f.createErrs[0]
+		f.createErrs = f.createErrs[1:]
+		if err != nil {
+			return "", err
+		}
+	}
 	f.createdRepo = a.Repo
 	f.createdTitle = a.Title
 	if body, err := os.ReadFile(a.BodyFile); err == nil {
@@ -32,6 +57,11 @@ func (f *fakeGh) CreateIssue(ctx context.Context, a ghclient.CreateIssueArgs) (s
 	}
 	f.createdLabel = a.Labels
 	return f.createURL, nil
+}
+
+func (f *fakeGh) EnsureLabel(ctx context.Context, repo, label string) error {
+	f.ensureLabelCalls = append(f.ensureLabelCalls, ensureLabelCall{repo: repo, label: label})
+	return f.ensureLabelErr
 }
 
 type fakeShipReasoner struct {
@@ -274,6 +304,8 @@ func (errGh) CreateIssue(_ context.Context, _ ghclient.CreateIssueArgs) (string,
 	return "", errSynthetic("gh create-issue exploded")
 }
 
+func (errGh) EnsureLabel(_ context.Context, _, _ string) error { return nil }
+
 // errReasoner always fails Ask with a synthetic error.
 type errReasoner struct{}
 
@@ -428,5 +460,122 @@ func TestShipRun_NeutralizesCommentCloseInDraft(t *testing.T) {
 	}
 	if !strings.Contains(gh.createdBody, "leah-dispatched:") {
 		t.Errorf("body missing marker: %q", gh.createdBody)
+	}
+}
+
+// TestShipAutoCreatesMissingLabel asserts that when the first `gh issue
+// create` fails because `ready-for-agent` does not exist on the target repo,
+// Ship.Run calls EnsureLabel and retries CreateIssue exactly once. The
+// retry MUST succeed end-to-end: audit row written as pending, URL printed
+// to Out, no error returned. Closes Defect-1 in
+// docs/research/2026-06-09-closed-loop-live-validation.md (operator burned
+// $0.029 on a Reasoner draft + manual retry when the label was missing).
+func TestShipAutoCreatesMissingLabel(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := dir + "/audit.jsonl"
+	gh := &fakeGh{
+		createURL: "https://github.com/x/y/issues/7",
+		createErrs: []error{
+			// First call: gh's actual stderr surface when --label names a
+			// label that does not exist on the repo.
+			errSynthetic(`gh issue create: gh: 'ready-for-agent' not found`),
+		},
+	}
+	out := &bytes.Buffer{}
+	ship := &Ship{
+		Reasoner: &fakeShipReasoner{resp: "draft"},
+		GH:       gh,
+		Audit:    &audit.Logger{Path: auditPath},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      out,
+		Repo:     "x/y",
+		TmpDir:   dir,
+	}
+	if err := ship.Run(context.Background(), "do the thing"); err != nil {
+		t.Fatalf("run should retry after label-not-found, got: %v", err)
+	}
+	if gh.createCalls != 2 {
+		t.Errorf("want exactly 2 CreateIssue calls (initial + retry), got %d", gh.createCalls)
+	}
+	if len(gh.ensureLabelCalls) != 1 {
+		t.Fatalf("want 1 EnsureLabel call, got %d: %+v", len(gh.ensureLabelCalls), gh.ensureLabelCalls)
+	}
+	if gh.ensureLabelCalls[0].repo != "x/y" || gh.ensureLabelCalls[0].label != "ready-for-agent" {
+		t.Errorf("EnsureLabel called with %+v; want {x/y, ready-for-agent}", gh.ensureLabelCalls[0])
+	}
+	if !strings.Contains(out.String(), "https://github.com/x/y/issues/7") {
+		t.Errorf("expected retried URL on stdout, got: %q", out.String())
+	}
+	data, _ := os.ReadFile(auditPath)
+	if !strings.Contains(string(data), `"outcome":"pending"`) {
+		t.Errorf("audit should record pending after successful retry: %s", data)
+	}
+}
+
+// TestShipDoesNotRetryOnNonLabelError asserts a generic CreateIssue failure
+// (auth error, network, etc.) is NOT retried — EnsureLabel must not fire so
+// the operator sees the real root cause instead of masked symptoms.
+func TestShipDoesNotRetryOnNonLabelError(t *testing.T) {
+	dir := t.TempDir()
+	gh := &fakeGh{
+		createURL:  "https://x/1",
+		createErrs: []error{errSynthetic("gh: not authenticated")},
+	}
+	ship := &Ship{
+		Reasoner: &fakeShipReasoner{resp: "draft"},
+		GH:       gh,
+		Audit:    &audit.Logger{Path: dir + "/audit.jsonl"},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		Repo:     "x/y",
+		TmpDir:   dir,
+	}
+	if err := ship.Run(context.Background(), "x"); err == nil {
+		t.Fatal("want auth error to bubble up, got nil")
+	}
+	if gh.createCalls != 1 {
+		t.Errorf("want 1 CreateIssue call (no retry on non-label error), got %d", gh.createCalls)
+	}
+	if len(gh.ensureLabelCalls) != 0 {
+		t.Errorf("EnsureLabel should not fire on non-label error, got: %+v", gh.ensureLabelCalls)
+	}
+}
+
+// TestShipRetryFailureBubblesOriginalError asserts that when the retry after
+// EnsureLabel also fails, the ORIGINAL error is preserved so the operator
+// sees the actionable root cause (not a second-attempt noise). Audit row
+// records outcome=failed and references the original message.
+func TestShipRetryFailureBubblesOriginalError(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := dir + "/audit.jsonl"
+	gh := &fakeGh{
+		createURL: "https://x/1",
+		createErrs: []error{
+			errSynthetic("gh issue create: gh: 'ready-for-agent' not found"),
+			errSynthetic("gh issue create: gh: still broken"),
+		},
+	}
+	ship := &Ship{
+		Reasoner: &fakeShipReasoner{resp: "draft"},
+		GH:       gh,
+		Audit:    &audit.Logger{Path: auditPath},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		Repo:     "x/y",
+		TmpDir:   dir,
+	}
+	err := ship.Run(context.Background(), "x")
+	if err == nil {
+		t.Fatal("want error after retry also fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("want original 'not found' preserved, got: %v", err)
+	}
+	if gh.createCalls != 2 {
+		t.Errorf("want 2 CreateIssue calls, got %d", gh.createCalls)
+	}
+	data, _ := os.ReadFile(auditPath)
+	if !strings.Contains(string(data), `"outcome":"failed"`) {
+		t.Errorf("audit missing outcome=failed: %s", data)
 	}
 }

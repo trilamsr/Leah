@@ -12,6 +12,10 @@ import (
 
 // runMistake dispatches `leah mistake <action> ...`.
 func runMistake(args []string) {
+	if shouldShowHelp(args) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah mistake add --audit-id <ts> --root-cause <tag> --prevention <text>")
+		return
+	}
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah mistake add --audit-id <ts> --root-cause <tag> --prevention <text>")
 		os.Exit(2)
