@@ -1,0 +1,56 @@
+package connect
+
+import (
+	"os"
+	"sort"
+)
+
+type Registry struct {
+	providers []Provider
+	byName    map[string]Provider
+}
+
+func NewRegistry(providers []Provider) *Registry {
+	byName := make(map[string]Provider, len(providers))
+	for _, p := range providers {
+		byName[p.Name()] = p
+	}
+	return &Registry{providers: providers, byName: byName}
+}
+
+func DefaultRegistry() *Registry {
+	return NewRegistry([]Provider{
+		NewGmail(os.Getenv("LEAH_GMAIL_CLIENT_ID"), os.Getenv("LEAH_GMAIL_CLIENT_SECRET")),
+		NewGcal(os.Getenv("LEAH_GCAL_CLIENT_ID"), os.Getenv("LEAH_GCAL_CLIENT_SECRET")),
+	})
+}
+
+func (r *Registry) Lookup(name string) (Provider, error) {
+	if p, ok := r.byName[name]; ok {
+		return p, nil
+	}
+	return nil, ErrUnknownProvider
+}
+
+// List enumerates providers; zero-byte token files are treated as missing to
+// short-circuit a half-written-token deadlock on adapter deserialize.
+func (r *Registry) List() []Status {
+	out := make([]Status, 0, len(r.providers))
+	for _, p := range r.providers {
+		out = append(out, Status{
+			Name:       p.Name(),
+			Authorized: tokenAuthorized(p.TokenPath()),
+			TokenPath:  p.TokenPath(),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func tokenAuthorized(path string) bool {
+	st, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return st.Size() > 0
+}

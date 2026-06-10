@@ -120,6 +120,8 @@ func main() {
 		runListen(os.Args[2:])
 	case "backup":
 		runBackup(os.Args[2:])
+	case "connect":
+		os.Exit(runConnect(os.Args[2:], os.Stdout))
 	default:
 		usage()
 		os.Exit(2)
@@ -408,5 +410,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  listen [--duration D] [--model M] [--repo R]   push-to-talk → whisper.cpp → intent dispatch")
 	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]   restic snapshot of state dir")
 	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]  restic snapshot of ~/.leah-state")
+	_, _ = fmt.Fprintln(os.Stderr, "  connect <integration>|--list  first-launch OAuth device-code for shipped adapters (gmail, gcal)")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
