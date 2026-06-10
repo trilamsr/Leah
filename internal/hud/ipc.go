@@ -11,9 +11,6 @@ import (
 	"time"
 )
 
-// Client is a thin HTTP poller over the leah-daemon dashboard surface.
-// Wails/gRPC arrives in W35; W34 ships the stdlib seam so the static panel
-// can live-update via fetch() against /metrics + SSE /events.
 type Client struct {
 	BaseURL string
 	HTTP    *http.Client
@@ -26,9 +23,8 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// PollMetrics fetches /metrics and parses Prometheus text format into a
-// name{labels}→value map. Help/Type/blank lines are skipped; malformed
-// rows are silently dropped (the HUD treats /metrics as advisory).
+// PollMetrics parses Prometheus text into name{labels}→value; malformed
+// rows are dropped because /metrics is advisory to the HUD.
 func (c *Client) PollMetrics(ctx context.Context) (map[string]float64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/metrics", nil)
 	if err != nil {
@@ -52,7 +48,6 @@ func (c *Client) PollMetrics(ctx context.Context) (map[string]float64, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		// Last space separates value from name{labels}.
 		idx := strings.LastIndex(line, " ")
 		if idx <= 0 || idx == len(line)-1 {
 			continue
@@ -67,16 +62,14 @@ func (c *Client) PollMetrics(ctx context.Context) (map[string]float64, error) {
 	return out, nil
 }
 
-// StreamEvents subscribes to /events and invokes onLine per data row.
-// Returns when ctx is cancelled or the server closes the body. SSE
-// "data: " prefix is stripped; non-data lines are skipped.
+// StreamEvents drains SSE "data:" rows into onLine until ctx is cancelled
+// or the server closes the body. Non-data SSE lines are skipped.
 func (c *Client) StreamEvents(ctx context.Context, onLine func(string)) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/events", nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "text/event-stream")
-	// Streaming: don't use the per-request timeout from c.HTTP.
 	httpCli := &http.Client{}
 	resp, err := httpCli.Do(req)
 	if err != nil {

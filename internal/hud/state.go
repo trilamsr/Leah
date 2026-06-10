@@ -11,17 +11,14 @@ import (
 //go:embed static
 var staticRoot embed.FS
 
-// Static returns the HUD static-asset filesystem rooted at `static/` so
-// servers expose `/static/ambient.css` rather than `/static/static/...`.
 func Static() fs.FS {
 	sub, err := fs.Sub(staticRoot, "static")
 	if err != nil {
-		panic(err) // unreachable: //go:embed guarantees the dir.
+		panic(err)
 	}
 	return sub
 }
 
-// State is one of {hidden, ambient, focus}; single-surface invariant.
 type State int
 
 const (
@@ -43,8 +40,6 @@ func (s State) String() string {
 	}
 }
 
-// Machine is the HUD's surface state. Goroutine-safe; transitions are total
-// (every input is defined for every state).
 type Machine struct {
 	mu sync.RWMutex
 	s  State
@@ -58,7 +53,6 @@ func (m *Machine) State() State {
 	return m.s
 }
 
-// Show: hidden→ambient. No-op from ambient/focus.
 func (m *Machine) Show() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -67,7 +61,6 @@ func (m *Machine) Show() {
 	}
 }
 
-// Summon: hidden→focus or ambient→focus. No-op from focus.
 func (m *Machine) Summon() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -76,9 +69,7 @@ func (m *Machine) Summon() {
 	}
 }
 
-// OnIdle: focus→ambient after 30s idle (caller drives the timer). No-op
-// from ambient/hidden — idleness only collapses focus, never demotes
-// ambient to hidden (operator opt-out is via Dismiss).
+// OnIdle collapses focus → ambient; never demotes ambient (spec §2).
 func (m *Machine) OnIdle() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -87,7 +78,6 @@ func (m *Machine) OnIdle() {
 	}
 }
 
-// Dismiss: *→hidden. Operator Esc or DND/screen-recording auto-hide.
 func (m *Machine) Dismiss() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

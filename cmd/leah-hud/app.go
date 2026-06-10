@@ -10,10 +10,6 @@ import (
 	"github.com/trilam/leah/internal/hud"
 )
 
-// App owns the HUD's state machine, the IPC client into leah-daemon, and
-// the HTTP mux that fronts the static panel + control surface. The seam
-// stays HTTP-shaped so W35's Wails swap is a window-host change, not a
-// rewrite.
 type App struct {
 	State  *hud.Machine
 	Client *hud.Client
@@ -37,7 +33,6 @@ func (a *App) routes() http.Handler {
 	return mux
 }
 
-// Show transitions hidden→ambient on first hit; idempotent thereafter.
 func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -56,7 +51,6 @@ func (a *App) handleAmbient(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = f.Close() }()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if _, err := copyTo(w, f); err != nil {
-		// Body already partially flushed; nothing to recover.
 		return
 	}
 }
@@ -70,9 +64,8 @@ func (a *App) handleState(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(stateResp{State: a.State.State().String()})
 }
 
-// handleEvents proxies the daemon's /events stream so the embedded
-// EventSource can connect same-origin; on daemon outage it emits a single
-// heartbeat per 5s so the browser doesn't reconnect-storm.
+// handleEvents heartbeats every 5s so the browser EventSource never
+// reconnect-storms on daemon outage. Real telemetry frames arrive in W35.
 func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -96,7 +89,6 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Run boots the HTTP server and blocks until ctx is cancelled.
 func (a *App) Run(ctx context.Context, addr string) error {
 	srv := &http.Server{
 		Addr:              addr,

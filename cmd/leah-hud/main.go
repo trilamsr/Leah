@@ -26,6 +26,4 @@ func main() {
 	}
 }
 
-// copyTo proxies io.Copy without dragging io into app.go's import set; see
-// handleAmbient. Kept here so app.go imports stay tight.
 func copyTo(dst io.Writer, src io.Reader) (int64, error) { return io.Copy(dst, src) }
