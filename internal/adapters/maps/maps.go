@@ -21,9 +21,10 @@ var (
 // Scopes the Attestor sees. Distinct per RPC so the operator-attestation log
 // attributes consent at the per-action grain (geocode vs. route vs. poi).
 const (
-	ScopeGeocode = "maps:geocode"
-	ScopeRoute   = "maps:route"
-	ScopePOI     = "maps:poi"
+	ScopeGeocode       = "maps:geocode"
+	ScopeRoute         = "maps:route"
+	ScopePOI           = "maps:poi"
+	ScopePOIAlongRoute = "maps:poi_along_route"
 )
 
 // TransportMode is the Directions API mode parameter; constants below cover

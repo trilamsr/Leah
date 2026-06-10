@@ -2,7 +2,6 @@ package maps
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math"
 	"net/http"
@@ -69,13 +68,14 @@ func TestDetourCost_StraightThrough_Zero(t *testing.T) {
 }
 
 // TestDetourCost_PerpendicularPOI_ApproxRoundTrip: a POI offset perpendicular
-// to the segment costs ~2× the perpendicular distance (round trip).
+// to a tight anchor pair costs ~2× the perpendicular distance (round trip).
+// Anchor pair sits at the POI's projection so the detour is dominated by the
+// off-route excursion, not by segment length.
 func TestDetourCost_PerpendicularPOI_ApproxRoundTrip(t *testing.T) {
 	t.Parallel()
-	prev := latLng{0, 0}
-	next := latLng{0, 1}
-	// POI 1km north of segment midpoint.
-	poi := latLng{0.00904, 0.5} // 0.00904° ≈ 1km
+	prev := latLng{0, 0.5}
+	next := latLng{0, 0.501} // ~111m east of prev
+	poi := latLng{0.00904, 0.5} // 1km north of prev
 	d := detourMeters(prev, poi, next)
 	if d < 1800 || d > 2200 {
 		t.Fatalf("detour = %.0fm, want ~2000m round trip", d)
@@ -123,8 +123,8 @@ func TestPOIAlongRoute_HappyPath(t *testing.T) {
 	if places[0].ID != "near" {
 		t.Fatalf("ranking wrong: got %q first, want near", places[0].ID)
 	}
-	if att.lastScope != ScopePOIAlongRoute {
-		t.Fatalf("scope = %q, want %q", att.lastScope, ScopePOIAlongRoute)
+	if len(att.scopes) == 0 || att.scopes[0] != ScopePOIAlongRoute {
+		t.Fatalf("scopes = %v, want first = %q", att.scopes, ScopePOIAlongRoute)
 	}
 }
 
@@ -207,5 +207,3 @@ func encodeTwoPoint(a, b latLng) string {
 	return sb.String()
 }
 
-// Silence unused-import warnings if json/etc. only used transitively.
-var _ = json.Decoder{}
