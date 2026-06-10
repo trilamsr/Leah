@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 // Sentinel errors are kept exported so callers can switch on the failure mode
@@ -83,6 +85,9 @@ type Config struct {
 	TokenSource TokenSource
 	Transport   Transport
 	BaseURL     string // e.g. https://acme.atlassian.net
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 // Client is the Jira adapter the rest of Leah depends on. Lifecycle (HTTP
@@ -93,6 +98,7 @@ type Client struct {
 	ts      TokenSource
 	tr      Transport
 	baseURL string
+	m       *connectadapter.Metrics
 }
 
 // New validates the wiring contract and returns a ready Client; no I/O.
@@ -109,7 +115,7 @@ func New(cfg Config) (*Client, error) {
 	if cfg.BaseURL == "" {
 		return nil, errors.New("jira: Config.BaseURL required")
 	}
-	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, baseURL: cfg.BaseURL}, nil
+	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, baseURL: cfg.BaseURL, m: cfg.Metrics}, nil
 }
 
 // ListMyIssues returns issues assigned to the operator. Default page size (50)
@@ -119,7 +125,10 @@ func (c *Client) ListMyIssues(ctx context.Context) ([]Issue, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.tr.ListMyIssues(ctx, tok)
+	start := time.Now()
+	out, err := c.tr.ListMyIssues(ctx, tok)
+	c.m.ObserveAPI("list_my_issues", time.Since(start).Seconds())
+	return out, err
 }
 
 // GetIssue resolves a single issue by its public Jira key (e.g. "ENG-42").
@@ -131,7 +140,10 @@ func (c *Client) GetIssue(ctx context.Context, key string) (Issue, error) {
 	if err != nil {
 		return Issue{}, err
 	}
-	return c.tr.GetIssue(ctx, tok, key)
+	start := time.Now()
+	out, err := c.tr.GetIssue(ctx, tok, key)
+	c.m.ObserveAPI("get_issue", time.Since(start).Seconds())
+	return out, err
 }
 
 // CreateIssue creates an issue. Validation runs BEFORE attestation so a typo
@@ -150,7 +162,10 @@ func (c *Client) CreateIssue(ctx context.Context, req IssueReq) (Issue, error) {
 	if err != nil {
 		return Issue{}, err
 	}
-	return c.tr.CreateIssue(ctx, tok, req)
+	start := time.Now()
+	out, err := c.tr.CreateIssue(ctx, tok, req)
+	c.m.ObserveAPI("create_issue", time.Since(start).Seconds())
+	return out, err
 }
 
 // Comment posts a comment body on the issue identified by key. Validation runs
@@ -166,7 +181,10 @@ func (c *Client) Comment(ctx context.Context, key, body string) error {
 	if err != nil {
 		return err
 	}
-	return c.tr.Comment(ctx, tok, key, body)
+	start := time.Now()
+	err = c.tr.Comment(ctx, tok, key, body)
+	c.m.ObserveAPI("comment", time.Since(start).Seconds())
+	return err
 }
 
 // gateAndToken runs the attestation gate first; only on consent does the
