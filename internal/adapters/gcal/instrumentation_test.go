@@ -105,12 +105,14 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 // TestObserveAPI_NilMetricsNoop proves the legacy Config caller shape still works when Metrics is omitted.
 func TestObserveAPI_NilMetricsNoop(t *testing.T) {
 	t.Parallel()
-	a := &Adapter{
-		svc: &fakeService{listEvents: []Event{{ID: "e1"}}},
-		att: &fakeAttestor{},
-		ts:  &fakeTokenSource{tok: "t"},
-		now: func() time.Time { return time.Now() },
+	a, err := New(Config{
+		TokenPath: "/tmp/leah-test-gcal-token-noop",
+		Attestor:  &fakeAttestor{},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
 	}
+	a.svc = &fakeService{listEvents: []Event{{ID: "e1"}}}
 	if _, err := a.ListToday(context.Background()); err != nil {
 		t.Fatalf("ListToday: %v", err)
 	}
