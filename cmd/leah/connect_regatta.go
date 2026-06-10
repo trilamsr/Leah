@@ -13,10 +13,9 @@ import (
 	"github.com/trilam/leah/internal/connect"
 )
 
-// runConnectRegatta is `leah connect regatta`. Distinct from runConnect's
-// OAuth path because regatta is a Docker container, not a token-bearing
-// service. The provider arg is optional (nil → production wiring): tests
-// inject a fake-Exec-wired RegattaProvider so no real docker daemon runs.
+// runConnectRegatta is distinct from runConnect: regatta is a Docker container,
+// not a token-bearing service. p=nil wires production defaults; tests inject
+// a fake-Exec-backed provider.
 func runConnectRegatta(ctx context.Context, args []string, w io.Writer, p *connect.RegattaProvider) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(w, "usage: leah connect regatta")
@@ -30,24 +29,18 @@ func runConnectRegatta(ctx context.Context, args []string, w io.Writer, p *conne
 	}
 
 	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
-	sink := &regattaAuditAdapter{logger: a}
-	p.Audit = sink
+	p.Audit = &regattaAuditAdapter{logger: a}
 
 	att := newConnectAttestor()
 	if err := p.Connect(ctx, att); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta: %v\n", err)
-		if errors.Is(err, connect.ErrDockerUnavailable) {
-			return 1
-		}
 		return 1
 	}
 	_, _ = fmt.Fprintf(w, "ok: regatta running at http://127.0.0.1:9090 (container: leah-regatta)\n")
 	return 0
 }
 
-// regattaAuditAdapter bridges the connect package's local AuditEntry shape to
-// the on-disk audit.Entry. The translation lives at the CLI boundary so the
-// connect package stays free of an internal/audit import.
+// regattaAuditAdapter keeps internal/connect free of an internal/audit import.
 type regattaAuditAdapter struct {
 	logger *audit.Logger
 }
@@ -69,8 +62,6 @@ func (r *regattaAuditAdapter) Record(e connect.AuditEntry) {
 	})
 }
 
-// osExecRunner is the production OSExec for the regatta connect path. Tests
-// inject a deterministic fake; production shells out via os/exec.
 type osExecRunner struct{}
 
 func (osExecRunner) Run(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
