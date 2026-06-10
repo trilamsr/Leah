@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 var (
@@ -96,6 +98,9 @@ type Config struct {
 	Transport   Transport
 	Audit       AuditSink
 	Now         func() time.Time
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 type Adapter struct {
@@ -104,6 +109,7 @@ type Adapter struct {
 	tr    Transport
 	audit AuditSink
 	now   func() time.Time
+	m     *connectadapter.Metrics
 
 	mu       sync.Mutex
 	lastPost map[string]time.Time
@@ -129,6 +135,7 @@ func New(cfg Config) (*Adapter, error) {
 		tr:       cfg.Transport,
 		audit:    cfg.Audit,
 		now:      now,
+		m:        cfg.Metrics,
 		lastPost: make(map[string]time.Time),
 	}, nil
 }
@@ -141,7 +148,10 @@ func (a *Adapter) ListChannels(ctx context.Context) ([]Channel, error) {
 	if err != nil {
 		return nil, fmt.Errorf("slack: bot token: %w", err)
 	}
-	return a.tr.ListChannels(ctx, tok)
+	start := time.Now()
+	chs, err := a.tr.ListChannels(ctx, tok)
+	a.m.ObserveAPI("list_channels", time.Since(start).Seconds())
+	return chs, err
 }
 
 // Order: validate -> rate-limit -> attest -> token -> transport -> audit.
@@ -167,7 +177,10 @@ func (a *Adapter) PostMessage(ctx context.Context, channel, text string) error {
 		a.record(AuditRow{Kind: "slack_post_message", ChannelHash: hash, TextLen: textLen, Reason: "token_load"})
 		return fmt.Errorf("slack: bot token: %w", err)
 	}
-	if err := a.tr.PostMessage(ctx, tok, channel, text); err != nil {
+	start := time.Now()
+	err = a.tr.PostMessage(ctx, tok, channel, text)
+	a.m.ObserveAPI("post_message", time.Since(start).Seconds())
+	if err != nil {
 		a.record(AuditRow{Kind: "slack_post_message", ChannelHash: hash, TextLen: textLen, Reason: err.Error()})
 		return err
 	}
@@ -186,7 +199,10 @@ func (a *Adapter) GetThread(ctx context.Context, channel, ts string) (Thread, er
 	if err != nil {
 		return Thread{}, fmt.Errorf("slack: bot token: %w", err)
 	}
-	return a.tr.GetThread(ctx, tok, channel, ts)
+	start := time.Now()
+	th, err := a.tr.GetThread(ctx, tok, channel, ts)
+	a.m.ObserveAPI("get_thread", time.Since(start).Seconds())
+	return th, err
 }
 
 // Search is the only RPC that reaches for the User Token. Empty UserToken
@@ -206,7 +222,10 @@ func (a *Adapter) Search(ctx context.Context, query string) ([]Result, error) {
 	if err := a.att.Attest(ctx, ScopeSearch); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrAttestationDenied, err)
 	}
-	return a.tr.Search(ctx, user, query)
+	start := time.Now()
+	res, err := a.tr.Search(ctx, user, query)
+	a.m.ObserveAPI("search", time.Since(start).Seconds())
+	return res, err
 }
 
 func (a *Adapter) allowPost(channel string) bool {
