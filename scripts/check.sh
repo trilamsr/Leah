@@ -17,4 +17,7 @@ else
   echo "  (skipped — install with: brew install golangci-lint)"
 fi
 
+echo "==> check-comment-density"
+"$(dirname "$0")/check-comment-density.sh"
+
 echo "==> all checks passed"
