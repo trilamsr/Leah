@@ -64,3 +64,31 @@ type Engine interface {
 	Reject(ctx context.Context, id string) error
 	Apply(ctx context.Context, rec Recommendation) error
 }
+
+// Signal is the event-driven trigger that replaces W18's 60s daemon-tick
+// poll (Wave-9 brief V8). Context is operatormodel.ctxmgr.Current() at fire
+// time; Detail carries the bundle ID / event UUID / per-kind payload.
+type Signal struct {
+	Kind    string
+	Context string
+	At      time.Time
+	Detail  string
+}
+
+// SignalMatcher emits zero-or-more Recommendations for one Signal. The
+// engine owns dedup + debounce + persistence — matchers are stateless.
+type SignalMatcher interface {
+	Match(ctx context.Context, sig Signal) ([]Recommendation, error)
+}
+
+// SignalEngine is Engine extended with event-driven Propose. Implementors
+// debounce per-pattern (≥30s between same-Pattern fires per Wave-9 V8).
+type SignalEngine interface {
+	Engine
+	OnSignal(ctx context.Context, sig Signal) ([]Recommendation, error)
+}
+
+// SignalDebounceWindow is the minimum gap between Propose-fires of the
+// same Pattern. NSWorkspace bursts 10-30 push events/min; 30s lets one
+// focus-pattern surface once a transition without saturating downstream.
+const SignalDebounceWindow = 30 * time.Second
