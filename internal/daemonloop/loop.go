@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
@@ -94,6 +95,20 @@ type Loop struct {
 	cold      bool
 	weeklyMu  sync.Mutex
 	dailyMu   sync.Mutex
+	// lastTick records the wall-clock instant of the most recent tick so
+	// the dashboard's Heartbeat surface reflects real loop liveness instead
+	// of the request time (BB-RETRO L3 #18). Zero pointer = no tick yet.
+	lastTick atomic.Pointer[time.Time]
+}
+
+// LastTick returns the wall-clock instant of the most recent tick, or the
+// zero time before the first tick has completed. Thread-safe for arbitrary
+// concurrent readers vs the single tick writer.
+func (l *Loop) LastTick() time.Time {
+	if p := l.lastTick.Load(); p != nil {
+		return *p
+	}
+	return time.Time{}
 }
 
 // New constructs a Loop with empty prevState + cold=true so the first tick
@@ -129,6 +144,10 @@ func (l *Loop) Run(ctx context.Context) error {
 func (l *Loop) tick(ctx context.Context) {
 	lg := obs.LoggerFromCtx(ctx).With("package", "daemonloop")
 	lg.Debug("daemon.tick")
+	// Record at entry — guarantees liveness signal even if Heartbeat.Ping
+	// or Regatta.List stalls on a slow network.
+	now := time.Now()
+	l.lastTick.Store(&now)
 	if l.Heartbeat != nil {
 		_ = l.Heartbeat.Ping(ctx)
 	}
