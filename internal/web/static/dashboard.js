@@ -85,7 +85,7 @@ function renderMemory(m) {
     <div>decisions<strong>${m.decisions || 0}</strong></div>`;
   const dec = m.recent_decisions || [];
   $('memory-decisions').innerHTML = dec.length
-    ? dec.map(d => `<li><span class="kind">${esc(d.topic)}</span><span class="detail" title="${esc(d.choice)}">${esc(d.choice)}</span></li>`).join('')
+    ? dec.map(d => `<li><span class="kind">${esc(d.topic)}</span><span class="detail" title="${esc(d.choice_full || d.choice)}">${esc(d.choice)}</span></li>`).join('')
     : emptyLi('no decisions captured yet');
 }
 
