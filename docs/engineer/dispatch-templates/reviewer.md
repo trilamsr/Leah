@@ -88,6 +88,14 @@ OUTPUT FORMAT
 - Inline GH PR review comments OR markdown report. Each finding: `[Tier] file:line — observation — proposed fix`.
 - Verdict: `clear-to-merge` | `block-on-findings` | `re-spawn-design` (canonical S5 set — see `docs/engineer/specs/2026-06-10-reflexion-loop.md`).
 - PR body footer (operator pastes after reviewer clears): `Reviewer-agent-id: <real subagent id>` + `Reviewer-recommendation: APPROVE` (exact token, no suffix). NEVER self-tag — the implementer that wrote the code MUST NOT write its own APPROVE token.
+- **Footer-block emission (BINDING on `clear-to-merge`).** When the verdict is `clear-to-merge`, the reviewer MUST end its output with this exact 2-line block in a fenced markdown code-block, ready for the main thread to paste into `gh pr edit --body-file`:
+
+  ```
+  Reviewer-agent-id: <this-reviewer's-own-agent-id>
+  Reviewer-recommendation: APPROVE
+  ```
+
+  Why: 21 of 22 PRs in the 2026-06-10 session merged with a verbal `clear-to-merge` verdict but ZERO carried the formal `Reviewer-recommendation: APPROVE` token in the PR body. CI gate #232 catches future cases, but the gap closes faster when the reviewer hands the literal text to the main thread instead of leaving it to memory. The act of pasting becomes the audit trail; the absence of a paste-ready block becomes the failure signal.
 
 RE-REVIEW AFTER AMENDMENTS (BINDING)
 - `block-on-findings` REQUIRES a second reviewer pass after the author amends — the S5 reflexion loop (`docs/engineer/specs/2026-06-10-reflexion-loop.md` §2). NO exceptions — not even one-line typo fixes.
