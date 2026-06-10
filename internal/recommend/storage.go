@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ import (
 
 // sqliteSchemaVersion is the embedded DDL version. Parsed-int compare per PR #58
 // avoids the lex "10" < "9" bug; on-disk newer than embedded refuses to migrate.
-const sqliteSchemaVersion = "2"
+const sqliteSchemaVersion = "3"
 
 // sqliteDDL provisions the two tables used by SQLiteEngine. Kept inline (no
 // embed) because the schema is small and the recommend package owns it end to end.
@@ -64,6 +65,8 @@ type SQLiteEngine struct {
 	matchers    []SignalMatcher      // V8: registered for OnSignal fan-out
 	lastFiredAt map[string]time.Time // V8: pattern → last OnSignal fire
 	now         func() time.Time     // test seam; default time.Now().UTC()
+
+	banditFloor banditFloorCache // W101: lazy ≥20×≥5 gate
 }
 
 // NewSQLiteEngine opens (creating if needed) the SQLite file at path with
@@ -156,6 +159,10 @@ func (e *SQLiteEngine) migrate() error {
 			return fmt.Errorf("backfill feedback.pattern: %w", err)
 		}
 	}
+	// v2→v3 (W101): per-pattern Beta posterior table for Thompson sampling.
+	if err := applyBanditMigration(e.db); err != nil {
+		return err
+	}
 	if _, err := e.db.Exec(`INSERT OR REPLACE INTO schema_meta(key, value) VALUES('version', ?)`, sqliteSchemaVersion); err != nil {
 		return fmt.Errorf("stamp schema version: %w", err)
 	}
@@ -216,9 +223,9 @@ func (e *SQLiteEngine) Seed(rec Recommendation) error {
 }
 
 // Propose returns pending (not-yet-accepted) recommendations with persisted
-// per-pattern feedback blended into Confidence (W100 / S4) — same semantics
-// as MemoryEngine.RankedPropose, so the rows written by RecordFeedback are
-// no longer orphaned.
+// per-pattern feedback blended into Confidence (W100). When bandit is on AND
+// the cold-start floor has cleared (≥20 rows × ≥5 patterns), top-K is taken
+// over Thompson-sampled posteriors instead of greedy point-estimate (W101).
 func (e *SQLiteEngine) Propose(ctx context.Context) ([]Recommendation, error) {
 	rows, err := e.db.QueryContext(ctx, `
 		SELECT id, pattern, tier, source, confidence, created_at
@@ -254,7 +261,35 @@ func (e *SQLiteEngine) Propose(ctx context.Context) ([]Recommendation, error) {
 	for i := range out {
 		out[i].Confidence += deltas[out[i].Pattern]
 	}
-	return out, nil
+
+	if !banditOn() {
+		return greedyRank(out), nil
+	}
+	cleared, err := e.banditFloor.check(ctx, e.db)
+	if err != nil {
+		return nil, err
+	}
+	if !cleared || len(out) == 0 {
+		return greedyRank(out), nil
+	}
+
+	patternList := make([]string, 0, len(patterns))
+	for p := range patterns {
+		patternList = append(patternList, p)
+	}
+	posts, err := loadPosteriors(ctx, e.db, patternList)
+	if err != nil {
+		return nil, err
+	}
+	seed := banditSeed()
+	rng := rand.New(rand.NewPCG(uint64(seed), uint64(seed)+1))
+	draws := rankBandit(out, posts, rng)
+	ranked := make([]Recommendation, len(draws))
+	for i, d := range draws {
+		ranked[i] = d.rec
+	}
+	logBanditAudit(e.audit, draws, seed)
+	return ranked, nil
 }
 
 // feedbackDeltas reads denormalized feedback.pattern so the dampener on a
@@ -461,14 +496,16 @@ func (e *SQLiteEngine) RecordFeedback(ctx context.Context, recID, kind string, s
 	if err := e.db.QueryRowContext(ctx, `SELECT pattern FROM recommendations WHERE id = ?`, recID).Scan(&pattern); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("lookup pattern: %w", err)
 	}
+	now := time.Now().UTC()
 	_, err = e.db.ExecContext(ctx,
 		`INSERT INTO feedback (id, rec_id, pattern, kind, signal, ts) VALUES (?, ?, ?, ?, ?, ?)`,
-		id, recID, pattern, kind, signal, time.Now().UTC().UnixNano(),
+		id, recID, pattern, kind, signal, now.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("record feedback: %w", err)
 	}
-	return nil
+	// W101: roll the per-pattern (α, β) posterior forward in lockstep.
+	return updateBetaPosterior(ctx, e.db, pattern, FeedbackKind(kind), now)
 }
 
 func (e *SQLiteEngine) logDecision(kind string, rec Recommendation, outcome string) error {
