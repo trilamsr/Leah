@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
@@ -743,5 +744,49 @@ func TestDeriveSelfBuildTitle_ExactLimitNoTruncate(t *testing.T) {
 	}
 	if strings.HasSuffix(got, "...") {
 		t.Fatalf("unexpected ellipsis at exact limit: %q", got)
+	}
+}
+
+// Byte-level truncation can split a multibyte rune; `gh issue create` then
+// rejects the title or renders mojibake. Result MUST be valid UTF-8.
+func TestDeriveSelfBuildTitle_UTF8Emoji_NoCorruption(t *testing.T) {
+	intent := strings.Repeat("a", 41) + "🎉 and more padding to force truncation"
+	got := deriveSelfBuildTitle(intent)
+	if !utf8.ValidString(got) {
+		t.Fatalf("invalid UTF-8 in result: %q (% x)", got, got)
+	}
+}
+
+func TestDeriveSelfBuildTitle_UTF8MultibyteAccent(t *testing.T) {
+	intent := strings.Repeat("a", 43) + "é and trailing text to force boundary cut"
+	got := deriveSelfBuildTitle(intent)
+	if !utf8.ValidString(got) {
+		t.Fatalf("invalid UTF-8 in result: %q (% x)", got, got)
+	}
+}
+
+func TestDeriveSelfBuildTitle_UTF8CJK(t *testing.T) {
+	intent := strings.Repeat("a", 40) + "日本語 padding extras filler more chars"
+	got := deriveSelfBuildTitle(intent)
+	if !utf8.ValidString(got) {
+		t.Fatalf("invalid UTF-8 in result: %q (% x)", got, got)
+	}
+}
+
+// Property check: random multibyte inputs must all yield valid UTF-8.
+func TestDeriveSelfBuildTitle_UTF8Property(t *testing.T) {
+	runes := []rune{'a', ' ', 'é', '🎉', '日', '本', '語', 'ñ', 'ü', '中'}
+	r := rand.New(rand.NewSource(1))
+	for i := 0; i < 100; i++ {
+		n := 30 + r.Intn(80)
+		var b strings.Builder
+		for j := 0; j < n; j++ {
+			b.WriteRune(runes[r.Intn(len(runes))])
+		}
+		intent := b.String()
+		got := deriveSelfBuildTitle(intent)
+		if !utf8.ValidString(got) {
+			t.Fatalf("invalid UTF-8 from input %q: %q (% x)", intent, got, got)
+		}
 	}
 }
