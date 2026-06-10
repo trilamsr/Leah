@@ -94,8 +94,8 @@ Per-chunk Speak serializes via existing `audioDeviceMu` (`tts.go` §59). Barge-i
 ### 2.5 Measurable target (V1-baselined)
 
 - `leah_voice_stage_seconds{stage="reasoner_first_token"}` — NEW series this spec adds (deltas need first-byte timestamp; existing `reasoner_seconds` measures whole-response).
-- `leah_voice_stage_seconds{stage="tts_first_audio"}` — already present.
-- Target p95 first-audio: ≤300ms (reasoner_first_token) + ≤140ms (tts_first_audio) = **≤440ms**. Cascaded baseline locked in W109 PR body from first 50 production turns. Spec target = "≤50% of cascaded baseline".
+- `leah_voice_stage_seconds{stage="tts_first_byte"}` — already present (V1 #162).
+- Target p95 first-audio: ≤300ms (reasoner_first_token) + ≤140ms (tts_first_byte) = **≤440ms**. Cascaded baseline locked in W109 PR body from first 50 production turns. Spec target = "≤50% of cascaded baseline".
 
 ## 3. Porcupine wake-word backend
 
@@ -283,21 +283,21 @@ LocalOnly verification: `TestTieredClient_LocalOnly_NoCloudDial` wraps Cloud's t
 
 Tests: `TestTieredClient_CloudOK_UsesCloud`, `TestTieredClient_CloudFails_FallsBackLocal`, `TestTieredClient_BothFail_UsesCanned`, `TestTieredClient_LocalOnly_SkipsCloud`.
 
-## 11. Wave plan W109–W115 (file-disjoint)
+## 11. Wave plan W109–W115 (file-disjoint after sequencing)
 
-Each = single PR, single owning package(s), no shared roots. Fan-out cap-6 → W109+W110+W111+W112+W113+W114 dispatch parallel; W115 sequences after W109.
+Each = single PR, single owning package(s). Shared-package collisions resolved by sequencing, not by sub-package splits (CLAUDE.md "default simpler"). Parallel cohort = {W109, W110, W112}; rest sequence per `After`.
 
-| Wave | Title | Owner pkg | ~LOC |
-|------|-------|-----------|------|
-| W109 | Streaming Reasoner.Client + SentenceChunker | `internal/reasoner/`, `internal/voice/session/` | 250–350 |
-| W110 | Porcupine wake + LEAH_VOICE_WAKE flag | `internal/voice/wake/` | 120 |
-| W111 | OpenAI Realtime-2 single-stage path | `internal/voice/realtime/`, `internal/voice/session/` | 300–400 |
-| W112 | Eagle speaker-ID + `leah voice enroll` | `internal/voice/speakerid/`, `cmd/leah/voice.go` | 200 |
-| W113 | Voice Isolation + phoneme-fuzzy + rolling floor + ChainTTS 2s timeout | `internal/voice/macos/`, `internal/voice/wake/`, `internal/voice/listener/`, `internal/voice/tts.go` | 200 |
-| W114 | Tiered Reasoner (cloud → local → canned) + LOCAL_ONLY | `internal/reasoner/` | 150 |
-| W115 | Wire §2 chunker into Session.Run on cascaded path | `internal/voice/session/` | 80 |
+| Wave | Title | Owner pkg | ~LOC | After |
+|------|-------|-----------|------|-------|
+| W109 | Streaming Reasoner.Client + SentenceChunker | `internal/reasoner/`, `internal/voice/session/` | 250–350 | — |
+| W110 | Porcupine wake + LEAH_VOICE_WAKE flag | `internal/voice/wake/` | 120 | — |
+| W111 | OpenAI Realtime-2 single-stage path | `internal/voice/realtime/`, `internal/voice/session/` | 300–400 | W109 |
+| W112 | Eagle speaker-ID + `leah voice enroll` | `internal/voice/speakerid/`, `cmd/leah/voice.go` | 200 | — |
+| W113 | Voice Isolation + phoneme-fuzzy + rolling floor + ChainTTS 2s timeout | `internal/voice/macos/`, `internal/voice/wake/`, `internal/voice/listener/`, `internal/voice/tts.go` | 200 | W110 |
+| W114 | Tiered Reasoner (cloud → local → canned) + LOCAL_ONLY | `internal/reasoner/` | 150 | W109 |
+| W115 | Wire §2 chunker into Session.Run on cascaded path | `internal/voice/session/` | 80 | W109, W111 |
 
-W115 sequences after W109 (consumes StreamingClient). W113 groups four ≤50-LOC pieces touching different sub-packages — single PR keeps diff comprehensible.
+Sequencing rationale: W109+W111+W115 all touch `internal/voice/session/`; W109+W114 both touch `internal/reasoner/`; W110+W113 both touch `internal/voice/wake/`. Parallel-cohort start = W109, W110, W112 (fully disjoint). Downstream waves dispatch after each `After` PR merges. W113 groups four ≤50-LOC pieces touching different sub-packages — single PR keeps diff comprehensible.
 
 ## 12. Test plan per wave (TDD)
 
@@ -309,7 +309,7 @@ Per CLAUDE.md: failing test first; failing output in PR body; then impl. Per-wav
 - **W112**: §5.
 - **W113**: §6 + §7 + §8 + §9.
 - **W114**: §10.
-- **W115**: `TestSession_StreamingPathLatency` — fake StreamingClient + fakeTTS, asserts `tts_first_audio_seconds` < 0.5s.
+- **W115**: `TestSession_StreamingPathLatency` — fake StreamingClient + fakeTTS, asserts `tts_first_byte_seconds` < 0.5s.
 
 CI hermeticity: no real network, no real audio (voice-comm §10). Porcupine/Eagle/Realtime gate behind build tags + `make test-frontier` operator-machine lane.
 
@@ -347,6 +347,10 @@ Each new path also gates on its individual flag — `LEAH_VOICE_FRONTIER=0` flip
 **A:** W109 + W110 + W113 + W114 land; Porcupine when flag set; Ollama fallback proven network-down; rolling floor + phoneme match measurably reduce false-positive wake rate vs V1 baseline.
 
 **A+:** W109–W115 land; Realtime-2 path runs end-to-end in operator demo; Eagle skips phrase for enrolled operator; `LEAH_LOCAL_ONLY=1` audit verifies 0 cloud egress; `voice_realtime_budget_cap` triggers cleanly.
+
+## 16. Implementation notes
+
+- Paired-PR followup (DOC-ONLY, owner: this spec's author): add 1-line back-reference pointer to this spec from `docs/engineer/specs/2026-06-10-voice-comm.md` (paragraph after §3.4 wake-word table; the canonical hop is voice-comm → voice-frontier for any reader landing on the cascaded baseline first). Filed separately to keep this spec PR file-disjoint per CLAUDE.md.
 
 ```release-notes
 [DOCS] voice frontier spec — streaming Reasoner→TTS, Porcupine, Realtime-2, Eagle, Voice Isolation, phoneme-fuzzy wake, rolling floor, 2s ChainTTS timeout, Ollama fallback
