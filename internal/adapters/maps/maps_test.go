@@ -13,12 +13,14 @@ import (
 type fakeAttestor struct {
 	called    int
 	lastScope string
+	scopes    []string
 	err       error
 }
 
 func (f *fakeAttestor) Attest(_ context.Context, scope string) error {
 	f.called++
 	f.lastScope = scope
+	f.scopes = append(f.scopes, scope)
 	if !strings.HasPrefix(scope, "maps:") {
 		return errors.New("unexpected scope: " + scope)
 	}
