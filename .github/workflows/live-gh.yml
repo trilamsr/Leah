@@ -1,0 +1,59 @@
+name: live-gh
+
+# Opt-in matrix lane exercising Ship.Run's `ready-for-agent` label-missing
+# retry path against the real gh CLI. Skipped by default — runs only when:
+#   - A PR opts in via the `[live-gh]` marker in its body, OR
+#   - Nightly cron, OR
+#   - Manual dispatch.
+#
+# Prerequisites (operator setup, out-of-band):
+#   - Repo `trilamsr/leah-ci-sandbox` exists and is writable
+#   - Secret `LEAH_CI_SANDBOX_TOKEN` holds a PAT with issue write on that repo
+# Without the secret the job exits 0 ("skipped") so the lane is non-blocking.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-gh:
+    name: ship.Run retry against live gh
+    runs-on: ubuntu-latest
+    # PR runs require the `[live-gh]` marker; cron / manual runs always proceed.
+    if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.body, '[live-gh]') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Gate on sandbox secret
+        id: gate
+        env:
+          LEAH_CI_SANDBOX_TOKEN: ${{ secrets.LEAH_CI_SANDBOX_TOKEN }}
+        run: |
+          if [ -z "${LEAH_CI_SANDBOX_TOKEN:-}" ]; then
+            echo "LEAH_CI_SANDBOX_TOKEN unset — skipping (operator must configure sandbox repo + token)"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Live-gh test
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.LEAH_CI_SANDBOX_TOKEN }}
+          LEAH_LIVE_GH: '1'
+          LEAH_LIVE_GH_REPO: trilamsr/leah-ci-sandbox
+        run: go test -tags=live_gh ./internal/dispatcher/... -count=1 -v -run TestShipRun_LiveGH
