@@ -3,6 +3,7 @@ package voice
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/trilam/leah/internal/obs"
@@ -127,6 +128,12 @@ func (t *TurnInstrumentation) RecordWakeEvent(result string) {
 
 // TurnTimer tracks per-turn timestamps so session.go calls one struct rather
 // than threading six time.Time values through closures.
+//
+// All write methods (MarkReasonerAsk/Done, MarkTTS*, Finish) are owned by
+// the per-turn reply goroutine — they are NOT goroutine-safe across writers.
+// The barge-in surface (BargeIn) is the only method called from a different
+// goroutine (the loop), and reads only the atomic stage handle so no race
+// occurs with concurrent Mark* writes from the reply goroutine.
 type TurnTimer struct {
 	instr          *TurnInstrumentation
 	turnStart      time.Time
@@ -134,8 +141,10 @@ type TurnTimer struct {
 	reasonerAskAt  time.Time
 	reasonerDoneAt time.Time
 	ttsFirstByteAt time.Time
-	// stage holds the in-flight phase for barge-in classification.
-	stage string
+	// stage is an atomic.Pointer because BargeIn reads it from the loop
+	// goroutine while Mark* writes from the reply goroutine. Atomic swap is
+	// cheaper than a mutex on a 1-byte-string-equivalent classification.
+	stage atomic.Pointer[string]
 }
 
 // NewTurnTimer starts a turn at the Final-segment timestamp.
@@ -143,7 +152,10 @@ func (t *TurnInstrumentation) NewTurnTimer(finalAt time.Time) *TurnTimer {
 	if t == nil {
 		return nil
 	}
-	return &TurnTimer{instr: t, turnStart: finalAt, stage: "stt"}
+	tt := &TurnTimer{instr: t, turnStart: finalAt}
+	stt := "stt"
+	tt.stage.Store(&stt)
+	return tt
 }
 
 func (tt *TurnTimer) MarkReasonerAsk(at time.Time) {
@@ -151,7 +163,8 @@ func (tt *TurnTimer) MarkReasonerAsk(at time.Time) {
 		return
 	}
 	tt.reasonerAskAt = at
-	tt.stage = "reasoner"
+	s := "reasoner"
+	tt.stage.Store(&s)
 }
 
 func (tt *TurnTimer) MarkReasonerDone(at time.Time, outcome string) {
@@ -170,7 +183,8 @@ func (tt *TurnTimer) MarkTTSFirstByte(at time.Time, outcome string) {
 		return
 	}
 	tt.ttsFirstByteAt = at
-	tt.stage = "tts"
+	s := "tts"
+	tt.stage.Store(&s)
 	if !tt.reasonerDoneAt.IsZero() {
 		tt.instr.RecordStage("tts_first_byte", outcome, at.Sub(tt.reasonerDoneAt))
 	}
@@ -200,5 +214,9 @@ func (tt *TurnTimer) BargeIn() {
 	if tt == nil {
 		return
 	}
-	tt.instr.RecordBargeIn(tt.stage)
+	stage := tt.stage.Load()
+	if stage == nil {
+		return
+	}
+	tt.instr.RecordBargeIn(*stage)
 }
