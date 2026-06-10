@@ -37,6 +37,7 @@ var DefaultSignalKinds = []string{
 	"dispatch.ship",
 	"hud.state",
 	"memory.upsert",
+	"workspace.active_app_changed",
 }
 
 const DropMonitorInterval = 10 * time.Second

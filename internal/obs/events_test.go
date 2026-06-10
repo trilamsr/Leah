@@ -342,6 +342,7 @@ func TestEventKinds_FrozenList(t *testing.T) {
 		"obs.selfcheck",
 		"obs.panic",
 		"hud.state",
+		"workspace.active_app_changed",
 	}
 	if !reflect.DeepEqual(obs.KnownEventKinds, want) {
 		t.Fatalf("KnownEventKinds drifted from frozen list:\n got: %v\nwant: %v",

@@ -47,6 +47,15 @@ type HUDStateEvent struct {
 	Thinking  bool   `json:"thinking"`
 }
 
+// WorkspaceActiveAppEvent is the Payload schema for
+// `workspace.active_app_changed`. Separate kind from `hud.state` so the
+// active-app push pump cannot reset the HUD pill or inject phantom
+// recommender signals (V9 reviewer B1).
+type WorkspaceActiveAppEvent struct {
+	BundleID string `json:"bundle_id"`
+	Name     string `json:"name"`
+}
+
 // EventQuery is a Query filter. Mutually-additive fields AND together.
 type EventQuery struct {
 	Since    time.Time
@@ -529,6 +538,7 @@ var KnownEventKinds = []string{
 	"recommendation.reject", "recommendation.apply",
 	"obs.snapshot", "obs.selfcheck", "obs.panic",
 	"hud.state",
+	"workspace.active_app_changed",
 }
 
 // SafeDetail strips chars outside [\w\-\.:/], truncates 128r (spec §9 PII).
