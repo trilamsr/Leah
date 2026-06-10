@@ -98,6 +98,70 @@ func TestLogger_Subscribe_Unsubscribe_StopsFanout(t *testing.T) {
 	}
 }
 
+// Regression for the cancel-vs-fanout send-on-closed-channel panic: cancel
+// path closing s.ch while a concurrent Append was sending into it crashed
+// the audit hot path. Must run clean under -race.
+func TestLogger_Subscribe_ConcurrentCancelAndAppend_NoRace(t *testing.T) {
+	dir := t.TempDir()
+	logger := &Logger{Path: filepath.Join(dir, "audit.jsonl")}
+
+	const cancellers = 10
+	const appends = 100
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+
+	for i := 0; i < cancellers; i++ {
+		_, cancel := logger.Subscribe(2)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			cancel()
+		}()
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-start
+		for i := 0; i < appends; i++ {
+			if err := logger.Append(Entry{Kind: "ask", ArgsHash: "x"}); err != nil {
+				t.Errorf("append %d: %v", i, err)
+				return
+			}
+		}
+	}()
+
+	close(start)
+	wg.Wait()
+}
+
+// TotalDropped is cumulative across the logger's lifetime — it must not
+// flicker down when a subscriber cancels (unlike the live-only Dropped()).
+func TestLogger_TotalDropped_SurvivesCancel(t *testing.T) {
+	dir := t.TempDir()
+	logger := &Logger{Path: filepath.Join(dir, "audit.jsonl")}
+
+	_, cancel := logger.Subscribe(1)
+
+	for i := 0; i < 5; i++ {
+		if err := logger.Append(Entry{Kind: "ask"}); err != nil {
+			t.Fatalf("append %d: %v", i, err)
+		}
+	}
+	pre := logger.TotalDropped()
+	if pre == 0 {
+		t.Fatalf("TotalDropped should be >0 after overflow; got 0")
+	}
+
+	cancel()
+
+	if got := logger.TotalDropped(); got != pre {
+		t.Errorf("TotalDropped flickered on cancel: pre=%d post=%d", pre, got)
+	}
+}
+
 func TestLogger_MultipleSubscribers_Independent(t *testing.T) {
 	dir := t.TempDir()
 	logger := &Logger{Path: filepath.Join(dir, "audit.jsonl")}

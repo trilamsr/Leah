@@ -48,9 +48,9 @@ type Logger struct {
 	// leah_audit_subscriber_dropped_total{subscriber} counter. nil-safe.
 	OnSubscriberDrop func(subscriber string, n int64)
 
-	subsMu sync.Mutex
-	subs   []*subscription
-	subSeq uint64
+	subsMu       sync.Mutex
+	subs         []*subscription
+	totalDropped uint64 // atomic; cumulative across lifetime, survives cancel
 }
 
 // Append writes e as a single JSON line, stamping Timestamp from Now (or
