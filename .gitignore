@@ -7,6 +7,9 @@
 # Operator-local state (never committed)
 /.leah-state/
 *.jsonl
+# evals/ golden traces are the exception: committed so PRs can be gated
+# against them. PII redaction enforced via scripts/eval-redact (spec §10.1).
+!evals/*.jsonl
 
 # Operator-local session handoffs (audit-session skill output)
 /.claude/session-handoffs/
