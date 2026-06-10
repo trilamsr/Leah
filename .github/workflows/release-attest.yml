@@ -68,30 +68,33 @@ jobs:
           go mod download
           go mod verify
 
-      - name: Build leah
+      - name: Build leah, leah-daemon, leah-hud
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
           mkdir -p dist
-          go build -ldflags="${LDFLAGS}" -o "dist/leah-${GOOS}-${GOARCH}" ./cmd/leah
-          go build -ldflags="${LDFLAGS}" -o "dist/leah-daemon-${GOOS}-${GOARCH}" ./cmd/leah-daemon
+          for cmd in leah leah-daemon leah-hud; do
+            go build -ldflags="${LDFLAGS}" -o "dist/${cmd}-${GOOS}-${GOARCH}" "./cmd/${cmd}"
+          done
 
       - name: Reproducibility self-test (build twice, assert byte-identical)
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        # Spec §7.3: repro check builds the same binary twice and diffs sha256.
+        # Spec §7.3: repro check rebuilds every binary and diffs sha256.
         # A non-deterministic ldflag or toolchain flag would diverge here.
         run: |
-          go build -ldflags="${LDFLAGS}" -o "/tmp/leah-rebuild-${GOOS}-${GOARCH}" ./cmd/leah
-          a=$(sha256sum "dist/leah-${GOOS}-${GOARCH}" | cut -d' ' -f1)
-          b=$(sha256sum "/tmp/leah-rebuild-${GOOS}-${GOARCH}" | cut -d' ' -f1)
-          if [ "$a" != "$b" ]; then
-            echo "::error::non-reproducible build for ${GOOS}/${GOARCH}: $a != $b"
-            exit 1
-          fi
-          echo "reproducible: ${GOOS}/${GOARCH} sha256=$a"
+          for cmd in leah leah-daemon leah-hud; do
+            go build -ldflags="${LDFLAGS}" -o "/tmp/${cmd}-rebuild-${GOOS}-${GOARCH}" "./cmd/${cmd}"
+            a=$(sha256sum "dist/${cmd}-${GOOS}-${GOARCH}" | cut -d' ' -f1)
+            b=$(sha256sum "/tmp/${cmd}-rebuild-${GOOS}-${GOARCH}" | cut -d' ' -f1)
+            if [ "$a" != "$b" ]; then
+              echo "::error::non-reproducible build for ${cmd} ${GOOS}/${GOARCH}: $a != $b"
+              exit 1
+            fi
+            echo "reproducible: ${cmd} ${GOOS}/${GOARCH} sha256=$a"
+          done
 
       - name: Generate SBOM (SPDX-JSON)
         uses: anchore/sbom-action@v0.24.0
@@ -106,6 +109,7 @@ jobs:
         run: |
           sha256sum leah-${{ matrix.goos }}-${{ matrix.goarch }} \
                     leah-daemon-${{ matrix.goos }}-${{ matrix.goarch }} \
+                    leah-hud-${{ matrix.goos }}-${{ matrix.goarch }} \
                     leah-${{ matrix.goos }}-${{ matrix.goarch }}.spdx.json \
             > SHA256SUMS-${{ matrix.goos }}-${{ matrix.goarch }}
 
@@ -113,11 +117,13 @@ jobs:
         id: hash
         working-directory: dist
         # base64-encoded SHA256SUMS payload — input format expected by
-        # slsa-github-generator's combine_hashes pattern.
+        # slsa-github-generator's combine_hashes pattern. `base64 | tr -d` keeps
+        # us portable to BSD base64 (macOS runners lack `-w0`).
         run: |
           digests=$(sha256sum leah-${{ matrix.goos }}-${{ matrix.goarch }} \
                               leah-daemon-${{ matrix.goos }}-${{ matrix.goarch }} \
-                    | base64 -w0)
+                              leah-hud-${{ matrix.goos }}-${{ matrix.goarch }} \
+                    | base64 | tr -d '\n')
           echo "hash-${{ matrix.goos }}-${{ matrix.goarch }}=${digests}" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifacts
@@ -141,11 +147,14 @@ jobs:
         id: hashes
         # Decode each leg's base64 payload, concat into one hashes.txt, then
         # re-base64 the merged file. Generator signs every line as a subject.
+        # Fail closed on empty input — an upstream matrix-leg crash would
+        # otherwise hand SLSA an empty subject list and pass silently.
         run: |
           set -euo pipefail
           echo "$HASHES" | jq -r '.[] | @base64d' | sed '/^$/d' > hashes.txt
+          [ -s hashes.txt ] || { echo "::error::no matrix-leg digests collected"; exit 1; }
           cat hashes.txt
-          echo "hashes=$(base64 -w0 < hashes.txt)" >> "$GITHUB_OUTPUT"
+          echo "hashes=$(base64 < hashes.txt | tr -d '\n')" >> "$GITHUB_OUTPUT"
 
   provenance:
     name: slsa L2 provenance

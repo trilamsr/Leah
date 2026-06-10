@@ -40,24 +40,26 @@ for leg in "${MATRIX[@]}"; do
   read -r goos goarch <<<"$leg"
   echo "==> ${goos}/${goarch}"
 
-  a="$tmp/leah-${goos}-${goarch}-a"
-  b="$tmp/leah-${goos}-${goarch}-b"
+  for cmd in leah leah-daemon leah-hud; do
+    a="$tmp/${cmd}-${goos}-${goarch}-a"
+    b="$tmp/${cmd}-${goos}-${goarch}-b"
 
-  GOOS="$goos" GOARCH="$goarch" GOFLAGS="$GOFLAGS" \
-    go build -ldflags="$LDFLAGS" -o "$a" ./cmd/leah
-  GOOS="$goos" GOARCH="$goarch" GOFLAGS="$GOFLAGS" \
-    go build -ldflags="$LDFLAGS" -o "$b" ./cmd/leah
+    GOOS="$goos" GOARCH="$goarch" GOFLAGS="$GOFLAGS" \
+      go build -ldflags="$LDFLAGS" -o "$a" "./cmd/${cmd}"
+    GOOS="$goos" GOARCH="$goarch" GOFLAGS="$GOFLAGS" \
+      go build -ldflags="$LDFLAGS" -o "$b" "./cmd/${cmd}"
 
-  ha=$(shasum -a 256 "$a" | cut -d' ' -f1)
-  hb=$(shasum -a 256 "$b" | cut -d' ' -f1)
+    ha=$(shasum -a 256 "$a" | cut -d' ' -f1)
+    hb=$(shasum -a 256 "$b" | cut -d' ' -f1)
 
-  if [ "$ha" != "$hb" ]; then
-    echo "FAIL: non-reproducible ${goos}/${goarch}: $ha != $hb" >&2
-    exit 1
-  fi
-  echo "ok ${goos}/${goarch} sha256=$ha"
+    if [ "$ha" != "$hb" ]; then
+      echo "FAIL: non-reproducible ${cmd} ${goos}/${goarch}: $ha != $hb" >&2
+      exit 1
+    fi
+    echo "ok ${cmd} ${goos}/${goarch} sha256=$ha"
 
-  printf '%s  leah-%s-%s\n' "$ha" "$goos" "$goarch" >> "$hashes_file"
+    printf '%s  %s-%s-%s\n' "$ha" "$cmd" "$goos" "$goarch" >> "$hashes_file"
+  done
 done
 
 echo "==> aggregator self-check"
