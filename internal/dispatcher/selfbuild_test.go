@@ -135,11 +135,9 @@ func TestSelfBuildPrependsTitle(t *testing.T) {
 	}
 }
 
-// TestSelfBuildIncludesRandomAttestation asserts that when an attestation
-// file is configured, the dispatched issue body contains the attestation
-// block + one of the questions from the file (operator-habituation defense,
-// Wave1-E HIGH-2).
-func TestSelfBuildIncludesRandomAttestation(t *testing.T) {
+// Selfbuild routes through internal/attestation: the dispatched issue body must
+// carry the attestation block + a pool-sourced question (Wave1-E HIGH-2).
+func TestSelfBuildIncludesAttestation(t *testing.T) {
 	dir := t.TempDir()
 	attestPath := filepath.Join(dir, "attestations.txt")
 	const q1 = "What's the biggest risk in this diff?"
@@ -157,10 +155,6 @@ func TestSelfBuildIncludesRandomAttestation(t *testing.T) {
 		TmpDir:                   dir,
 		AttestationQuestionsPath: attestPath,
 		AttestationOperatorLogin: "tri-lamsr",
-		// Deterministic seed: rand.Intn(2) returns 1 → q2 with this source.
-		// Test only asserts SOME known question appears, so the assertion is
-		// stable regardless of which one Intn picks.
-		Rand: rand.New(rand.NewSource(1)),
 	}
 	if err := sb.Run(context.Background(), "add --json flag"); err != nil {
 		t.Fatalf("run: %v", err)
