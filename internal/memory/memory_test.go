@@ -418,7 +418,7 @@ func TestSchemaVersion_v9_v10_OrderingCorrect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse 9: %v", err)
 	}
-	if !(ten > nine) {
+	if ten <= nine {
 		t.Fatalf("want 10 > 9, got ten=%d nine=%d", ten, nine)
 	}
 }
@@ -433,7 +433,7 @@ func TestSchemaVersion_v2_v4_OrderingCorrect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse 2: %v", err)
 	}
-	if !(four > two) {
+	if four <= two {
 		t.Fatalf("want 4 > 2, got four=%d two=%d", four, two)
 	}
 }
