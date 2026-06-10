@@ -11,14 +11,17 @@ import (
 )
 
 type App struct {
-	State  *hud.Machine
-	Client *hud.Client
+	State   *hud.Machine
+	Client  *hud.Client
+	Widgets *hud.Widgets
 }
 
 func NewApp(daemonURL string) *App {
+	c := hud.NewClient(daemonURL)
 	return &App{
-		State:  hud.NewMachine(),
-		Client: hud.NewClient(daemonURL),
+		State:   hud.NewMachine(),
+		Client:  c,
+		Widgets: hud.NewWidgets(c),
 	}
 }
 
@@ -27,10 +30,23 @@ func (a *App) routes() http.Handler {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(hud.Static()))))
 	mux.HandleFunc("/", a.handleIndex)
 	mux.HandleFunc("/hud/ambient", a.handleAmbient)
+	mux.HandleFunc("/hud/widgets", a.handleWidgets)
 	mux.HandleFunc("/api/state", a.handleState)
 	mux.HandleFunc("/api/events", a.handleEvents)
+	a.Widgets.Routes(mux)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	return mux
+}
+
+func (a *App) handleWidgets(w http.ResponseWriter, _ *http.Request) {
+	f, err := hud.Static().Open("widgets.html")
+	if err != nil {
+		http.Error(w, "widgets.html missing", http.StatusInternalServerError)
+		return
+	}
+	defer func() { _ = f.Close() }()
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = copyTo(w, f)
 }
 
 func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
