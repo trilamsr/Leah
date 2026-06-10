@@ -24,6 +24,7 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 
 - WHY not WHAT. Default to no comment. A clear name needs no preface.
 - Test/Fuzz/Benchmark godocs: 1 line max.
+- For ≤100-LOC new packages, the `<!-- comment-density-justified: <reason> -->` PR-body marker is the standard exit, not an exception.
 
 ## TDD + review
 
