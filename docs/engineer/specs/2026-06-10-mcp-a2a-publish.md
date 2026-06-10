@@ -190,14 +190,16 @@ operator-editable):
 
 ```json
 {
-  "protocolVersions": ["1.0"],
+  "protocolVersion": "1.0",
   "name": "leah",
   "description": "Operator's local agent. Audit, memory, SelfBuild.",
   "version": "0.1.0",
   "supportedInterfaces": [{ "url": "http://127.0.0.1:9876/a2a", "transport": "JSONRPC" }],
   "capabilities": { "streaming": false, "extendedAgentCard": false },
+  "defaultInputModes": ["text"],
+  "defaultOutputModes": ["text"],
   "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer" } },
-  "security": [ { "bearer": [] } ],
+  "securityRequirements": [ { "bearer": [] } ],
   "skills": [
     { "id": "self_build", "name": "Self-build",
       "description": "Delegate spec → PR. Per-call operator attestation.",
