@@ -37,6 +37,19 @@ var ErrSelfBuildRepoLocked = errors.New("self-build: --repo not allowed; repo is
 // NO issue.
 var ErrSelfBuildClarify = errors.New("self-build: reasoner requested clarification; no issue filed")
 
+// selfBuildSpecSentinel is the load-bearing literal a Reasoner MUST include
+// for its output to be treated as a feature spec. Replaces the prior
+// `## title` substring check, which broke whenever the system prompt was
+// reworded (closes #9). The `-v1` suffix lets future spec-format changes
+// bump cleanly while old-format code paths fail closed.
+const selfBuildSpecSentinel = "## leah-selfbuild-spec-v1"
+
+// selfBuildSpecInstruction is appended to the per-call user prompt so the
+// sentinel survives system-prompt rewordings. The dispatcher owns this
+// contract — not the prompt file — so a `prompts/*.md` edit cannot
+// silently break the spec-vs-clarify gate.
+const selfBuildSpecInstruction = "When (and only when) you emit a full feature spec, the FIRST line of your response MUST be the literal heading `" + selfBuildSpecSentinel + "` on its own line. Omit it for clarify-only responses."
+
 // SelfBuild wraps Ship for self-modifying feature dispatch against trilamsr/Leah.
 // All Ship fields it owns are constrained at Run time — Repo, Title, and the
 // audit row's BlastRadius are set by SelfBuild, not by the caller.
@@ -94,7 +107,7 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 	}
 
 	spec, err := s.Reasoner.Ask(ctx,
-		"Intent:\n"+intent+"\n\nDraft the Leah-feature-spec per the self-build system prompt you were given.")
+		"Intent:\n"+intent+"\n\nDraft the Leah-feature-spec per the self-build system prompt you were given.\n\n"+selfBuildSpecInstruction)
 	if err != nil {
 		s.appendAuditFail(intent, "reasoner: "+err.Error())
 		return err
@@ -176,17 +189,13 @@ type prebakedReasoner struct{ spec string }
 
 func (p prebakedReasoner) Ask(ctx context.Context, _ string) (string, error) { return p.spec, nil }
 
-// isClarifyResponse returns true when Reasoner returned a clarifying-question
-// block instead of a feature spec. Spec §3 / §6 says Reasoner emits a `##
-// Clarifying questions` H2 with all other sections empty in this case.
+// isClarifyResponse returns true when Reasoner did NOT emit the spec sentinel.
+// Sentinel-absence — not H2-heading shape — is the contract; the previous
+// substring match on `## title` flipped whenever the system prompt was
+// reworded (#9). Fail-closed: any response without the sentinel is treated
+// as clarify, so no spurious dispatch can leak through a malformed spec.
 func isClarifyResponse(s string) bool {
-	low := strings.ToLower(s)
-	// Must mention clarifying questions AND lack a Title H2 (the spec's first
-	// required section). Belt-and-suspenders: the system prompt says emit
-	// clarify-only, but defend against partial outputs.
-	hasClarify := strings.Contains(low, "## clarifying questions")
-	hasTitle := strings.Contains(low, "## title")
-	return hasClarify && !hasTitle
+	return !strings.Contains(s, selfBuildSpecSentinel)
 }
 
 // deriveSelfBuildTitle reuses ship's intent classifier but strips redundant

@@ -19,9 +19,10 @@ import (
 )
 
 // validSpec is a minimally well-formed Reasoner output that selfBuild treats as
-// a real feature spec (NOT a clarify-abort). Must contain `## Title` to pass
-// isClarifyResponse.
-const validSpec = `## Title
+// a real feature spec (NOT a clarify-abort). Must include the spec sentinel.
+const validSpec = `## leah-selfbuild-spec-v1
+
+## Title
 
 [SELF-BUILD] add --json flag to leah status
 
