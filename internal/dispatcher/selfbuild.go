@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
@@ -198,11 +200,25 @@ func deriveSelfBuildTitle(intent string) string {
 	if len(t) <= budget {
 		return t
 	}
+	// Rune-aware: byte-level slicing would split multibyte runes (emoji, CJK,
+	// accents) and emit invalid UTF-8 that `gh issue create` rejects.
 	cut := budget - 3
-	if i := strings.LastIndexByte(t[:cut], ' '); i > 0 {
-		cut = i
+	lastSpace := -1
+	end := 0
+	for i, r := range t {
+		next := i + utf8.RuneLen(r)
+		if next > cut {
+			break
+		}
+		end = next
+		if unicode.IsSpace(r) {
+			lastSpace = i
+		}
 	}
-	return strings.TrimRight(t[:cut], " ") + "..."
+	if lastSpace > 0 {
+		end = lastSpace
+	}
+	return strings.TrimRightFunc(t[:end], unicode.IsSpace) + "..."
 }
 
 // promptSHA returns a short prefix of the sha256 of the prompt file, recorded
