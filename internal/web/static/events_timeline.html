@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LEAH // events timeline</title>
+<link rel="stylesheet" href="/static/dashboard.css">
+<style>
+  #events-timeline { padding: 12px; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+  #events-timeline header { display: flex; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+  #events-list { list-style: none; overflow-y: auto; flex: 1; margin-top: 8px; }
+  #events-list li { padding: 4px 6px; border-left: 2px solid var(--rule); margin-bottom: 2px; display: grid; grid-template-columns: 70px 110px 90px 1fr 60px; gap: 8px; align-items: baseline; }
+  #events-list li.ok      { border-left-color: var(--ok); }
+  #events-list li.error   { border-left-color: var(--fail); }
+  #events-list li.denied  { border-left-color: var(--warn); }
+  #events-list li.timeout { border-left-color: var(--warn); }
+  .ev-ts    { color: var(--fg-dim); }
+  .ev-kind  { color: var(--accent); }
+  .ev-actor { color: var(--fg-dim); }
+  .ev-detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ev-latency { color: var(--fg-dim); text-align: right; }
+  #events-status { color: var(--fg-dim); font-size: 11px; }
+  #events-status.live::before { content: "● "; color: var(--ok); }
+  #events-status.lost::before { content: "● "; color: var(--fail); }
+</style>
+</head>
+<body class="boot">
+<div id="scanlines" aria-hidden="true"></div>
+<main id="events-timeline">
+  <header>
+    <h2>[ EVENTS TIMELINE ]</h2>
+    <span id="events-status">connecting...</span>
+  </header>
+  <ul id="events-list" aria-live="polite"></ul>
+</main>
+<script src="/static/events_timeline.js"></script>
+</body>
+</html>
