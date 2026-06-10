@@ -628,15 +628,20 @@ The eval gate is required-but-bypassable, not advisory. Bypass path:
 - Override does NOT silence the next PR's gate; it's per-PR.
 - Per-feature -5pp failures require attestation AND a second-reviewer
   attestation row (2-of-3 reviewer rule from S7).
+- Operator-typed `--reason` argument MUST be ≥32 characters. Below
+  floor → harness rejects the override request, no GH check mutation,
+  audit row written with `detail: "reason_too_short"` so the rejection
+  itself is observable. Floor protects against habituated
+  `--reason='ok'`-style bypass.
 
 ### 11.3 Why attestation, not just a label
 
 A `bypass-eval` GH label is click-through; an attestation prompt forces
 the operator to type the reason. Friction = signal: most regressions
-either get fixed or get a real explanation. The CLI enforces a
-char-count floor on the typed `--reason` (default 32 chars) so a
-one-word "fine" cannot serve as a bypass — accreting rationalizations
-are mechanically deterred by the cost of typing.
+either get fixed or get a real explanation. The 32-char `--reason`
+floor (§11.2) means a one-word "fine" cannot serve as a bypass —
+accreting rationalizations are mechanically deterred by the cost of
+typing.
 
 ## 12. Test plan for the pipeline itself (meta-eval)
 
@@ -805,7 +810,9 @@ have meaning), reinforcing serial order on its own.
   lives in-repo + `~/.leah-state/` for the LOCAL_ONLY moat (S10).
 - **LangSmith CI integration** — we adopt the cached-base-evaluation
   pattern (don't re-judge unchanged BASE traces). Divergence: cache key
-  is `(base_sha,trace_id)` only; no LangSmith server.
+  is `sha256(BASE_SHA || trace_id || judge_prompt_sha || judge_model)`
+  (§5.2 — judge prompt and model are part of the key so prompt edits or
+  model bumps bust stale BASE scores); no LangSmith server.
 - **OpenAI Evals** — we adopt the per-rubric pluggable scorer concept.
   Divergence: single judge model, not a model registry — the operator
   picks one and lives with it for the release.
