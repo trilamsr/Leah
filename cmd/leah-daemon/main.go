@@ -48,6 +48,7 @@ func main() {
 	}
 	defer closeLog()
 	registry := obs.NewRegistry()
+	health := obs.NewHealthRegistry()
 	_ = os.MkdirAll(filepath.Join(sd, "panics"), 0o700)
 
 	// Voice opt-in: LEAH_VOICE_ENABLED=1 wires VoiceNotify alongside Desktop
@@ -72,7 +73,7 @@ func main() {
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)
 
 	if *dashboardAddr != "" {
-		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc, loop)
+		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc, loop, registry, health)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
 			os.Exit(1)
