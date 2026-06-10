@@ -86,6 +86,19 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	// W41: detect regatta mode at boot, wire Gated wrapper if a transport is
+	// available; ModeNone is a graceful skip (operator runs `leah connect
+	// regatta`). Return value is intentionally discarded — no daemon-side
+	// caller consumes Ship/Review yet; subsequent waves will thread it through.
+	if _, err := bootRegatta(ctx, bootRegattaOpts{
+		Attestor: noopAttestor{},
+		Audit:    newAuditLoggerSink(a),
+		Logger:   os.Stderr,
+		Registry: registry,
+	}); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: regatta boot non-fatal: %v\n", err)
+	}
+
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)
 
 	if *dashboardAddr != "" {
