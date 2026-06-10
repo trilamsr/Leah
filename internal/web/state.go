@@ -14,6 +14,7 @@ import (
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/costview"
 	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
@@ -137,8 +138,10 @@ func (s *Server) Snapshot(ctx context.Context) State {
 
 // computeSnapshot does the full aggregation without consulting the cache.
 // Kept separate from Snapshot so the caching path stays small + obvious.
+// Publishes a hud.state event so live SSE subscribers (V2/W87) skip /api/state
+// XHR polls — only fires on actual recompute, not cache hits.
 func (s *Server) computeSnapshot(ctx context.Context) State {
-	return State{
+	out := State{
 		Audit:   s.tailAudit(20),
 		Agents:  listAgents(ctx, s.Regatta),
 		Memory:  readMemory(s.Memory),
@@ -146,6 +149,14 @@ func (s *Server) computeSnapshot(ctx context.Context) State {
 		Costs:   readCosts(s.AuditPath),
 		Metrics: readMetrics(s.MetricsPath),
 	}
+	obs.Publish(obs.Event{
+		TS:      time.Now().UTC(),
+		Kind:    "hud.state",
+		Actor:   "web.snapshot",
+		Outcome: "ok",
+		Payload: out,
+	})
+	return out
 }
 
 // readCosts derives a dashboard-sized projection from audit.jsonl. Single

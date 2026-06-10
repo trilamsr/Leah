@@ -3,8 +3,10 @@ package recommend
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/obs"
 )
 
 // MemoryEngine is the W15 hermetic implementation: pending recs and
@@ -31,11 +33,22 @@ func NewMemoryEngine(logger *audit.Logger) *MemoryEngine {
 
 // Seed inserts a Recommendation into the pending pool. Provided for tests
 // and for surface-layer callers that compose Engine with an external
-// pattern-matcher; W18 replaces hand-seeding with the propose-loop.
+// pattern-matcher; W18 replaces hand-seeding with the propose-loop. Publishes
+// a recommendation.propose event so live HUD widgets (V2/W87) update without
+// the 15s XHR poll.
 func (e *MemoryEngine) Seed(rec Recommendation) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	e.pending[rec.ID] = rec
+	e.mu.Unlock()
+	obs.Publish(obs.Event{
+		TS:      time.Now().UTC(),
+		Kind:    "recommendation.propose",
+		Actor:   "recommend.engine",
+		Outcome: "ok",
+		RefID:   rec.ID,
+		Detail:  obs.SafeDetail(rec.Pattern),
+		Payload: rec,
+	})
 }
 
 // Propose returns the queued pending recommendations. Empty in W15 because

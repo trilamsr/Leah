@@ -200,6 +200,100 @@ func TestSSE_FilterByKind_OnlyMatching(t *testing.T) {
 	}
 }
 
+// TestSSE_StateEventEmitted: Publish(state event) reaches a live SSE client.
+func TestSSE_StateEventEmitted(t *testing.T) {
+	b := NewBroadcaster()
+	SetDefaultBroadcaster(b)
+	t.Cleanup(func() { SetDefaultBroadcaster(nil) })
+
+	h := &SSEHandler{Subscribe: b.Subscribe}
+	srv, cleanup := newSSETestServer(t, h)
+	defer cleanup()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Give the handler a moment to register the subscriber before Publish.
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		return len(b.subs) > 0
+	})
+
+	Publish(Event{TS: time.Now().UTC(), Kind: "hud.state", Actor: "daemon", Outcome: "ok", Detail: `{"state":"thinking"}`})
+
+	got := readSSEFrames(t, bufio.NewReader(resp.Body), 1, 2*time.Second)
+	if len(got) < 1 {
+		t.Fatalf("frames: got %d, want >=1", len(got))
+	}
+	if !strings.HasPrefix(got[0], "event: hud.state") {
+		t.Errorf("frame[0]: %q", got[0])
+	}
+	if !strings.Contains(got[0], `"kind":"hud.state"`) {
+		t.Errorf("frame[0] payload missing kind: %q", got[0])
+	}
+}
+
+// TestSSE_RecommendationEventEmitted: recommendation.propose event reaches subscriber.
+func TestSSE_RecommendationEventEmitted(t *testing.T) {
+	b := NewBroadcaster()
+	SetDefaultBroadcaster(b)
+	t.Cleanup(func() { SetDefaultBroadcaster(nil) })
+
+	h := &SSEHandler{Subscribe: b.Subscribe}
+	srv, cleanup := newSSETestServer(t, h)
+	defer cleanup()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		return len(b.subs) > 0
+	})
+
+	Publish(Event{TS: time.Now().UTC(), Kind: "recommendation.propose", Actor: "recommend.engine", Outcome: "ok", RefID: "rec-123", Detail: "open-vscode"})
+
+	got := readSSEFrames(t, bufio.NewReader(resp.Body), 1, 2*time.Second)
+	if len(got) < 1 {
+		t.Fatalf("frames: got %d", len(got))
+	}
+	if !strings.HasPrefix(got[0], "event: recommendation.propose") {
+		t.Errorf("frame[0]: %q", got[0])
+	}
+	if !strings.Contains(got[0], `"ref_id":"rec-123"`) {
+		t.Errorf("frame[0] missing ref_id: %q", got[0])
+	}
+}
+
+// TestBroadcaster_FilterByKind: subscriber with kinds=[a] does not receive kind b.
+func TestBroadcaster_FilterByKind(t *testing.T) {
+	b := NewBroadcaster()
+	sub, err := b.Subscribe(context.Background(), []string{"hud.state"})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer func() { _ = sub.Close() }()
+	b.Emit(Event{Kind: "audit.append"})
+	b.Emit(Event{Kind: "hud.state"})
+
+	select {
+	case e := <-sub.Events():
+		if e.Kind != "hud.state" {
+			t.Fatalf("kind: got %q, want hud.state", e.Kind)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout: no event delivered")
+	}
+}
+
 // readSSEFrames reads until n complete event frames (terminated by blank
 // line) are observed or deadline expires. Keepalive comments are skipped.
 func readSSEFrames(t *testing.T, rd *bufio.Reader, n int, deadline time.Duration) []string {

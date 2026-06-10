@@ -298,6 +298,7 @@ func TestEvent_CanonicalSchemaShape(t *testing.T) {
 		{"Outcome", "string", `json:"outcome"`},
 		{"RefID", "string", `json:"ref_id,omitempty"`},
 		{"Detail", "string", `json:"detail,omitempty"`},
+		{"Payload", "interface {}", `json:"payload,omitempty"`},
 	}
 	rt := reflect.TypeOf(obs.Event{})
 	if rt.NumField() != len(want) {
@@ -340,6 +341,7 @@ func TestEventKinds_FrozenList(t *testing.T) {
 		"obs.snapshot",
 		"obs.selfcheck",
 		"obs.panic",
+		"hud.state",
 	}
 	if !reflect.DeepEqual(obs.KnownEventKinds, want) {
 		t.Fatalf("KnownEventKinds drifted from frozen list:\n got: %v\nwant: %v",

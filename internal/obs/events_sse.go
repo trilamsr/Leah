@@ -1,6 +1,7 @@
-// SSE transport for the W75 event timeline; canonical Event lives in events.go.
-// Keep-alive comment every 15s mirrors event-timeline.md §7; client disconnect
-// (ctx done) tears down the subscription.
+// SSE transport for the structured-event stream (W77) + in-process Broadcaster
+// fan-out so EmitEvent reaches live subscribers with no SQLite round trip
+// (V2/W87). Canonical Event lives in events.go. Keep-alive comment every 15s
+// per event-timeline.md §7; client disconnect (ctx done) tears down the sub.
 
 package obs
 
@@ -10,23 +11,20 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
-// SSESubscriber yields events as they arrive. Close() must stop the channel
-// and release all writer-side resources.
+// SSESubscriber yields events as they arrive. Close releases writer-side state.
 type SSESubscriber interface {
 	Events() <-chan Event
 	Close() error
 }
 
-// SSESubscribeFunc opens a fresh subscription filtered to kinds (empty = any).
-// The daemon wires this to the EventStore's pub-sub side once W75 lands.
+// SSESubscribeFunc opens a subscription filtered to kinds (empty = any).
 type SSESubscribeFunc func(ctx context.Context, kinds []string) (SSESubscriber, error)
 
-// SSEHandler streams events to a single SSE client. Keep-alive ping every
-// keepAlive; defaults to 15s when zero. ctx done (client disconnect) tears
-// down the subscription.
+// SSEHandler streams events to one SSE client; keep-alive defaults 15s.
 type SSEHandler struct {
 	Subscribe SSESubscribeFunc
 	KeepAlive time.Duration
@@ -111,4 +109,98 @@ func parseKinds(csv string) []string {
 		}
 	}
 	return out
+}
+
+// Broadcaster fan-outs Emit calls to every live SSE subscriber. Drops on a
+// slow subscriber rather than blocking the producer.
+type Broadcaster struct {
+	mu   sync.Mutex
+	subs map[*broadcasterSub]struct{}
+}
+
+// NewBroadcaster returns a Broadcaster with no subscribers.
+func NewBroadcaster() *Broadcaster {
+	return &Broadcaster{subs: map[*broadcasterSub]struct{}{}}
+}
+
+type broadcasterSub struct {
+	ch     chan Event
+	kinds  map[string]struct{}
+	parent *Broadcaster
+	once   sync.Once
+}
+
+func (s *broadcasterSub) Events() <-chan Event { return s.ch }
+
+func (s *broadcasterSub) Close() error {
+	s.once.Do(func() {
+		s.parent.mu.Lock()
+		delete(s.parent.subs, s)
+		s.parent.mu.Unlock()
+		close(s.ch)
+	})
+	return nil
+}
+
+// Subscribe returns an SSESubscriber wired to live Emit calls. kinds=nil → any.
+func (b *Broadcaster) Subscribe(ctx context.Context, kinds []string) (SSESubscriber, error) {
+	sub := &broadcasterSub{
+		ch:     make(chan Event, 16),
+		parent: b,
+	}
+	if len(kinds) > 0 {
+		sub.kinds = make(map[string]struct{}, len(kinds))
+		for _, k := range kinds {
+			sub.kinds[k] = struct{}{}
+		}
+	}
+	b.mu.Lock()
+	b.subs[sub] = struct{}{}
+	b.mu.Unlock()
+	return sub, nil
+}
+
+// Emit fans e out to every matching subscriber non-blockingly.
+func (b *Broadcaster) Emit(e Event) {
+	b.mu.Lock()
+	subs := make([]*broadcasterSub, 0, len(b.subs))
+	for s := range b.subs {
+		subs = append(subs, s)
+	}
+	b.mu.Unlock()
+	for _, s := range subs {
+		if s.kinds != nil {
+			if _, ok := s.kinds[e.Kind]; !ok {
+				continue
+			}
+		}
+		select {
+		case s.ch <- e:
+		default:
+		}
+	}
+}
+
+var (
+	defaultBroadcasterMu sync.RWMutex
+	defaultBroadcaster   *Broadcaster
+)
+
+// SetDefaultBroadcaster wires Publish to b; nil detaches.
+func SetDefaultBroadcaster(b *Broadcaster) {
+	defaultBroadcasterMu.Lock()
+	defaultBroadcaster = b
+	defaultBroadcasterMu.Unlock()
+}
+
+// Publish fans e out to the default broadcaster's live subscribers. No-op
+// when unset — keeps SQLite-only callers (W75 store path) untouched.
+func Publish(e Event) {
+	defaultBroadcasterMu.RLock()
+	b := defaultBroadcaster
+	defaultBroadcasterMu.RUnlock()
+	if b == nil {
+		return
+	}
+	b.Emit(e)
 }

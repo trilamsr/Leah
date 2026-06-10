@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/trilam/leah/internal/hud"
@@ -89,8 +92,10 @@ func (a *App) handleState(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(stateResp{State: a.State.State().String()})
 }
 
-// handleEvents heartbeats every 5s so the browser EventSource never
-// reconnect-storms on daemon outage. Real telemetry frames arrive in W35.
+// handleEvents relays the daemon /events SSE stream to the browser (V2/W87)
+// so HUD widgets push-update without 5s/15s XHR polls. When the daemon is
+// unreachable we fall back to a local 15s state heartbeat so the EventSource
+// stays connected — clients still get a recent state without storming.
 func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -101,7 +106,10 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	heartbeat := time.NewTicker(5 * time.Second)
+	if a.relayDaemonEvents(ctx, w, fl) {
+		return
+	}
+	heartbeat := time.NewTicker(15 * time.Second)
 	defer heartbeat.Stop()
 	for {
 		select {
@@ -110,6 +118,48 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 		case <-heartbeat.C:
 			_, _ = fmt.Fprintf(w, "data: {\"kind\":\"state\",\"value\":%q}\n\n", a.State.State().String())
 			fl.Flush()
+		}
+	}
+}
+
+// relayDaemonEvents pipes the daemon's /events SSE byte-for-byte to the
+// browser. Returns true if the relay actually opened (ctx will be done by the
+// time it returns); false on connect error so the caller falls back to the
+// local heartbeat path.
+func (a *App) relayDaemonEvents(ctx context.Context, w http.ResponseWriter, fl http.Flusher) bool {
+	if a.Client == nil || a.Client.BaseURL == "" {
+		return false
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.Client.BaseURL+"/events", nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Accept", "text/event-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return false
+	}
+	rd := bufio.NewReader(resp.Body)
+	for {
+		if ctx.Err() != nil {
+			return true
+		}
+		line, err := rd.ReadString('\n')
+		if line != "" {
+			if _, werr := w.Write([]byte(line)); werr != nil {
+				return true
+			}
+			if line == "\n" || strings.HasSuffix(line, "\n\n") {
+				fl.Flush()
+			}
+		}
+		if err != nil {
+			return true
 		}
 	}
 }

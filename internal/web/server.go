@@ -63,6 +63,22 @@ type Server struct {
 	cacheMu sync.RWMutex
 	cache   *State
 	cacheAt time.Time
+
+	bcastOnce sync.Once
+	bcast     *obs.Broadcaster
+}
+
+// ensureBroadcaster wires the in-process pub-sub that backs /events SSE
+// subscribers — every EmitEvent call now reaches live HUD clients with no
+// SQLite hop. Idempotent; safe to call from Start and from BuildMux.
+func (s *Server) ensureBroadcaster() {
+	s.bcastOnce.Do(func() {
+		s.bcast = obs.NewBroadcaster()
+		obs.SetDefaultBroadcaster(s.bcast)
+		if s.EventsSubscribe == nil {
+			s.EventsSubscribe = s.bcast.Subscribe
+		}
+	})
 }
 
 // Start binds and serves until ctx cancellation triggers graceful shutdown.
@@ -71,6 +87,7 @@ func (s *Server) Start(ctx context.Context) error {
 	if err := enforceLoopback(s.Addr); err != nil {
 		return err
 	}
+	s.ensureBroadcaster()
 	m, err := s.buildMux()
 	if err != nil {
 		return err
@@ -130,6 +147,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 // with MetricsMiddleware in the daemon composition root. Identical semantics
 // to the legacy buildMux (which now delegates here).
 func (s *Server) BuildMux() (http.Handler, error) {
+	s.ensureBroadcaster()
 	m, err := s.buildMux()
 	if err != nil {
 		return nil, err

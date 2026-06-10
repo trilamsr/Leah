@@ -11,11 +11,12 @@
     });
   }
 
-  function applyEvent(payload) {
+  function applyEvent(kind, payload) {
     let m;
     try { m = JSON.parse(payload); } catch { return; }
-    if (!m || !m.kind) return;
-    switch (m.kind) {
+    if (!m) return;
+    const k = kind || m.kind;
+    switch (k) {
       case "weather":
         if (m.location) $("loc").textContent = m.location;
         if (m.condition) $("cond").textContent = m.condition;
@@ -32,35 +33,29 @@
         if (m.text) $("ticker").textContent = m.text;
         break;
       case "state":
-        $("state").textContent = m.value || "ambient";
-        $("listen").classList.toggle("active", !!m.listening);
-        $("think").classList.toggle("active", !!m.thinking);
+      case "hud.state": {
+        const p = m.payload || m;
+        const stateName = p.state || p.value || "ambient";
+        $("state").textContent = stateName;
+        $("listen").classList.toggle("active", !!p.listening);
+        $("think").classList.toggle("active", !!p.thinking);
         break;
+      }
     }
   }
 
   function openStream() {
     try {
       const es = new EventSource("/api/events");
-      es.onmessage = (e) => applyEvent(e.data);
+      es.onmessage = (e) => applyEvent(null, e.data);
+      es.addEventListener("hud.state", (e) => applyEvent("hud.state", e.data));
       es.onerror = () => { es.close(); setTimeout(openStream, 2000); };
     } catch {
-      // EventSource unavailable: fall back to no-op; metrics poll still runs.
+      // EventSource unavailable: no fallback — keep the page static.
     }
-  }
-
-  async function pollMetrics() {
-    try {
-      const r = await fetch("/api/state", { cache: "no-store" });
-      if (!r.ok) return;
-      const j = await r.json();
-      if (j.state) $("state").textContent = j.state;
-    } catch {}
   }
 
   tickClock();
   setInterval(tickClock, 1000);
   openStream();
-  pollMetrics();
-  setInterval(pollMetrics, 5000);
 })();
