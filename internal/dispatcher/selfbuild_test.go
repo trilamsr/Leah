@@ -790,3 +790,42 @@ func TestDeriveSelfBuildTitle_UTF8Property(t *testing.T) {
 		}
 	}
 }
+
+// Sentinel-absent input is by definition a clarify-response under the new contract.
+func TestIsClarifyResponse_MissingSentinel_True(t *testing.T) {
+	in := "Sure — which package should the new flag live in, and what is the observable acceptance?\n"
+	if !isClarifyResponse(in) {
+		t.Fatalf("missing sentinel must be treated as clarify; got false for %q", in)
+	}
+}
+
+// Sentinel-present input is a spec, not a clarify-response.
+func TestIsClarifyResponse_WithSentinel_False(t *testing.T) {
+	in := "## leah-selfbuild-spec-v1\n\n## Title\n\n[SELF-BUILD] add x\n"
+	if isClarifyResponse(in) {
+		t.Fatalf("sentinel-present spec must not be treated as clarify: %q", in)
+	}
+}
+
+// Sentinel is a literal contract: case-folded variants must not satisfy it.
+func TestIsClarifyResponse_CaseSensitive(t *testing.T) {
+	in := "## LEAH-SELFBUILD-SPEC-V1\n\n## Title\n\n[SELF-BUILD] add x\n"
+	if !isClarifyResponse(in) {
+		t.Fatalf("uppercase sentinel must not satisfy literal contract: %q", in)
+	}
+}
+
+// Drift catch: the prompt-emission surface in dispatcher must carry the sentinel.
+func TestSystemPrompt_IncludesSentinel(t *testing.T) {
+	if !strings.Contains(selfBuildSpecInstruction, selfBuildSpecSentinel) {
+		t.Fatalf("selfBuildSpecInstruction missing sentinel %q: %q", selfBuildSpecSentinel, selfBuildSpecInstruction)
+	}
+}
+
+// Old H2-heading-shaped responses without sentinel now route as clarify under the new contract.
+func TestIsClarifyResponse_OldFormatNoLongerPasses(t *testing.T) {
+	in := "## Title\n\n[SELF-BUILD] thing\n\n## Motivation\n\nbecause\n"
+	if !isClarifyResponse(in) {
+		t.Fatalf("old-format spec without sentinel must now route as clarify: %q", in)
+	}
+}
