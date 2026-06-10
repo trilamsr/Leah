@@ -553,6 +553,63 @@ func TestLoopContinuesWhenRegattaErrors(t *testing.T) {
 	}
 }
 
+// TestRegattaPoll_FirstFailureLogged_RepeatsNot asserts the regatta-list ERROR
+// log fires exactly ONCE per failure streak — 10 consecutive failures with the
+// same error message produce a single ERROR line, not 10. The classic F3 spam.
+func TestRegattaPoll_FirstFailureLogged_RepeatsNot(t *testing.T) {
+	var buf bytes.Buffer
+	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ctx := obs.WithLogger(context.Background(), lg)
+
+	rc := &errRegatta{}
+	out := &bytes.Buffer{}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, out, time.Millisecond)
+	for i := 0; i < 10; i++ {
+		l.tick(ctx)
+	}
+
+	errCount := strings.Count(buf.String(), `"msg":"daemon.regatta.list_error"`)
+	if errCount != 1 {
+		t.Errorf("want exactly 1 ERROR log on 10 consecutive same-error ticks, got %d; log=%s", errCount, buf.String())
+	}
+	stdoutErrs := strings.Count(out.String(), "regatta list error")
+	if stdoutErrs != 1 {
+		t.Errorf("want exactly 1 stdout error line on 10 consecutive same-error ticks, got %d; out=%s", stdoutErrs, out.String())
+	}
+}
+
+// TestRegattaPoll_RecoveryLogged asserts after a failure streak, when regatta
+// returns success the loop emits a one-shot "regatta available" INFO log.
+func TestRegattaPoll_RecoveryLogged(t *testing.T) {
+	var buf bytes.Buffer
+	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ctx := obs.WithLogger(context.Background(), lg)
+
+	rc := &flipRegatta{}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	// Fail twice, then succeed.
+	l.tick(ctx)
+	l.tick(ctx)
+	rc.ok = true
+	l.tick(ctx)
+
+	if !strings.Contains(buf.String(), `"msg":"daemon.regatta.available"`) {
+		t.Errorf("missing daemon.regatta.available recovery log: %s", buf.String())
+	}
+}
+
+// flipRegatta fails until ok=true is flipped, then returns empty agent list.
+type flipRegatta struct{ ok bool }
+
+func (f *flipRegatta) List(_ context.Context) ([]regattaclient.Agent, error) {
+	if f.ok {
+		return nil, nil
+	}
+	return nil, errString("synthetic regatta failure")
+}
+
 // errRegatta returns an error on every List call.
 type errRegatta struct{}
 

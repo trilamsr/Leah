@@ -95,6 +95,12 @@ type Loop struct {
 	cold      bool
 	weeklyMu  sync.Mutex
 	dailyMu   sync.Mutex
+	// regattaLastErr is the last Regatta.List error string; an identical
+	// error on subsequent ticks suppresses the ERROR log to silence the F3
+	// 30s spam when the regatta binary is absent. Empty = last tick succeeded
+	// (or no tick yet); flipping from non-empty → empty fires a one-shot
+	// "regatta available" recovery INFO log.
+	regattaLastErr string
 	// lastTick records the wall-clock instant of the most recent tick so
 	// the dashboard's Heartbeat surface reflects real loop liveness instead
 	// of the request time (BB-RETRO L3 #18). Zero pointer = no tick yet.
@@ -153,11 +159,23 @@ func (l *Loop) tick(ctx context.Context) {
 	}
 	agents, err := l.Regatta.List(ctx)
 	if err != nil {
-		lg.Error("daemon.regatta.list_error", "err", err.Error())
-		_, _ = fmt.Fprintf(l.Out, "leah-daemon: regatta list error: %v\n", err)
+		// F3: log first-of-streak only; identical repeats are silent
+		// (silenced 30s ERROR spam when regatta binary missing). A new
+		// error message resets the streak so a different failure is
+		// still surfaced.
+		if msg := err.Error(); msg != l.regattaLastErr {
+			lg.Error("daemon.regatta.list_error", "err", msg)
+			_, _ = fmt.Fprintf(l.Out, "leah-daemon: regatta list error: %v\n", err)
+			l.regattaLastErr = msg
+		}
 		// Fall through to weekly tick — regatta unreachability MUST NOT
 		// gate weekly self-learn/patterns/retro work.
 	} else {
+		if l.regattaLastErr != "" {
+			lg.Info("daemon.regatta.available")
+			_, _ = fmt.Fprintln(l.Out, "leah-daemon: regatta available")
+			l.regattaLastErr = ""
+		}
 		current := map[string]string{}
 		for _, a := range agents {
 			current[a.ID] = a.State
