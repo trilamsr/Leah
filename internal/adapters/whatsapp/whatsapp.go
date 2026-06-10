@@ -1,6 +1,5 @@
 // Package whatsapp is the WhatsApp Business Cloud API adapter (W68 skeleton).
-// Direct REST to graph.facebook.com — explicit non-goal is reverse-engineered
-// Web-protocol automation (Meta ToS / account-ban risk; see spec §1).
+// Direct REST only — Web-protocol automation is an explicit non-goal (spec §1).
 package whatsapp
 
 import (
@@ -44,9 +43,7 @@ type Attestor interface {
 	Attest(ctx context.Context, scope string) error
 }
 
-// TokenSource yields the four secrets the adapter needs. Splitting them keeps
-// the access-token surface separate from webhook-verification material so a
-// leaked bearer cannot also forge inbound webhooks.
+// TokenSource splits secrets so a leaked bearer cannot also forge webhooks.
 type TokenSource interface {
 	Token(ctx context.Context) (string, error)
 	VerifyToken(ctx context.Context) (string, error)
@@ -58,8 +55,7 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// AuditRow omits plaintext recipient and body by design — recipient is hashed,
-// body recorded by length only.
+// AuditRow hashes recipient and records body by length only.
 type AuditRow struct {
 	Kind          string
 	Success       bool
@@ -111,17 +107,18 @@ func New(cfg Config) (*Adapter, error) {
 	}, nil
 }
 
-// SendText posts a text message via the Cloud API messages endpoint. Order is
-// load-bearing (spec §5): validate → allowlist → attest → token → HTTP. A
-// rejection at any earlier stage MUST NOT advance to the next.
+// SendText: order is load-bearing per spec §5 — validate, allowlist, attest, token, HTTP.
 func (a *Adapter) SendText(ctx context.Context, to, body string) error {
 	if to == "" || body == "" {
+		a.record(AuditRow{Kind: "whatsapp_send_text", Success: false, RecipientHash: hashRecipient(to), BodyLen: len(body), Reason: "validation"})
 		return fmt.Errorf("%w: missing recipient or body", ErrSendFailed)
 	}
 	if _, ok := a.allow[to]; !ok {
+		a.record(AuditRow{Kind: "whatsapp_send_text", Success: false, RecipientHash: hashRecipient(to), BodyLen: len(body), Reason: "allowlist"})
 		return ErrRecipientNotAllowed
 	}
 	if err := a.att.Attest(ctx, ScopeSendText); err != nil {
+		a.record(AuditRow{Kind: "whatsapp_send_text", Success: false, RecipientHash: hashRecipient(to), BodyLen: len(body), Reason: "attestation_denied"})
 		return fmt.Errorf("%w: %v", ErrAttestationDenied, err)
 	}
 	tok, err := a.ts.Token(ctx)
@@ -162,8 +159,6 @@ func (a *Adapter) SendText(ctx context.Context, to, body string) error {
 	return nil
 }
 
-// WebhookVerify implements the Meta GET-subscribe handshake: echo challenge
-// when the operator-configured verify token matches.
 func (a *Adapter) WebhookVerify(ctx context.Context, challenge, presentedToken string) (string, error) {
 	if err := a.att.Attest(ctx, ScopeWebhookVerify); err != nil {
 		return "", fmt.Errorf("%w: %v", ErrAttestationDenied, err)
@@ -178,11 +173,9 @@ func (a *Adapter) WebhookVerify(ctx context.Context, challenge, presentedToken s
 	return challenge, nil
 }
 
-// WebhookHandle validates the X-Hub-Signature-256 HMAC against AppSecret BEFORE
-// JSON parse (spec §7) — invalid signatures must not consume parser CPU on
-// untrusted bytes. Returns parsed inbound messages on success.
-func (a *Adapter) WebhookHandle(payload []byte, signature string) ([]Message, error) {
-	secret, err := a.ts.AppSecret(context.Background())
+// WebhookHandle: HMAC verifies BEFORE JSON parse so untrusted bytes never reach the parser (spec §7).
+func (a *Adapter) WebhookHandle(ctx context.Context, payload []byte, signature string) ([]Message, error) {
+	secret, err := a.ts.AppSecret(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: app secret load: %w", err)
 	}
@@ -190,7 +183,12 @@ func (a *Adapter) WebhookHandle(payload []byte, signature string) ([]Message, er
 		a.record(AuditRow{Kind: "whatsapp_webhook_hmac_invalid", Success: false, Reason: "signature mismatch"})
 		return nil, ErrWebhookHMACInvalid
 	}
-	return parseInbound(payload)
+	msgs, err := parseInbound(payload)
+	if err != nil {
+		return nil, err
+	}
+	a.record(AuditRow{Kind: "whatsapp_inbound", Success: true, BodyLen: len(payload)})
+	return msgs, nil
 }
 
 func verifyHMAC(payload []byte, signature, secret string) bool {

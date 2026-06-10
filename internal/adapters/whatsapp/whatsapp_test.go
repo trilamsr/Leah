@@ -167,7 +167,7 @@ func TestWebhookHandle_HMACInvalid_Rejects(t *testing.T) {
 	a := newTestAdapter(t, &fakeAttestor{}, &fakeTokenSource{secret: "app-secret"}, &fakeHTTP{}, sink, []string{"+1"})
 
 	payload := []byte(`{"entry":[]}`)
-	_, err := a.WebhookHandle(payload, "sha256=deadbeef")
+	_, err := a.WebhookHandle(context.Background(), payload, "sha256=deadbeef")
 	if !errors.Is(err, ErrWebhookHMACInvalid) {
 		t.Fatalf("err=%v want ErrWebhookHMACInvalid", err)
 	}
@@ -185,7 +185,7 @@ func TestWebhookHandle_HMACValid_ParsesMessages(t *testing.T) {
 	mac.Write(payload)
 	sig := "sha256=" + hex.EncodeToString(mac.Sum(nil))
 
-	msgs, err := a.WebhookHandle(payload, sig)
+	msgs, err := a.WebhookHandle(context.Background(), payload, sig)
 	if err != nil {
 		t.Fatalf("WebhookHandle: %v", err)
 	}
@@ -214,6 +214,31 @@ func TestSendText_AuditRowHashesRecipient(t *testing.T) {
 	}
 	if r.BodyLen != 2 {
 		t.Fatalf("body_len=%d want 2", r.BodyLen)
+	}
+}
+
+func TestSendText_RejectedPathsAuditRow(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name       string
+		att        *fakeAttestor
+		to, body   string
+		allow      []string
+		wantReason string
+	}{
+		{"allowlist", &fakeAttestor{}, "+19998887777", "hi", []string{"+14155551234"}, "allowlist"},
+		{"attestation_denied", &fakeAttestor{err: errors.New("denied")}, "+14155551234", "hi", []string{"+14155551234"}, "attestation_denied"},
+		{"validation", &fakeAttestor{}, "", "hi", []string{"+14155551234"}, "validation"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sink := &recordingSink{}
+			a := newTestAdapter(t, tc.att, &fakeTokenSource{tok: "bearer", phoneID: "PNID"}, &fakeHTTP{}, sink, tc.allow)
+			_ = a.SendText(context.Background(), tc.to, tc.body)
+			if len(sink.rows) != 1 || sink.rows[0].Reason != tc.wantReason || sink.rows[0].Success {
+				t.Fatalf("rows=%+v want one success=false reason=%q", sink.rows, tc.wantReason)
+			}
+		})
 	}
 }
 
