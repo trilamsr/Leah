@@ -21,7 +21,7 @@ All names follow `leah_<surface>_<from>_to_<to>_seconds`. All histograms registe
 - **Metric:** `leah_voice_wake_to_earcon_seconds`
 - **Labels:** `detector` (`energy`/`porcupine`/future), `backend` (`coreaudio_beep`/`afplay`).
 - **Buckets:** `[0.025, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 1]` — tight band around the 150ms target.
-- **Start:** moment `wake.Detector.Detect` returns `(true, nil)` — `internal/voice/wake/wake.go:32`.
+- **Start:** moment `wake.Detector.Detect` returns `(true, nil)` — `internal/voice/wake/wake.go:45` (the `return rms >= e.threshold, nil` line; line 32 is the func signature).
 - **Stop:** earcon player returns from first-sample-out. Earcon doesn't exist yet; see §9 carve-out. Until earcon ships, emit a `leah_voice_wake_detected_total` counter at the same point so the timer is ready to land the moment the player exists.
 
 ### A2 — Utterance end → transcript ready ≤600ms p50, ≤1.2s p95
@@ -45,7 +45,7 @@ All names follow `leah_<surface>_<from>_to_<to>_seconds`. All histograms registe
 - **Metric:** `leah_voice_intent_to_first_audio_seconds`
 - **Labels:** `backend` (`kokoro`/`say`/`openai_tts`), `streaming` (`true`/`false`).
 - **Buckets:** `[0.1, 0.25, 0.5, 0.7, 1, 1.5, 2, 3, 5]`.
-- **Start:** moment `intent.Classify` returns inside `loop.Run` — `internal/voice/loop/loop.go:105` (just before `context.WithCancel`).
+- **Start:** entry to `startTurn` closure — `internal/voice/loop/loop.go:104` (immediately before the `context.WithCancel` at line 105). Note: intent classification is regex-fast (A3) and not on the loop hot path; treat A4 start as the moment a final transcript is handed to the reasoner/TTS chain.
 - **Stop:** first PCM frame leaves the speaker subprocess. For `say` (`internal/voice/say.go`) the proxy is `say` exec start; for `kokoro` (`internal/voice/kokoro.go`) and `openai` (`internal/voice/openai.go`), the proxy is first audio chunk written to the player. Each backend needs one observation site; the existing `EmitSpeak` hook in `internal/voice/instrumentation.go:20` is the canonical seam — extend it to take a `firstAudio time.Time`.
 
 ### A5 — HUD widget update after state change ≤1s end-to-end
@@ -53,8 +53,8 @@ All names follow `leah_<surface>_<from>_to_<to>_seconds`. All histograms registe
 - **Metric:** `leah_hud_state_to_widget_seconds`
 - **Labels:** `widget` (`weather`/`calendar`/`market`/`news`/`recommendations`/`focus`).
 - **Buckets:** `[0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2.5, 5, 10]`.
-- **Start:** daemon-side state mutation that should trigger a push — the `Broadcast` call in `internal/hud/ipc.go` (or its successor SSE emitter for `widgets.go` once widgets switch off polling per UX-audit blocker #1).
-- **Stop:** SSE write returns from the daemon. This measures daemon→wire, not wire→DOM; browser-side render time is a future companion metric (`leah_hud_widget_dom_paint_seconds`, deferred).
+- **Start:** daemon-side state mutation that triggers a push. **NO `Broadcast` seam exists today** — `internal/hud/ipc.go` is client-side only (`Client.PollMetrics`). A5 measurement is BLOCKED on UX-audit blocker #1 (HUD widget SSE push + kill polling) landing first. Until then, emit a `leah_hud_widget_poll_total{widget,outcome}` counter at the existing client poll site so widget-count baseline data accrues.
+- **Stop:** (once the SSE emitter ships under blocker #1) SSE write returns from the daemon. Measures daemon→wire, not wire→DOM; browser-side render time is a future companion metric (`leah_hud_widget_dom_paint_seconds`, deferred).
 
 ### A6 — CLI first byte stdout ≤200ms (excl. LLM)
 
@@ -86,7 +86,7 @@ All names follow `leah_<surface>_<from>_to_<to>_seconds`. All histograms registe
 - **Labels:** `outcome` (`useful`/`abandoned`).
 - **Buckets:** `[60, 120, 180, 300, 600, 1800, 3600]` — minute-scale.
 - **Start:** install-marker timestamp written by post-install hook (`brew` formula `post_install` block writes `~/.leah/state/install_at`).
-- **Stop:** first successful verb that produced user-visible output — operationally, first audit-log entry with `BlastRadius >= 1` AND `result == "ok"`.
+- **Stop:** first successful verb that produced user-visible output — operationally, first audit-log entry with `BlastRadius >= 1` AND `Outcome == "success"` (per `internal/audit/audit.go:22` — field name is `Outcome`, common success value is `"success"`; verify exact enum at impl time).
 - **Persistence:** see §3.
 
 ## 3. A9 special case — onboarding e2e timer
@@ -96,7 +96,7 @@ A9 spans process boundaries: install runs as `brew`, first reply runs as `leah <
 **Decision: derive from existing audit log, not a new persistent timer.**
 
 - `brew` post-install writes `~/.leah/state/install_at` (single line: RFC3339 timestamp). Already a documented Leah state-dir convention; cheap.
-- Daemon, on startup AND on every audit-log append, checks: does `install_at` exist AND no `onboarding_first_reply_at` sibling file exist? If yes, scan audit.jsonl for the first row with `BlastRadius >= 1` AND `result == "ok"` after `install_at`. If found, observe `(found - install_at).Seconds()` into the histogram, then write `onboarding_first_reply_at` to inhibit re-observation.
+- Daemon, on startup AND on every audit-log append, checks: does `install_at` exist AND no `onboarding_first_reply_at` sibling file exist? If yes, scan audit.jsonl for the first row with `BlastRadius >= 1` AND `Outcome == "success"` after `install_at`. If found, observe `(found - install_at).Seconds()` into the histogram, then write `onboarding_first_reply_at` to inhibit re-observation.
 - Code lives in `internal/onboarding/measure.go` (new file, ~60 LOC). One observation per machine lifetime.
 
 Rationale: an explicit cross-process timer is more code and another piece of state to corrupt. Audit log already captures "useful" with the precision A9 needs (minutes, not ms). Derivation has the bonus property that re-instrumenting old installs works retroactively from the audit log.
