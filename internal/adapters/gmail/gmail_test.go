@@ -189,6 +189,32 @@ func TestSend(t *testing.T) {
 	}
 }
 
+// failingTokenSource fails the test if Token() is invoked; used to prove the
+// attestation gate runs BEFORE the token materializes (gate-ordering invariant).
+type failingTokenSource struct {
+	t *testing.T
+}
+
+func (f *failingTokenSource) Token(_ context.Context) (string, error) {
+	f.t.Fatal("TokenSource.Token() must NOT be called when attestation denies")
+	return "", nil
+}
+
+func TestGateOrdering(t *testing.T) {
+	t.Parallel()
+	c, err := New(Config{
+		Attestor:    &fakeAttestor{err: errors.New("denied")},
+		TokenSource: &failingTokenSource{t: t},
+		Transport:   &fakeTransport{},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := c.ListUnread(context.Background()); !errors.Is(err, ErrAttestationDenied) {
+		t.Fatalf("err = %v, want ErrAttestationDenied", err)
+	}
+}
+
 func TestNewRejectsMissingDeps(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
