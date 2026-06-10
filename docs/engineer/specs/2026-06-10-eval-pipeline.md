@@ -25,7 +25,8 @@ delta table showing pass-rate within 2 percentage points of main.
 - Golden traces per feature stored as `evals/<feature>.jsonl`.
 - LLM-as-judge harness (`make eval`) producing reproducible pass-rate.
 - GH check that blocks merge on >2% regression.
-- Hard budget (≤$5/wk) wired through `LEAH_BUDGET_DOLLARS`.
+- Hard budget (≤$15/wk) wired through a dedicated eval counter that
+  is independent of `internal/budget.DefaultCeiling` ($5 per-process).
 - Historical results in `~/.leah-state/eval-history.jsonl` + CI artifact.
 - Operator override path that is attestation-gated, not click-through.
 
@@ -53,7 +54,7 @@ internal/eval/
   judge_test.go
   rubric.go               # per-feature rubric structs + validation
   rubric_test.go
-  budget.go               # per-run cost cap + LEAH_BUDGET_DOLLARS wiring
+  budget.go               # per-run cost cap + LEAH_EVAL_BUDGET_DOLLARS wiring
   budget_test.go
   history.go              # eval-history.jsonl writer + retention
   history_test.go
@@ -257,18 +258,25 @@ Make target:
 
 ```makefile
 eval:
-	@LEAH_BUDGET_DOLLARS=$${LEAH_BUDGET_DOLLARS:-5} \
+	LEAH_EVAL_BUDGET_DOLLARS=$${LEAH_EVAL_BUDGET_DOLLARS:-3} \
 	  go run ./cmd/leah-eval --feature=$(FEATURE) --base=$(BASE) --json=$(JSON)
 ```
+
+(Unsuppressed; matches house Makefile style — recipe lines are
+grep'able in CI logs.)
 
 ### 5.2 Harness execution shape
 
 1. Load `evals/<feature>.jsonl` per feature in scope.
 2. For each trace, run the feature under HEAD code → `actual_head`.
 3. Checkout `BASE` (default `origin/main`) into a scratch dir;
-   re-run same traces → `actual_base`. Cached by `(BASE_SHA,trace_id)`
+   re-run same traces → `actual_base`. Cached by
+   `sha256(BASE_SHA || trace_id || judge_prompt_sha || judge_model)`
    keyed file under `~/.leah-state/eval-cache/` to skip re-judging
-   unchanged BASE results across PRs (the dominant cost).
+   unchanged BASE results across PRs (the dominant cost). Editing
+   `prompts/eval-judge.md` OR bumping `JudgeModel` MUST bust the cache —
+   omitting either component would silently serve stale BASE scores
+   and mask regressions caused by judge changes.
 4. Judge both — but only call judge when hard constraints differ OR
    when HEAD is uncached AND not byte-identical to cached actual.
 5. Compute deltas; write `~/.leah-state/eval-history.jsonl` row.
@@ -331,10 +339,15 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
         with: { go-version: '1.24', cache: true }
+      - name: Gate fork PRs
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::warning::eval skipped on fork PR (secret not exposed); a maintainer must re-run via workflow_dispatch after manual approval"
+          exit 78   # neutral exit; gate treats as NEUTRAL not FAIL (see §6.3)
       - name: Run eval
         env:
           ANTHROPIC_API_KEY: ${{ secrets.LEAH_EVAL_ANTHROPIC_KEY }}
-          LEAH_BUDGET_DOLLARS: '0.50'   # per-PR cap; see §7
+          LEAH_EVAL_BUDGET_DOLLARS: '3.00'   # per-run cap; see §8.1
           LEAH_EVAL_BASE: 'origin/main'
         run: make eval JSON=1 > /tmp/eval.json
       - name: Post delta table
@@ -368,17 +381,45 @@ feature regression from hiding under green features.
 
 ## 7. Failure semantics
 
-### 7.1 The 2-pp gate
+### 7.1 The gate (paired, not unpaired)
+
+Both gates compare BASE and HEAD on the **same trace set** — every
+trace is judged twice (BASE code vs HEAD code) and the unit of
+analysis is the per-trace flip, not the raw pass-rate delta. This is
+a paired comparison (McNemar's test), not two independent samples.
+
+The independent-sample binomial SE on a 50-trace pass-rate at p≈0.9
+is √(0.9·0.1/50) ≈ 4.2 pp at 1σ — and at p≈0.5 it's ~7 pp at 1σ —
+which would put a -5 pp gate inside the noise floor. The paired
+formulation collapses that noise: only traces that flip between BASE
+and HEAD contribute, so for a typical PR with ~5–10 disagreements
+the McNemar SE is roughly √(b+c)/n ≈ 0.5–1 pp, well below the
+gate thresholds.
+
+The §12.2 self-consistency σ ≈ 0.8 pp captures judge-determinism
+variance on the same actual; the paired gate captures BASE-vs-HEAD
+disagreement on the same trace. These are different statistics —
+the spec calls out both explicitly so future eyes don't conflate
+them.
 
 Overall pass-rate Δ must be > -2.0 pp. ">" not "≥" — a -2.0 pp drop
-on a 200-trace set is 4 fewer passes; treat as a regression that
-demands a justification, not a freebie.
+on a 200-trace paired set means 4 traces flipped BASE-pass→HEAD-fail
+net; treat as a regression that demands a justification, not a
+freebie.
 
 ### 7.2 Per-feature catastrophic gate
 
-Any single feature Δ ≤ -5.0 pp fails immediately. Rationale: with 50
-traces per feature, 5 pp is 2.5 traces — well above natural judge
-variance (measured at ~0.8 pp σ in §11 meta-eval).
+Any single feature Δ ≤ -5.0 pp fails immediately. With 50 paired
+traces per feature, -5 pp net is ≥2.5 net flips from BASE→fail; the
+McNemar SE under a true-null (no real regression) for ~5
+disagreements is ~3 pp, so the gate sits at ~1.5σ above noise —
+high-signal without being prone to false-fail on judge wobble.
+
+If a future operator widens the eval set or relaxes the paired
+constraint, the gate MUST be re-derived; bumping the trace set to
+n≥384 per feature would let the gate hold under an unpaired
+(±5 pp at 95 % CI) interpretation, which is the fallback if paired
+mode is ever disabled.
 
 ### 7.3 Reaction matrix
 
@@ -401,14 +442,26 @@ feature emits a warning (eval set rotting).
 
 | Scope | Cap | Source of truth |
 |-------|-----|-----------------|
-| Per-eval-run | $0.50 | `LEAH_BUDGET_DOLLARS` env, set in `eval.yml` |
-| Per-day (CI) | $2.00 | GHA concurrency limit + per-run cap |
-| Per-week | $5.00 | wave-8 brief constraint; enforced by audit |
+| Per-eval-run | $3.00 | `LEAH_EVAL_BUDGET_DOLLARS` env, set in `eval.yml` |
+| Per-day (CI) | $6.00 | GHA concurrency limit + per-run cap |
+| Per-week | $15.00 | enforced by `internal/eval/budget.go` against `~/.leah-state/eval-history.jsonl` |
+
+Per-call cost at 1.5k input + 200 output tokens against Sonnet 4.5 is
+$0.0075 (§8.3); the 200-trace × 2-side worst case (400 uncached calls)
+is $3.00, which sets the per-run cap. At 30 PRs/wk eval-running × $0.50
+typical-cost-with-caching, the weekly bill stays well under the $15 cap.
+
+The eval cost-counter is a separate persistent counter from the
+`internal/budget` per-process ceiling: `internal/budget.DefaultCeiling = 5.0`
+governs a single `cmd/leah` invocation, while `LEAH_EVAL_BUDGET_DOLLARS`
++ the eval-history file enforce per-run and rolling-7d caps across CI
+runs. Mixing the two via `LEAH_BUDGET_DOLLARS` would either starve the
+eval (cap too low) or weaken the daemon's own budget (cap too high).
 
 Per-week enforcement: `internal/eval/budget.go` reads
 `~/.leah-state/eval-history.jsonl` (or a CI-cached blob) on startup,
 sums the trailing 7 days' `cost_dollars`, refuses to start if sum + cap
-> $5.00. CI cache key: `eval-history-{{ hashFiles('evals/**') }}`.
+> $15.00. CI cache key: `eval-history-{{ hashFiles('evals/**') }}`.
 
 ### 8.2 Wiring
 
@@ -423,9 +476,13 @@ The harness wraps every judge call in `internal/budget.Charge`. On
 
 ### 8.3 Per-call cost estimate
 
-Judge call ≈ 1.5k input + 200 output tokens. Sonnet pricing
-(2026-06-10): ~$0.0045/call. 200 traces × 2 sides = 400 calls = $1.80
-worst case, ~$0.30 with BASE caching (typical PR re-judges 20 traces).
+Judge call ≈ 1.5k input + 200 output tokens. Sonnet 4.5 pricing
+(2026-06-10): $3/MTok in + $15/MTok out → 1500·$3/M + 200·$15/M
+= $0.0045 + $0.0030 = **$0.0075/call**. 200 traces × 2 sides = 400
+calls = **$3.00 worst case**. Typical PR re-judges only ~20 traces
+(BASE cached for the other 180) ≈ $0.30 — the worst case is the
+rebaseline run after a judge-prompt or `JudgeModel` edit that busts
+the cache (§5.2).
 
 ## 9. Historical results storage
 
@@ -478,9 +535,19 @@ own day-to-day use of Leah over the prior 14 days. For each captured
 turn:
 
 1. Reconstruct `input` from audit `Input`/`PromptSHA`/`Tools`.
-2. Use the production `Actual` output as a candidate `expected`.
-3. Operator hand-edits `must_contain` / `must_not_contain` /
+2. **Redact PII before write.** Run the candidate through
+   `scripts/eval-redact.sh` which strips: email addresses
+   (`[A-Za-z0-9._%+-]+@…` → `<email>`), E.164 / NANP phone numbers
+   (`<phone>`), absolute paths under `$HOME` (`<home>/…`),
+   `~/.leah-state/` operator-id segments, and contact-name tokens
+   pulled from `~/.leah-state/contacts.jsonl`. The redactor refuses
+   to emit a trace if any unmatched `@` survives.
+3. Use the redacted `Actual` output as a candidate `expected`.
+4. Operator hand-edits `must_contain` / `must_not_contain` /
    `tool_called` to pin the intent.
+5. `.gitattributes` MUST add `evals/*.jsonl  filter=eval-redact`
+   so a re-staged trace re-runs the redactor — defense-in-depth
+   against an operator manually editing in PII later.
 
 Cost: ~2 hours operator time to curate 50 traces.
 
@@ -495,10 +562,31 @@ likely gap), the spec author hand-writes 50 traces drawn from
 
 ### 10.4 Anti-cheating
 
-Capture-mode traces MUST be reviewed by a separate adversarial
-subagent (`cavecrew-reviewer-evalset-<feature>`) before landing.
-The reviewer's job: reject traces where `expected` is "whatever HEAD
-produced" — that would lock in current behavior as forever-correct.
+A same-session adversarial reviewer subagent is not sufficient on its
+own — author and reviewer share the operator's context and can
+silently collude on "whatever HEAD produced = expected" lock-in. The
+bootstrap set MUST clear BOTH guards before landing:
+
+1. **Independent attestation (2-of-3).** Two adversarial reviewer
+   subagents, dispatched from independent operator sessions or with
+   distinct agent-ids (`cavecrew-reviewer-evalset-<feature>-{a,b}`)
+   and given the same dispatch prompt, must each approve the trace
+   set. The author's own self-review does NOT count toward the two.
+   This mirrors the S7 2-of-3 attestation rule applied to traces.
+2. **Inverted-trace canary.** 10 % of the bootstrap traces (5 of 50)
+   are deliberately broken — `expected` set to a known-wrong tool,
+   wrong intent, or banned-substring violation — and shipped in the
+   same `evals/<feature>.jsonl` with `tags: ["canary-inverted"]`. A
+   working judge MUST fail every canary; if the bootstrap reports
+   any canary pass, the trace set is rejected and the judge prompt
+   is re-tuned. Canary rows are filtered out of the merge-gate
+   denominator at runtime by `internal/eval/harness.go`, so they
+   serve as a continuous integrity check rather than depressing the
+   reported pass-rate.
+
+Guard (1) raises the collusion cost; guard (2) is mechanically
+verifiable, so a broken judge or a captured reviewer pair still trips
+the canary.
 
 ## 11. Operator override — force-merge despite eval block
 
@@ -512,16 +600,31 @@ The eval gate is required-but-bypassable, not advisory. Bypass path:
 3. On success, writes a row to `~/.leah-state/audit.jsonl`:
    ```json
    {"kind":"eval_override","pr":152,"reason":"...","operator":"tri",
-    "ts":"...","blast_radius":3}
+    "ts":"...","blast_radius":2}
    ```
 4. CLI POSTs to GH check via `gh api ... /check-runs/<id>` setting
    `conclusion: success` with a body line `LEAH-EVAL-OVERRIDE: <audit_id>`.
 
 ### 11.2 Constraints
 
-- BR=3 (one level below `connect:regatta:cloud`).
+- BR=2. Justification: override mutates the merge-gate decision for
+  one PR, no production-state change, no money spent beyond the
+  judge call already accounted in §8. The earlier draft cited
+  `connect:regatta:cloud` as a one-level-up reference, but the
+  regatta-integration spec does not assign a numeric BR to that
+  scope — that comparison was invented and is dropped. Future
+  cross-spec BR ordering belongs in a dedicated BR-registry doc, not
+  inferred here.
 - Override audit row replayable — `leah audit list --kind=eval_override`
   surfaces in `leah whoami` (S10).
+- Override retention **exceeds** the default 30-day audit retention.
+  `eval_override` rows are the exact rows a future operator needs >30d
+  later to detect cumulative override drift (e.g. "have I bypassed the
+  gate four times in two months on the same feature?"). Implementation:
+  `internal/audit` retention sweeper skips rows with `Kind == "eval_override"`,
+  and `internal/eval/history.go` mirrors each override into the
+  lifetime `eval-history.jsonl` aggregate on the `gh-pages` branch so
+  the row survives even if local audit is rotated.
 - Override does NOT silence the next PR's gate; it's per-PR.
 - Per-feature -5pp failures require attestation AND a second-reviewer
   attestation row (2-of-3 reviewer rule from S7).
@@ -530,9 +633,10 @@ The eval gate is required-but-bypassable, not advisory. Bypass path:
 
 A `bypass-eval` GH label is click-through; an attestation prompt forces
 the operator to type the reason. Friction = signal: most regressions
-either get fixed or get a real explanation. The brief-trap (§14 in
-implementer.md) of accreting rationalizations is mechanically prevented
-by the prompt's char-count floor (default 32 chars).
+either get fixed or get a real explanation. The CLI enforces a
+char-count floor on the typed `--reason` (default 32 chars) so a
+one-word "fine" cannot serve as a bypass — accreting rationalizations
+are mechanically deterred by the cost of typing.
 
 ## 12. Test plan for the pipeline itself (meta-eval)
 
@@ -572,6 +676,41 @@ part of `make check` to catch harness rot.
 sizes; estimator (used for early budget reservation) must stay within
 20% of `actual_cost`.
 
+### 12.7 Judge-bias eval
+
+LLM-as-judge has three well-documented biases that meta-eval must
+guard against — none are caught by §12.2 self-consistency, which only
+measures temp=0 determinism.
+
+1. **Position bias.** `TestJudge_PositionSwap`: for every paired
+   trace, run the judge twice with `(Actual, Expected)` and
+   `(Expected, Actual)` swapped in the prompt. A working judge
+   produces identical pass/fail in ≥95 % of pairs.
+2. **Length bias.** `TestJudge_LengthControl`: synthetic identical-
+   content traces padded to 100 / 500 / 1500 tokens. Pass-rate
+   spread across length buckets must stay within ±5 pp.
+3. **Self-preference.** Quarterly job (`make eval-cross-judge`) re-
+   scores the full 200-trace set with a non-Anthropic judge (GPT-4o
+   or local `qwen3:32b`, selected via `LEAH_EVAL_JUDGE_PROVIDER`).
+   Overall pass-rate divergence > 10 pp between Sonnet and the
+   cross-judge raises an alert and pins the next eval-pipeline PR to
+   recalibrate.
+
+### 12.8 Judge-model deprecation playbook
+
+Pinned `JudgeModel` going EOL (Anthropic deprecation notice, vendor
+sunset, or non-200 response on the calibration trace) triggers:
+
+1. CI gate `regression-gate` flips to NEUTRAL (does not block merges)
+   until re-baselined. Audit row `Kind: "eval_judge_deprecated"`
+   written.
+2. Operator swaps `JudgeModel` (or sets `LEAH_EVAL_JUDGE_PROVIDER` to
+   the fallback) and re-runs the full bootstrap; the cache is busted
+   automatically because `judge_model` is part of the cache key (§5.2).
+3. Re-baseline window: 1 week. After 7 days with NEUTRAL gate and no
+   new baseline, the daemon emits a `leah_eval_judge_stale_total`
+   counter increment per HUD render — friction without block.
+
 ## 13. Observability
 
 ### 13.1 Prometheus metrics (registered against `internal/obs.Registry`)
@@ -586,8 +725,8 @@ sizes; estimator (used for early budget reservation) must stay within
 | `leah_eval_judge_unparseable_total` | counter | `feature` | judge-output-malformed count |
 
 Cardinality: 4 features × 6 outcomes = 24 series for the trace counter,
-well under the 200-series-per-package budget from the observability
-spec.
+well under the few-hundred-values-per-high-cardinality-dimension bound
+in observability.md §4.14.
 
 ### 13.2 Audit rows
 
@@ -611,9 +750,13 @@ documents the data contract only.
 
 ## 14. Initial waves W82-W85
 
-Each wave is one PR, file-disjoint, lands serially per the wave-8 brief
-sequencing rule. Each wave depends on the prior wave's `internal/eval/`
-landing (the harness must exist before traces have meaning).
+Each wave is one PR, **serialized** (one in flight at a time) sharing
+`internal/eval/` ownership — W83 extends `rubric.go`, W85 extends
+`judge.go`, so they are NOT file-disjoint and parallelizing them
+would re-introduce the stale-base regression that CLAUDE.md spec-PR
+serialization exists to prevent. Each wave also depends on the prior
+wave's `internal/eval/` landing (the harness must exist before traces
+have meaning), reinforcing serial order on its own.
 
 ### W82 — harness + reasoner eval set (one PR)
 
@@ -673,7 +816,8 @@ landing (the harness must exist before traces have meaning).
 ## 16. Constraints inherited
 
 - spec PR serializes (CLAUDE.md rule).
-- code wave PRs (W82-W85) file-disjoint per the wave-8 dispatch rule.
+- code wave PRs (W82-W85) serialize too — they share `internal/eval/`
+  ownership and cannot be file-disjoint (§14).
 - no AI signatures.
 - no self-approve — every wave PR gets `cavecrew-reviewer-<topic>`.
 - worktree discipline; relative paths only.
