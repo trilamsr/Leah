@@ -1,4 +1,4 @@
-.PHONY: dev verify-pr baseline check smoke install upgrade install-janitor uninstall-janitor eval eval-all help
+.PHONY: dev verify-pr baseline check smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums help
 
 # Run leah-daemon against ~/.leah-state-dev/ sandbox.
 # Opens browser to dashboard. Tails audit log in foreground.
@@ -72,5 +72,21 @@ eval-all:
 	@LEAH_EVAL_BUDGET_DOLLARS=$${LEAH_EVAL_BUDGET_DOLLARS:-3} \
 	  go run ./cmd/leah-eval --base=$${BASE:-origin/main} --json=$${JSON:-0}
 
+# Reproducibility gate (S10 M6 + S12 §8). Rebuild from source with the release
+# flags, then diff against the published SHA256SUMS. Pre-signing — catches a
+# malicious GHA before trusting Apple's signature.
+# Use: make verify-checksums TAG=vX.Y.Z
+verify-checksums:
+	@test -n "$(TAG)" || (echo "set TAG=vX.Y.Z" && exit 1)
+	@rm -rf dist && mkdir -p dist
+	@CGO_ENABLED=0 GOFLAGS='-trimpath -mod=readonly' bash -c '\
+	  for cmd in leah leah-daemon leah-hud; do \
+	    go build -ldflags="-s -w -buildid=" -o dist/$$cmd ./cmd/$$cmd; \
+	  done'
+	@cd dist && tar czf "leah-$(TAG)-darwin-arm64.tar.gz" leah leah-daemon leah-hud
+	@cd dist && shasum -a 256 ./*.tar.gz > SHA256SUMS.local
+	@curl -fsSL "https://github.com/trilamsr/Leah/releases/download/$(TAG)/SHA256SUMS" -o dist/SHA256SUMS.upstream
+	@diff -u dist/SHA256SUMS.upstream dist/SHA256SUMS.local && echo "checksums match"
+
 help:
-	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all"
+	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>"
