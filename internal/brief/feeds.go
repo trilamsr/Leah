@@ -124,7 +124,6 @@ func renderWeather(b *strings.Builder, d Data) {
 	fmt.Fprintln(b)
 }
 
-// renderNews appends the News section.
 func renderNews(b *strings.Builder, d Data) {
 	if d.News == nil && !d.NewsUnavailable {
 		return
@@ -146,7 +145,6 @@ func renderNews(b *strings.Builder, d Data) {
 	fmt.Fprintln(b)
 }
 
-// renderMarket appends the Market section.
 func renderMarket(b *strings.Builder, d Data) {
 	if d.Market == nil && !d.MarketUnavailable {
 		return

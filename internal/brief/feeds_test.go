@@ -32,8 +32,7 @@ type fakeMarket struct {
 
 func (m *fakeMarket) Snapshot(ctx context.Context) (Pulse, error) { return m.p, m.err }
 
-// TestBrief_WeatherRendered_HappyPath asserts a populated Weather payload
-// renders the temp + description one-liner.
+// TestBrief_WeatherRendered_HappyPath asserts a populated Weather payload renders.
 func TestBrief_WeatherRendered_HappyPath(t *testing.T) {
 	d := Data{
 		Now: time.Now(),
@@ -56,8 +55,7 @@ func TestBrief_WeatherRendered_HappyPath(t *testing.T) {
 	}
 }
 
-// TestBrief_WeatherUnavailable_RendersFallback asserts the WeatherUnavailable
-// flag renders "unavailable" mirroring the mail/calendar pattern.
+// TestBrief_WeatherUnavailable_RendersFallback asserts the flag renders "unavailable".
 func TestBrief_WeatherUnavailable_RendersFallback(t *testing.T) {
 	d := Data{Now: time.Now(), WeatherUnavailable: true}
 	out := Render(d)
@@ -66,8 +64,7 @@ func TestBrief_WeatherUnavailable_RendersFallback(t *testing.T) {
 	}
 }
 
-// TestBrief_NewsRendered_HappyPath asserts the top article appears with
-// title and source attribution.
+// TestBrief_NewsRendered_HappyPath asserts top article renders title + source.
 func TestBrief_NewsRendered_HappyPath(t *testing.T) {
 	d := Data{
 		Now:  time.Now(),
@@ -93,8 +90,7 @@ func TestBrief_NewsUnavailable_RendersFallback(t *testing.T) {
 	}
 }
 
-// TestBrief_MarketRendered_HappyPath asserts each tracked symbol's %-change
-// appears in the snapshot line.
+// TestBrief_MarketRendered_HappyPath asserts each symbol's %-change appears.
 func TestBrief_MarketRendered_HappyPath(t *testing.T) {
 	d := Data{
 		Now: time.Now(),
@@ -123,8 +119,7 @@ func TestBrief_MarketUnavailable_RendersFallback(t *testing.T) {
 	}
 }
 
-// TestBrief_AllFeedsAvailable_AllRendered asserts every feed section appears
-// when populated in a single Data.
+// TestBrief_AllFeedsAvailable_AllRendered asserts every feed section appears.
 func TestBrief_AllFeedsAvailable_AllRendered(t *testing.T) {
 	d := Data{
 		Now:     time.Now(),
@@ -140,8 +135,7 @@ func TestBrief_AllFeedsAvailable_AllRendered(t *testing.T) {
 	}
 }
 
-// TestBrief_OrderConsistent asserts Weather always renders before Market —
-// the spec-pinned order keeps the operator's eye-flow consistent across days.
+// TestBrief_OrderConsistent asserts Weather renders before Market.
 func TestBrief_OrderConsistent(t *testing.T) {
 	d := Data{
 		Now:     time.Now(),
@@ -159,8 +153,7 @@ func TestBrief_OrderConsistent(t *testing.T) {
 	}
 }
 
-// TestBrief_NilFeeds_OmitSections asserts unset feed integrations stay silent
-// — silent absence beats noisy "unavailable" for unconfigured features.
+// TestBrief_NilFeeds_OmitSections asserts unset feed integrations stay silent.
 func TestBrief_NilFeeds_OmitSections(t *testing.T) {
 	d := Data{Now: time.Now()}
 	out := Render(d)
@@ -171,8 +164,7 @@ func TestBrief_NilFeeds_OmitSections(t *testing.T) {
 	}
 }
 
-// TestGatherCallsWeatherReporter wires Gather → fakeWeather and confirms
-// the forecast propagates.
+// TestGatherCallsWeatherReporter wires Gather → fakeWeather and confirms propagation.
 func TestGatherCallsWeatherReporter(t *testing.T) {
 	dir := t.TempDir()
 	w := &fakeWeather{f: Forecast{TempC: 12, HighC: 15, LowC: 8, Description: "fog"}}
