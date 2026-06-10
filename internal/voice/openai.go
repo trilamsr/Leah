@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -28,6 +29,24 @@ type OpenAITTS struct {
 }
 
 const defaultOpenAIEndpoint = "https://api.openai.com/v1/audio/speech"
+
+// writerCap is a bounded Writer that silently discards bytes past cap.
+// Used to keep diagnostic-prefix capture O(cap), not O(stream).
+type writerCap struct {
+	w   *bytes.Buffer
+	cap int
+}
+
+func (c *writerCap) Write(p []byte) (int, error) {
+	if room := c.cap - c.w.Len(); room > 0 {
+		if len(p) > room {
+			c.w.Write(p[:room])
+		} else {
+			c.w.Write(p)
+		}
+	}
+	return len(p), nil
+}
 
 // Speak synthesizes via OpenAI and plays the resulting audio via afplay.
 func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
@@ -87,9 +106,13 @@ func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
 	}
 	path := tmp.Name()
 	defer func() { _ = os.Remove(path) }()
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
+	// Tee the first 512 bytes so a mid-stream copy failure still surfaces
+	// the OpenAI error frame (often JSON) in the wrapped error.
+	var head bytes.Buffer
+	src := io.TeeReader(resp.Body, &writerCap{w: &head, cap: 512})
+	if _, err := io.Copy(tmp, src); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("openai tts: write: %w", err)
+		return fmt.Errorf("openai tts: copy: %w; body_prefix=%s", err, strconv.Quote(head.String()))
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("openai tts: close: %w", err)
