@@ -9,8 +9,20 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/ctxmgr"
 	"github.com/trilam/leah/internal/memory"
 )
+
+// fakeSwitchSource feeds canned switches to Profile.Update without a real ctxmgr DB.
+type fakeSwitchSource struct {
+	switches []ctxmgr.Switch
+	calls    int
+}
+
+func (f *fakeSwitchSource) Since(_ time.Time) ([]ctxmgr.Switch, error) {
+	f.calls++
+	return f.switches, nil
+}
 
 // writeAudit appends RFC3339-stamped entries to a fresh audit.jsonl.
 func writeAudit(t *testing.T, dir string, entries []audit.Entry) string {
@@ -262,5 +274,90 @@ func TestProfileUpdateRebuildsFromScratch(t *testing.T) {
 	}
 	if n != 0 {
 		t.Errorf("rebuild should wipe stale leah.ship rows; got %d", n)
+	}
+}
+
+// TestProfileUpdate_WithCtxSwitches_ObservesTransitions asserts wiring a
+// non-empty SwitchSource yields context_transition observations (closes #10).
+func TestProfileUpdate_WithCtxSwitches_ObservesTransitions(t *testing.T) {
+	dir := t.TempDir()
+	store, err := memory.NewStore(filepath.Join(dir, "memory.db"))
+	if err != nil {
+		t.Fatalf("memory: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	base := time.Now().UTC().Add(-8 * 24 * time.Hour)
+	var entries []audit.Entry
+	for i := 0; i < 60; i++ {
+		entries = append(entries, audit.Entry{
+			Timestamp: base.Add(time.Duration(i*3) * time.Hour).Format(time.RFC3339),
+			Kind:      "leah.ship",
+		})
+	}
+	path := writeAudit(t, dir, entries)
+
+	src := &fakeSwitchSource{switches: []ctxmgr.Switch{
+		{From: "", To: "leah", SwitchedAt: base.Add(-1 * time.Hour)},
+		{From: "leah", To: "regatta", SwitchedAt: base.Add(50 * time.Hour)},
+		{From: "regatta", To: "leah", SwitchedAt: base.Add(120 * time.Hour)},
+	}}
+	p := &Profile{Now: func() time.Time { return time.Now().UTC() }, SwitchSource: src}
+	if err := p.Update(context.Background(), store, path, base.Add(-time.Hour)); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if src.calls == 0 {
+		t.Errorf("SwitchSource.Since never called")
+	}
+	var n int
+	if err := store.DB().QueryRow(
+		`SELECT COUNT(*) FROM operator_profile WHERE class='context_transition'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n == 0 {
+		t.Errorf("want >0 context_transition rows with switches wired; got 0 (silent-2/3 bug)")
+	}
+}
+
+// TestProfileUpdate_NilSwitchSource_NoObservations pins the documented
+// degraded-mode behavior when no ctxmgr is wired (back-compat baseline).
+func TestProfileUpdate_NilSwitchSource_NoObservations(t *testing.T) {
+	dir := t.TempDir()
+	store, err := memory.NewStore(filepath.Join(dir, "memory.db"))
+	if err != nil {
+		t.Fatalf("memory: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	base := time.Now().UTC().Add(-8 * 24 * time.Hour)
+	var entries []audit.Entry
+	for i := 0; i < 60; i++ {
+		entries = append(entries, audit.Entry{
+			Timestamp: base.Add(time.Duration(i*3) * time.Hour).Format(time.RFC3339),
+			Kind:      "leah.ship",
+		})
+	}
+	path := writeAudit(t, dir, entries)
+
+	p := &Profile{Now: func() time.Time { return time.Now().UTC() }}
+	if err := p.Update(context.Background(), store, path, base.Add(-time.Hour)); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	var n int
+	if err := store.DB().QueryRow(
+		`SELECT COUNT(*) FROM operator_profile WHERE class='context_transition'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("want 0 context_transition rows when SwitchSource nil; got %d", n)
+	}
+	// time_of_day + cadence still populated — degraded mode, not broken.
+	var other int
+	if err := store.DB().QueryRow(
+		`SELECT COUNT(*) FROM operator_profile WHERE class IN ('time_of_day','cadence')`).Scan(&other); err != nil {
+		t.Fatalf("count other: %v", err)
+	}
+	if other == 0 {
+		t.Errorf("want >0 time_of_day+cadence rows; got 0")
 	}
 }

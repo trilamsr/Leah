@@ -276,6 +276,42 @@ func TestHistoryReturnsEmptyOnFreshDB(t *testing.T) {
 	}
 }
 
+// TestSinceReturnsAscendingFiltered asserts Since returns switches at-or-after
+// the cutoff in ascending order — the shape operatormodel.activeAt requires.
+func TestSinceReturnsAscendingFiltered(t *testing.T) {
+	m := openTestManager(t)
+	for _, n := range []string{"acme", "personal"} {
+		if err := m.NewContext(n, ""); err != nil {
+			t.Fatalf("new %s: %v", n, err)
+		}
+	}
+	base := time.Date(2026, 6, 9, 10, 0, 0, 0, time.UTC)
+	tick := 0
+	m.SetNow(func() time.Time {
+		tick++
+		return base.Add(time.Duration(tick) * time.Minute)
+	})
+	for _, target := range []string{"acme", "personal", "acme", "personal"} {
+		if err := m.Switch(target, "cli"); err != nil {
+			t.Fatalf("switch %s: %v", target, err)
+		}
+	}
+
+	got, err := m.Since(base.Add(2*time.Minute + 30*time.Second))
+	if err != nil {
+		t.Fatalf("since: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("want 2 switches at-or-after cutoff, got %d", len(got))
+	}
+	if !got[0].SwitchedAt.Before(got[1].SwitchedAt) {
+		t.Errorf("Since must return ascending: %v then %v", got[0].SwitchedAt, got[1].SwitchedAt)
+	}
+	if got[0].To != "acme" || got[1].To != "personal" {
+		t.Errorf("want acme then personal, got %s then %s", got[0].To, got[1].To)
+	}
+}
+
 func TestListReturnsAllContexts(t *testing.T) {
 	m := openTestManager(t)
 	for _, n := range []string{"zebra", "acme", "personal"} {
