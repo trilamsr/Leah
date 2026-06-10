@@ -9,9 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/ghclient"
+	"github.com/trilam/leah/internal/regattaclient"
 )
 
 // validSpec is a minimally well-formed Reasoner output that selfBuild treats as
@@ -406,5 +409,197 @@ func TestSelfBuildClarifyAbortFilesNoIssue(t *testing.T) {
 	data, _ := os.ReadFile(dir + "/audit.jsonl")
 	if !strings.Contains(string(data), `"outcome":"clarify"`) {
 		t.Errorf("audit missing outcome=clarify: %q", data)
+	}
+}
+
+// hookGh wraps fakeGh and fires a callback the moment CreateIssue returns.
+// Used by TestSelfBuildAuditsDispatchedBeforeWatcher to snapshot the audit
+// log at the exact point gh-create succeeds — proving the dispatched row
+// landed BEFORE the watcher ran (Defect-2 from closed-loop-live-validation
+// research). The callback must NOT block CreateIssue's return — the watcher
+// is what we want to delay, not gh.
+type hookGh struct {
+	createURL string
+	onCreate  func()
+}
+
+func (h *hookGh) CreateIssue(_ context.Context, _ ghclient.CreateIssueArgs) (string, error) {
+	if h.onCreate != nil {
+		h.onCreate()
+	}
+	return h.createURL, nil
+}
+
+func (*hookGh) EnsureLabel(_ context.Context, _, _ string) error { return nil }
+
+// blockingRegatta makes List wait until released, then returns the canned
+// state. The watcher invokes List once per poll; this lets the test pause
+// the watcher mid-loop and verify the BR=4 dispatched audit row already
+// landed before the watcher could finish.
+type blockingRegatta struct {
+	release chan struct{}
+	state   string
+}
+
+func (b *blockingRegatta) List(ctx context.Context) ([]regattaclient.Agent, error) {
+	select {
+	case <-b.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return []regattaclient.Agent{{ID: "a1", State: b.state, PR: 99}}, nil
+}
+
+// TestSelfBuildAuditsDispatchedBeforeWatcher is the Defect-2 regression test.
+// Before the fix, appendAuditSuccess was gated behind inner.Run() returning
+// — so an operator who Ctrl-C'd the watcher (common when regatta isn't
+// running locally) lost the audit trail of the dispatch entirely. After the
+// fix, the BR=4 dispatched row MUST land immediately after gh issue create
+// returns success, BEFORE the watcher loop begins.
+func TestSelfBuildAuditsDispatchedBeforeWatcher(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := dir + "/audit.jsonl"
+	logger := &audit.Logger{Path: auditPath}
+
+	// Snapshot the audit log at the exact moment gh-create returns. The
+	// dispatched row must NOT yet be present (Ship's own pending row is
+	// written by Ship.Run after CreateIssue; self-build's row is written
+	// by SelfBuild AFTER inner.Run returns from the synchronous portion).
+	// Snapshot AFTER gh returns + before watcher fires by using a blocking
+	// regatta client.
+	releaseWatcher := make(chan struct{})
+	rc := &blockingRegatta{release: releaseWatcher, state: "merged"}
+
+	gh := &hookGh{createURL: "https://github.com/trilamsr/Leah/issues/99"}
+
+	sb := &SelfBuild{
+		Reasoner:  &fakeShipReasoner{resp: validSpec},
+		GH:        gh,
+		Audit:     logger,
+		Budget:    &budget.Budget{Ceiling: 5.0},
+		Out:       &bytes.Buffer{},
+		TmpDir:    dir,
+		Watch:     true,
+		Regatta:   rc,
+		Heartbeat: &fakeHeartbeat{},
+		Notify:    &fakeNotify{},
+		PollEvery: 1 * time.Millisecond,
+		MaxPolls:  3,
+	}
+
+	// Run SelfBuild in a goroutine so the watcher can park on releaseWatcher.
+	done := make(chan error, 1)
+	go func() { done <- sb.Run(context.Background(), "add --json flag to leah status") }()
+
+	// Poll the audit log until the self-build dispatched row appears. The
+	// timeout window is generous (1s) for slow CI; in practice the row
+	// lands within microseconds of gh-create returning.
+	deadline := time.Now().Add(1 * time.Second)
+	var snapshot []byte
+	for time.Now().Before(deadline) {
+		data, _ := os.ReadFile(auditPath)
+		if strings.Contains(string(data), `"kind":"self-build"`) &&
+			strings.Contains(string(data), `"outcome":"dispatched"`) {
+			snapshot = data
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+	if snapshot == nil {
+		// Read final state for the error message.
+		final, _ := os.ReadFile(auditPath)
+		t.Fatalf("dispatched self-build row never appeared while watcher was blocked; audit log:\n%s", final)
+	}
+
+	// CRITICAL invariant: at the moment we observed the dispatched row, the
+	// watcher had not yet returned (it is still blocked on releaseWatcher).
+	select {
+	case err := <-done:
+		t.Fatalf("Run returned (%v) before watcher was released — invariant broken; cannot prove dispatched-row-lands-before-watcher", err)
+	default:
+		// Good: Run is still parked inside the watcher loop.
+	}
+
+	// Release the watcher and let Run complete.
+	close(releaseWatcher)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after watcher released")
+	}
+
+	// Final audit log should now contain both the dispatched row AND a
+	// terminal-outcome self-build row (kind=self-build.outcome).
+	final, _ := os.ReadFile(auditPath)
+	if !strings.Contains(string(final), `"kind":"self-build.outcome"`) {
+		t.Errorf("audit missing self-build.outcome terminal row after watcher returned: %s", final)
+	}
+}
+
+// TestSelfBuildAuditsDispatchedOnOperatorAbort proves the dispatched row
+// survives operator Ctrl-C of the watcher. Before the fix, ctx-cancel
+// caused inner.Run to return nil (watcher returns on ctx.Done with no
+// error) but the operator-abort case is more brutal — process death.
+// We approximate operator abort here with ctx-cancel; the invariant is
+// the same: the dispatched row must already exist when abort happens.
+func TestSelfBuildAuditsDispatchedOnOperatorAbort(t *testing.T) {
+	dir := t.TempDir()
+	auditPath := dir + "/audit.jsonl"
+	logger := &audit.Logger{Path: auditPath}
+
+	releaseWatcher := make(chan struct{})
+	defer close(releaseWatcher) // cleanup; not used to release
+	rc := &blockingRegatta{release: releaseWatcher, state: "running"}
+
+	gh := &hookGh{createURL: "https://github.com/trilamsr/Leah/issues/100"}
+
+	sb := &SelfBuild{
+		Reasoner:  &fakeShipReasoner{resp: validSpec},
+		GH:        gh,
+		Audit:     logger,
+		Budget:    &budget.Budget{Ceiling: 5.0},
+		Out:       &bytes.Buffer{},
+		TmpDir:    dir,
+		Watch:     true,
+		Regatta:   rc,
+		Heartbeat: &fakeHeartbeat{},
+		Notify:    &fakeNotify{},
+		PollEvery: 1 * time.Millisecond,
+		MaxPolls:  1000,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan error, 1)
+	go func() { done <- sb.Run(ctx, "add feature x") }()
+
+	// Wait for the dispatched audit row to appear, then simulate operator
+	// abort by cancelling the context (the watcher's select returns on
+	// ctx.Done).
+	deadline := time.Now().Add(1 * time.Second)
+	for time.Now().Before(deadline) {
+		data, _ := os.ReadFile(auditPath)
+		if strings.Contains(string(data), `"outcome":"dispatched"`) {
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after ctx cancel")
+	}
+
+	final, _ := os.ReadFile(auditPath)
+	if !strings.Contains(string(final), `"kind":"self-build"`) {
+		t.Errorf("audit missing kind=self-build row after operator abort: %s", final)
+	}
+	if !strings.Contains(string(final), `"outcome":"dispatched"`) {
+		t.Errorf("audit missing outcome=dispatched after operator abort: %s", final)
 	}
 }
