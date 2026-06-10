@@ -52,19 +52,14 @@ func (s *Server) Start(ctx context.Context) error {
 	if err := enforceLoopback(s.Addr); err != nil {
 		return err
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/state", s.handleState)
-	mux.HandleFunc("/dashboard", s.handleDashboard)
-	mux.HandleFunc("/", s.handleRoot)
-	sub, err := fs.Sub(staticFS, "static")
+	m, err := s.buildMux()
 	if err != nil {
-		return fmt.Errorf("static sub: %w", err)
+		return err
 	}
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(sub))))
 
 	srv := &http.Server{
 		Addr:              s.Addr,
-		Handler:           mux,
+		Handler:           m,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errCh := make(chan error, 1)
@@ -108,23 +103,34 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleDashboard(w http.ResponseWriter, _ *http.Request) {
-	b, err := staticFS.ReadFile("static/dashboard.html")
+// buildMux wires every route once so both Start (production) and tests
+// (mux() helper) exercise the same handler graph — eliminates the prior
+// drift where Start used the FileServer for /static/* but the dashboard
+// test bypassed the mux entirely and re-implemented the embed read.
+func (s *Server) buildMux() (*http.ServeMux, error) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/state", s.handleState)
+	// /dashboard is a permanent redirect to the embed-FS path so the file
+	// server is the single serving path (kills handleDashboard's
+	// per-request ReadFile of the same bytes — wave2-5 retro M1, #4).
+	mux.Handle("/dashboard", http.RedirectHandler("/static/dashboard.html", http.StatusMovedPermanently))
+	mux.HandleFunc("/", s.handleRoot)
+	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("static sub: %w", err)
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(b)
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(sub))))
+	return mux, nil
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
-		http.Redirect(w, r, "/dashboard", http.StatusFound)
+		http.Redirect(w, r, "/static/dashboard.html", http.StatusFound)
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/static/") {
-		// Handled by file server.
+		// Handled by file server; this branch only fires when the mux
+		// routes a request here, which the /static/ handler prevents.
 		return
 	}
 	http.NotFound(w, r)

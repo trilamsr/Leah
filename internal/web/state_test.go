@@ -238,12 +238,40 @@ func TestSnapshotConcurrentReadsNoRace(t *testing.T) {
 	wg.Wait()
 }
 
-// TestDashboardServesHTML asserts /dashboard returns the embedded HTML page.
-func TestDashboardServesHTML(t *testing.T) {
-	s := newTestServer(t)
+// mux returns the wired-up handler graph for httptest assertions, panicking
+// on the embed-fs error path (which is impossible at runtime — the embed
+// directive is checked at compile time).
+func (s *Server) mux() http.Handler {
+	m, err := s.buildMux()
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+// TestDashboardRedirectsToStatic asserts /dashboard 301-redirects to
+// /static/dashboard.html so the embed FS file server is the sole serving
+// path (dedup: handleDashboard's per-request ReadFile is gone).
+func TestDashboardRedirectsToStatic(t *testing.T) {
+	mux := newTestServer(t).mux()
 	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
 	rec := httptest.NewRecorder()
-	s.handleDashboard(rec, req)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("status: got %d, want 301", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/static/dashboard.html" {
+		t.Errorf("Location: got %q, want /static/dashboard.html", loc)
+	}
+}
+
+// TestStaticDashboardServesHTML asserts /static/dashboard.html serves the
+// embedded page directly via the file server (post-dedup destination).
+func TestStaticDashboardServesHTML(t *testing.T) {
+	mux := newTestServer(t).mux()
+	req := httptest.NewRequest(http.MethodGet, "/static/dashboard.html", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d", rec.Code)
 	}
