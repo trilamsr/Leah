@@ -31,17 +31,30 @@ type AnthropicClient struct {
 // NewAnthropicClient builds an AnthropicClient, returning an error when
 // ANTHROPIC_API_KEY is unset — fail-fast in main beats a runtime 401.
 func NewAnthropicClient() (*AnthropicClient, error) {
+	return NewAnthropicClientWithModel("")
+}
+
+// NewAnthropicClientWithModel pins a specific model — used by the
+// degraded leg of the Router (Haiku) so the warn-state swap doesn't
+// require a second env knob.
+func NewAnthropicClientWithModel(model string) (*AnthropicClient, error) {
 	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
 		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set")
 	}
 	c := anthropic.NewClient(option.WithAPIKey(key))
-	model := defaultModel
-	if v := os.Getenv("LEAH_MODEL"); v != "" {
-		model = v
+	if model == "" {
+		model = defaultModel
+		if v := os.Getenv("LEAH_MODEL"); v != "" {
+			model = v
+		}
 	}
 	return &AnthropicClient{sdk: c, model: model}, nil
 }
+
+// Model returns the model string this client targets. Exposed so the
+// Router can populate `leah_cost_breaker_degrade_total{from_model,to_model}`.
+func (c *AnthropicClient) Model() string { return c.model }
 
 // Complete sends one system + user message pair and returns the joined text
 // blocks plus the LLM-dim payload (cost, tokens, model, cache-hit, egress
@@ -128,7 +141,7 @@ func (c *AnthropicClient) Stream(ctx context.Context, system, user string) (<-ch
 		// Close the SSE response body explicitly on every exit path —
 		// http.Transport observes ctx-cancel, but the contract-correct
 		// release is Stream.Close → res.Body.Close.
-		defer stream.Close()
+		defer func() { _ = stream.Close() }()
 		defer close(out)
 		var inTok, outTok int
 		for stream.Next() {

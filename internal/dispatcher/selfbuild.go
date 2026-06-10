@@ -335,7 +335,7 @@ func (s *SelfBuild) pickAttestationQuestion() (string, error) {
 	if s.AttestationQuestionsPath == "" {
 		return "", nil
 	}
-	pool, err := attestation.Load(s.AttestationQuestionsPath, attestation.ScopeSelfBuild)
+	pool, err := attestation.Load(s.AttestationQuestionsPath, attestation.ScopeSelfBuild, attestation.CostOverrideScope)
 	if err != nil {
 		return "", err
 	}

@@ -11,10 +11,13 @@ const (
 	// Distinct from ScopeSelfBuild so habituation on one cannot satisfy the
 	// other and audit rows stay separable (spec §2.3).
 	ScopeSelfBuildA2A = "self-build-a2a"
+
+	// CostOverrideScope guards the `leah cost override` flow (llm-ops spec §7.3).
+	CostOverrideScope = "cost_override"
 )
 
 // AllScopes lists every registered attestation scope. Wire one Pool with this
 // slice and every authorised callsite picks from the same questions file.
 func AllScopes() []string {
-	return []string{ScopeSelfBuild, ScopeSelfBuildA2A}
+	return []string{ScopeSelfBuild, ScopeSelfBuildA2A, CostOverrideScope}
 }
