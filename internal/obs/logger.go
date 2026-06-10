@@ -115,10 +115,7 @@ type multiWriter struct {
 }
 
 func (m *multiWriter) Write(p []byte) (int, error) {
-	now := time.Now().UTC()
-	if w, err := m.rotator.writerFor(now); err == nil {
-		_, _ = w.Write(p)
-	}
+	_, _ = m.rotator.write(time.Now().UTC(), p)
 	if m.extra != nil {
 		_, _ = m.extra.Write(p)
 	}
@@ -126,8 +123,8 @@ func (m *multiWriter) Write(p []byte) (int, error) {
 }
 
 // dailyRotator opens one file per UTC date under dir and atomically swaps
-// + closes the prior handle on date change. Concurrent writers serialize
-// on mu; once swapped, the writerFor caller writes lock-free.
+// + closes the prior handle on date change. The write path holds mu across
+// the file.Write so rotate-close cannot race the handle out from under it.
 type dailyRotator struct {
 	dir string
 
@@ -140,14 +137,31 @@ func newDailyRotator(dir string) *dailyRotator {
 	return &dailyRotator{dir: dir}
 }
 
-// writerFor returns the file handle for the given timestamp's UTC date.
-// On date change the prior handle is closed BEFORE the new one is
-// returned — preventing the cross-midnight handle leak called out in
-// spec §9 HIGH.
-func (r *dailyRotator) writerFor(t time.Time) (io.Writer, error) {
-	date := t.Format("2006-01-02")
+// write appends p to the file for t's UTC date, rotating if needed, all
+// under mu so a concurrent close() cannot reach the handle mid-write.
+func (r *dailyRotator) write(t time.Time, p []byte) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	f, err := r.fileForLocked(t)
+	if err != nil {
+		return 0, err
+	}
+	return f.Write(p)
+}
+
+// writerFor returns the file handle for the given timestamp's UTC date.
+// Retained for tests that observe rotation directly; production writes go
+// through write() to keep the handle live across the actual Write call.
+func (r *dailyRotator) writerFor(t time.Time) (io.Writer, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.fileForLocked(t)
+}
+
+// fileForLocked must be called with r.mu held. On date change the prior
+// handle is closed BEFORE the new one is returned (spec §9 HIGH).
+func (r *dailyRotator) fileForLocked(t time.Time) (*os.File, error) {
+	date := t.Format("2006-01-02")
 	if r.curFile != nil && r.curDate == date {
 		return r.curFile, nil
 	}
