@@ -56,6 +56,8 @@ func (a *Adapter) TrafficETA(ctx context.Context, route Route, departAt time.Tim
 	q.Set("departure_time", strconv.FormatInt(departAt.Unix(), 10))
 	q.Set("traffic_model", "best_guess")
 	q.Set("key", a.apiKey)
+	start := time.Now()
+	defer func() { a.m.ObserveAPI("traffic_eta", time.Since(start).Seconds()) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/directions/json?"+q.Encode(), nil)
 	if err != nil {
 		return ETA{}, fmt.Errorf("maps: build traffic request: %w", err)

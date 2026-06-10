@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // cachedPlaces is the on-disk envelope for Geocode/ReverseGeocode results.
@@ -43,7 +44,9 @@ func (a *Adapter) Geocode(ctx context.Context, address string) ([]Place, error) 
 	q := url.Values{}
 	q.Set("address", address)
 	q.Set("key", a.apiKey)
+	start := time.Now()
 	out, err := a.doGeocode(ctx, q)
+	a.m.ObserveAPI("geocode", time.Since(start).Seconds())
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +66,9 @@ func (a *Adapter) ReverseGeocode(ctx context.Context, lat, lng float64) ([]Place
 	q := url.Values{}
 	q.Set("latlng", strconv.FormatFloat(lat, 'f', -1, 64)+","+strconv.FormatFloat(lng, 'f', -1, 64))
 	q.Set("key", a.apiKey)
+	start := time.Now()
 	out, err := a.doGeocode(ctx, q)
+	a.m.ObserveAPI("reverse_geocode", time.Since(start).Seconds())
 	if err != nil {
 		return nil, err
 	}
