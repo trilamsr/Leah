@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -42,6 +43,14 @@ type Logger struct {
 	// OnAppend fires once per Append with the error result (nil on success).
 	// Wired by cmd/leah-daemon to feed obs counters. nil-safe.
 	OnAppend func(error)
+	// OnSubscriberDrop fires when a subscriber's bounded channel overflows
+	// and an entry is dropped to make room for the newer one. Wired to the
+	// leah_audit_subscriber_dropped_total{subscriber} counter. nil-safe.
+	OnSubscriberDrop func(subscriber string, n int64)
+
+	subsMu sync.Mutex
+	subs   []*subscription
+	subSeq uint64
 }
 
 // Append writes e as a single JSON line, stamping Timestamp from Now (or
@@ -73,5 +82,6 @@ func (l *Logger) Append(e Entry) (retErr error) {
 	if _, err := f.Write(append(buf, '\n')); err != nil {
 		return fmt.Errorf("write entry: %w", err)
 	}
+	l.fanout(e)
 	return nil
 }
