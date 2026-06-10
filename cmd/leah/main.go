@@ -353,7 +353,8 @@ func runReview(ctx context.Context, repo string, prNum int) int {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 1
 	}
-	r := &reviewer.Reviewer{Subagent: sub, Budget: b, SystemPrompt: string(sysPrompt), TokenSink: os.Stdout}
+	sink := newFlushingSink(os.Stdout)
+	r := &reviewer.Reviewer{Subagent: sub, Budget: b, SystemPrompt: string(sysPrompt), TokenSink: sink}
 
 	gh := ghclient.New()
 	pr, err := gh.ViewPR(ctx, repo, prNum,
@@ -378,8 +379,12 @@ func runReview(ctx context.Context, repo string, prNum int) int {
 		return 1
 	}
 
-	// Body already streamed to stdout via TokenSink; just the summary line.
-	_, _ = fmt.Println()
+	// Body already streamed to stdout via TokenSink. Add a single newline
+	// separator only when the stream didn't already end with one — avoids
+	// the double blank-line gap before the Verdict: footer.
+	if !sink.EndedInNewline() {
+		_, _ = fmt.Println()
+	}
 	_, _ = fmt.Println("Verdict:", v.Recommendation, " Agent-id:", v.AgentID)
 
 	_ = a.Append(audit.Entry{

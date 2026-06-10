@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 )
 
 // Anthropic sonnet-4 pricing. Cache writes cost 1.25x base input, cache reads
@@ -63,14 +64,49 @@ func (a *AnthropicSubagent) Run(ctx context.Context, system, input string, sink 
 		},
 	}
 
-	stream := a.sdk.Messages.NewStreaming(ctx, params)
+	text, msg, err := processStream(a.sdk.Messages.NewStreaming(ctx, params), sink)
+	if err != nil {
+		return "", 0, fmt.Errorf("anthropic subagent: %w", err)
+	}
+
+	cost := float64(msg.Usage.InputTokens)*inputCostPerToken +
+		float64(msg.Usage.OutputTokens)*outputCostPerToken +
+		float64(msg.Usage.CacheCreationInputTokens)*cacheWriteCostPerToken +
+		float64(msg.Usage.CacheReadInputTokens)*cacheReadCostPerToken
+	return text, cost, nil
+}
+
+// streamIter is the minimal slice of *ssestream.Stream[MessageStreamEventUnion]
+// processStream needs — extracted so tests can drive the event loop without an
+// HTTP server. Close MUST be called regardless of how iteration ends; see
+// finding #1 on PR #231.
+type streamIter interface {
+	Next() bool
+	Current() anthropic.MessageStreamEventUnion
+	Err() error
+	Close() error
+}
+
+// Compile-time check: *ssestream.Stream satisfies streamIter.
+var _ streamIter = (*ssestream.Stream[anthropic.MessageStreamEventUnion])(nil)
+
+// processStream walks events, writes text deltas to sink, accumulates Usage
+// per-field via Message.Accumulate (preserves cache fields when MessageDelta
+// omits them), and always closes the underlying stream. Returns the joined
+// text + accumulated Message. Reviewer expects text deltas only; thinking-
+// enabled models would emit ThinkingDelta events that this loop ignores —
+// guard via LEAH_REVIEWER_MODEL.
+func processStream(stream streamIter, sink io.Writer) (string, anthropic.Message, error) {
+	defer stream.Close()
 	var buf strings.Builder
-	var usage anthropic.MessageDeltaUsage
+	var msg anthropic.Message
 	for stream.Next() {
 		ev := stream.Current()
-		switch v := ev.AsAny().(type) {
-		case anthropic.ContentBlockDeltaEvent:
-			td := v.Delta.AsTextDelta()
+		if err := msg.Accumulate(ev); err != nil {
+			return "", msg, err
+		}
+		if cb, ok := ev.AsAny().(anthropic.ContentBlockDeltaEvent); ok {
+			td := cb.Delta.AsTextDelta()
 			if td.Text == "" {
 				continue
 			}
@@ -78,24 +114,10 @@ func (a *AnthropicSubagent) Run(ctx context.Context, system, input string, sink 
 			if sink != nil {
 				_, _ = sink.Write([]byte(td.Text))
 			}
-		case anthropic.MessageDeltaEvent:
-			usage = v.Usage
-		case anthropic.MessageStartEvent:
-			// MessageStart carries the initial input-token count + cache
-			// fields; MessageDelta overwrites OutputTokens cumulatively.
-			usage.InputTokens = v.Message.Usage.InputTokens
-			usage.CacheCreationInputTokens = v.Message.Usage.CacheCreationInputTokens
-			usage.CacheReadInputTokens = v.Message.Usage.CacheReadInputTokens
-			usage.OutputTokens = v.Message.Usage.OutputTokens
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return "", 0, fmt.Errorf("anthropic subagent: %w", err)
+		return "", msg, err
 	}
-
-	cost := float64(usage.InputTokens)*inputCostPerToken +
-		float64(usage.OutputTokens)*outputCostPerToken +
-		float64(usage.CacheCreationInputTokens)*cacheWriteCostPerToken +
-		float64(usage.CacheReadInputTokens)*cacheReadCostPerToken
-	return buf.String(), cost, nil
+	return buf.String(), msg, nil
 }
