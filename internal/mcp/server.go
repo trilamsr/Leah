@@ -27,14 +27,17 @@ var (
 type ToolFunc func(body []byte) (any, int, error)
 
 type Server struct {
-	Addr              string
-	AuditPath         string
-	AuditLogger       *audit.Logger
-	Tools             map[string]ToolFunc
-	Now               func() time.Time
-	RatePerMin        int // 0 → defaultRatePerMin
-	GlobalPendingCap  int // 0 → defaultGlobalPending
-	PerPeerPendingCap int // 0 → defaultPerPeerPending
+	Addr             string
+	AuditPath        string
+	AuditLogger      *audit.Logger
+	Tools            map[string]ToolFunc
+	Now              func() time.Time
+	RatePerMin       int // 0 → defaultRatePerMin
+	GlobalPendingCap int // 0 → defaultGlobalPending
+
+	// A2A (W139) — agent-card + SelfBuild task endpoint. nil-safe: routes
+	// only register when set.
+	A2A *A2AHandler
 
 	tokenMu sync.RWMutex
 	token   string
@@ -44,14 +47,12 @@ type Server struct {
 
 	pendingMu sync.Mutex
 	pendingG  int
-	pendingP  map[string]int
 }
 
 const (
-	defaultRatePerMin     = 60
-	defaultGlobalPending  = 5
-	defaultPerPeerPending = 2
-	envKillSwitch         = "LEAH_MCP_SERVER"
+	defaultRatePerMin    = 60
+	defaultGlobalPending = 5
+	envKillSwitch        = "LEAH_MCP_SERVER"
 )
 
 func NewServer(addr, token, auditPath string, logger *audit.Logger) *Server {
@@ -106,6 +107,10 @@ func (s *Server) Serve(ctx context.Context) error {
 	mux := http.NewServeMux()
 	for name, fn := range s.Tools {
 		mux.HandleFunc("/tools/"+name, s.handle(name, fn))
+	}
+	if s.A2A != nil {
+		mux.HandleFunc(AgentCardWellKnownPath, s.A2A.serveAgentCard(s.Addr))
+		mux.HandleFunc("/a2a/tasks", s.handleA2ATask)
 	}
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { <-ctx.Done(); _ = srv.Close() }()
@@ -209,30 +214,20 @@ func (s *Server) allowRate(peer string) bool {
 	return true
 }
 
-// EnqueuePending reserves a write-tool slot (W139). capScope ∈ {global,peer}
-// when ok=false — kind-specific audit emission stays with the caller.
+// EnqueuePending reserves a write-tool slot (W139). capScope="global" when
+// ok=false. The per-peer cap was dropped: per-peer attestation rate-limit
+// (1/min) already prevents a single peer from holding >1 in-flight slot.
 func (s *Server) EnqueuePending(peer string) (release func(), ok bool, capScope string) {
 	gCap := s.GlobalPendingCap
 	if gCap == 0 {
 		gCap = defaultGlobalPending
 	}
-	pCap := s.PerPeerPendingCap
-	if pCap == 0 {
-		pCap = defaultPerPeerPending
-	}
 	s.pendingMu.Lock()
 	defer s.pendingMu.Unlock()
-	if s.pendingP == nil {
-		s.pendingP = map[string]int{}
-	}
 	if s.pendingG >= gCap {
 		return nil, false, "global"
 	}
-	if s.pendingP[peer] >= pCap {
-		return nil, false, "peer"
-	}
 	s.pendingG++
-	s.pendingP[peer]++
 	released := false
 	return func() {
 		s.pendingMu.Lock()
@@ -242,7 +237,6 @@ func (s *Server) EnqueuePending(peer string) (release func(), ok bool, capScope 
 		}
 		released = true
 		s.pendingG--
-		s.pendingP[peer]--
 	}, true, ""
 }
 

@@ -266,11 +266,13 @@ Key reuses (zero net-new business logic):
 - `audit.Logger.Append` — write `mcp_call` row at every entry/exit.
 
 Failure semantics:
-- Reasoner clarify → A2A `task.status = "clarify-required"`, body =
-  clarify text. No PR filed (matches CLI behavior, `ErrSelfBuildClarify`).
-- Reasoner error / budget exceeded → `task.status = "failed"`,
-  `mcp_call` audit row with `outcome=failed`.
-- Operator-deny → `task.status = "denied"`, `outcome=denied`.
+- Reasoner clarify → 403 + `{"status":"clarify_required","body":<clarify text>}`.
+  No PR filed (matches CLI behavior, `ErrSelfBuildClarify`).
+- Reasoner error / budget exceeded → 500 + `mcp_call` audit row, `outcome=failed`.
+- Operator-deny → 403 + `mcp_attestation_denied` audit row, `outcome=denied`.
+
+v1 carries the terminal verdict on the synchronous HTTP response — the A2A 1.0
+task-result callback (§6.3) is deferred to W140.5+ alongside HUD popup-confirm.
 
 ## 6. Audit row schema
 
