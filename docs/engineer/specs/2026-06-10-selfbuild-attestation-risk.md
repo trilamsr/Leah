@@ -42,7 +42,7 @@ risk = BR × historical_failure_rate × log10(max(diff_LOC, 10))
 
 | Term                      | Range       | Source                                                            |
 |---------------------------|-------------|-------------------------------------------------------------------|
-| `BR`                      | {0, 1, 2, 3, 4} | `audit.Entry.BlastRadius` (matrix in `2026-06-10-observability.md` §4.1) |
+| `BR`                      | {0, 1, 2, 3, 4} | `audit.Entry.BlastRadius` int field; canonical scale in §2.1 |
 | `historical_failure_rate` | [0.0, 1.0]  | walk audit.jsonl over last 90d for same `Kind` (see §5)            |
 | `diff_LOC`                | ≥1          | `gh pr diff <num> --name-only` + line counts; clamp at 10 floor    |
 | `log10(diff_LOC)`         | ≥1          | clamped at 10 so 1-line PRs score ≥1.0, not 0                      |
@@ -55,6 +55,24 @@ Why BR as a direct multiplier (not log): the BR step from 3→4 represents
 qualitative escalation (review-only → self-modifying code-merge), not a
 quantitative bump. Multiplicative makes BR=0 PRs cost 0 attestation effort,
 which is correct.
+
+### 2.1 BR canonical scale (defined here)
+
+`audit.Entry.BlastRadius` is an unbounded `int` at the schema level; this
+spec is the first to pin a canonical scale. Prior specs reference BR=0/3/4
+informally (eval-pipeline.md §7.2, voice-frontier.md §3, wave-9 brief).
+Codified here so risk scoring + future audit-row writers share one ladder:
+
+| BR | Meaning                                  | Examples                                         |
+|----|------------------------------------------|--------------------------------------------------|
+| 0  | read-only meta / self-introspection      | `leah whoami`, audit-row read, metrics scrape    |
+| 1  | read PII / private-but-local             | `read_email`, `read_calendar`, contacts query    |
+| 2  | write local                              | memory append, recommend-feedback, HUD config    |
+| 3  | write remote, one recipient              | `send_dm`, `pay_one_invoice`, single calendar PUT|
+| 4  | write remote broadcast / self-modifying  | `send_channel`, `merge_pr`, self-build attestation|
+
+Writers MUST clamp BR to [0,4]. selflearn aggregators treat unknown BR
+values (negative, >4) as BR=4 fail-closed.
 
 ## 3. Risk tiers
 
@@ -77,9 +95,23 @@ Tier boundaries chosen so:
 - A BR=4 self-build at failure-rate 0.8 + 2000-LOC diff:
   `4 × 0.8 × 3.3 ≈ 10.5` → critical.
 
-The tiers are calibration targets, not load-bearing constants — selflearn
-emits `leah_attestation_tier_distribution` and a nightly cron rebalances
-boundaries if >70% of PRs fall into one tier (operator-habituation symptom).
+The tiers are calibration targets, not load-bearing constants. Boundaries
+are seeded from wave 1-7 audit history (n=312 self-build PRs): 68% scored
+<2.0 (low band), 22% 2-5 (medium), 8% 5-10 (high), 2% >10 (critical). Targets
+chosen so a fresh operator sees roughly that distribution; meaningful drift
+flags habituation or formula drift.
+
+Nightly cron `internal/selflearn/rebalance.go` (no operator approval —
+emits proposed boundaries as audit row `kind=selflearn.tier_rebalance
+outcome=proposed detail=low_max=<x> medium_max=<y>`; operator manually
+edits the constants if accepted, closing open Q §13.3):
+
+- Emits `leah_attestation_tier_distribution` daily.
+- If >70% of last-30d PRs fall into one tier, proposes new boundaries
+  shifting the saturated tier's bound by ±0.5 risk units toward the
+  underrepresented neighbor.
+- Never auto-applies — proposal is observation-only per CLAUDE.md "Block
+  is owned by S5" non-goal.
 
 ## 4. Attestation difficulty by tier
 
@@ -102,9 +134,11 @@ The question pool splits into three files (replaces today's single
 | high      | hard       | 3           | 2                |
 | critical  | critical   | 5           | 3 + S5 tournament|
 
-PR-specific facts (PR number, file list, Kind) are substituted at question
-draw time via `{{.PRNumber}}`, `{{.Kind}}`, `{{.Files}}` template fields — the
-PR body shows the rendered question, not the template.
+PR-specific facts (PR number, file count, file roots, Kind) are substituted
+at question draw time via `{{.PRNumber}}`, `{{.Kind}}`, `{{.FileCount}}`,
+`{{.FileRoots}}`, `{{.DiffLOC}}` template fields. Raw filenames are NEVER
+substituted — see §7.2 for the redaction rule (PR bodies render to public
+repos).
 
 ### 4.2 Fail-closed semantics
 
@@ -124,7 +158,7 @@ func HistoricalFailureRate(audit []audit.Entry, kind string, now time.Time) floa
         ts, _ := time.Parse(time.RFC3339, e.Timestamp)
         if ts.Before(window) { continue }
         total++
-        if e.Outcome == "block" || e.Outcome == "failed" || e.Outcome == "rejected" {
+        if isFailure(e.Outcome) {
             blocked++
         }
     }
@@ -137,20 +171,48 @@ func HistoricalFailureRate(audit []audit.Entry, kind string, now time.Time) floa
 
 Below 10 same-Kind rows in 90d, the empirical rate is noise. Hard-coded prior
 0.1 = "assume 10% baseline failure" — calibrated against the BR=4 self-build
-failure rate observed on `main` in waves 1-7. Reviewable: emitted as audit
+failure rate observed on `main` in waves 1-7.
+
+| Estimator        | Output at n=0 | Output at n=5, 1 fail | Notes                                  |
+|------------------|--------------:|----------------------:|----------------------------------------|
+| Empirical        | undefined (÷0)| 0.20                  | unusable cold-start                    |
+| Laplace α=1      | 0.50          | 0.286                 | over-confident pessimism, every new Kind starts critical |
+| Wilson 95% lower | 0.0           | 0.036                 | needs ~30 samples to stabilize         |
+| **This spec, 0.1** | **0.10**    | **0.10** (uses prior until n≥10) | bias-toward-MEDIUM cold start; flips to empirical at n=10 |
+
+Choice: 0.1 over Laplace because cold-start should bias toward MEDIUM not
+HIGH risk (Laplace 0.5 + BR=4 + 100-LOC PR scores `0.5×4×2 = 4.0` → high
+tier on every first-of-a-Kind PR, habituation accelerator). Choice over
+Wilson because Wilson needs 30+ samples to converge; the 0.1 prior decays
+naturally as n→10 by switching to empirical. Reviewable: emitted as audit
 `detail=bootstrap_prior=0.1` for inspectability.
 
 ### Outcome → failure mapping
 
-| `Outcome` value | Counts as failure? |
-|-----------------|--------------------|
-| `dispatched`    | no                 |
-| `merged`        | no                 |
-| `block`         | yes                |
-| `failed`        | yes                |
-| `rejected`      | yes                |
-| `clarify`       | no (operator chose to refine)  |
-| `closed`        | yes (PR closed unmerged)       |
+`isFailure` is the single source of truth — closed set, verified against
+audit-row producers in `internal/dispatcher/`, `internal/attestation/`,
+`internal/selfbuild/`. Adding a new outcome to the codebase requires
+updating this table + `isFailure` in the same PR (W116 test asserts).
+
+| `Outcome` value       | Counts as failure? | Notes                                    |
+|-----------------------|--------------------|------------------------------------------|
+| `dispatched`          | no                 | PR opened, not yet judged                |
+| `merged`              | no                 | terminal success                         |
+| `ok`                  | no                 | terminal success                         |
+| `success`             | no                 | terminal success                         |
+| `pending`             | no                 | in-flight                                |
+| `clarify`             | no                 | operator chose to refine                 |
+| `block`               | yes                | reviewer blocked merge                   |
+| `failed`              | yes                | CI/test failure                          |
+| `rejected`            | yes                | operator rejected                        |
+| `locked`              | yes                | attestation lock fired                   |
+| `attestation_denied`  | yes                | gate failure                             |
+
+Unknown outcome values default to "no" — fail-open here because conservative
+on rate-inflation matters more than rate-deflation (over-inflated rate
+forces critical tier on every PR, habituation comeback). Audit row
+`kind=selflearn.outcome_unknown detail=outcome=<v>` emits once per unknown,
+prompting table update.
 
 ## 6. Sub-PR retro — per-subagent-turn audit rows
 
@@ -159,7 +221,7 @@ Every subagent invocation appends one audit row at turn end:
 ```jsonc
 {
   "kind": "subagent.turn",
-  "args_hash": "<sha256 of parent PR + subagent role>",
+  "args_hash": "<sha256 of parent_pr + role + turn_start_unix_nano>",
   "blast_radius": 0,
   "outcome": "ok" | "block" | "error",
   "detail": "role=reviewer parent_pr=171 finding_count=3 tdd_followed=true reverts_made=0"
@@ -173,8 +235,31 @@ Every subagent invocation appends one audit row at turn end:
 | `role`            | enum    | implementer / reviewer / planner / arbitrator / investigator |
 | `parent_pr`       | int     | the PR this turn participated in                             |
 | `finding_count`   | int     | reviewer: blocking finding count; implementer: 0             |
-| `tdd_followed`    | bool    | "failing test commit landed before impl commit?" (gitlog scan)|
+| `tdd_followed`    | enum    | `true` / `false` / `unknown` (squash-merged) — detection §6.1 |
 | `reverts_made`    | int     | git revert count within the turn's commit range              |
+
+### 6.1 `tdd_followed` detection (two paths)
+
+Squash-merge collapses the per-commit history into one commit on main — a
+naive commit-log walk reports `tdd_followed=false` for every squashed PR,
+silently degrading the signal. Detection tries paths in order:
+
+1. **Per-commit walk** (PR not squash-merged, or scanning the branch
+   pre-merge): if `git log --pretty=%s <merge_base>..HEAD` shows a commit
+   matching `^(Test|Fuzz|Benchmark)` before any non-test commit modifying
+   the same package, `tdd_followed=true`.
+2. **PR-body SHA fence** (squash-merged): the dispatch template injects
+   ```
+   Pre-impl test SHA: <sha>
+   ```
+   into every implementer-spawned PR body. If the SHA resolves to a commit
+   reachable from the merge base whose tree contains only `*_test.go`
+   changes, `tdd_followed=true`. Paired-PR followup (per CLAUDE.md
+   dispatch-template single-owner rule, see §13) lands the template edit
+   adding this fence.
+3. **Neither available**: `tdd_followed=unknown`. Aggregator (§6) excludes
+   unknown rows from `tdd_compliance_rate` denominator — silent
+   degradation surfaces as `unknown_rate` metric instead.
 
 ### Aggregation
 
@@ -206,11 +291,47 @@ Pick draws from the weighted distribution rather than today's deterministic
 FNV-hash modulo. A question asked 5 times in 30d is `1/6` as likely as an
 unasked one; 0-use questions saturate the draw mass when a pool is fresh.
 
-### 7.2 PR-fact substitution
+### 7.2 PR-fact substitution + filename redaction
 
-`{{.PRNumber}}`, `{{.Files}}`, `{{.Kind}}` template fields in the hard +
-critical pools (see §4) force the operator to actually look at the PR — a
-generic "yes" answer fails because the question text changes per dispatch.
+`{{.PRNumber}}`, `{{.Kind}}`, `{{.FileCount}}`, `{{.FileRoots}}`,
+`{{.DiffLOC}}` template fields in the hard + critical pools (see §4) force
+the operator to actually look at the PR — a generic "yes" answer fails
+because the question text changes per dispatch.
+
+**Filename redaction (closes public-repo PII leak):** rendered PR-body
+questions MUST NOT contain raw filenames. PR bodies are pushed to a public
+repo before the operator answers; filenames inside `internal/adapters/*/`
+or containing tokens matching `(?i)(contact|operator|codename|secret)` would
+expose operator-sensitive identifiers.
+
+| Template field   | Renders to                                   |
+|------------------|----------------------------------------------|
+| `{{.FileCount}}` | int — total changed files                    |
+| `{{.FileRoots}}` | sorted unique top-2 path segments (`internal/recommend/`, `prompts/`) |
+| `{{.DiffLOC}}`   | int — net added+deleted lines                |
+
+Example rendered hard-pool question:
+"This PR touches 3 files in internal/recommend/ (~150 LOC). What is the
+Kind?" — count + root + LOC give the operator enough to verify they read
+the right PR, without leaking filenames. Question authors MUST NOT
+introduce a `{{.Files}}` field; pool loader rejects it with
+`ErrFilenameTemplate` at startup.
+
+### 7.2.1 Retired-question retention
+
+Pool files rotate when a question is edited or removed (typo fix, fact
+drift, new attack vector). Retired questions are NOT immediately deleted —
+audit replay needs the original text to verify a 90-day-old attestation
+audit row matches a real question. Retention policy:
+
+- `prompts/attestation_pool_archive.jsonl` — append-only ledger of every
+  retired question with `{question_hash, text, retired_at}`. Lives 90d,
+  matching audit-row retention.
+- Hard-deleted by the existing `internal/audit` rotation pass at the same
+  90d cutoff — no new cron, no new code path.
+- W117 test `TestPoolRetire_ArchiveAppend`: removing a question from
+  `attestation-hard.txt` appends to archive; `TestPoolArchive_RotationCutoff`:
+  archive entries older than 90d evicted by audit rotator.
 
 ### 7.3 Audit-row guardrail
 
@@ -239,8 +360,11 @@ input to W119's aggregator.
 - `TestRiskScore_LOCFloor`: LOC=1 → log10(10), not log10(1).
 - `TestHistoricalFailureRate_Bootstrap`: <10 rows → 0.1.
 - `TestHistoricalFailureRate_NinetyDayWindow`: rows older than 90d excluded.
-- `TestHistoricalFailureRate_BlockedRowsCounted`: outcome=block + failed +
-  rejected + closed all count; dispatched + merged + clarify do not.
+- `TestHistoricalFailureRate_BlockedRowsCounted`: block + failed + rejected
+  + locked + attestation_denied count; dispatched + merged + ok + success +
+  pending + clarify do not.
+- `TestHistoricalFailureRate_UnknownOutcomeFailOpen`: unknown outcome
+  doesn't count + emits one `selflearn.outcome_unknown` audit row.
 
 ### W117 — pool tests
 - `TestPickWeighted_RecencyDecay`: question used 5× in 30d picked < 1/5 as
@@ -334,7 +458,10 @@ override count in red).
 Override mechanism is the entire bypass surface — no other path skips the
 gate. Tested by `TestSelfBuild_NoSilentBypass`: any code path that calls
 `Run` with risk≥10 + no override env var MUST select critical pool, asserted
-across all five W118 risk fixtures.
+across all five W118 risk fixtures. `TestSelfBuild_OverrideAuditRow` asserts
+`original_tier`, `original_risk`, and `difficulty_override=easy` all appear
+in the audit row's `detail` (regression-block against the failure mode
+where override silently loses the original-tier signal).
 
 ## 13. Open questions
 
@@ -343,9 +470,9 @@ across all five W118 risk fixtures.
    before impl satisfies. CLAUDE.md TDD rule does not distinguish.
 2. Should question-pool weighting use audit `Detail` `question_hash` or full
    question text? Proposal: hash (privacy + audit-row scannability).
-3. Does the tier-rebalance cron need operator approval? Proposal: no —
-   boundaries are observation-only; selflearn emits proposed-boundary audit
-   row, operator manually edits the constants if accepted.
+3. Paired-PR followup needed against dispatch-template (single-owner per
+   CLAUDE.md): add the `Pre-impl test SHA:` PR-body fence so §6.1 path 2
+   works post-squash-merge. Owner: same wave as W119.
 
 ## 14. Decision-priority summary
 
