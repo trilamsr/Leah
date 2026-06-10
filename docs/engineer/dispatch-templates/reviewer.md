@@ -58,7 +58,8 @@ RUN LOCAL LINTS (do not infer from PR description)
 
 AUTOMERGE GATE (every Risk-tier+ must be addressed)
 - Automerge fires ONLY when: (1) reviewer ran on PR's current head (not stale rev), (2) every Risk-tier+ finding has disposition (inline-fix OR tracking issue #).
-- The implementer subagent MUST NOT enable automerge. Operator merges after reviewer clears + CI green. If the PR already has `autoMergeRequest != null` and a `Reviewer-agent-id:` is the implementer's own ID → BLOCK on findings; no operator window remains.
+- The implementer subagent MUST NOT enable automerge. The main-thread dispatcher enables `gh pr merge --auto --squash` AFTER this review returns APPROVE + CI green on current head. PR is not terminal — merge is. See `docs/engineer/autonomous-session-prompt.md` AUTOMERGE — AUTHORIZED.
+- If the PR already has `autoMergeRequest != null` and a `Reviewer-agent-id:` is the implementer's own ID → BLOCK on findings; no adversarial window remains.
 
 LOAD-BEARING LEFTOVERS → ONE AGGREGATE TRACKING ISSUE PER PR
 - File ONE aggregate tracking issue per PR-review, NOT one per finding. Title: `[REVIEWER #<pr>] aggregate findings (<count>)` where `<pr>` is the PR number and `<count>` is the finding total. Body lists tier-tagged findings with disposition column. Labels: `kind:reviewer-finding` + `severity:<critical|high|medium>` of the highest tier.

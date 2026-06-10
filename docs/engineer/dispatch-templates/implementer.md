@@ -52,7 +52,9 @@ NO SIGNATURES
 - No `Co-Authored-By`, no AI footer, no "Generated with" tags. Anywhere.
 
 NO AUTOMERGE FROM IMPLEMENTER
-- NEVER run `gh pr merge --auto` (or any automerge-enabling form). End with `gh pr ready <N>` + operator-merge handoff. Agent-written APPROVE + agent-enabled automerge leaves zero operator window between APPROVE-token landing and merge.
+- NEVER run `gh pr merge --auto` (or any automerge-enabling form). End with `gh pr ready <N>` + handoff to main-thread dispatcher.
+- The main-thread dispatcher (NOT this subagent) enables `gh pr merge --auto --squash` AFTER an independent reviewer APPROVEs on the current head SHA. See `docs/engineer/autonomous-session-prompt.md` AUTOMERGE — AUTHORIZED.
+- Author-enabled automerge = zero adversarial window between APPROVE-token landing and merge.
 
 NO SELF-TAGGED APPROVE
 - The implementer NEVER writes its own `Reviewer-recommendation: APPROVE` token. That is the reviewer subagent's job. Author writing own APPROVE = zero adversarial pass; the gate passes mechanically while no review happened.
