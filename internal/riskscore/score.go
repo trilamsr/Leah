@@ -14,9 +14,18 @@ import "math"
 // at 10 keeps log10 ≥ 1.
 const diffLOCFloor = 10
 
+// brMax is the canonical BR ceiling from spec §2.1. Out-of-range BR (negative
+// or >brMax) is treated as brMax — fail-closed per §2.1, so a writer bug
+// stamping BR=-1 cannot downgrade attestation by producing a negative score.
+const brMax = 4
+
 // Compute returns the risk score for one PR. Multiplicative so BR=0 zeroes
 // out — a read-only meta PR costs no attestation effort regardless of size.
+// Out-of-range BR clamps to brMax (§2.1 fail-closed).
 func Compute(br int, failureRate float64, diffLOC int) float64 {
+	if br < 0 || br > brMax {
+		br = brMax
+	}
 	if diffLOC < diffLOCFloor {
 		diffLOC = diffLOCFloor
 	}

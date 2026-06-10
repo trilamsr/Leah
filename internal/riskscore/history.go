@@ -66,6 +66,12 @@ func FailureRate(auditPath string, kind string, since time.Time) (float64, int) 
 			failed++
 		}
 	}
+	// Scanner I/O error (truncated read mid-rotation, etc.) — fall back to
+	// bootstrap rather than serving a partial-window rate. selflearn aggregator
+	// pattern: surface degraded signal as cold-start, not as silently-low rate.
+	if err := sc.Err(); err != nil {
+		return bootstrapPrior, 0
+	}
 	if total < bootstrapMinSamples {
 		return bootstrapPrior, total
 	}

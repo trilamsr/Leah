@@ -21,6 +21,8 @@ func TestCompute_Math(t *testing.T) {
 		{"high_br4_fr05_loc500", 4, 0.5, 500, 4 * 0.5 * math.Log10(500)},
 		{"critical_br4_fr08_loc2000", 4, 0.8, 2000, 4 * 0.8 * math.Log10(2000)},
 		{"br_zero_zeroes_out", 0, 0.9, 9999, 0.0},
+		{"br_negative_clamps_to_max", -1, 1.0, 100, 4 * 1.0 * 2.0},
+		{"br_above_max_clamps_to_max", 99, 0.5, 1000, 4 * 0.5 * 3.0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
