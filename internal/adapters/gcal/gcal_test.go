@@ -8,32 +8,23 @@ import (
 	"time"
 )
 
-// fakeService is a hand-rolled stub of calendarService so tests do not need
-// the google-api transport. Each method returns a canned result the table
-// row pins; missing canned data is treated as a test-author bug, not a
-// production code path.
+// fakeService stubs calendarService so tests do not pull in the
+// google-api transport.
 type fakeService struct {
 	listEvents []Event
 	listErr    error
+	createID   string
 	createErr  error
-	created    *Event
 }
 
 func (f *fakeService) ListToday(_ context.Context, _ time.Time) ([]Event, error) {
 	return f.listEvents, f.listErr
 }
 
-func (f *fakeService) Create(_ context.Context, ev Event) (*Event, error) {
-	if f.createErr != nil {
-		return nil, f.createErr
-	}
-	f.created = &ev
-	return &ev, nil
+func (f *fakeService) CreateEvent(_ context.Context, _ Event) (string, error) {
+	return f.createID, f.createErr
 }
 
-// fakeAttestor records whether the attestation gate was invoked. The gcal
-// adapter MUST route every token load through Attest() so the operator-
-// attestation flow gates secret access at per-action grain.
 type fakeAttestor struct {
 	called int
 	err    error
@@ -47,7 +38,6 @@ func (f *fakeAttestor) Attest(_ context.Context, scope string) error {
 	return f.err
 }
 
-// fakeTokenSource returns a canned token without touching disk.
 type fakeTokenSource struct {
 	tok    string
 	err    error
@@ -59,143 +49,135 @@ func (f *fakeTokenSource) Token(_ context.Context) (string, error) {
 	return f.tok, f.err
 }
 
-// failingTokenSource fails the test if Token() is invoked; proves the
-// attestation gate runs BEFORE token materialization — a denied action
-// must NOT leak the bearer into a logger / panic trace.
-type failingTokenSource struct {
-	t *testing.T
-}
+// failingTokenSource proves the attestation gate runs BEFORE token load —
+// any Token() call on a denied path is a test failure (spec §5).
+type failingTokenSource struct{ t *testing.T }
 
 func (f *failingTokenSource) Token(_ context.Context) (string, error) {
 	f.t.Fatal("TokenSource.Token() must NOT be called when attestation denies")
 	return "", nil
 }
 
-// TestListTodayTable pins list-today contracts including the attest_denied
-// gate-ordering invariant (no token materialization on deny).
+// TestListTodayTable pins list-today contracts incl. attest-before-token.
 func TestListTodayTable(t *testing.T) {
 	now := time.Date(2026, 6, 9, 9, 0, 0, 0, time.UTC)
-	tests := []struct {
-		name      string
-		svc       *fakeService
-		att       Attestor
-		ts        TokenSource
-		wantLen   int
-		wantErrIs error
-	}{
-		{
-			name:    "happy",
-			svc:     &fakeService{listEvents: []Event{{ID: "e1", Summary: "standup"}}},
-			att:     &fakeAttestor{},
-			ts:      &fakeTokenSource{tok: "t"},
-			wantLen: 1,
-		},
-		{
-			name:      "auth_fail",
-			svc:       &fakeService{listErr: ErrAuthRequired},
-			att:       &fakeAttestor{},
-			ts:        &fakeTokenSource{tok: "t"},
-			wantErrIs: ErrAuthRequired,
-		},
-		{
-			name:      "attest_denied",
-			svc:       &fakeService{},
-			att:       &fakeAttestor{err: errors.New("operator denied")},
-			ts:        &failingTokenSource{t: t},
-			wantErrIs: ErrAttestationDenied,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := &Adapter{svc: tc.svc, att: tc.att, ts: tc.ts, now: func() time.Time { return now }}
-			got, err := a.ListToday(context.Background())
-			if tc.wantErrIs != nil {
-				if !errors.Is(err, tc.wantErrIs) {
-					t.Fatalf("want errors.Is(%v), got %v", tc.wantErrIs, err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected err: %v", err)
-			}
-			if len(got) != tc.wantLen {
-				t.Fatalf("want %d events, got %d", tc.wantLen, len(got))
-			}
-		})
-	}
+	t.Run("happy", func(t *testing.T) {
+		att := &fakeAttestor{}
+		ts := &fakeTokenSource{tok: "t"}
+		c := &Client{
+			cfg: Config{TokenPath: "x", Attestor: att, TokenSource: ts, CalendarID: "primary"},
+			svc: &fakeService{listEvents: []Event{{Title: "standup"}}},
+			now: func() time.Time { return now },
+		}
+		got, err := c.ListToday(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if len(got) != 1 || got[0].Title != "standup" {
+			t.Fatalf("want 1 event titled standup, got %+v", got)
+		}
+		if att.called != 1 {
+			t.Fatalf("want 1 Attest call, got %d", att.called)
+		}
+	})
+	t.Run("attest_denied", func(t *testing.T) {
+		att := &fakeAttestor{err: errors.New("operator denied")}
+		c := &Client{
+			cfg: Config{TokenPath: "x", Attestor: att, TokenSource: &failingTokenSource{t: t}, CalendarID: "primary"},
+			svc: &fakeService{},
+			now: func() time.Time { return now },
+		}
+		_, err := c.ListToday(context.Background())
+		if !errors.Is(err, ErrAttestationDenied) {
+			t.Fatalf("want ErrAttestationDenied, got %v", err)
+		}
+	})
+	t.Run("auth_required", func(t *testing.T) {
+		c := &Client{
+			cfg: Config{TokenPath: "x", Attestor: &fakeAttestor{}, TokenSource: &fakeTokenSource{tok: "t"}, CalendarID: "primary"},
+			svc: nil,
+			now: func() time.Time { return now },
+		}
+		_, err := c.ListToday(context.Background())
+		if !errors.Is(err, ErrAuthRequired) {
+			t.Fatalf("want ErrAuthRequired, got %v", err)
+		}
+	})
 }
 
-// TestCreateEventTable pins create contracts including the attest_denied
-// gate-ordering invariant (no token materialization on deny).
+// TestCreateEventTable pins create contracts incl. attest-before-token and
+// caller-side invalid-event detection.
 func TestCreateEventTable(t *testing.T) {
-	tests := []struct {
-		name      string
-		in        Event
-		svc       *fakeService
-		att       Attestor
-		ts        TokenSource
-		wantErrIs error
-	}{
-		{
-			name: "happy",
-			in:   Event{Summary: "1:1", Start: time.Now(), End: time.Now().Add(time.Hour)},
-			svc:  &fakeService{},
-			att:  &fakeAttestor{},
-			ts:   &fakeTokenSource{tok: "t"},
-		},
-		{
-			name:      "validation_400",
-			in:        Event{Summary: ""},
-			svc:       &fakeService{createErr: ErrInvalidEvent},
-			att:       &fakeAttestor{},
-			ts:        &fakeTokenSource{tok: "t"},
-			wantErrIs: ErrInvalidEvent,
-		},
-		{
-			name:      "attest_denied",
-			in:        Event{Summary: "1:1"},
-			svc:       &fakeService{},
-			att:       &fakeAttestor{err: errors.New("operator denied")},
-			ts:        &failingTokenSource{t: t},
-			wantErrIs: ErrAttestationDenied,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := &Adapter{svc: tc.svc, att: tc.att, ts: tc.ts}
-			got, err := a.CreateEvent(context.Background(), tc.in)
-			if tc.wantErrIs != nil {
-				if !errors.Is(err, tc.wantErrIs) {
-					t.Fatalf("want errors.Is(%v), got %v", tc.wantErrIs, err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected err: %v", err)
-			}
-			if got == nil || got.Summary != tc.in.Summary {
-				t.Fatalf("want echo of %q, got %+v", tc.in.Summary, got)
-			}
-		})
-	}
+	valid := Event{Title: "1:1", Start: time.Now(), End: time.Now().Add(time.Hour)}
+	t.Run("happy", func(t *testing.T) {
+		c := &Client{
+			cfg: Config{TokenPath: "x", Attestor: &fakeAttestor{}, TokenSource: &fakeTokenSource{tok: "t"}, CalendarID: "primary"},
+			svc: &fakeService{createID: "evt-123"},
+		}
+		id, err := c.CreateEvent(context.Background(), valid)
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if id != "evt-123" {
+			t.Fatalf("want id evt-123, got %q", id)
+		}
+	})
+	t.Run("attest_denied", func(t *testing.T) {
+		c := &Client{
+			cfg: Config{TokenPath: "x", Attestor: &fakeAttestor{err: errors.New("denied")}, TokenSource: &failingTokenSource{t: t}, CalendarID: "primary"},
+			svc: &fakeService{},
+		}
+		_, err := c.CreateEvent(context.Background(), valid)
+		if !errors.Is(err, ErrAttestationDenied) {
+			t.Fatalf("want ErrAttestationDenied, got %v", err)
+		}
+	})
+	t.Run("auth_required", func(t *testing.T) {
+		c := &Client{
+			cfg: Config{TokenPath: "x", Attestor: &fakeAttestor{}, TokenSource: &fakeTokenSource{tok: "t"}, CalendarID: "primary"},
+			svc: nil,
+		}
+		_, err := c.CreateEvent(context.Background(), valid)
+		if !errors.Is(err, ErrAuthRequired) {
+			t.Fatalf("want ErrAuthRequired, got %v", err)
+		}
+	})
+	t.Run("invalid_event", func(t *testing.T) {
+		c := &Client{
+			cfg: Config{TokenPath: "x", Attestor: &fakeAttestor{}, TokenSource: &fakeTokenSource{tok: "t"}, CalendarID: "primary"},
+			svc: &fakeService{createID: "should-not-reach"},
+		}
+		_, err := c.CreateEvent(context.Background(), Event{Title: "", Start: time.Now(), End: time.Now().Add(time.Hour)})
+		if !errors.Is(err, ErrInvalidEvent) {
+			t.Fatalf("want ErrInvalidEvent, got %v", err)
+		}
+	})
 }
 
-// TestNewRejectsEmptyTokenPath pins the constructor contract: a missing
-// token path is a programmer error caught at startup, not at first API call.
-func TestNewRejectsEmptyTokenPath(t *testing.T) {
-	if _, err := New(Config{TokenPath: "x", Attestor: &fakeAttestor{}}); err != nil {
-		t.Fatalf("baseline New: %v", err)
-	}
-	if _, err := New(Config{TokenPath: "", Attestor: &fakeAttestor{}}); err == nil {
+// TestNewRejectsMissingDeps pins constructor preconditions — TokenPath and
+// Attestor are load-bearing; missing either bypasses the operator-consent gate.
+func TestNewRejectsMissingDeps(t *testing.T) {
+	att := &fakeAttestor{}
+	if _, err := New(Config{TokenPath: "", Attestor: att}); err == nil {
 		t.Fatal("want error on empty TokenPath, got nil")
 	}
+	if _, err := New(Config{TokenPath: "x", Attestor: nil}); err == nil {
+		t.Fatal("want error on nil Attestor, got nil")
+	}
+	if _, err := New(Config{TokenPath: "x", Attestor: att}); err != nil {
+		t.Fatalf("baseline New: %v", err)
+	}
 }
 
-// TestNewRejectsMissingAttestor mirrors gmail.TestNewRejectsMissingDeps —
-// a half-wired Adapter would silently bypass the operator-consent gate, so
-// New refuses construction without an Attestor.
-func TestNewRejectsMissingAttestor(t *testing.T) {
-	if _, err := New(Config{TokenPath: "x"}); err == nil {
-		t.Fatal("want error on missing Attestor, got nil")
+// TestCalendarIDDefaultsToPrimary pins the default-calendar contract; an
+// unset CalendarID must not silently target a wrong calendar (spec §5
+// confused-deputy).
+func TestCalendarIDDefaultsToPrimary(t *testing.T) {
+	c, err := New(Config{TokenPath: "x", Attestor: &fakeAttestor{}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if c.cfg.CalendarID != "primary" {
+		t.Fatalf("want CalendarID=primary, got %q", c.cfg.CalendarID)
 	}
 }
