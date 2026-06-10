@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 const graphBase = "https://graph.microsoft.com/v1.0"
@@ -82,6 +83,9 @@ type Config struct {
 	HTTPClient  contracts.HTTPClient
 	Audit       AuditSink
 	Now         func() time.Time
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 type Client struct {
@@ -90,6 +94,7 @@ type Client struct {
 	http  contracts.HTTPClient
 	audit AuditSink
 	now   func() time.Time
+	m     *connectadapter.Metrics
 }
 
 // New refuses construction when any policy collaborator is missing; the
@@ -115,6 +120,7 @@ func New(cfg Config) (*Client, error) {
 		http:  cfg.HTTPClient,
 		audit: cfg.Audit,
 		now:   now,
+		m:     cfg.Metrics,
 	}, nil
 }
 
@@ -129,7 +135,10 @@ func (c *Client) ListTeams(ctx context.Context) ([]Team, error) {
 			DisplayName string `json:"displayName"`
 		} `json:"value"`
 	}
-	if err := c.get(ctx, tok, graphBase+"/me/joinedTeams", &resp); err != nil {
+	start := time.Now()
+	err = c.get(ctx, tok, graphBase+"/me/joinedTeams", &resp)
+	c.m.ObserveAPI("list_teams", time.Since(start).Seconds())
+	if err != nil {
 		return nil, err
 	}
 	teams := make([]Team, 0, len(resp.Value))
@@ -154,7 +163,10 @@ func (c *Client) ListChannels(ctx context.Context, teamID string) ([]Channel, er
 		} `json:"value"`
 	}
 	endpoint := fmt.Sprintf("%s/teams/%s/channels", graphBase, url.PathEscape(teamID))
-	if err := c.get(ctx, tok, endpoint, &resp); err != nil {
+	start := time.Now()
+	err = c.get(ctx, tok, endpoint, &resp)
+	c.m.ObserveAPI("list_channels", time.Since(start).Seconds())
+	if err != nil {
 		return nil, err
 	}
 	chs := make([]Channel, 0, len(resp.Value))
@@ -193,10 +205,13 @@ func (c *Client) PostMessage(ctx context.Context, teamID, channelID, text string
 		"body": map[string]string{"contentType": "text", "content": text},
 	}
 	endpoint := fmt.Sprintf("%s/teams/%s/channels/%s/messages", graphBase, url.PathEscape(teamID), url.PathEscape(channelID))
-	if err := c.post(ctx, tok, endpoint, body, nil); err != nil {
-		row.Reason = errReason(err)
+	start := time.Now()
+	postErr := c.post(ctx, tok, endpoint, body, nil)
+	c.m.ObserveAPI("post_message", time.Since(start).Seconds())
+	if postErr != nil {
+		row.Reason = errReason(postErr)
 		c.record(row)
-		return err
+		return postErr
 	}
 	row.Success = true
 	c.record(row)
@@ -248,10 +263,13 @@ func (c *Client) Search(ctx context.Context, query string) ([]Result, error) {
 			} `json:"hitsContainers"`
 		} `json:"value"`
 	}
-	if err := c.post(ctx, tok, graphBase+"/search/query", reqBody, &resp); err != nil {
-		row.Reason = errReason(err)
+	start := time.Now()
+	postErr := c.post(ctx, tok, graphBase+"/search/query", reqBody, &resp)
+	c.m.ObserveAPI("search", time.Since(start).Seconds())
+	if postErr != nil {
+		row.Reason = errReason(postErr)
 		c.record(row)
-		return nil, err
+		return nil, postErr
 	}
 
 	var out []Result
