@@ -69,12 +69,17 @@ type Server struct {
 }
 
 // ensureBroadcaster wires the in-process pub-sub that backs /events SSE
-// subscribers — every EmitEvent call now reaches live HUD clients with no
-// SQLite hop. Idempotent; safe to call from Start and from BuildMux.
+// subscribers. Adopts the daemon-owned default when set so a single bus feeds
+// both the dispatcher subscribers and HUD clients — otherwise constructs an
+// orphan that the dispatcher never sees.
 func (s *Server) ensureBroadcaster() {
 	s.bcastOnce.Do(func() {
-		s.bcast = obs.NewBroadcaster()
-		obs.SetDefaultBroadcaster(s.bcast)
+		if def := obs.DefaultBroadcaster(); def != nil {
+			s.bcast = def
+		} else {
+			s.bcast = obs.NewBroadcaster()
+			obs.SetDefaultBroadcaster(s.bcast)
+		}
 		if s.EventsSubscribe == nil {
 			s.EventsSubscribe = s.bcast.Subscribe
 		}

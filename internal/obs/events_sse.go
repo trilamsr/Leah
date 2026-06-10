@@ -210,6 +210,15 @@ func SetDefaultBroadcaster(b *Broadcaster) {
 	defaultBroadcasterMu.Unlock()
 }
 
+// DefaultBroadcaster returns the current default; nil when unset. Lets
+// composition roots that own the bus (leah-daemon) share it with subsystems
+// (web dashboard) instead of each side instantiating its own orphan.
+func DefaultBroadcaster() *Broadcaster {
+	defaultBroadcasterMu.RLock()
+	defer defaultBroadcasterMu.RUnlock()
+	return defaultBroadcaster
+}
+
 // Publish fans e out to the default broadcaster's live subscribers. No-op
 // when unset — keeps SQLite-only callers (W75 store path) untouched.
 func Publish(e Event) {
