@@ -1,14 +1,12 @@
 package dispatcher
 
 import (
-	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -16,9 +14,15 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/trilam/leah/internal/attestation"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
 )
+
+// selfBuildScope names the pool slot the dispatcher draws from. Adapters
+// (gmail/gcal) register their own scopes against the same Pool — this is the
+// dispatcher's hook.
+const selfBuildScope = "self-build"
 
 // SelfBuildRepo is the only repo SelfBuild ever targets. Hard-coded to prevent
 // accidental self-build dispatch into a customer repo, a fork, or trilam/regatta
@@ -76,10 +80,6 @@ type SelfBuild struct {
 	// attestation question in the PR. Defaults to "tri-lamsr" (the single
 	// owner of trilamsr/Leah) when empty.
 	AttestationOperatorLogin string
-
-	// Rand is the random source for picking a question (tests inject a
-	// deterministic source). nil → math/rand default.
-	Rand *rand.Rand
 
 	// lastQuestion is populated by Run after the attestation question is
 	// chosen; surfaced in the dispatched-success audit row. Not exported.
@@ -335,40 +335,18 @@ func (s *SelfBuild) appendAuditSuccess(intent, issueURL string) {
 	})
 }
 
-// pickAttestationQuestion reads AttestationQuestionsPath and returns one
-// randomly-selected line (whitespace-trimmed, blanks + comments dropped).
-// Returns "" when the path is empty (gate disabled). Returns an error when
-// the path is set but unreadable / yields no questions — the gate is
-// fail-closed by design (operator habituation defense per Wave1-E HIGH-2).
+// pickAttestationQuestion delegates to internal/attestation. Returns "" when
+// AttestationQuestionsPath is empty (gate disabled by config — only path tests
+// rely on). Fail-closed otherwise: pool load failure aborts the dispatch.
 func (s *SelfBuild) pickAttestationQuestion() (string, error) {
 	if s.AttestationQuestionsPath == "" {
 		return "", nil
 	}
-	f, err := os.Open(s.AttestationQuestionsPath)
+	pool, err := attestation.Load(s.AttestationQuestionsPath, selfBuildScope)
 	if err != nil {
-		return "", fmt.Errorf("open attestation file: %w", err)
+		return "", err
 	}
-	defer func() { _ = f.Close() }()
-	var qs []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		qs = append(qs, line)
-	}
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("scan attestation file: %w", err)
-	}
-	if len(qs) == 0 {
-		return "", errors.New("attestation file has no questions")
-	}
-	r := s.Rand
-	if r == nil {
-		r = rand.New(rand.NewSource(time.Now().UnixNano()))
-	}
-	return qs[r.Intn(len(qs))], nil
+	return pool.Pick(selfBuildScope)
 }
 
 // attestationBlock renders the markdown footer appended to the issue body.
