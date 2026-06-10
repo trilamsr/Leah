@@ -78,6 +78,7 @@ func runSuggest(ctx context.Context, args []string) int {
 	}
 
 	if useLLM {
+		// TODO(#17): wire --llm phrasing — currently prints template form
 		_, _ = fmt.Println("(--llm phrasing TODO; printing template form)")
 	}
 	for i, r := range recs {
