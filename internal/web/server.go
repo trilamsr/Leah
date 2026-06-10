@@ -41,6 +41,11 @@ type Server struct {
 	// nil is safe; /health returns 503 in that case.
 	Health *obs.HealthRegistry
 
+	// EventsSubscribe wires /events SSE streaming to an event source (W77).
+	// nil is safe; /events returns 503 in that case. The daemon wires this
+	// to obs.EventStore.Subscribe once W75 lands.
+	EventsSubscribe obs.SSESubscribeFunc
+
 	// HealthProbeTimeout caps each SelfCheck call; zero defaults to 2s so a
 	// stuck dependency cannot wedge the liveness endpoint.
 	HealthProbeTimeout time.Duration
@@ -141,6 +146,7 @@ func (s *Server) buildMux() (*http.ServeMux, error) {
 	mux.HandleFunc("/api/state", s.handleState)
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.Handle("/events", &obs.SSEHandler{Subscribe: s.EventsSubscribe})
 	// /dashboard is a permanent redirect to the embed-FS path so the file
 	// server is the single serving path (kills handleDashboard's
 	// per-request ReadFile of the same bytes — wave2-5 retro M1, #4).
