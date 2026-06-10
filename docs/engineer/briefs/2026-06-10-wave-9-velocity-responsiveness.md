@@ -17,7 +17,7 @@ Make Leah responsive on both axes:
 | # | Finding | Source | Verdict confirms |
 |---|---|---|---|
 | F1 | Voice path uninstrumented — `voice_turn_seconds` histogram + per-stage breakdowns missing. Current "1.5s p95" is **spec target**, not measurement. | `af05ba78` §voice | `a8b4f14d`: "p95 1.5s is the BUDGET in voice-comm spec §5, not an observed number" |
-| F2 | HUD dashboard still XHR-polls `/api/state` + `/api/recommendations` despite W77 SSE shipped. | `af05ba78` §HUD | `a8b4f14d`: verified — `internal/hud/static/ambient.js` is wired to SSE, but `dashboard.js` poll path is still live |
+| F2 | HUD ambient still polls `/api/state` (`ambient.js:54,65`, 5s setInterval) and recommendations widget polls `/hud/recommendations` (`recommendations.js:100`, 15s setInterval) despite W77 SSE shipped. | `af05ba78` §HUD | `a8b4f14d`: verified — `ambient.js:44` opens SSE for events but `pollMetrics` at `:52` still runs alongside; `recommendations.js` has no SSE wiring |
 | F3 | `mirror.go DefaultTickInterval = 60s` for Calendar/Contacts/Notes/Mail/Messages while EventKit + NSWorkspace are push APIs. | `af05ba78` §mirror | `a8b4f14d`: VERIFIED structurally; EventKit push ≤1s realistic, FSEvents has 1-5s coalescence (not "<1s" universally) |
 | F4 | `cache_control` zero hits in repo — Anthropic prompt-cache not implemented. | `af05ba78` §cache | `a8b4f14d`: VERIFIED; but savings only materialize if system-prompt > ~1024 tokens. Cost = MEASURE first |
 | F5 | Reasoner non-streaming — zero hits for `Stream|delta|chunk` in `internal/reasoner/`. | `af05ba78` §stream | `a8b4f14d`: VERIFIED; Anthropic Go SDK streaming surface exists in 2026 |
@@ -37,7 +37,7 @@ Each item is a single PR, single owning package(s), no shared roots.
 
 **V1 — voice instrumentation FIRST.** `internal/voice/instrumentation.go` exists; add `voice_turn_seconds` histogram + per-stage (wake_to_stt_seconds, stt_seconds, reasoner_seconds, tts_first_audio_seconds). Per `a8b4f14d`: "no histograms = no baseline = unfalsifiable claims." Blocks V10. ~80 LOC + tests. Owner: `internal/voice/`.
 
-**V2 — HUD ambient SSE migration.** Drop `/api/state` poll in `dashboard.js`; drop recommendations.js poll. Both subscribe to `/events` SSE (W77 substrate). ~80-120 LOC, mostly JS deletion. Owner: `internal/hud/static/`.
+**V2 — HUD ambient SSE migration.** Drop `/api/state` 5s poll in `ambient.js:52-65` (pollMetrics + setInterval); drop `/hud/recommendations` 15s poll in `recommendations.js:99-100` (load + setInterval). Both subscribe to `/api/events` SSE (W77 substrate; ambient already has the EventSource open at `ambient.js:44`). ~80-120 LOC, mostly JS deletion. Owner: `internal/hud/static/`.
 
 **V3 — parallel `check.sh` post-build stages.** After `go build && go test`, run vet+lint+comment-density+no-bare-sleep+doc-links in parallel (`wait` at end). ~1.5s warm save (corrected from inflated 4-10s claim per `a22adf88`). 30 LOC. Owner: `scripts/check.sh`.
 
@@ -51,7 +51,7 @@ Each item is a single PR, single owning package(s), no shared roots.
 
 ## 4. P1 — wave-9b (next wave)
 
-**V8 — Engine.OnSignal event-driven refactor.** On the W75/W77 SSE substrate, `recommend.Engine` subscribes to context_transition events instead of polling each daemon tick. **Requires per-pattern debounce downstream** (per `a43f957d`: NSWorkspace fires 10-30×/min) — 250ms coalescing window minimum. Owner: `internal/recommend/`.
+**V8 — Engine.OnSignal event-driven refactor.** On the W75/W77 SSE substrate, `recommend.Engine` subscribes to context_transition events instead of polling each daemon tick. **Two-layer debounce required** (per `a43f957d`: NSWorkspace fires 10-30×/min): (a) upstream NSWorkspace 250ms coalescing window at the producer; (b) per-pattern debounce — min 30s between same-pattern `Propose` calls downstream of the NSWorkspace 250ms coalesce, so a single recurring app-switch pattern cannot saturate the proposer. Owner: `internal/recommend/`.
 
 **V9 — NSWorkspace push for activeapp.** Replace osascript pull with `NSWorkspaceDidActivateApplicationNotification` via CGO bridge. EventKit calendar push **defer to wave-10** — `docs/engineer/specs/2026-06-10-macos-ecosystem-integration.md:158` already marks it Defer. Owner: `internal/macos/activeapp/`.
 
@@ -70,6 +70,14 @@ Listed so the next wave's brainstorming does not re-derive them:
 - **Kokoro warm-pool "20ms" claim.** Real floor is afplay-bound 50-80ms, not synth-bound. `a8b4f14d` OVERSTATED. Warm-pool still worth doing, but quote the right number.
 - **Attestation cache for `read_*` routes.** `read_*` is BR=0, no friction to cache. The friction lives on `send_*`/`pay_*`/`delete_*` (BR≥3) and those MUST NOT be cached per voice-comm spec §7. Inverts where value lives. `a43f957d` WRONG.
 
+## 5a. ROI revision (adversary-corrected)
+
+Proposer headline numbers were inflated. Adversarial verdicts trimmed them — use these revised figures in any downstream planning:
+
+- **Dev-velocity savings**: ~5 min/day, not ~30 min/day (per `a22adf88` REJECT-heavy verdict on `a76c79f2`: `check.sh` parallel-stage real savings ≈1.5s warm, worktree janitor is one-time disk reclaim, and the proposer summed best-case wall-clock across stages that already overlap with build+test).
+- **Feedback-loop ops cost saved**: 4-8 operator-hr/wk, not 12-18 op-hr/wk (per `ac7cc5a4` ACCEPT-WITH-AMENDMENTS verdict on `ab083481`: base-staleness gate + placeholder grep are real but the proposer's 12-18 hr figure assumed every PR #151/#146/#148 class regression cost ~2 op-hr; verdict trimmed to the observed ≤1 op-hr-per-regression rate over the last fortnight).
+- Operational-responsiveness and product-responsiveness proposers (`af05ba78`, `a8b74b22`) made no headline ROI claim; their verdicts (`a8b4f14d`, `a43f957d`) ACCEPT-WITH-AMENDMENTS at the per-finding level only.
+
 ## 6. Critical fix-FIRST gates
 
 1. **V1 before V10.** Streaming Reasoner+TTS optimization without a baseline histogram is unverifiable. Hard sequence.
@@ -86,7 +94,7 @@ Listed so the next wave's brainstorming does not re-derive them:
 ## 8. Source citations (per kept item)
 
 - F1 ← `af05ba78` voice section + `a8b4f14d` finding "p95 1.5s is SPEC TARGET not measurement".
-- F2 ← `af05ba78` HUD section + `a8b4f14d` finding "dashboard.js still polls".
+- F2 ← `af05ba78` HUD section + `a8b4f14d` finding "ambient.js still polls /api/state alongside its SSE; recommendations.js has no SSE" (`ambient.js:54,65`, `recommendations.js:100`).
 - F3 ← `af05ba78` mirror section + `a8b4f14d` "FSEvents 1-5s coalescence, not universal <1s".
 - F4 ← `af05ba78` cache section + `a8b4f14d` "cache-write 125%, cache-read 10%; savings require >1024 token system prompt".
 - F5 ← `af05ba78` streaming section + `a8b4f14d` "Anthropic Go SDK stream API exists".
