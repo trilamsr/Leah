@@ -16,8 +16,10 @@ func (s *SayTTS) Speak(ctx context.Context, text string) error {
 	if text == "" {
 		return nil
 	}
-	if _, err := s.Exec.Run(ctx, "say", text); err != nil {
-		return fmt.Errorf("say: %w", err)
-	}
-	return nil
+	return withAudioDevice(func() error {
+		if _, err := s.Exec.Run(ctx, "say", text); err != nil {
+			return fmt.Errorf("say: %w", err)
+		}
+		return nil
+	})
 }

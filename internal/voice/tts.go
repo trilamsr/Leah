@@ -52,12 +52,24 @@ func (ShellExec) LookPath(name string) (string, error) {
 	return exec.LookPath(name)
 }
 
+// audioDeviceMu serializes the single macOS audio device across every
+// backend. Held ONLY around the device-binding exec call (afplay, say) —
+// synthesis (HTTP, file write, kokoro subprocess) runs unlocked so slow
+// backends do not block queued callers. See #11.
+var audioDeviceMu sync.Mutex
+
+// withAudioDevice runs fn while holding the package-level device lock.
+func withAudioDevice(fn func() error) error {
+	audioDeviceMu.Lock()
+	defer audioDeviceMu.Unlock()
+	return fn()
+}
+
 // ChainTTS walks backends in order on each Speak call, returning on the
-// first backend whose Speak returns nil. Speak is serialized via mu so
-// concurrent callers do not collide on the afplay device.
+// first backend whose Speak returns nil. Device contention is handled by
+// each backend via withAudioDevice; the chain itself holds no lock.
 type ChainTTS struct {
 	backends []TTS
-	mu       sync.Mutex
 }
 
 // NewChain constructs a ChainTTS over the given backends in priority order.
@@ -69,8 +81,6 @@ func NewChain(backends ...TTS) *ChainTTS {
 // Returns the last backend's error if all fail, or a sentinel error if
 // the chain is empty.
 func (c *ChainTTS) Speak(ctx context.Context, text string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	if len(c.backends) == 0 {
 		return errors.New("voice: chain has no backends")
 	}

@@ -341,10 +341,13 @@ type slowSynthTTS struct {
 
 func (s *slowSynthTTS) Speak(ctx context.Context, text string) error {
 	time.Sleep(s.delay) // allow-sleep: wall-clock fixture for parallel-synth assertion
-	if s.play != nil {
-		s.play()
+	if s.play == nil {
+		return nil
 	}
-	return nil
+	return withAudioDevice(func() error {
+		s.play()
+		return nil
+	})
 }
 
 // TestChainTTS_SynthParallel asserts two concurrent Speak calls finish in
