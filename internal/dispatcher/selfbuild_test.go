@@ -603,3 +603,60 @@ func TestSelfBuildAuditsDispatchedOnOperatorAbort(t *testing.T) {
 		t.Errorf("audit missing outcome=dispatched after operator abort: %s", final)
 	}
 }
+
+// TestPrebakedReasonerReturnsSpecVerbatim pins the SystemPrompt-once contract:
+// the inner Reasoner SelfBuild hands to Ship MUST return the pre-drafted spec
+// unchanged regardless of the prompt argument. Renaming the type from
+// passthrough to prebakedReasoner makes the contract self-documenting; a
+// silent swap for a live Reasoner would re-charge the budget + re-prompt with
+// the ship template on top of the self-build spec (Wave2-5 retro H2).
+func TestPrebakedReasonerReturnsSpecVerbatim(t *testing.T) {
+	const spec = "## Title\n\nspec body verbatim\n"
+	r := prebakedReasoner{spec: spec}
+	got, err := r.Ask(context.Background(), "any prompt the caller passes — must be ignored")
+	if err != nil {
+		t.Fatalf("Ask returned err: %v", err)
+	}
+	if got != spec {
+		t.Errorf("Ask returned %q, want verbatim spec %q", got, spec)
+	}
+}
+
+// TestSelfBuildUsesPrebakedReasonerForInnerShip pins that SelfBuild constructs
+// the inner Ship with a prebakedReasoner, NOT the outer (live) Reasoner. If a
+// future change swaps the wrapper for the outer Reasoner, the budget would be
+// charged twice + ship template would re-prompt on top of the self-build spec.
+func TestSelfBuildUsesPrebakedReasonerForInnerShip(t *testing.T) {
+	dir := t.TempDir()
+	outerCalls := &countingReasoner{resp: validSpec}
+	gh := &fakeGh{createURL: "https://github.com/trilamsr/Leah/issues/9"}
+	sb := &SelfBuild{
+		Reasoner: outerCalls,
+		GH:       gh,
+		Audit:    &audit.Logger{Path: dir + "/audit.jsonl"},
+		Budget:   &budget.Budget{Ceiling: 5.0},
+		Out:      &bytes.Buffer{},
+		TmpDir:   dir,
+	}
+	if err := sb.Run(context.Background(), "add a feature"); err != nil {
+		t.Fatalf("Run returned err: %v", err)
+	}
+	// Outer Reasoner gets exactly ONE call: the self-build spec draft. The
+	// inner Ship MUST use prebakedReasoner; if it called the outer Reasoner
+	// again, the count would be 2 (re-charged budget + ship-template prompt).
+	if outerCalls.count != 1 {
+		t.Errorf("outer Reasoner called %d times, want 1 (SystemPrompt-once contract)", outerCalls.count)
+	}
+}
+
+// countingReasoner records how many times Ask is invoked so the test can pin
+// the SystemPrompt-once contract.
+type countingReasoner struct {
+	resp  string
+	count int
+}
+
+func (c *countingReasoner) Ask(ctx context.Context, _ string) (string, error) {
+	c.count++
+	return c.resp, nil
+}

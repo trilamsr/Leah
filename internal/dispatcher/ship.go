@@ -46,6 +46,11 @@ type Notifier interface {
 
 // Ship is the BR=3 `leah ship` orchestration: Reasoner draft → gh issue
 // create → optional watcher loop until a regatta agent hits terminal state.
+//
+// When invoked by SelfBuild, the Reasoner field MUST be a prebakedReasoner
+// (selfbuild.go): the spec has already been drafted under the self-build
+// system prompt and the second Reasoner.Ask call here returns it verbatim
+// rather than re-prompting under the regatta-issue ship template.
 type Ship struct {
 	Reasoner Reasoner
 	GH       GHClient
