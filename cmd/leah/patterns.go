@@ -12,7 +12,7 @@ import (
 )
 
 // runPatterns renders skill-candidates markdown to stdout.
-func runPatterns(args []string) {
+func runPatterns(args []string) int {
 	fs := flag.NewFlagSet("patterns", flag.ExitOnError)
 	weekly := fs.Bool("weekly", false, "use 7-day window instead of default 30-day")
 	minCount := fs.Int("min-count", patterns.DefaultMinCount, "min cluster size to emit")
@@ -28,10 +28,11 @@ func runPatterns(args []string) {
 	clusters, err := patterns.DetectWithThreshold(auditPath, since, *minCount)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah patterns: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	a := &audit.Logger{Path: auditPath}
 	_ = a.Append(audit.Entry{Kind: "patterns", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("clusters=%d window=%s", len(clusters), window)})
 	fmt.Print(patterns.Propose(clusters))
+	return 0
 }

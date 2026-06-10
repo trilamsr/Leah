@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/trilam/leah/internal/ctxmgr"
@@ -16,33 +15,25 @@ import (
 func memoryPath() string { return filepath.Join(stateDir(), "memory.db") }
 
 // openMemoryStore opens (creating if needed) the shared memory DB at
-// $LEAH_STATE_DIR/memory.db. Callers MUST defer Close.
-func openMemoryStore() *memory.Store {
+// $LEAH_STATE_DIR/memory.db. Returns an error rather than os.Exit so the
+// subcommand entrypoint can propagate exit codes through run() — letting
+// the deferred audit-flush fire on SIGINT (review #55). Callers MUST defer Close.
+func openMemoryStore() (*memory.Store, error) {
 	s, err := memory.NewStore(memoryPath())
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "open memory store: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("open memory store: %w", err)
 	}
-	return s
+	return s, nil
 }
 
 // openCtxManager opens the ctxmgr handle against the same shared memory DB.
 // Callers MUST defer Close.
-func openCtxManager() *ctxmgr.Manager {
+func openCtxManager() (*ctxmgr.Manager, error) {
 	m, err := ctxmgr.Open(memoryPath())
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "open ctxmgr: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("open ctxmgr: %w", err)
 	}
-	return m
-}
-
-// openCtxManagerSoft opens the ctxmgr handle but returns an error rather
-// than os.Exit on failure. Used by the ambient-workspace lookup path where
-// "couldn't read workspace" must degrade to "default" rather than killing
-// the user-facing CLI invocation.
-func openCtxManagerSoft() (*ctxmgr.Manager, error) {
-	return ctxmgr.Open(memoryPath())
+	return m, nil
 }
 
 // hasFlag returns true if any arg in args equals flag. Used for parsing

@@ -11,16 +11,20 @@ import (
 )
 
 // runCtx dispatches `leah ctx <action> ...`.
-func runCtx(args []string) {
+func runCtx(args []string) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ctx <new|switch|show|history|list> [args...]")
-		return
+		return 0
 	}
 	if len(args) < 1 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ctx <new|switch|show|history|list> [args...]")
-		os.Exit(2)
+		return 2
 	}
-	mgr := openCtxManager()
+	mgr, err := openCtxManager()
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		return 1
+	}
 	defer func() { _ = mgr.Close() }()
 	// DefaultWorkspace pulls active workspace at append time so ctx.switch,
 	// ctx.show etc. rows are tagged. After Switch executes, subsequent
@@ -36,11 +40,11 @@ func runCtx(args []string) {
 		_ = fs.Parse(args[1:])
 		if *name == "" {
 			_, _ = fmt.Fprintln(os.Stderr, "leah ctx new: --name required")
-			os.Exit(2)
+			return 2
 		}
 		if err := mgr.NewContext(*name, *desc); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx new: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.new", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
 		fmt.Printf("created context %q\n", *name)
@@ -51,11 +55,11 @@ func runCtx(args []string) {
 		_ = fs.Parse(args[1:])
 		if *name == "" {
 			_, _ = fmt.Fprintln(os.Stderr, "leah ctx switch: --name required")
-			os.Exit(2)
+			return 2
 		}
 		if err := mgr.Switch(*name, *reason); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx switch: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.switch", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
 		fmt.Printf("switched to %q\n", *name)
@@ -64,12 +68,12 @@ func runCtx(args []string) {
 		c, err := mgr.Active()
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx show: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.show", BlastRadius: 0, Outcome: "success", Detail: c.Name})
 		if jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(c)
-			return
+			return 0
 		}
 		fmt.Printf("active:      %s\n", c.Name)
 		fmt.Printf("description: %s\n", c.Description)
@@ -82,16 +86,16 @@ func runCtx(args []string) {
 		hist, err := mgr.History(*limit)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx history: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.history", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(hist))})
 		if *jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(hist)
-			return
+			return 0
 		}
 		if len(hist) == 0 {
 			_, _ = fmt.Println("(no switches recorded)")
-			return
+			return 0
 		}
 		for _, s := range hist {
 			from := s.From
@@ -106,18 +110,19 @@ func runCtx(args []string) {
 		cs, err := mgr.List()
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx list: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		_ = a.Append(audit.Entry{Kind: "ctx.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(cs))})
 		if jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(cs)
-			return
+			return 0
 		}
 		for _, c := range cs {
 			fmt.Printf("%-20s  %s\n", c.Name, c.Description)
 		}
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "leah ctx: unknown action %q\n", args[0])
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }

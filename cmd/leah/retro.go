@@ -13,7 +13,7 @@ import (
 )
 
 // runRetro renders the weekly retro markdown to stdout.
-func runRetro(args []string) {
+func runRetro(args []string) int {
 	fs := flag.NewFlagSet("retro", flag.ExitOnError)
 	week := fs.String("week", "", "ISO week YYYY-WW (defaults to current)")
 	_ = fs.Parse(args)
@@ -21,7 +21,7 @@ func runRetro(args []string) {
 	store, err := selflearn.OpenMistakeStore(memoryPath())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah retro: open store: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() { _ = store.Close() }()
 
@@ -34,11 +34,12 @@ func runRetro(args []string) {
 	md, err := r.Generate(*week)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah retro: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	a := &audit.Logger{Path: auditPath}
 	_ = a.Append(audit.Entry{Kind: "retro", ArgsHash: *week, BlastRadius: 0, Outcome: "success", Detail: *week})
 	fmt.Print(md)
+	return 0
 }
 
 // attestationScannerAdapter bridges rules.AttestationGate.Scan (which

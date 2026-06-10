@@ -16,10 +16,10 @@ import (
 // top-N recommendations from operator_profile for the current (ctx, time).
 // Prints "not ready" when the cold-start gate (50 rows + 7 days) hasn't
 // fired yet.
-func runSuggest(ctx context.Context, args []string) {
+func runSuggest(ctx context.Context, args []string) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah suggest [--context X] [--llm]")
-		return
+		return 0
 	}
 
 	activeContext := ""
@@ -39,7 +39,7 @@ func runSuggest(ctx context.Context, args []string) {
 	store, err := memory.NewStore(memPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "open memory: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() { _ = store.Close() }()
 
@@ -58,13 +58,13 @@ func runSuggest(ctx context.Context, args []string) {
 	profile, err := operatormodel.Load(ctx, store.DB())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "load profile: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	recs, err := operatormodel.Recommend(profile, activeContext, time.Now())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "recommend: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	if len(recs) == 0 {
 		if profile.Ready {
@@ -74,7 +74,7 @@ func runSuggest(ctx context.Context, args []string) {
 				profile.RowsObserved, profile.DaysObserved,
 				operatormodel.ColdStartMinRows, operatormodel.ColdStartMinDays)
 		}
-		return
+		return 0
 	}
 
 	if useLLM {
@@ -83,5 +83,6 @@ func runSuggest(ctx context.Context, args []string) {
 	for i, r := range recs {
 		fmt.Printf("%d. %s — %s (weight %.2f)\n", i+1, r.Kind, r.Reason, r.Weight)
 	}
+	return 0
 }
 
