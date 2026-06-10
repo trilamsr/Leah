@@ -283,6 +283,35 @@ func TestEventStore_SchemaVersion_IntParse(t *testing.T) {
 	_ = s2.Close()
 }
 
+// Guards against re-introduction of a second Event type (e.g. W77 SSE pre-W75 stub):
+// the spec mandates ONE canonical struct. Build alone catches duplicate symbols;
+// this test catches silent shape drift if a future PR reshapes the canonical type.
+func TestEvent_CanonicalSchemaShape(t *testing.T) {
+	type field struct{ name, typ, tag string }
+	want := []field{
+		{"TS", "time.Time", `json:"ts"`},
+		{"Kind", "string", `json:"kind"`},
+		{"Actor", "string", `json:"actor"`},
+		{"Target", "string", `json:"target,omitempty"`},
+		{"Scope", "string", `json:"scope,omitempty"`},
+		{"LatencyMS", "int64", `json:"latency_ms,omitempty"`},
+		{"Outcome", "string", `json:"outcome"`},
+		{"RefID", "string", `json:"ref_id,omitempty"`},
+		{"Detail", "string", `json:"detail,omitempty"`},
+	}
+	rt := reflect.TypeOf(obs.Event{})
+	if rt.NumField() != len(want) {
+		t.Fatalf("Event fields: got %d, want %d", rt.NumField(), len(want))
+	}
+	for i, w := range want {
+		f := rt.Field(i)
+		if f.Name != w.name || f.Type.String() != w.typ || string(f.Tag) != w.tag {
+			t.Errorf("field[%d]: got {%s %s `%s`}, want {%s %s `%s`}",
+				i, f.Name, f.Type, f.Tag, w.name, w.typ, w.tag)
+		}
+	}
+}
+
 func TestEventKinds_FrozenList(t *testing.T) {
 	want := []string{
 		"dispatch.ship",
