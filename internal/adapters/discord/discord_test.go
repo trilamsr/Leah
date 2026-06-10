@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -44,10 +45,23 @@ func (f *fakeTokenSource) Token(_ context.Context) (string, error) {
 }
 
 type fakeAudit struct {
+	mu   sync.Mutex
 	rows []AuditRow
 }
 
-func (f *fakeAudit) Record(r AuditRow) { f.rows = append(f.rows, r) }
+func (f *fakeAudit) Record(r AuditRow) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rows = append(f.rows, r)
+}
+
+func (f *fakeAudit) snapshot() []AuditRow {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]AuditRow, len(f.rows))
+	copy(out, f.rows)
+	return out
+}
 
 func newTestAdapter(t *testing.T, att Attestor, ts TokenSource, srv *httptest.Server, now func() time.Time, audit AuditSink) *Adapter {
 	t.Helper()
