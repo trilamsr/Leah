@@ -101,13 +101,17 @@ type TraceResult struct {
 }
 
 // DeltaRow is one feature's BASE vs HEAD aggregate. Mirrors spec §5.3.
+// JudgeUnparseable counts both sides; spec §6.3 blocks merge when the
+// rate exceeds 5% of total judge calls.
 type DeltaRow struct {
-	Feature         string
-	BasePass        int
-	HeadPass        int
-	Total           int
-	DeltaPP         float64
-	BudgetExhausted bool
+	Feature          string
+	BasePass         int
+	HeadPass         int
+	Total            int
+	DeltaPP          float64
+	BudgetExhausted  bool
+	JudgeUnparseable int
+	JudgeCalls       int
 }
 
 // DeltaTable is the emitter contract — one row per feature plus a derived
@@ -182,29 +186,33 @@ func (h *Harness) RunAll(ctx context.Context, featurePaths, basePaths []string) 
 			}
 			row.Total++
 
-			// HEAD side
+			// TODO(W83): swap to a real BASE checkout; phase-1 calls Base.Ask
+			// on the same code path. The dual-asker shape is wired now so
+			// W83 only adds the checkout, not a signature break.
 			headActual, err := h.Head.Ask(ctx, string(tr.Input))
 			if err != nil {
 				return dt, fmt.Errorf("eval: head ask %s: %w", tr.ID, err)
 			}
 			// Hard-gate check runs before budget so a code-detectable
 			// failure never burns budget.
-			if hardFail(tr.Expected, headActual); hardFail(tr.Expected, headActual) == "" {
-				// no early-out: still need to score with the judge for the
-				// soft component, subject to budget.
-				if spent+0.001 > cap { // 0.001 = nominal one-call reservation
+			if reason := hardFail(tr.Expected, headActual); reason == "" {
+				// 0.001 = nominal one-call reservation against the per-run cap.
+				if spent+0.001 > cap {
 					budgetErr = fmt.Errorf("eval: budget exceeded")
 					break
 				}
-				_, cost, jerr := h.Judge.Score(ctx, JudgeRequest{
-					Feature: tr.Feature, TraceID: tr.ID,
-					Actual: headActual,
-				})
+				res, cost, jerr := h.Judge.Score(ctx, buildJudgeRequest(tr, headActual))
 				if jerr != nil {
 					return dt, fmt.Errorf("eval: judge %s: %w", tr.ID, jerr)
 				}
 				spent += cost
-				row.HeadPass++
+				row.JudgeCalls++
+				if res.Reason == "judge_unparseable" {
+					row.JudgeUnparseable++
+				}
+				if res.Pass && res.Score >= PassScoreThreshold {
+					row.HeadPass++
+				}
 			}
 
 			// BASE side — same flow, against the prior code path.
@@ -218,20 +226,23 @@ func (h *Harness) RunAll(ctx context.Context, featurePaths, basePaths []string) 
 			if err != nil {
 				return dt, fmt.Errorf("eval: base ask %s: %w", tr.ID, err)
 			}
-			if hardFail(btr.Expected, baseActual) == "" {
+			if reason := hardFail(btr.Expected, baseActual); reason == "" {
 				if spent+0.001 > cap {
 					budgetErr = fmt.Errorf("eval: budget exceeded")
 					break
 				}
-				_, cost, jerr := h.Judge.Score(ctx, JudgeRequest{
-					Feature: btr.Feature, TraceID: btr.ID,
-					Actual: baseActual,
-				})
+				res, cost, jerr := h.Judge.Score(ctx, buildJudgeRequest(btr, baseActual))
 				if jerr != nil {
 					return dt, fmt.Errorf("eval: judge %s: %w", btr.ID, jerr)
 				}
 				spent += cost
-				row.BasePass++
+				row.JudgeCalls++
+				if res.Reason == "judge_unparseable" {
+					row.JudgeUnparseable++
+				}
+				if res.Pass && res.Score >= PassScoreThreshold {
+					row.BasePass++
+				}
 			}
 		}
 		if row.Total > 0 {
@@ -268,7 +279,9 @@ func loadTraces(path string) ([]Trace, error) {
 
 // hardFail returns the first violated hard constraint as a human string,
 // or "" when all hard constraints pass. The judge is only invoked when
-// this returns "".
+// this returns "". tool_called is checked as a substring of actual —
+// matches the spec §4.3 reasoner row (tool_called == expected ∨ unset)
+// and the bootstrap-trace shape where the response names the tool.
 func hardFail(e Expected, actual string) string {
 	for _, s := range e.MustContain {
 		if !strings.Contains(actual, s) {
@@ -280,19 +293,37 @@ func hardFail(e Expected, actual string) string {
 			return fmt.Sprintf("must_not_contain hit: %q", s)
 		}
 	}
+	if e.ToolCalled != "" && !strings.Contains(actual, e.ToolCalled) {
+		return fmt.Sprintf("tool_called missing: %q", e.ToolCalled)
+	}
 	return ""
+}
+
+// buildJudgeRequest renders the trace's Input and Expected into the strings
+// the judge prompt template substitutes for {{.Input}} / {{.Expected}}. The
+// raw JSON shape is preserved — the judge then has both the user input and
+// the rubric (must_contain, must_not_contain, tool_called, rubric_notes)
+// in front of it when scoring.
+func buildJudgeRequest(tr Trace, actual string) JudgeRequest {
+	expectedBytes, _ := json.Marshal(tr.Expected)
+	return JudgeRequest{
+		Feature:  tr.Feature,
+		TraceID:  tr.ID,
+		RubricID: tr.Rubric,
+		Input:    string(tr.Input),
+		Actual:   actual,
+		Expected: string(expectedBytes),
+	}
 }
 
 // EvaluateTrace applies the hard gate, and only calls the judge when the
 // hard gate passes — mirrors spec §4.3 ("no judge call needed when hard
 // fails — saves budget").
-func EvaluateTrace(tr Trace, actual string, j Judge, ctx context.Context) TraceResult {
+func EvaluateTrace(ctx context.Context, tr Trace, actual string, j Judge) TraceResult {
 	if reason := hardFail(tr.Expected, actual); reason != "" {
 		return TraceResult{TraceID: tr.ID, Pass: false, Reason: reason}
 	}
-	res, _, err := j.Score(ctx, JudgeRequest{
-		Feature: tr.Feature, TraceID: tr.ID, Actual: actual,
-	})
+	res, _, err := j.Score(ctx, buildJudgeRequest(tr, actual))
 	if err != nil {
 		return TraceResult{TraceID: tr.ID, Pass: false, Reason: "judge_error: " + err.Error()}
 	}
@@ -303,6 +334,9 @@ func EvaluateTrace(tr Trace, actual string, j Judge, ctx context.Context) TraceR
 // CacheKey is sha256(base_sha || trace_id || judge_prompt_sha || judge_model)
 // per spec §5.2. Editing prompts/eval-judge.md OR bumping JudgeModel MUST
 // bust the cache — both inputs are folded in to enforce that.
+// W82 ships the key + Harness.CacheDir; the on-disk read/write lookup that
+// actually skips re-judging cached BASE results lands in W83 alongside the
+// real BASE-checkout asker.
 func CacheKey(baseSHA string, r JudgeRequest, judgePromptSHA, judgeModel string) string {
 	h := sha256.New()
 	h.Write([]byte(baseSHA))

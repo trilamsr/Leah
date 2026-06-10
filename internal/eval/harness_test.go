@@ -134,18 +134,122 @@ func TestHarness_BudgetExceeded_BlocksRemainingFeatures(t *testing.T) {
 	}
 }
 
+// TestHarness_JudgeVerdictGatesHeadPass — regression for 🔴-3: previously
+// HeadPass was incremented whenever the hard gate passed; the judge soft
+// score was thrown away. A score below PassScoreThreshold must NOT count
+// as a HEAD pass.
+func TestHarness_JudgeVerdictGatesHeadPass(t *testing.T) {
+	dir := t.TempDir()
+	feat := writeFixtureJSONL(t, dir, "reasoner.jsonl", oneReasonerTrace)
+	h := &Harness{
+		Head:    &fakeReasoner{text: "hello world", cost: 0},
+		Base:    &fakeReasoner{text: "hello world", cost: 0},
+		Judge:   &fakeJudge{pass: false, score: 0.2, cost: 0.001},
+		BaseSHA: "abc",
+	}
+	dt, err := h.Run(context.Background(), feat, feat)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if dt.Rows[0].HeadPass != 0 || dt.Rows[0].BasePass != 0 {
+		t.Errorf("low-score judge must not count as pass; got head=%d base=%d",
+			dt.Rows[0].HeadPass, dt.Rows[0].BasePass)
+	}
+}
+
+// TestHarness_JudgeRequest_CarriesInputAndExpected — regression for 🔴-2:
+// the JudgeRequest must carry tr.Input and tr.Expected so the prompt
+// template has something to score against.
+func TestHarness_JudgeRequest_CarriesInputAndExpected(t *testing.T) {
+	dir := t.TempDir()
+	feat := writeFixtureJSONL(t, dir, "reasoner.jsonl", oneReasonerTrace)
+	cap := &captureJudge{}
+	h := &Harness{
+		Head:    &fakeReasoner{text: "hello world"},
+		Base:    &fakeReasoner{text: "hello world"},
+		Judge:   cap,
+		BaseSHA: "abc",
+	}
+	if _, err := h.Run(context.Background(), feat, feat); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if cap.last.Input == "" {
+		t.Errorf("JudgeRequest.Input empty; want trace input wired through")
+	}
+	if cap.last.Expected == "" {
+		t.Errorf("JudgeRequest.Expected empty; want trace expected wired through")
+	}
+	if !strings.Contains(cap.last.Input, "hi") {
+		t.Errorf("Input should contain the trace input payload; got %q", cap.last.Input)
+	}
+	if !strings.Contains(cap.last.Expected, "hello") {
+		t.Errorf("Expected should contain must_contain entries; got %q", cap.last.Expected)
+	}
+}
+
+// captureJudge records the last JudgeRequest so tests can assert wiring.
+type captureJudge struct {
+	last JudgeRequest
+}
+
+func (c *captureJudge) Score(_ context.Context, r JudgeRequest) (JudgeResult, float64, error) {
+	c.last = r
+	return JudgeResult{Pass: true, Score: 0.95}, 0, nil
+}
+func (c *captureJudge) PromptSHA() string { return "x" }
+func (c *captureJudge) Model() string     { return "x" }
+
+// TestHardFail_EnforcesToolCalled — regression for 🟡-7: the tool_called
+// hard constraint must block a pass when the actual output does not name
+// the expected tool. Per spec §4.3 reasoner row, tool_called is one of
+// the hard gates.
+func TestHardFail_EnforcesToolCalled(t *testing.T) {
+	e := Expected{ToolCalled: "dispatch"}
+	if hardFail(e, "I will run the gmail cleanup wave") == "" {
+		t.Errorf("missing tool_called must hard-fail")
+	}
+	if got := hardFail(e, "calling dispatch tool for gmail"); got != "" {
+		t.Errorf("tool_called present should pass; got %q", got)
+	}
+	// Unset → unconstrained.
+	if hardFail(Expected{}, "anything goes") != "" {
+		t.Errorf("empty tool_called must not gate")
+	}
+}
+
+// TestHarness_JudgeUnparseable_AggregatedAndBlocks — regression for 🟡-6:
+// the judge_unparseable signal must be counted per row and trigger a
+// FAIL verdict when the rate crosses 5% (spec §6.3).
+func TestHarness_JudgeUnparseable_AggregatedAndBlocks(t *testing.T) {
+	dir := t.TempDir()
+	feat := writeFixtureJSONL(t, dir, "reasoner.jsonl", oneReasonerTrace)
+	h := &Harness{
+		Head:    &fakeReasoner{text: "hello world"},
+		Base:    &fakeReasoner{text: "hello world"},
+		Judge:   &fakeJudge{pass: false, score: 0, reason: "judge_unparseable"},
+		BaseSHA: "abc",
+	}
+	dt, err := h.Run(context.Background(), feat, feat)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if dt.Rows[0].JudgeUnparseable < 1 {
+		t.Errorf("want JudgeUnparseable counted; got %d", dt.Rows[0].JudgeUnparseable)
+	}
+}
+
 func TestJudge_HardConstraint_ReturnsFail(t *testing.T) {
 	// Even if the soft score is high, missing must_contain → hard fail
 	// without a judge call (saves budget per spec §4.3).
 	j := &fakeJudge{pass: true, score: 0.99}
 	res := EvaluateTrace(
+		context.Background(),
 		Trace{
 			ID: "reasoner.001", Feature: "reasoner",
 			Expected: Expected{MustContain: []string{"banana"}},
 		},
 		"this output has no fruit at all",
 		j,
-		context.Background(),
 	)
 	if res.Pass {
 		t.Errorf("hard constraint violated; want fail")

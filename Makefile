@@ -59,16 +59,18 @@ uninstall-janitor:
 	@echo "janitor uninstalled"
 
 # Run feature eval. FEATURE=<name> picks one evals/<name>.jsonl file.
+# BASE=<ref> sets the comparison ref (default origin/main; phase-1 stub).
+# JSON=1 emits machine-readable output (phase-1: human table only).
 # LEAH_EVAL_BUDGET_DOLLARS caps judge spend per run (spec §8.1, default $3).
 eval:
 	@test -n "$(FEATURE)" || (echo "set FEATURE=<name>" && exit 1)
 	@LEAH_EVAL_BUDGET_DOLLARS=$${LEAH_EVAL_BUDGET_DOLLARS:-3} \
-	  go run ./cmd/leah-eval --feature=$(FEATURE)
+	  go run ./cmd/leah-eval --feature=$(FEATURE) --base=$${BASE:-origin/main} --json=$${JSON:-0}
 
 # Run every evals/*.jsonl file in one invocation.
 eval-all:
 	@LEAH_EVAL_BUDGET_DOLLARS=$${LEAH_EVAL_BUDGET_DOLLARS:-3} \
-	  go run ./cmd/leah-eval
+	  go run ./cmd/leah-eval --base=$${BASE:-origin/main} --json=$${JSON:-0}
 
 help:
 	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all"
