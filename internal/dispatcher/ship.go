@@ -101,6 +101,7 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		return err
 	}
 
+	// Guard the leah-dispatched sentinel: a stray --> in the draft would close it mid-record.
 	cleanDraft := strings.ReplaceAll(bodyDraft, "-->", "-- >")
 	body := cleanDraft + "\n\n<!-- leah-dispatched: " + actionID + " -->\n<!-- intent-source: terminal -->\n"
 
