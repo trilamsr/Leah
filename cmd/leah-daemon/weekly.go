@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/ctxmgr"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/notify"
@@ -109,8 +110,9 @@ func buildRetroTask(sd, auditPath string, out *os.File) daemonloop.WeeklyTask {
 }
 
 // buildOperatorModelTask rebuilds operator_profile rows from the audit
-// window (Wave 2-J). Cold-start gate inside Update() ensures Ready stays
-// false until 50 rows + 7d.
+// window (Wave 2-J). The ctxmgr handle wires context_transition observations
+// — without it the class stays silently zero (#10). Cold-start gate inside
+// Update() ensures Ready stays false until 50 rows + 7d.
 func buildOperatorModelTask(sd, auditPath string, out *os.File) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
 		dbPath := filepath.Join(sd, "memory.db")
@@ -120,7 +122,14 @@ func buildOperatorModelTask(sd, auditPath string, out *os.File) daemonloop.Weekl
 			return
 		}
 		defer func() { _ = store.Close() }()
-		if err := operatormodel.UpdateProfile(ctx, store, auditPath); err != nil {
+		// ctxmgr shares memory.db (WAL + busy_timeout co-existence per spec §5.2).
+		mgr, err := ctxmgr.Open(dbPath)
+		if err != nil {
+			_, _ = fmt.Fprintf(out, "leah-daemon: weekly operatormodel ctxmgr error: %v\n", err)
+			return
+		}
+		defer func() { _ = mgr.Close() }()
+		if err := operatormodel.UpdateProfile(ctx, store, auditPath, mgr); err != nil {
 			_, _ = fmt.Fprintf(out, "leah-daemon: weekly operatormodel error: %v\n", err)
 		}
 	}

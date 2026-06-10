@@ -259,6 +259,41 @@ func (m *Manager) History(limit int) ([]Switch, error) {
 	return out, nil
 }
 
+// Since returns switches with switched_at >= cutoff, ascending — the shape
+// operatormodel.activeAt requires for an "active context at ts" walk.
+func (m *Manager) Since(cutoff time.Time) ([]Switch, error) {
+	rows, err := m.db.Query(`
+		SELECT id, from_context, to_context, switched_at, reason
+		FROM context_switch_log
+		WHERE switched_at >= ?
+		ORDER BY switched_at ASC, id ASC
+	`, cutoff.UTC().Format(time.RFC3339))
+	if err != nil {
+		return nil, fmt.Errorf("query since: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []Switch
+	for rows.Next() {
+		var s Switch
+		var from, reason sql.NullString
+		var switchedAt string
+		if err := rows.Scan(&s.ID, &from, &s.To, &switchedAt, &reason); err != nil {
+			return nil, fmt.Errorf("scan since row: %w", err)
+		}
+		s.From = from.String
+		s.Reason = reason.String
+		if t, err := time.Parse(time.RFC3339, switchedAt); err == nil {
+			s.SwitchedAt = t
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iter since: %w", err)
+	}
+	return out, nil
+}
+
 // List returns every known context sorted by name.
 func (m *Manager) List() ([]Context, error) {
 	rows, err := m.db.Query(`SELECT name, created_at, description FROM context ORDER BY name`)
