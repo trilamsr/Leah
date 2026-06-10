@@ -15,6 +15,7 @@ type App struct {
 	Client  *hud.Client
 	Widgets *hud.Widgets
 	Focus   *hud.Focus
+	Recs    *hud.Recommendations
 }
 
 func NewApp(daemonURL string) *App {
@@ -25,6 +26,7 @@ func NewApp(daemonURL string) *App {
 		Client:  c,
 		Widgets: hud.NewWidgets(c),
 		Focus:   hud.NewFocus(state, daemonURL),
+		Recs:    hud.NewRecommendations(hud.NewDaemonRecommendSeam(c)),
 	}
 }
 
@@ -40,6 +42,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/api/focus/summon", a.handleFocusSummon)
 	mux.HandleFunc("/api/focus/query", a.handleFocusQuery)
 	a.Widgets.Routes(mux)
+	a.Recs.Routes(mux)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	return mux
 }

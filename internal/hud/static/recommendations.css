@@ -1,0 +1,107 @@
+:root {
+  --accent: #5af2ff;
+  --bg: rgba(8, 12, 20, 0.92);
+  --fg: rgba(255, 255, 255, 0.96);
+  --muted: rgba(255, 255, 255, 0.55);
+  --line: rgba(255, 255, 255, 0.12);
+  --ok: #8bf28b;
+  --warn: #f2c98b;
+  --danger: #f28b8b;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+
+body.recs {
+  width: 720px;
+  padding: 16px;
+}
+
+#recs-panel {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.bar .title {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.muted { color: var(--muted); }
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  align-items: center;
+}
+
+.card .pattern {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.card .action {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.card .meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.card .tier-auto { color: var(--ok); }
+.card .tier-confirm { color: var(--warn); }
+.card .tier-silent,
+.card .tier-blocked { color: var(--danger); }
+
+.card .buttons {
+  grid-row: span 2;
+  display: flex;
+  gap: 6px;
+}
+
+.card button {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.card button.accept:hover { border-color: var(--ok); color: var(--ok); }
+.card button.reject:hover { border-color: var(--danger); color: var(--danger); }
+.card button:disabled { opacity: 0.4; cursor: not-allowed; }
