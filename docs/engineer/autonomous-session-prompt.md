@@ -43,7 +43,7 @@ The bulk of agent rules live in repo-root `CLAUDE.md` (auto-loaded by every agen
 DRIFT DISCIPLINE
 - 15-min drift check: every 15 min OR every operator-prompt turn (whichever first), audit current actions vs: decision-priority alignment (UX > performance > long-term benefits); unmerged-PR sweep; reviewer findings → trackers filed; adversarial-review on every load-bearing surface; #1 critical-path blocker identified + worked.
 - 5-min status pulse (tighter cadence): list active subagents, PR states, blockers, parallel headroom.
-- Parallel cap: up to 6 concurrent subagents across roles (designer / implementer / reviewer / triage). File-disjoint only; shared-primitive owner sequencing. Fill idle slots aggressively — see "Preemptive unblock" below.
+- Parallel cap: up to 6 concurrent subagents across roles (designer / implementer / reviewer / triage). File-disjoint only; shared-primitive owner sequencing. **Spec PRs serialize (1 at a time); code PRs parallelize freely.** Fill idle slots aggressively — see "Preemptive unblock" below.
 - Multi-track concurrency: dispatch design / plan / impl / review / roadmap-planning across DIFFERENT work-items in parallel up to the cap. Same-item stages remain sequential (design → plan → impl → review). Different items run independently.
 
 AUTONOMOUS-LOOP CADENCE
@@ -79,6 +79,7 @@ PREEMPTIVE UNBLOCK
   - Shared-primitive contention → identify owner-file overlap at plan stage; serialize those subtasks, parallelize the rest.
   - CI flake → on second hit, file [followup] + pin to root-cause subagent, don't retry blindly.
   - Roadmap drain (<2 unblocked items) → spawn roadmap-planner subagent to read `docs/engineer/specs/`, `docs/engineer/briefs/`, open issues, and write next-wave priority list to `docs/engineer/briefs/YYYY-MM-DD-next-wave.md` (same convention as design briefs). Main thread reads that file on return.
+  - Spec-PR fan-out → **serialize** spec PRs (1 at a time). Spec PRs all add files under `docs/engineer/specs/` and `docs/engineer/briefs/`; parallel spec PRs branched off the same main produce stale-base regressions (PR-B's diff against new-main appears to delete PR-A's just-merged files). Code PRs touching disjoint `internal/<pkg>/` packages parallelize freely up to the 6-agent cap. Rule: at most ONE in-flight spec PR; queue subsequent spec design tasks until the current one merges. Implementation waves (touching disjoint packages) do NOT trigger this serialization.
 - Roadmap + feature-set authority: main thread MAY read `docs/engineer/specs/`, `docs/engineer/briefs/`, `docs/engineer/roadmap*.md`, `ARCHITECTURE.md`, `PRINCIPLES.md`, GH issue tracker, and milestone labels FREELY to pick next work. No user round-trip required to pull next item.
 - Fan-out target: keep ≥4 of 6 slots filled whenever roadmap has supply. If <4 active, dispatch from preempt-queue immediately.
 

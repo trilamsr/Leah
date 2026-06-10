@@ -77,6 +77,8 @@ CI-CHECK OUTPUT COMPRESSION
 
 SHARED-PRIMITIVE OWNERSHIP
 - Before edit, scan composition roots (`cmd/leah/main.go`, `internal/daemonloop/`, `internal/dispatcher/`) for sibling-touch. Defer to named OWNER if assigned. File-disjoint dispatch wins parallelism — chained-output work must sequence.
+- Spec-PR ownership: `docs/engineer/specs/` and `docs/engineer/briefs/` directories are SHARED — only ONE spec PR in flight at a time. Even though spec PRs add new files (no filename overlap), parallel spec PRs branched off the same main produce stale-base regressions because each diff-against-new-main includes the sibling's just-merged files as "deletions". Resolution: serialize spec PRs (wait for current to merge before dispatching next), OR dispatch code-impl PRs (file-disjoint per package) instead.
+- Root-file ownership: `Makefile`, `go.mod`, `go.sum`, `CLAUDE.md`, `docs/engineer/autonomous-session-prompt.md`, `docs/engineer/dispatch-templates/*.md` — single-owner per dispatch; never parallel.
 
 COMMENT BUDGET (recurring offender)
 - Drop single-line WHAT-narration. Default to no comment. Long-term-benefit gate: keep only if removing leaves future reader confused about WHY.
