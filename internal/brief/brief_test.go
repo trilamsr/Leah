@@ -1,6 +1,8 @@
 package brief
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -237,6 +239,182 @@ func TestWriteFileWritesAndOverwrites(t *testing.T) {
 	got2, _ := os.ReadFile(want)
 	if string(got2) != "second" {
 		t.Errorf("expected overwrite, got %q", got2)
+	}
+}
+
+// fakeGmail returns a canned subjects+err pair to Render-side tests.
+type fakeGmail struct {
+	subjects []string
+	err      error
+}
+
+func (f *fakeGmail) ListUnread(ctx context.Context) ([]string, error) {
+	return f.subjects, f.err
+}
+
+// fakeGcal returns a canned events+err pair to Render-side tests.
+type fakeGcal struct {
+	events []Event
+	err    error
+}
+
+func (f *fakeGcal) ListToday(ctx context.Context) ([]Event, error) {
+	return f.events, f.err
+}
+
+// TestBrief_GmailUnreadRendered_HappyPath asserts unread subjects appear.
+func TestBrief_GmailUnreadRendered_HappyPath(t *testing.T) {
+	d := Data{
+		Now: time.Now(),
+		UnreadMail: []string{
+			"Re: regatta wave 10 review",
+			"Invoice 2026-06",
+			"Welcome to Leah",
+		},
+	}
+	out := Render(d)
+	if !strings.Contains(out, "## Mail") {
+		t.Fatalf("missing Mail header:\n%s", out)
+	}
+	for _, want := range []string{"Re: regatta wave 10 review", "Invoice 2026-06", "Welcome to Leah", "3"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("mail section missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+// TestBrief_GcalTodayRendered_HappyPath asserts events appear with HH:MM.
+func TestBrief_GcalTodayRendered_HappyPath(t *testing.T) {
+	loc := time.UTC
+	d := Data{
+		Now: time.Date(2026, 6, 9, 9, 0, 0, 0, loc),
+		TodayEvents: []Event{
+			{Summary: "Standup", Start: time.Date(2026, 6, 9, 10, 30, 0, 0, loc)},
+			{Summary: "Design review", Start: time.Date(2026, 6, 9, 14, 0, 0, 0, loc)},
+		},
+	}
+	out := Render(d)
+	if !strings.Contains(out, "## Calendar") {
+		t.Fatalf("missing Calendar header:\n%s", out)
+	}
+	for _, want := range []string{"10:30 Standup", "14:00 Design review", "2"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("calendar section missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+// TestBrief_GmailUnavailable_RendersFallback asserts gmail error → "unavailable".
+func TestBrief_GmailUnavailable_RendersFallback(t *testing.T) {
+	d := Data{Now: time.Now(), MailUnavailable: true}
+	out := Render(d)
+	if !strings.Contains(out, "## Mail") || !strings.Contains(out, "unavailable") {
+		t.Errorf("expected mail unavailable fallback, got:\n%s", out)
+	}
+}
+
+// TestBrief_GcalUnavailable_RendersFallback asserts gcal error → "unavailable".
+func TestBrief_GcalUnavailable_RendersFallback(t *testing.T) {
+	d := Data{Now: time.Now(), CalendarUnavailable: true}
+	out := Render(d)
+	if !strings.Contains(out, "## Calendar") || !strings.Contains(out, "unavailable") {
+		t.Errorf("expected calendar unavailable fallback, got:\n%s", out)
+	}
+}
+
+// TestBrief_BothUnavailable_StillRenders asserts neither failure aborts.
+func TestBrief_BothUnavailable_StillRenders(t *testing.T) {
+	d := Data{Now: time.Now(), MailUnavailable: true, CalendarUnavailable: true}
+	out := Render(d)
+	for _, want := range []string{"## Yesterday", "## Regatta backlog", "## Cost", "unavailable"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("brief truncated when both integrations down, missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestBrief_NilListers_OmitSections asserts unset integrations stay silent.
+func TestBrief_NilListers_OmitSections(t *testing.T) {
+	d := Data{Now: time.Now()}
+	out := Render(d)
+	if strings.Contains(out, "## Mail") || strings.Contains(out, "## Calendar") {
+		t.Errorf("unconfigured integrations should omit sections entirely, got:\n%s", out)
+	}
+}
+
+// TestBrief_GmailCapAt5Subjects asserts only 5 shown with overflow marker.
+func TestBrief_GmailCapAt5Subjects(t *testing.T) {
+	subjects := make([]string, 10)
+	for i := range subjects {
+		subjects[i] = "subject-" + string(rune('a'+i))
+	}
+	d := Data{Now: time.Now(), UnreadMail: subjects}
+	out := Render(d)
+	if !strings.Contains(out, "subject-a") || !strings.Contains(out, "subject-e") {
+		t.Errorf("expected first five subjects, got:\n%s", out)
+	}
+	if strings.Contains(out, "subject-f") {
+		t.Errorf("expected cap at 5, sixth subject leaked:\n%s", out)
+	}
+	if !strings.Contains(out, "5 more") {
+		t.Errorf("expected overflow marker (+N more), got:\n%s", out)
+	}
+}
+
+// TestBrief_EventTime_RendersLocal pins HH:MM to the Event's own zone — a
+// UTC-only formatter would silently shift the operator's day by 8 hours.
+func TestBrief_EventTime_RendersLocal(t *testing.T) {
+	pst := time.FixedZone("PST", -8*3600)
+	d := Data{
+		Now:         time.Date(2026, 6, 9, 9, 0, 0, 0, time.UTC),
+		TodayEvents: []Event{{Summary: "Standup", Start: time.Date(2026, 6, 9, 10, 30, 0, 0, pst)}},
+	}
+	out := Render(d)
+	if !strings.Contains(out, "10:30 Standup") {
+		t.Errorf("expected zone-local HH:MM '10:30', got:\n%s", out)
+	}
+	if strings.Contains(out, "18:30") {
+		t.Errorf("rendered UTC-shifted time '18:30' — formatter ignored Event zone:\n%s", out)
+	}
+}
+
+// TestGatherCallsGmailLister wires Gather → fakeGmail and confirms subjects propagate.
+func TestGatherCallsGmailLister(t *testing.T) {
+	dir := t.TempDir()
+	g := &fakeGmail{subjects: []string{"hello", "world"}}
+	d := Gather(context.Background(), time.Now(), dir, nil, GatherOpts{Gmail: g})
+	if len(d.UnreadMail) != 2 || d.MailUnavailable {
+		t.Errorf("gmail subjects not propagated: %+v unavail=%v", d.UnreadMail, d.MailUnavailable)
+	}
+}
+
+// TestGatherGmailErrorMarksUnavailable asserts a lister error sets the flag.
+func TestGatherGmailErrorMarksUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	g := &fakeGmail{err: errors.New("boom")}
+	d := Gather(context.Background(), time.Now(), dir, nil, GatherOpts{Gmail: g})
+	if !d.MailUnavailable || len(d.UnreadMail) != 0 {
+		t.Errorf("expected unavailable flag, got %+v unavail=%v", d.UnreadMail, d.MailUnavailable)
+	}
+}
+
+// TestGatherCallsGcalLister wires Gather → fakeGcal and confirms events propagate.
+func TestGatherCallsGcalLister(t *testing.T) {
+	dir := t.TempDir()
+	c := &fakeGcal{events: []Event{{Summary: "x", Start: time.Now()}}}
+	d := Gather(context.Background(), time.Now(), dir, nil, GatherOpts{Gcal: c})
+	if len(d.TodayEvents) != 1 || d.CalendarUnavailable {
+		t.Errorf("gcal events not propagated: %+v unavail=%v", d.TodayEvents, d.CalendarUnavailable)
+	}
+}
+
+// TestGatherGcalErrorMarksUnavailable asserts a lister error sets the flag.
+func TestGatherGcalErrorMarksUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	c := &fakeGcal{err: errors.New("boom")}
+	d := Gather(context.Background(), time.Now(), dir, nil, GatherOpts{Gcal: c})
+	if !d.CalendarUnavailable || len(d.TodayEvents) != 0 {
+		t.Errorf("expected unavailable flag, got %+v unavail=%v", d.TodayEvents, d.CalendarUnavailable)
 	}
 }
 

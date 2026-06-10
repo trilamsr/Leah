@@ -22,6 +22,47 @@ import (
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
+// gmailCap bounds the unread-subject list so the brief stays scannable
+// when the operator's inbox is in triple digits.
+const gmailCap = 5
+
+// gcalCap bounds the calendar list; conferences can hit 20+ events/day,
+// 10 is the operator's comfortable glance.
+const gcalCap = 10
+
+// subjectMaxLen truncates noisy mail subjects so a single long thread
+// title cannot wrap and break the section layout.
+const subjectMaxLen = 80
+
+// GmailLister is the gmail-adapter subset the brief consumes; defining
+// it here keeps the dependency one-way (brief → adapters) and lets tests
+// inject a fake without dragging in the real attestation gate.
+type GmailLister interface {
+	ListUnread(ctx context.Context) ([]string, error)
+}
+
+// Event is the brief-local calendar shape; defining it here keeps the brief
+// package free of any concrete adapter import (callers map gcal.Event →
+// brief.Event at the wire-up site). Only the fields Render actually uses
+// live here — adding a field is cheaper than removing one.
+type Event struct {
+	Start   time.Time
+	Summary string
+}
+
+// GcalLister mirrors GmailLister for calendar events.
+type GcalLister interface {
+	ListToday(ctx context.Context) ([]Event, error)
+}
+
+// GatherOpts carries the optional adapter listers. Zero value = adapters
+// not configured → brief omits the corresponding sections entirely
+// (silent absence beats noisy "unavailable" for unconfigured features).
+type GatherOpts struct {
+	Gmail GmailLister
+	Gcal  GcalLister
+}
+
 // Data is the pure-data input to Render — all IO happens upstream so the
 // formatter is testable without a real audit log / regatta binary.
 type Data struct {
@@ -34,6 +75,14 @@ type Data struct {
 	BugFixCount      int
 	WeekToDateUSD    float64
 	ProjectedMonthly float64
+
+	// UnreadMail holds top-K gmail subjects (already truncated). Empty +
+	// MailUnavailable=false → gmail not configured, section is omitted.
+	UnreadMail          []string
+	UnreadMailTotal     int
+	MailUnavailable     bool
+	TodayEvents         []Event
+	CalendarUnavailable bool
 }
 
 // RegattaLister is the subset of regattaclient.Client Gather needs.
@@ -45,7 +94,11 @@ type RegattaLister interface {
 // Gather collects all IO into one place so Render stays pure. Soft-fails
 // per source: a missing regatta binary or empty audit log degrades the
 // brief gracefully rather than aborting.
-func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister) Data {
+func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opts ...GatherOpts) Data {
+	var o GatherOpts
+	if len(opts) > 0 {
+		o = opts[0]
+	}
 	auditPath := filepath.Join(sd, "audit.jsonl")
 
 	yStart, yEnd := YesterdayBounds(now)
@@ -87,7 +140,43 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister) Dat
 		d.ProjectedMonthly = summary.TotalUSD * (30.0 / 7.0)
 	}
 
+	// Gmail unread (soft-fail; nil err with empty list means inbox-zero).
+	if o.Gmail != nil {
+		if subs, err := o.Gmail.ListUnread(ctx); err != nil {
+			d.MailUnavailable = true
+		} else {
+			d.UnreadMailTotal = len(subs)
+			d.UnreadMail = truncateSubjects(subs, gmailCap, subjectMaxLen)
+		}
+	}
+
+	// Gcal today (soft-fail mirrors gmail).
+	if o.Gcal != nil {
+		if evs, err := o.Gcal.ListToday(ctx); err != nil {
+			d.CalendarUnavailable = true
+		} else {
+			d.TodayEvents = evs
+		}
+	}
+
 	return d
+}
+
+// truncateSubjects caps the slice and ellipsizes any subject over max.
+func truncateSubjects(in []string, capN, max int) []string {
+	n := len(in)
+	if n > capN {
+		n = capN
+	}
+	out := make([]string, n)
+	for i := 0; i < n; i++ {
+		s := in[i]
+		if len(s) > max {
+			s = s[:max-1] + "…"
+		}
+		out[i] = s
+	}
+	return out
 }
 
 // Render turns Data into a markdown brief. Pure function — drives the test
@@ -163,7 +252,54 @@ func Render(d Data) string {
 	}
 	fmt.Fprintln(&b)
 
-	// 5. Cost outlook.
+	// 5. Mail + Calendar render only when the operator has wired the
+	// integration — silent absence beats noisy "unavailable" for
+	// unconfigured features (UnavailableX is for runtime failure).
+	if d.MailUnavailable || d.UnreadMailTotal > 0 || len(d.UnreadMail) > 0 {
+		fmt.Fprintln(&b, "## Mail")
+		if d.MailUnavailable {
+			fmt.Fprintln(&b, "  (unavailable)")
+		} else {
+			total := d.UnreadMailTotal
+			if total == 0 {
+				total = len(d.UnreadMail)
+			}
+			shown := len(d.UnreadMail)
+			if shown > gmailCap {
+				shown = gmailCap
+			}
+			fmt.Fprintf(&b, "  %d unread\n", total)
+			for _, s := range d.UnreadMail[:shown] {
+				fmt.Fprintf(&b, "  - %s\n", s)
+			}
+			if total > shown {
+				fmt.Fprintf(&b, "  …and %d more\n", total-shown)
+			}
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if d.CalendarUnavailable || len(d.TodayEvents) > 0 {
+		fmt.Fprintln(&b, "## Calendar")
+		if d.CalendarUnavailable {
+			fmt.Fprintln(&b, "  (unavailable)")
+		} else {
+			max := gcalCap
+			if len(d.TodayEvents) < max {
+				max = len(d.TodayEvents)
+			}
+			fmt.Fprintf(&b, "  %d events\n", len(d.TodayEvents))
+			for _, ev := range d.TodayEvents[:max] {
+				fmt.Fprintf(&b, "  - %s %s\n", ev.Start.Format("15:04"), ev.Summary)
+			}
+			if len(d.TodayEvents) > max {
+				fmt.Fprintf(&b, "  …and %d more\n", len(d.TodayEvents)-max)
+			}
+		}
+		fmt.Fprintln(&b)
+	}
+
+	// 6. Cost outlook.
 	fmt.Fprintln(&b, "## Cost")
 	fmt.Fprintf(&b, "  week-to-date  $%.4f\n", d.WeekToDateUSD)
 	fmt.Fprintf(&b, "  projected mo  $%.4f\n", d.ProjectedMonthly)
