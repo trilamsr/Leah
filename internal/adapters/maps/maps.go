@@ -25,6 +25,8 @@ const (
 	ScopeRoute         = "maps:route"
 	ScopePOI           = "maps:poi"
 	ScopePOIAlongRoute = "maps:poi_along_route"
+	ScopeTraffic       = "maps:traffic"
+	ScopeDetails       = "maps:place_details"
 )
 
 // TransportMode is the Directions API mode parameter; constants below cover
@@ -92,6 +94,8 @@ type Config struct {
 	HTTPClient *http.Client
 	APIKey     string
 	BaseURL    string
+	// Cache is optional — nil disables persistence (each RPC hits the wire).
+	Cache *Cache
 }
 
 // Adapter is the Maps adapter the rest of Leah depends on. No background
@@ -101,6 +105,7 @@ type Adapter struct {
 	http    *http.Client
 	apiKey  string
 	baseURL string
+	cache   *Cache
 }
 
 // defaultBaseURL points at Google's Maps REST endpoints; tests override via
@@ -123,7 +128,7 @@ func New(cfg Config) (*Adapter, error) {
 	if base == "" {
 		base = defaultBaseURL
 	}
-	return &Adapter{att: cfg.Attestor, http: hc, apiKey: cfg.APIKey, baseURL: base}, nil
+	return &Adapter{att: cfg.Attestor, http: hc, apiKey: cfg.APIKey, baseURL: base, cache: cfg.Cache}, nil
 }
 
 // gate runs the attestation gate; only on consent does the caller issue HTTP.
