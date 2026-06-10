@@ -18,10 +18,18 @@ import (
 // a fake-Exec-backed provider.
 func runConnectRegatta(ctx context.Context, args []string, w io.Writer, p *connect.RegattaProvider) int {
 	if shouldShowHelp(args) {
-		_, _ = fmt.Fprintln(w, "usage: leah connect regatta")
+		_, _ = fmt.Fprintln(w, "usage: leah connect regatta [--cloud --url <https://...> --token <bearer>]")
 		_, _ = fmt.Fprintln(w, "")
-		_, _ = fmt.Fprintln(w, "Start a local Docker container running regatta. Requires a healthy Docker daemon.")
+		_, _ = fmt.Fprintln(w, "Default: start a local Docker container running regatta. --cloud points Leah at a hosted")
+		_, _ = fmt.Fprintln(w, "regatta and is billed per use; requires a separate cost-implication consent prompt.")
 		return 0
+	}
+	// --cloud dispatches to the W43 cloud branch; the docker branch sees a
+	// reduced argv with --cloud stripped (currently nil deps = production wiring).
+	for _, a := range args {
+		if a == "--cloud" {
+			return runConnectRegattaCloud(ctx, args, w, nil)
+		}
 	}
 	if p == nil {
 		p = connect.NewRegatta()
