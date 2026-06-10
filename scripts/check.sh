@@ -20,6 +20,9 @@ fi
 echo "==> check-comment-density"
 "$(dirname "$0")/check-comment-density.sh"
 
+echo "==> check-no-bare-sleep"
+"$(dirname "$0")/check-no-bare-sleep.sh"
+
 # Catch the space-separated `closes #N #M` form GitHub silently drops
 # (only the first issue auto-closes). Skips when no open PR matches HEAD.
 echo "==> pr-body close-keyword form"
