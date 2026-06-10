@@ -8,10 +8,6 @@ import (
 	"github.com/trilam/leah/internal/recommend"
 )
 
-// startRecommendDispatcher subscribes recommend.SignalDispatcher to bus and
-// drives engine.OnSignal for every translated event. Returned stop drains
-// the pump on ctx-cancel-or-daemon-shutdown. Caller owns bus + engine
-// lifecycle; bus must be the default broadcaster so obs.EmitEvent reaches it.
 func startRecommendDispatcher(ctx context.Context, lg *slog.Logger, registry *obs.Registry, bus *obs.Broadcaster, engine recommend.SignalEngine) (func(), error) {
 	d := recommend.NewSignalDispatcher(engine, bus, nil).WithRegistry(registry)
 	if err := d.Start(ctx); err != nil {
@@ -19,4 +15,18 @@ func startRecommendDispatcher(ctx context.Context, lg *slog.Logger, registry *ob
 		return func() {}, err
 	}
 	return d.Stop, nil
+}
+
+// identitySignalMatcher is a placeholder until pattern-bearing matchers land.
+type identitySignalMatcher struct{}
+
+func (identitySignalMatcher) Match(_ context.Context, sig recommend.Signal) ([]recommend.Recommendation, error) {
+	return []recommend.Recommendation{{
+		ID:         sig.Kind + ":" + sig.Detail,
+		Pattern:    sig.Kind + ":" + sig.Detail,
+		Tier:       recommend.TierSilent,
+		Source:     "signal.identity",
+		Confidence: 0.5,
+		CreatedAt:  sig.At,
+	}}, nil
 }

@@ -105,7 +105,9 @@ func main() {
 
 	bus := obs.NewBroadcaster()
 	obs.SetDefaultBroadcaster(bus)
-	stopRec, _ := startRecommendDispatcher(ctx, lg, registry, bus, recommend.NewMemoryEngine(a))
+	engine := recommend.NewMemoryEngine(a)
+	engine.RegisterMatcher(identitySignalMatcher{})
+	stopRec, _ := startRecommendDispatcher(ctx, lg, registry, bus, engine)
 	defer stopRec()
 
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)

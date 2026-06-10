@@ -11,6 +11,7 @@ import (
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/recommend"
 	"github.com/trilam/leah/internal/testutil"
+	"github.com/trilam/leah/internal/web"
 )
 
 // fakeSignalEngine satisfies recommend.SignalEngine for wiring-tests; only
@@ -61,6 +62,69 @@ func TestStartRecommendDispatcher_WiresToEngine(t *testing.T) {
 	if got := eng.seen[0]; got.Kind != "voice.speak" || got.Detail != "wake" {
 		t.Fatalf("translation mismatch: %+v", got)
 	}
+}
+
+// TestStartRecommendDispatcher_EmitEventReachesEngine catches the orphan-bus
+// bug: web.Server.ensureBroadcaster must NOT clobber an already-set default,
+// or obs.EmitEvent fans out to a broadcaster the dispatcher doesn't subscribe.
+func TestStartRecommendDispatcher_EmitEventReachesEngine(t *testing.T) {
+	lg := slog.New(slog.NewTextHandler(io.Discard, nil))
+	reg := obs.NewRegistry()
+	bus := obs.NewBroadcaster()
+	obs.SetDefaultBroadcaster(bus)
+	t.Cleanup(func() { obs.SetDefaultBroadcaster(nil) })
+
+	eng := &fakeSignalEngine{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop, err := startRecommendDispatcher(ctx, lg, reg, bus, eng)
+	if err != nil {
+		t.Fatalf("startRecommendDispatcher: %v", err)
+	}
+	defer stop()
+
+	// A dashboard build must NOT replace the daemon's default broadcaster.
+	srv := &web.Server{Addr: "127.0.0.1:0"}
+	if _, err := srv.BuildMux(); err != nil {
+		t.Fatalf("BuildMux: %v", err)
+	}
+
+	obs.EmitEvent(ctx, obs.Event{Kind: "voice.speak", Detail: "wake"})
+
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		eng.mu.Lock()
+		defer eng.mu.Unlock()
+		return len(eng.seen) >= 1
+	})
+}
+
+// TestStartRecommendDispatcher_EndToEnd_ProducesRecommendation exercises the
+// full bus → dispatcher → engine → matcher → Seed pipeline with the same
+// matcher main.go registers.
+func TestStartRecommendDispatcher_EndToEnd_ProducesRecommendation(t *testing.T) {
+	lg := slog.New(slog.NewTextHandler(io.Discard, nil))
+	reg := obs.NewRegistry()
+	bus := obs.NewBroadcaster()
+	obs.SetDefaultBroadcaster(bus)
+	t.Cleanup(func() { obs.SetDefaultBroadcaster(nil) })
+
+	eng := recommend.NewMemoryEngine(nil)
+	eng.RegisterMatcher(identitySignalMatcher{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop, err := startRecommendDispatcher(ctx, lg, reg, bus, eng)
+	if err != nil {
+		t.Fatalf("startRecommendDispatcher: %v", err)
+	}
+	defer stop()
+
+	obs.EmitEvent(ctx, obs.Event{Kind: "voice.speak", Detail: "wake"})
+
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		recs, _ := eng.Propose(ctx)
+		return len(recs) >= 1
+	})
 }
 
 func TestStartRecommendDispatcher_CtxCancel_Stops(t *testing.T) {
