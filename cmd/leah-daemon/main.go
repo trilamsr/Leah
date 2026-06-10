@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/costmonth"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/macos/activeapp"
 	"github.com/trilam/leah/internal/memory"
@@ -109,6 +110,23 @@ func main() {
 	engine.RegisterMatcher(identitySignalMatcher{})
 	stopRec, _ := startRecommendDispatcher(ctx, lg, registry, bus, engine)
 	defer stopRec()
+
+	// W94: spec §6.3 mandates a daemon-side 1-minute rollover timer so a
+	// daemon-idle midnight rolls the month within ≤60 s. Cap defaults to
+	// $50; LEAH_COST_MONTH_CAP overrides per spec §7.1.
+	cmCap := 50.0
+	if v := os.Getenv("LEAH_COST_MONTH_CAP"); v != "" {
+		if parsed, err := strconv.ParseFloat(v, 64); err == nil && parsed > 0 {
+			cmCap = parsed
+		}
+	}
+	if cm, err := costmonth.OpenAt(filepath.Join(sd, "cost-month.json"), cmCap, time.Now()); err == nil {
+		go cm.RunRolloverLoop(ctx, time.Minute, func(err error) {
+			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: costmonth rollover: %v\n", err)
+		})
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: costmonth open non-fatal: %v\n", err)
+	}
 
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)
 

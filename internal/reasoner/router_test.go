@@ -2,10 +2,14 @@ package reasoner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/obs"
 )
 
 // routerFake is a Client double that returns a pre-canned CompleteResult and
@@ -112,6 +116,46 @@ func TestRouter_DeniesAt100pct(t *testing.T) {
 	}
 	if primary.calls != 0 || degraded.calls != 0 {
 		t.Errorf("client called under deny: primary=%d degraded=%d", primary.calls, degraded.calls)
+	}
+}
+
+// Degrade transition records `leah_cost_breaker_degrade_total` with the
+// `from_model` / `to_model` labels — spec §3.
+func TestRouter_DegradeEmitsCounter(t *testing.T) {
+	primary := &routerFake{model: "claude-sonnet-4-6"}
+	degraded := &routerFake{model: "claude-haiku-4-5"}
+	reg := obs.NewRegistry()
+	r := &Router{
+		Primary:       primary,
+		Degraded:      degraded,
+		Breaker:       &stubBreaker{state: StateWarn, spent: 42.0, cap: 50.0},
+		Kind:          "intent",
+		PrimaryModel:  "claude-sonnet-4-6",
+		DegradedModel: "claude-haiku-4-5",
+		Registry:      reg,
+	}
+	if _, err := r.Complete(context.Background(), "s", "u"); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	dir := t.TempDir()
+	snap := filepath.Join(dir, "snap.json")
+	if err := reg.Snapshot(snap); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	b, err := os.ReadFile(snap)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var out struct {
+		Counters map[string]int64 `json:"counters"`
+	}
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	// flatten-key shape: "metric|k1=v1,k2=v2" sorted by key.
+	want := "leah_cost_breaker_degrade_total|from_model=claude-sonnet-4-6,to_model=claude-haiku-4-5"
+	if out.Counters[want] != 1 {
+		t.Errorf("counter[%s] = %d, want 1 (counters=%v)", want, out.Counters[want], out.Counters)
 	}
 }
 

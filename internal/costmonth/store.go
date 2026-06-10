@@ -20,6 +20,15 @@ import (
 // against time.Now().UTC() to detect rollover.
 const monthFmt = "2006-01"
 
+// operatorIDFromEnv reads LEAH_OPERATOR_ID (spec §6.1 reserves the field
+// for multi-op); empty / unset falls back to "default".
+func operatorIDFromEnv() string {
+	if v := os.Getenv("LEAH_OPERATOR_ID"); v != "" {
+		return v
+	}
+	return "default"
+}
+
 // state is the on-disk shape (spec §6.1). Fields tagged with the exact
 // JSON keys the spec example uses so audit-replay tooling stays stable.
 type state struct {
@@ -96,7 +105,7 @@ func freshState(ym string, capDollars float64, now time.Time) state {
 	next := time.Date(utc.Year(), utc.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 	return state{
 		YearMonth:       ym,
-		OperatorID:      "default",
+		OperatorID:      operatorIDFromEnv(),
 		TotalsByKind:    map[string]float64{},
 		MonthCapDollars: capDollars,
 		RolloverAt:      next,
@@ -118,11 +127,17 @@ func (s *Store) archive(prior state) error {
 	return os.WriteFile(out, b, 0o600)
 }
 
-// Charge adds dollars to kind's bucket and flushes to disk. Negative
-// dollars are silently dropped — billing corrections land via an
-// explicit `leah cost refund` (out of scope for W94).
+// ErrNegativeCharge surfaces a negative-dollar Charge — refunds belong
+// in `leah cost refund` (W95+), not the hot-path Charge call.
+var ErrNegativeCharge = errors.New("cost-month: negative charge — use refund flow")
+
+// Charge adds dollars to kind's bucket and flushes to disk. Zero is a
+// silent no-op (cost-free LLM cache hits); negative returns ErrNegativeCharge.
 func (s *Store) Charge(kind string, dollars float64) error {
-	if dollars <= 0 {
+	if dollars < 0 {
+		return ErrNegativeCharge
+	}
+	if dollars == 0 {
 		return nil
 	}
 	s.mu.Lock()
@@ -135,8 +150,7 @@ func (s *Store) Charge(kind string, dollars float64) error {
 	return s.writeLocked()
 }
 
-// Spent returns the sum of all per-kind totals — the numerator of the
-// breaker's spent/cap ratio.
+// Spent is the numerator of the breaker's spent/cap ratio.
 func (s *Store) Spent() float64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -147,16 +161,16 @@ func (s *Store) Spent() float64 {
 	return sum
 }
 
-// Cap returns the configured monthly cap; exposed so the breaker can
-// publish the ratio without re-reading env.
+// Cap is the breaker ratio denominator; the breaker reads it instead of
+// re-parsing LEAH_COST_MONTH_CAP from env on every State() call.
 func (s *Store) Cap() float64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.st.MonthCapDollars
 }
 
-// YearMonth returns the canonical YYYY-MM string the store is currently
-// tracking — exposed for the 1-minute rollover timer.
+// YearMonth is exposed for the 1-minute rollover timer to compare against
+// wall-clock UTC without re-locking the inner state.
 func (s *Store) YearMonth() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -181,9 +195,10 @@ func (s *Store) CheckRollover(now time.Time) error {
 }
 
 // RunRolloverLoop ticks every interval, calling CheckRollover so a
-// daemon-idle midnight rolls the month within ≤interval (spec §6.3
-// targets ≤60 s). Returns when ctx is cancelled. Errors are logged via
-// the supplied onErr hook; nil hook silently drops them.
+// daemon-idle midnight rolls within ≤interval (spec §6.3 targets ≤60 s).
+// Cancellation wins over a fired tick: ctx.Done in the same select frees
+// the worst-case shutdown wait of one CheckRollover (single mutex-guarded
+// archive + rewrite — bounded, but worth not blocking on at SIGTERM).
 func (s *Store) RunRolloverLoop(ctx context.Context, interval time.Duration, onErr func(error)) {
 	if interval <= 0 {
 		interval = time.Minute
@@ -224,6 +239,9 @@ func (s *Store) writeLocked() error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("close tmp: %w", cerr)
 	}
+	// CreateTemp honors umask, so a permissive umask can leak 0o644 on
+	// the tmp file before the rename. Re-chmod 0o600 before the swap so
+	// the operator's spend ledger is never world-readable on disk.
 	if cherr := os.Chmod(tmpPath, 0o600); cherr != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("chmod tmp: %w", cherr)

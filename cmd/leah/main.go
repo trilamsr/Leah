@@ -7,11 +7,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/costmonth"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
 	"github.com/trilam/leah/internal/notify"
@@ -188,6 +190,25 @@ func writeInterruptedAudit(ctx context.Context, auditPath string) {
 	})
 }
 
+// openCostBreaker opens the per-operator monthly cost ledger and wraps it
+// in a reasoner.Breaker. Non-fatal: a nil breaker is acceptable — the
+// Router will skip the gate and the CLI invocation will run uncapped, the
+// same behavior as pre-W94.
+func openCostBreaker() reasoner.Breaker {
+	cap := 50.0
+	if v := os.Getenv("LEAH_COST_MONTH_CAP"); v != "" {
+		if parsed, err := strconv.ParseFloat(v, 64); err == nil && parsed > 0 {
+			cap = parsed
+		}
+	}
+	store, err := costmonth.OpenAt(filepath.Join(stateDir(), "cost-month.json"), cap, time.Now())
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah: costmonth open non-fatal: %v\n", err)
+		return nil
+	}
+	return costmonth.NewBreaker(store)
+}
+
 func runAsk(ctx context.Context, query string) int {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
@@ -199,7 +220,8 @@ func runAsk(ctx context.Context, query string) int {
 		return 1
 	}
 
-	client, err := reasoner.NewAnthropicClient()
+	br := openCostBreaker()
+	client, err := reasoner.NewRoutedClient("reasoner", br, b, nil)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 1

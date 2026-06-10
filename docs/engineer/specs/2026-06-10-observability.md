@@ -207,14 +207,18 @@ per PR #71 spec.
 
 ### 4.12 Reasoner (`internal/reasoner`)
 
-| Metric                              | Type      | Labels                       |
-|-------------------------------------|-----------|------------------------------|
-| `leah_reasoner_call_total`          | counter   | `model`, `outcome`           |
-| `leah_reasoner_tokens_total`        | counter   | `model`, `direction`         |
-| `leah_reasoner_latency_seconds`     | histogram | `model`                      |
-| `leah_reasoner_retries_total`       | counter   | `model`, `reason`            |
+| Metric                              | Type      | Labels                                |
+|-------------------------------------|-----------|---------------------------------------|
+| `leah_reasoner_call_total`          | counter   | `model`, `prompt_sha`, `outcome`      |
+| `leah_reasoner_tokens_total`        | counter   | `model`, `prompt_sha`, `direction`    |
+| `leah_reasoner_egress_bytes_total`  | counter   | `model`, `kind`                       |
+| `leah_reasoner_latency_seconds`     | histogram | `model`, `kind`                       |
+| `leah_reasoner_retries_total`       | counter   | `model`, `reason`                     |
 
-`direction` enum: `input`, `output`.
+`direction` enum: `input`, `output`. `outcome` enum: `ok`, `error`,
+`budget_blocked`, `breaker_denied`. `prompt_sha` widens the two reasoner
+series in W92 (PromptRegistry) — soft break for Prometheus consumers,
+cardinality budget in §4.14 accommodates the widened series.
 
 ### 4.13 Recommendation engine (`internal/recommendation`)
 
@@ -230,10 +234,28 @@ Per `docs/engineer/specs/2026-06-10-learn-recommend-apply.md` (PR #69):
 ### 4.14 Budget label cardinality
 
 Total expected unique label-value combinations across all metrics:
-~3000–5000. The flatten-key cache in `internal/obs/metrics.go` (PR #56
-memoization) is sized for ≤10³ entries per series — this budget keeps
-the cache hit rate high. Any new metric whose labels could exceed a few
-hundred values MUST hash, bucket, or drop the high-cardinality dimension.
+~3000–5000 pre-LLM-dim, raised to ≈1 650 LLM-dim series alone after the
+W92/W93/W94 reasoner widening (`prompt_sha` × `model` × `outcome` on
+`leah_reasoner_call_total` dominates). The flatten-key cache in
+`internal/obs/metrics.go` (PR #56 memoization) is sized for ≤10³ entries
+per series — this budget keeps the cache hit rate high. Any new metric
+whose labels could exceed a few hundred values MUST hash, bucket, or
+drop the high-cardinality dimension. `prompt_sha` is truncated to 16
+hex chars (~10⁴ unique values bound) — see llm-ops.md §14 carve-out.
+
+### 4.15 LLM cost (`internal/costmonth` + `internal/reasoner`)
+
+Per `docs/engineer/specs/2026-06-10-llm-ops.md` §3 (W94 lands the
+breaker + monthly gauge; W95 lands the HUD tile):
+
+| Metric                              | Type    | Labels                       |
+|-------------------------------------|---------|------------------------------|
+| `leah_cost_month_dollars`           | gauge   | `kind`                       |
+| `leah_cost_breaker_state`           | gauge   | (none) — 0 ok / 1 warn / 2 deny |
+| `leah_cost_breaker_degrade_total`   | counter | `from_model`, `to_model`     |
+
+State transitions are operator-visible: green/amber/red HUD tile maps
+directly to the `leah_cost_breaker_state` gauge value.
 
 ## 5. Structured event stream
 
