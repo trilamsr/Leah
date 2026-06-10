@@ -78,6 +78,31 @@ func (c *Client) CreateIssue(ctx context.Context, a CreateIssueArgs) (url string
 	return strings.TrimSpace(out), nil
 }
 
+// EnsureLabel idempotently creates `label` on `repo`. The `gh label create
+// --force` flag updates the label in place when it already exists, so this
+// is safe to invoke unconditionally as part of the CreateIssue retry path.
+// Color #00FF00 + description match the Defect-1 fix spec; callers that
+// want different cosmetics should add a new method rather than parameterize
+// (the ready-for-agent label is the only one Leah dispatches today).
+func (c *Client) EnsureLabel(ctx context.Context, repo, label string) error {
+	args := []string{"gh", "label", "create", label,
+		"--repo", repo,
+		"--color", "00FF00",
+		"--description", "Leah-dispatched: regatta picks up",
+		"--force",
+	}
+	if _, err := c.Exec.Run(ctx, args); err != nil {
+		// gh prints "already exists" only when --force is omitted; the
+		// --force path above never surfaces it, but defend in case a future
+		// gh release changes that behavior.
+		if strings.Contains(err.Error(), "already exists") {
+			return nil
+		}
+		return fmt.Errorf("gh label create: %w", err)
+	}
+	return nil
+}
+
 // ViewPR returns the gh-projected JSON for one PR. fields MUST be an
 // explicit allowlist (per CLAUDE.md gh-minimal-fields rule) — passing all
 // fields blows token budget on PR body / comments.
