@@ -77,7 +77,7 @@ All names follow `leah_<surface>_<from>_to_<to>_seconds`. All histograms registe
 - **Metric:** `leah_voice_barge_in_cancel_seconds`
 - **Labels:** `backend`.
 - **Buckets:** `[0.01, 0.025, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 1]`.
-- **Start:** moment `cancelTurn()` is called — `internal/voice/loop/loop.go:89` (and the equivalent in `session/session.go:87`).
+- **Start:** moment `cancelTurn()` is called — `internal/voice/loop/loop.go:89` (and the equivalent `cancelReply` in `session/session.go:86`).
 - **Stop:** the `Speak` goroutine returns (ctx-canceled). Add a `tCancelStart` capture inside `cancelTurn`; the speak goroutine reads it on exit and observes.
 
 ### A9 — `brew install` → first useful reply ≤5 min
