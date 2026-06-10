@@ -97,7 +97,7 @@ var _ streamIter = (*ssestream.Stream[anthropic.MessageStreamEventUnion])(nil)
 // enabled models would emit ThinkingDelta events that this loop ignores —
 // guard via LEAH_REVIEWER_MODEL.
 func processStream(stream streamIter, sink io.Writer) (string, anthropic.Message, error) {
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	var buf strings.Builder
 	var msg anthropic.Message
 	for stream.Next() {
