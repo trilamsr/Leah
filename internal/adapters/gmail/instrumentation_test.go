@@ -9,8 +9,7 @@ import (
 	"github.com/trilam/leah/internal/obs/obstest"
 )
 
-// TestRegisterMetrics_AddsSeries asserts the shared leah_connect_* series
-// surface bound to this provider.
+// TestRegisterMetrics_AddsSeries asserts the shared leah_connect_* series surface bound to gmail.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
 	r := obs.NewRegistry()
 	RegisterMetrics(r)
@@ -28,8 +27,7 @@ func TestRegisterMetrics_AddsSeries(t *testing.T) {
 	}
 }
 
-// TestObserveAPI_OnRPC asserts each Transport-backed RPC bumps api_call_total
-// under its endpoint label — both success and failure paths record wire time.
+// TestObserveAPI_OnRPC asserts each Transport-backed RPC bumps api_call_total on success and failure.
 func TestObserveAPI_OnRPC(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -105,8 +103,7 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 	}
 }
 
-// TestObserveAPI_NilMetricsNoop proves the existing Config{Attestor,
-// TokenSource, Transport} caller shape still works when Metrics is omitted.
+// TestObserveAPI_NilMetricsNoop proves the legacy Config caller shape still works when Metrics is omitted.
 func TestObserveAPI_NilMetricsNoop(t *testing.T) {
 	t.Parallel()
 	c, err := New(Config{
