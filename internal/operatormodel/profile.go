@@ -12,8 +12,21 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/ctxmgr"
 	"github.com/trilam/leah/internal/memory"
 )
+
+// SwitchSource yields the operator's context switches at-or-after a cutoff,
+// ascending — the shape ObserveContextTransitions consumes. Satisfied by
+// *ctxmgr.Manager; the interface lets tests inject canned switches without
+// a real SQLite file.
+//
+// Optional: a nil SwitchSource on Profile keeps the 2/3 observation classes
+// (time_of_day + cadence) running and degrades context_transition to zero —
+// the path leah-daemon ran on before #10 wired this up.
+type SwitchSource interface {
+	Since(time.Time) ([]ctxmgr.Switch, error)
+}
 
 // DefaultWindowDays bounds the audit slice read by Profile.Update.
 // Configurable via env LEAH_OPERATOR_MODEL_WINDOW_DAYS.
@@ -58,6 +71,8 @@ type Profile struct {
 	Now func() time.Time
 	// TZ defaults to time.Local — observers honor operator-laptop tz.
 	TZ *time.Location
+	// SwitchSource feeds ObserveContextTransitions; nil keeps the class silent.
+	SwitchSource SwitchSource
 }
 
 func (p *Profile) now() time.Time {
@@ -95,8 +110,17 @@ func (p *Profile) Update(ctx context.Context, store *memory.Store, auditPath str
 	p.DaysObserved = daySpan(rows)
 	p.Ready = p.RowsObserved >= ColdStartMinRows && p.DaysObserved >= ColdStartMinDays
 
+	var switches []ctxmgr.Switch
+	if p.SwitchSource != nil {
+		s, err := p.SwitchSource.Since(since)
+		if err != nil {
+			return fmt.Errorf("ctx switches: %w", err)
+		}
+		switches = s
+	}
+
 	all := ObserveTimeOfDay(rows, tz)
-	all = append(all, ObserveContextTransitions(rows, nil)...) // ctxmgr.Switch wiring lives in daemon caller
+	all = append(all, ObserveContextTransitions(rows, switches)...)
 	all = append(all, ObserveCadence(rows, tz)...)
 
 	halflife := halflifeDays()
@@ -301,11 +325,11 @@ func Load(ctx context.Context, db *sql.DB) (Profile, error) {
 	return p, nil
 }
 
-// UpdateProfile is the daemon-task entrypoint. Composed of NewStore +
-// Profile.Update over the default window. Designed to be added as a
-// WeeklyTask in cmd/leah-daemon/main.go::buildWeeklyTasks.
-func UpdateProfile(ctx context.Context, store *memory.Store, auditPath string) error {
+// UpdateProfile is the daemon-task entrypoint. switches may be nil — the
+// daemon caller is expected to pass a *ctxmgr.Manager so context_transition
+// observations land in operator_profile (closes #10).
+func UpdateProfile(ctx context.Context, store *memory.Store, auditPath string, switches SwitchSource) error {
 	since := time.Now().UTC().Add(-time.Duration(windowDays()) * 24 * time.Hour)
-	p := &Profile{}
+	p := &Profile{SwitchSource: switches}
 	return p.Update(ctx, store, auditPath, since)
 }
