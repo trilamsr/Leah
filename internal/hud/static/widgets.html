@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=320,initial-scale=1" />
+<title>Leah HUD — Widgets</title>
+<link rel="stylesheet" href="/static/ambient.css" />
+<style>
+  body.widgets { width: 320px; min-height: 320px; }
+  #widgets {
+    width: 320px; box-sizing: border-box; padding: 16px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .widget {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 13px; color: var(--fg);
+  }
+  .widget.placeholder { color: var(--muted); justify-content: center; }
+  .widget .temp, .widget .px, .widget .chg, .widget .time { margin-left: auto; }
+  .widget.market .chg { color: var(--muted); }
+  .widget.market.up .chg   { color: #5af2a8; }
+  .widget.market.down .chg { color: #ff7a7a; }
+  .widget .headline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+  .widget .src { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+</style>
+</head>
+<body class="widgets">
+<main id="widgets" aria-label="Leah HUD info-feed widgets">
+  <div id="weather"      class="widget placeholder">—</div>
+  <div id="market-AAPL"  class="widget placeholder">—</div>
+  <div id="news"         class="widget placeholder">—</div>
+  <div id="calendar"     class="widget placeholder">—</div>
+</main>
+<script src="/static/widgets.js"></script>
+</body>
+</html>
