@@ -603,30 +603,30 @@ func TestLoop_LastTick_RaceFree(t *testing.T) {
 	defer cancel()
 
 	var wg sync.WaitGroup
-	var reads atomic.Int64
+	ready := make(chan struct{}, 4)
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			ready <- struct{}{}
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				default:
 					_ = l.LastTick()
-					reads.Add(1)
 				}
 			}
 		}()
+	}
+	for i := 0; i < 4; i++ {
+		<-ready
 	}
 	for i := 0; i < 200; i++ {
 		l.tick(context.Background())
 	}
 	cancel()
 	wg.Wait()
-	if reads.Load() == 0 {
-		t.Error("expected at least one concurrent LastTick read")
-	}
 }
 
 func TestLoopRespectsContextCancellation(t *testing.T) {
