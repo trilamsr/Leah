@@ -238,6 +238,17 @@ func TestSnapshotConcurrentReadsNoRace(t *testing.T) {
 	wg.Wait()
 }
 
+// mux returns the wired-up handler graph for httptest assertions, panicking
+// on the embed-fs error path (which is impossible at runtime — the embed
+// directive is checked at compile time).
+func (s *Server) mux() http.Handler {
+	m, err := s.buildMux()
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
 // TestDashboardRedirectsToStatic asserts /dashboard 301-redirects to
 // /static/dashboard.html so the embed FS file server is the sole serving
 // path (dedup: handleDashboard's per-request ReadFile is gone).
