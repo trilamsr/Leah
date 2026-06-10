@@ -40,8 +40,9 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 }
 
 // buildResolverTask back-fills outcomes on pending audit rows via the
-// regatta.ship rule + panic-rate detector. Errors log + skip — the next
-// weekly tick retries.
+// regatta.ship rule. Panic-rate detection runs in buildPanicDetectTask —
+// keep concerns separate (resolver = audit-row verdicts; panic-detect =
+// metric-snapshot deltas). Errors log + skip — the next weekly tick retries.
 func buildResolverTask(auditPath string, a *audit.Logger, out *os.File) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
 		r := &selflearn.Resolver{
@@ -50,8 +51,7 @@ func buildResolverTask(auditPath string, a *audit.Logger, out *os.File) daemonlo
 			Rules: map[string]selflearn.Rule{
 				"regatta.ship": rules.RegattaPR{},
 			},
-			PanicDetectors: []selflearn.PanicDetector{rules.PanicRateRule{}},
-			Out:            out,
+			Out: out,
 		}
 		if err := r.Run(ctx); err != nil {
 			_, _ = fmt.Fprintf(out, "leah-daemon: weekly resolver error: %v\n", err)
@@ -135,14 +135,10 @@ func buildOperatorModelTask(sd, auditPath string, out *os.File) daemonloop.Weekl
 // docs/specs/2026-06-09-bug-fix-self-build-hook.md).
 func buildPanicDetectTask(sd string, out *os.File) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
-		detectors := []selflearn.PanicDetector{rules.PanicRateRule{}}
+		detectors := []rules.PanicRateRule{{}}
 		var found []rules.Candidate
 		for _, d := range detectors {
-			pr, ok := d.(rules.PanicRateRule)
-			if !ok {
-				continue
-			}
-			cands, err := pr.Detect(ctx, sd)
+			cands, err := d.Detect(ctx, sd)
 			if err != nil {
 				_, _ = fmt.Fprintf(out, "leah-daemon: weekly panic-detect %s error: %v\n", d.Name(), err)
 				continue
