@@ -166,47 +166,18 @@ func TestMCPServer_TokenRotate_RevokesOldBearer(t *testing.T) {
 
 func TestMCPServer_PendingTaskCap_RejectsExcess(t *testing.T) {
 	// Pending-task semaphore underpins W139 attestation queue (§2.3).
-	// Per-peer cap = 2; 3rd reservation for the same peer returns capScope=peer.
+	// Global cap=5; 6th reservation (any peer) returns capScope=global.
+	// Per-peer cap was dropped — per-peer attestation rate-limit (1/min) makes it dead.
 	s, _, _ := newTestServer(t)
-	s.PerPeerPendingCap = 2
 	s.GlobalPendingCap = 5
-	rel1, ok, _ := s.EnqueuePending("peerA")
-	if !ok {
-		t.Fatal("reservation 1 should succeed")
-	}
-	rel2, ok, _ := s.EnqueuePending("peerA")
-	if !ok {
-		t.Fatal("reservation 2 should succeed")
-	}
-	_, ok, scope := s.EnqueuePending("peerA")
-	if ok {
-		t.Fatal("reservation 3 should fail at per-peer cap")
-	}
-	if scope != "peer" {
-		t.Fatalf("want capScope=peer, got %q", scope)
-	}
-	// release frees a slot:
-	rel1()
-	rel3, ok, _ := s.EnqueuePending("peerA")
-	if !ok {
-		t.Fatal("post-release reservation should succeed")
-	}
-	rel3()
-	rel2()
-
-	// Global cap: fresh server, fill 5 slots across distinct peers, 6th fails
-	// with capScope=global (per-peer cap unchanged at 2 — each peer gets 1 here).
-	s2, _, _ := newTestServer(t)
-	s2.PerPeerPendingCap = 2
-	s2.GlobalPendingCap = 5
 	for i := 0; i < 5; i++ {
-		if _, ok, _ := s2.EnqueuePending(string(rune('a' + i))); !ok {
+		if _, ok, _ := s.EnqueuePending(string(rune('a' + i))); !ok {
 			t.Fatalf("global fill %d should succeed", i)
 		}
 	}
-	_, ok, scope = s2.EnqueuePending("x")
+	_, ok, scope := s.EnqueuePending("x")
 	if ok {
-		t.Fatal("global 6th should fail")
+		t.Fatal("6th reservation should fail at global cap")
 	}
 	if scope != "global" {
 		t.Fatalf("want capScope=global, got %q", scope)

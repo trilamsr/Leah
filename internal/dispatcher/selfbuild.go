@@ -19,8 +19,6 @@ import (
 	"github.com/trilam/leah/internal/budget"
 )
 
-const selfBuildScope = "self-build"
-
 // SelfBuildRepo is the only repo SelfBuild ever targets. Hard-coded to prevent
 // accidental self-build dispatch into a customer repo, a fork, or trilam/regatta
 // itself. Operator's `--repo` flag is refused with ErrSelfBuildRepoLocked.
@@ -249,7 +247,7 @@ func (s *SelfBuild) promptSHA() string {
 // run into one resolver key (Wave2-5 retro H1).
 func (s *SelfBuild) appendAudit(intent, detail string) {
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        "self-build",
+		Kind:        attestation.ScopeSelfBuild,
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "rejected",
@@ -260,7 +258,7 @@ func (s *SelfBuild) appendAudit(intent, detail string) {
 
 func (s *SelfBuild) appendAuditFail(intent, detail string) {
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        "self-build",
+		Kind:        attestation.ScopeSelfBuild,
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "failed",
@@ -271,7 +269,7 @@ func (s *SelfBuild) appendAuditFail(intent, detail string) {
 
 func (s *SelfBuild) appendAuditClarify(intent string) {
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        "self-build",
+		Kind:        attestation.ScopeSelfBuild,
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "clarify",
@@ -296,7 +294,7 @@ func (s *SelfBuild) appendAuditOutcome(intent, state, issueURL string) {
 		detail += " url=" + issueURL
 	}
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        "self-build.outcome",
+		Kind:        attestation.ScopeSelfBuild + ".outcome",
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     state,
@@ -323,7 +321,7 @@ func (s *SelfBuild) appendAuditSuccess(intent, issueURL string) {
 		detail += " attestation_question=" + strconv.Quote(q)
 	}
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        "self-build",
+		Kind:        attestation.ScopeSelfBuild,
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "dispatched",
@@ -337,11 +335,11 @@ func (s *SelfBuild) pickAttestationQuestion() (string, error) {
 	if s.AttestationQuestionsPath == "" {
 		return "", nil
 	}
-	pool, err := attestation.Load(s.AttestationQuestionsPath, selfBuildScope)
+	pool, err := attestation.Load(s.AttestationQuestionsPath, attestation.ScopeSelfBuild)
 	if err != nil {
 		return "", err
 	}
-	return pool.Pick(selfBuildScope)
+	return pool.Pick(attestation.ScopeSelfBuild)
 }
 
 // attestationBlock renders the markdown footer appended to the issue body.
