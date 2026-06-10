@@ -19,6 +19,18 @@ type Place struct {
 	Lng        float64
 	Categories []string
 	Rating     float32
+	// Hours is the weekly opening schedule. Empty = always open.
+	// DailyItinerary uses this to drop places closed at query time.
+	Hours []TimeWindow
+}
+
+// TimeWindow expresses an open interval as minutes-since-midnight in the
+// place's local day. Day-boundary wraparound (e.g. open 22:00–02:00) is
+// not modeled — Open > Close means "open all day", consistent with how
+// Google Places returns 24h spots.
+type TimeWindow struct {
+	OpenMinute  int
+	CloseMinute int
 }
 
 // Route is the directions envelope the planner consumes from a Router. Only
@@ -44,25 +56,41 @@ type CorridorOpts struct {
 	RadiusM          int
 }
 
-// Profile carries operator preferences a future personalised SuggestTrip /
-// DailyItinerary will consult (W62+, W64). Declared here so the Planner
-// interface is stable across the wave; unused by OnTheWay / MeetInMiddle.
+// Profile carries operator preferences SuggestTrip / DailyItinerary
+// consult (W62+, W64). Origin is the home airport / city for flight
+// search; Interests drives category fan-out in DailyItinerary.
 type Profile struct {
+	Origin     string
+	Interests  []string
 	Categories []string
 	BudgetUSD  float64
 	Pace       string
 }
 
-// Trip is the SuggestTrip envelope (W62). Declared so the interface is
-// stable; the W61 implementation returns ErrNotImplemented.
+// Trip is the SuggestTrip envelope. Flights is empty when no FlightFinder
+// is wired or when the upstream call fails — UX prefers a days plan with
+// no flights over no plan at all.
 type Trip struct {
-	Days []Itinerary
+	Destination string
+	Days        []Itinerary
+	Flights     []FlightOffer
 }
 
-// Itinerary is the per-day envelope (W62). Same stability rationale as Trip.
+// Itinerary is the per-day envelope returned by DailyItinerary and
+// nested inside Trip.Days.
 type Itinerary struct {
 	Date   time.Time
 	Places []Place
+}
+
+// FlightOffer mirrors the flights adapter's shape across the structural
+// seam so tripplanner has no compile-time edge into
+// internal/adapters/flights.
+type FlightOffer struct {
+	ID        string
+	Price     int64 // minor units (cents)
+	Currency  string
+	ExpiresAt time.Time
 }
 
 // Router resolves a directions request between two freeform addresses. The
@@ -91,10 +119,16 @@ type NearbySearcher interface {
 	POINearby(ctx context.Context, center Place, radiusM int, category string) ([]Place, error)
 }
 
+// FlightFinder searches one-way / round-trip offers between two
+// freeform city or airport identifiers. The seam keeps tripplanner free
+// of internal/adapters/flights — callers wire the adapter at boot.
+// Optional in Config: when nil, SuggestTrip returns a Trip with no
+// Flights.
+type FlightFinder interface {
+	SearchOffers(ctx context.Context, origin, dest string, depart, ret time.Time) ([]FlightOffer, error)
+}
+
 // Planner is the composition surface voice / HUD / brief callers bind to.
-// W61 lands OnTheWay + MeetInMiddle; SuggestTrip + DailyItinerary are
-// stubbed with ErrNotImplemented so the interface is stable across the
-// wave.
 type Planner interface {
 	OnTheWay(ctx context.Context, origin, dest string, opts CorridorOpts) ([]Place, error)
 	SuggestTrip(ctx context.Context, dest string, durationDays int, profile Profile) (Trip, error)
@@ -102,14 +136,17 @@ type Planner interface {
 	MeetInMiddle(ctx context.Context, partyA, partyB string, category string) ([]Place, error)
 }
 
-// ErrNotImplemented is returned by W61's SuggestTrip / DailyItinerary —
-// the interface is stable, the bodies land in W62.
-var ErrNotImplemented = errors.New("tripplanner: not implemented in W61")
-
 // ErrNoMidpoint is returned by MeetInMiddle when either party fails to
 // geocode (zero results). Distinct error so callers can prompt the
 // operator to re-enter an address.
 var ErrNoMidpoint = errors.New("tripplanner: no midpoint (geocode returned no results)")
+
+// ErrUnknownCity is returned by DailyItinerary when the city argument
+// fails to geocode. Distinct so voice / HUD can prompt re-entry.
+var ErrUnknownCity = errors.New("tripplanner: unknown city (geocode returned no results)")
+
+// ErrInvalidDuration is returned by SuggestTrip when durationDays <= 0.
+var ErrInvalidDuration = errors.New("tripplanner: durationDays must be > 0")
 
 // midpointRadiusM is the search radius around the computed midpoint for
 // MeetInMiddle's nearby query. 5km balances "close to fair" against
@@ -124,21 +161,26 @@ type Composer struct {
 	corridor CorridorSearcher
 	geocoder Geocoder
 	nearby   NearbySearcher
+	flights  FlightFinder // optional; nil = no flight search
+	now      func() time.Time
 }
 
-// Config carries the Composer's seam wiring. All four fields are required
-// for W61; New returns an error rather than panicking on a nil seam so
-// callers compose without defensive checks.
+// Config carries the Composer's seam wiring. Router/Corridor/Geocoder/
+// Nearby are required; Flights is optional (SuggestTrip degrades to a
+// days-only Trip when absent). Now is optional; nil = time.Now — tests
+// inject a fixed clock so depart-date assertions are deterministic.
 type Config struct {
 	Router   Router
 	Corridor CorridorSearcher
 	Geocoder Geocoder
 	Nearby   NearbySearcher
+	Flights  FlightFinder
+	Now      func() time.Time
 }
 
-// New builds a Composer. Each missing seam is a distinct config error so
-// the caller gets one actionable message, not a generic nil-pointer panic
-// three layers deep.
+// New builds a Composer. Each missing required seam is a distinct config
+// error so the caller gets one actionable message, not a generic
+// nil-pointer panic three layers deep.
 func New(cfg Config) (*Composer, error) {
 	switch {
 	case cfg.Router == nil:
@@ -150,11 +192,17 @@ func New(cfg Config) (*Composer, error) {
 	case cfg.Nearby == nil:
 		return nil, errors.New("tripplanner: Nearby required")
 	}
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
 	return &Composer{
 		router:   cfg.Router,
 		corridor: cfg.Corridor,
 		geocoder: cfg.Geocoder,
 		nearby:   cfg.Nearby,
+		flights:  cfg.Flights,
+		now:      now,
 	}, nil
 }
 
@@ -202,16 +250,6 @@ func (c *Composer) MeetInMiddle(ctx context.Context, partyA, partyB string, cate
 		return nil, fmt.Errorf("tripplanner: meet in middle: nearby: %w", err)
 	}
 	return places, nil
-}
-
-// SuggestTrip is the W62 surface — wired here for interface stability.
-func (c *Composer) SuggestTrip(ctx context.Context, dest string, durationDays int, profile Profile) (Trip, error) {
-	return Trip{}, ErrNotImplemented
-}
-
-// DailyItinerary is the W62 surface — wired here for interface stability.
-func (c *Composer) DailyItinerary(ctx context.Context, city string, on time.Time, profile Profile) (Itinerary, error) {
-	return Itinerary{}, ErrNotImplemented
 }
 
 // compile-time guarantee: Composer satisfies Planner.
