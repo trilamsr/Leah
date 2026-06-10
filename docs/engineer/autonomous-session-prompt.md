@@ -78,13 +78,13 @@ PREEMPTIVE UNBLOCK
   - Reviewer queue depth → dedicate a slot to reviewer-only dispatch when queue >2 PRs awaiting review.
   - Shared-primitive contention → identify owner-file overlap at plan stage; serialize those subtasks, parallelize the rest.
   - CI flake → on second hit, file [followup] + pin to root-cause subagent, don't retry blindly.
-  - Roadmap drain (<2 unblocked items) → spawn roadmap-planner subagent to read `docs/engineer/specs/`, `docs/engineer/briefs/`, open issues, and emit next-wave priority list.
+  - Roadmap drain (<2 unblocked items) → spawn roadmap-planner subagent to read `docs/engineer/specs/`, `docs/engineer/briefs/`, open issues, and write next-wave priority list to `docs/engineer/briefs/YYYY-MM-DD-next-wave.md` (same convention as design briefs). Main thread reads that file on return.
 - Roadmap + feature-set authority: main thread MAY read `docs/engineer/specs/`, `docs/engineer/briefs/`, `docs/engineer/roadmap*.md`, `ARCHITECTURE.md`, `PRINCIPLES.md`, GH issue tracker, and milestone labels FREELY to pick next work. No user round-trip required to pull next item.
 - Fan-out target: keep ≥4 of 6 slots filled whenever roadmap has supply. If <4 active, dispatch from preempt-queue immediately.
 
 LOOP SKILL INTEGRATION
 - Use `/loop` skill for indefinite self-paced cadence. Pass `<<autonomous-loop-dynamic>>` sentinel via ScheduleWakeup so the loop re-enters this prompt each wake.
-- Wake cadence: dynamic. Short (60-270s) when polling CI on an active automerge. Long (1200-1800s) when all 6 slots full + waiting on subagent completion (harness notifies on subagent finish — no poll needed; long wake is fallback only).
+- Wake cadence: dynamic. Short (60-270s) only when polling external state the harness CANNOT notify on (CI run on an active automerge, GH branch-protection status). Long (1200-1800s) when all 6 slots full + waiting on subagent completion — harness auto-notifies on subagent finish, so the long wake is fallback only, never the primary signal. Never sleep 300-1000s (cache miss without amortization).
 - Each wake = one status pulse + dispatch round: drain merged PRs, advance queue, fill idle slots, file followups for new blockers, schedule next wake.
 
 WORKTREE / GIT HYGIENE (long-session)
