@@ -408,6 +408,61 @@ func TestListDecisionsByWorkspace(t *testing.T) {
 	}
 }
 
+// TestSchemaVersion_v9_v10_OrderingCorrect pins the L11 bug: lexicographic compare ranks "10" < "9".
+func TestSchemaVersion_v9_v10_OrderingCorrect(t *testing.T) {
+	ten, err := parseSchemaVersion("10")
+	if err != nil {
+		t.Fatalf("parse 10: %v", err)
+	}
+	nine, err := parseSchemaVersion("9")
+	if err != nil {
+		t.Fatalf("parse 9: %v", err)
+	}
+	if !(ten > nine) {
+		t.Fatalf("want 10 > 9, got ten=%d nine=%d", ten, nine)
+	}
+}
+
+// TestSchemaVersion_v2_v4_OrderingCorrect sanity baseline — same answer under lex or int.
+func TestSchemaVersion_v2_v4_OrderingCorrect(t *testing.T) {
+	four, err := parseSchemaVersion("4")
+	if err != nil {
+		t.Fatalf("parse 4: %v", err)
+	}
+	two, err := parseSchemaVersion("2")
+	if err != nil {
+		t.Fatalf("parse 2: %v", err)
+	}
+	if !(four > two) {
+		t.Fatalf("want 4 > 2, got four=%d two=%d", four, two)
+	}
+}
+
+// TestSchemaVersion_NonNumericRejected refuses silent fallback to lex compare on corrupt header.
+func TestSchemaVersion_NonNumericRejected(t *testing.T) {
+	if _, err := parseSchemaVersion("abc"); err == nil {
+		t.Fatal("parseSchemaVersion accepted non-numeric, want error")
+	}
+}
+
+// TestSchemaVersion_v1_v1_Equal equal versions must not trigger migration-mismatch path.
+func TestSchemaVersion_v1_v1_Equal(t *testing.T) {
+	a, err := parseSchemaVersion("1")
+	if err != nil {
+		t.Fatalf("parse a: %v", err)
+	}
+	b, err := parseSchemaVersion("1")
+	if err != nil {
+		t.Fatalf("parse b: %v", err)
+	}
+	if a != b {
+		t.Fatalf("want equal, got a=%d b=%d", a, b)
+	}
+	if a > b || b > a {
+		t.Fatalf("equal versions compared unequal: a=%d b=%d", a, b)
+	}
+}
+
 // TestAuditHook fires the audit callback on each mutation (#M2).
 func TestAuditHook(t *testing.T) {
 	s := newTestStore(t)
