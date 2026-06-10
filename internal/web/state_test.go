@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
@@ -355,6 +357,101 @@ func TestTruncateForTooltip_ExactMax(t *testing.T) {
 	display, tooltip := truncateForTooltip(in, 80)
 	if display != in || tooltip != in {
 		t.Errorf("boundary: got (%q,%q), want unchanged", display, tooltip)
+	}
+}
+
+// auditParseErrorCount reads the counter value under the audit_jsonl source
+// label so tests can assert tailAudit's silent-failure replacement (BB-RETRO M2, #5).
+func auditParseErrorCount(t *testing.T, reg *obs.Registry) int64 {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "snap.json")
+	if err := reg.Snapshot(path); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read snap: %v", err)
+	}
+	var snap struct {
+		Counters map[string]int64 `json:"counters"`
+	}
+	if err := json.Unmarshal(raw, &snap); err != nil {
+		t.Fatalf("decode snap: %v", err)
+	}
+	for k, v := range snap.Counters {
+		if strings.HasPrefix(k, "leah_audit_parse_errors_total") {
+			return v
+		}
+	}
+	return 0
+}
+
+// TestTailAudit_IncrementsCounterOnBadJSON feeds mixed valid+malformed lines and asserts the counter rises by the malformed count.
+func TestTailAudit_IncrementsCounterOnBadJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.jsonl")
+	body := `{"kind":"ok1","outcome":"ok"}
+not-json-line-1
+{"kind":"ok2","outcome":"ok"}
+{broken json
+also bad
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write audit: %v", err)
+	}
+	reg := obs.NewRegistry()
+	s := &Server{AuditPath: path, Metrics: reg}
+	rows := s.tailAudit(20)
+	if len(rows) != 2 {
+		t.Errorf("rows: got %d, want 2", len(rows))
+	}
+	if got := auditParseErrorCount(t, reg); got != 3 {
+		t.Errorf("parse-error counter: got %d, want 3", got)
+	}
+}
+
+// TestTailAudit_CleanLogNoIncrement asserts a fully valid log leaves the counter at zero.
+func TestTailAudit_CleanLogNoIncrement(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.jsonl")
+	body := `{"kind":"ok1","outcome":"ok"}
+{"kind":"ok2","outcome":"ok"}
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write audit: %v", err)
+	}
+	reg := obs.NewRegistry()
+	s := &Server{AuditPath: path, Metrics: reg}
+	rows := s.tailAudit(20)
+	if len(rows) != 2 {
+		t.Errorf("rows: got %d, want 2", len(rows))
+	}
+	if got := auditParseErrorCount(t, reg); got != 0 {
+		t.Errorf("parse-error counter: got %d, want 0", got)
+	}
+}
+
+// TestTailAudit_ContinuesAfterError asserts malformed lines never abort the scan.
+func TestTailAudit_ContinuesAfterError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.jsonl")
+	body := `garbage
+{"kind":"good1","outcome":"ok"}
+more garbage
+{"kind":"good2","outcome":"ok"}
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write audit: %v", err)
+	}
+	reg := obs.NewRegistry()
+	s := &Server{AuditPath: path, Metrics: reg}
+	rows := s.tailAudit(20)
+	if len(rows) != 2 {
+		t.Errorf("rows: got %d, want 2 (parse must not abort)", len(rows))
+	}
+	if rows[0].Kind != "good1" || rows[1].Kind != "good2" {
+		t.Errorf("rows order: got %+v", rows)
 	}
 }
 
