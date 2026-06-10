@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,8 +122,20 @@ func (s *Store) migrate() error {
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("read schema version: %w", err)
 	}
-	if v > embeddedSchemaVersion {
-		return fmt.Errorf("memory.db schema version %s newer than binary %s; upgrade leah", v, embeddedSchemaVersion)
+	// Lex compare ranks "10" < "9"; parse to int so v10+ orders correctly (#24).
+	// On parse failure surface the corruption — silent lex fallback would mask it.
+	if v != "" {
+		onDisk, perr := parseSchemaVersion(v)
+		if perr != nil {
+			return fmt.Errorf("parse on-disk schema version %q: %w", v, perr)
+		}
+		embedded, perr := parseSchemaVersion(embeddedSchemaVersion)
+		if perr != nil {
+			return fmt.Errorf("parse embedded schema version %q: %w", embeddedSchemaVersion, perr)
+		}
+		if onDisk > embedded {
+			return fmt.Errorf("memory.db schema version %s newer than binary %s; upgrade leah", v, embeddedSchemaVersion)
+		}
 	}
 	// Safe to apply DDL: on-disk version is absent or ≤ embedded.
 	if _, err := s.db.Exec(schemaSQL); err != nil {
@@ -141,6 +154,10 @@ func (s *Store) migrate() error {
 
 func newULID() string {
 	return ulid.Make().String()
+}
+
+func parseSchemaVersion(s string) (int, error) {
+	return strconv.Atoi(strings.TrimSpace(s))
 }
 
 func (s *Store) fireWrite(table, id string) {
