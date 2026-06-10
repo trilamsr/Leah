@@ -1,4 +1,4 @@
-.PHONY: dev verify-pr baseline check smoke help
+.PHONY: dev verify-pr baseline check smoke install upgrade help
 
 # Run leah-daemon against ~/.leah-state-dev/ sandbox.
 # Opens browser to dashboard. Tails audit log in foreground.
@@ -35,5 +35,14 @@ check:
 smoke:
 	@./scripts/smoke-all.sh
 
+# Build leah+leah-daemon, symlink ~/bin/leah → ~/.leah-state/bin/leah-current.
+# Idempotent. See docs/engineer/specs/2026-06-10-local-self-update.md §3.
+install:
+	@./scripts/upgrade.sh install
+
+# Build new SHA, atomic-swap symlinks, restart daemon. DRY_RUN=1 skips mutation.
+upgrade:
+	@LEAH_UPGRADE_DRY_RUN=$(DRY_RUN) ./scripts/upgrade.sh upgrade
+
 help:
-	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke"
+	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1]"
