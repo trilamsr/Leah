@@ -52,12 +52,19 @@ LENSES (apply in order)
    - Output `## Comment sweep` section listing offenders by `path:line` with severity tag, OR `## Comment sweep: clean` if zero. Silence = failure.
 10. **Citation resolve (HIGH severity)** — for brief / spec / dispatch-template diffs: every cited path resolves via `git ls-tree origin/main --name-only | grep -F <path>` (NOT worktree-local Read). Every numeric claim (file count, rule count, LoC) pairs with the exact command that produced it; reviewer re-runs the command. Every OSS prior-art cite names LICENSE-file URL + resolvable tag-ref. HIGH on any unresolved citation, mismatched numeric, or unverified license.
 
+STALE-BASE RECALL FAILURE (HARD GATE)
+- If `git diff origin/main..HEAD --stat` shows DELETIONS for files OUTSIDE the PR's declared scope (i.e. files that BELONG to sibling work but were not authored by this PR), AUTO-BLOCK regardless of code quality on the additions. Reviewer MUST verify:
+  1. Look at the PR's title + description for declared scope (e.g. "W41 regatta attestation" → only `internal/regattaclient/*`).
+  2. If deletions touch files OUTSIDE that scope, the PR is branched from stale main and rebasing will revive them.
+  3. Example failure: PR #129 W41 deleted 1229 lines of `internal/brief/feeds.go` + HUD config + HUD focus (sibling PRs that merged AFTER #129 was branched). Reviewer initially APPROVED because the additions were clean — missed the deletion context entirely.
+  4. Block-on-findings with text: `Stale-base regression: PR's diff against main deletes <N> lines of files outside declared scope (<paths>). Rebase onto current main before re-review.`
+
 RUN LOCAL LINTS (do not infer from PR description)
 - Fetch branch + run `./scripts/check.sh` (build, test, vet, comment-density, pr-body close-keyword, doc-links).
 - Compare actual exit codes against author's claim.
 
 AUTOMERGE GATE (every Risk-tier+ must be addressed)
-- Automerge fires ONLY when: (1) reviewer ran on PR's current head (not stale rev), (2) every Risk-tier+ finding has disposition (inline-fix OR tracking issue #), (3) if any prior review on this PR returned `merge-after-edits` or `block-on-findings`, the CURRENT review MUST be a re-spawned pass on the amended head returning `clear-to-merge` — disposition alone does NOT satisfy the gate.
+- Automerge fires ONLY when: (1) reviewer ran on PR's current head (not stale rev), (2) every Risk-tier+ finding has disposition (inline-fix OR tracking issue #), (3) if any prior review on this PR returned `block-on-findings`, the CURRENT review MUST be a re-spawned pass on the amended head returning `clear-to-merge` per the S5 reflexion loop (`docs/engineer/specs/2026-06-10-reflexion-loop.md`) — disposition alone does NOT satisfy the gate.
 - The implementer subagent MUST NOT enable automerge. The main-thread dispatcher enables `gh pr merge --auto --squash` AFTER this review returns APPROVE + CI green on current head. PR is not terminal — merge is. See `docs/engineer/autonomous-session-prompt.md` AUTOMERGE — AUTHORIZED.
 - If the PR already has `autoMergeRequest != null` and a `Reviewer-agent-id:` is the implementer's own ID → BLOCK on findings; no adversarial window remains.
 
@@ -79,13 +86,13 @@ LOAD-BEARING LEFTOVERS → ONE AGGREGATE TRACKING ISSUE PER PR
 
 OUTPUT FORMAT
 - Inline GH PR review comments OR markdown report. Each finding: `[Tier] file:line — observation — proposed fix`.
-- Verdict: `clear-to-merge` | `block-on-findings` | `merge-after-edits` | `re-spawn-design`.
+- Verdict: `clear-to-merge` | `block-on-findings` | `re-spawn-design` (canonical S5 set — see `docs/engineer/specs/2026-06-10-reflexion-loop.md`).
 - PR body footer (operator pastes after reviewer clears): `Reviewer-agent-id: <real subagent id>` + `Reviewer-recommendation: APPROVE` (exact token, no suffix). NEVER self-tag — the implementer that wrote the code MUST NOT write its own APPROVE token.
 
 RE-REVIEW AFTER AMENDMENTS (BINDING)
-- `merge-after-edits` and `block-on-findings` verdicts REQUIRE a second reviewer pass after the author amends. NO exceptions — not even one-line typo fixes.
+- `block-on-findings` REQUIRES a second reviewer pass after the author amends — the S5 reflexion loop (`docs/engineer/specs/2026-06-10-reflexion-loop.md` §2). NO exceptions — not even one-line typo fixes.
 - Workflow: apply edits → push → re-spawn reviewer with original findings list + ask reviewer to verify each finding cleared + scan for regressions introduced by the edits → only merge when re-review returns `clear-to-merge`.
-- Author applying own edits and merging is self-approval. Equivalent to skipping the adversarial gate entirely. Caught 2026-06-10 when 3 PRs (#170, #176, #178) were merged on `merge-after-edits` verdicts without re-review — auditor later flagged false-positive regression because original findings list was never explicitly verified against amended state.
+- Author applying own edits and merging is self-approval. Equivalent to skipping the adversarial gate entirely. Caught 2026-06-10 when 3 PRs (#170, #176, #178) were merged on verbal "approve after edits" verdicts without re-review — auditor later flagged false-positive regression because original findings list was never explicitly verified against amended state.
 - Re-review cost (~30s + tokens) is acceptable insurance vs merging an undetected regression.
 
 NO SIGNATURES
