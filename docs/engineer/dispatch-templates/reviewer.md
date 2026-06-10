@@ -28,7 +28,6 @@ AUTO-SKIP CHECK (decide first)
   - `cmd/leah/`, `cmd/leah-daemon/` — composition roots
   - `docs/engineer/specs/*.md` — load-bearing design surface
   - `docs/engineer/dispatch-templates/*.md` — agent-rule surface
-  - `docs/engineer/autonomous-session-prompt.md` — autonomous-loop rule surface
   - `CLAUDE.md` — agent-rule surface
   - `scripts/check-*.sh` — CI gate surface
   - `.github/workflows/*` — CI gate surface
