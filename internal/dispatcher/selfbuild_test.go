@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
@@ -659,4 +660,133 @@ type countingReasoner struct {
 func (c *countingReasoner) Ask(ctx context.Context, _ string) (string, error) {
 	c.count++
 	return c.resp, nil
+}
+
+// Verifies long intent truncates at last whitespace, not mid-word.
+func TestDeriveSelfBuildTitle_TruncatesOnWordBoundary(t *testing.T) {
+	intent := "add a really long descriptive feature that goes well over the limit"
+	got := deriveSelfBuildTitle(intent)
+
+	budget := 60 - len(SelfBuildTitlePrefix)
+	if len(got) > budget {
+		t.Fatalf("len(got)=%d > budget=%d: %q", len(got), budget, got)
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("want ... suffix, got %q", got)
+	}
+	stem := strings.TrimSuffix(got, "...")
+	if strings.HasSuffix(stem, " ") {
+		t.Fatalf("trailing space before ellipsis: %q", got)
+	}
+	// Mid-word break means the stem's last token is a prefix of a longer source
+	// token. Whole-word truncation guarantees the last stem token appears as a
+	// complete token in the input.
+	stemTokens := strings.Fields(stem)
+	if len(stemTokens) == 0 {
+		t.Fatalf("empty stem: %q", got)
+	}
+	last := stemTokens[len(stemTokens)-1]
+	srcTokens := strings.Fields(intent)
+	found := false
+	for _, tok := range srcTokens {
+		if tok == last {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("last stem token %q not a complete word in source; got %q", last, got)
+	}
+}
+
+// Verifies single-token-over-limit hard truncates instead of infinite-scanning.
+func TestDeriveSelfBuildTitle_NoWhitespaceFallback(t *testing.T) {
+	intent := "supercalifragilisticexpialidociousplusextraextraextrapaddingtail"
+	got := deriveSelfBuildTitle(intent)
+
+	budget := 60 - len(SelfBuildTitlePrefix)
+	if len(got) > budget {
+		t.Fatalf("len(got)=%d > budget=%d: %q", len(got), budget, got)
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("want ... suffix, got %q", got)
+	}
+}
+
+// Verifies truncation landing on whitespace leaves no " ..." artifact.
+func TestDeriveSelfBuildTitle_TrailingSpaceTrimmed(t *testing.T) {
+	// Craft so the limit-3 byte is a space: 47-char budget, limit-3 = 44.
+	// Tokens chosen so a space sits at byte 44.
+	intent := "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk"
+	got := deriveSelfBuildTitle(intent)
+
+	if strings.Contains(got, " ...") {
+		t.Fatalf("trailing-space artifact: %q", got)
+	}
+}
+
+// Verifies short intent passes through unchanged.
+func TestDeriveSelfBuildTitle_ShortPassThrough(t *testing.T) {
+	intent := "tiny intent"
+	got := deriveSelfBuildTitle(intent)
+	if got != intent {
+		t.Fatalf("want %q unchanged, got %q", intent, got)
+	}
+}
+
+// Verifies intent at exactly the budget passes through with no ellipsis.
+func TestDeriveSelfBuildTitle_ExactLimitNoTruncate(t *testing.T) {
+	budget := 60 - len(SelfBuildTitlePrefix)
+	intent := strings.Repeat("a", budget)
+	got := deriveSelfBuildTitle(intent)
+	if got != intent {
+		t.Fatalf("want %q unchanged, got %q", intent, got)
+	}
+	if strings.HasSuffix(got, "...") {
+		t.Fatalf("unexpected ellipsis at exact limit: %q", got)
+	}
+}
+
+// Byte-level truncation can split a multibyte rune; `gh issue create` then
+// rejects the title or renders mojibake. Result MUST be valid UTF-8.
+func TestDeriveSelfBuildTitle_UTF8Emoji_NoCorruption(t *testing.T) {
+	intent := strings.Repeat("a", 41) + "🎉 and more padding to force truncation"
+	got := deriveSelfBuildTitle(intent)
+	if !utf8.ValidString(got) {
+		t.Fatalf("invalid UTF-8 in result: %q (% x)", got, got)
+	}
+}
+
+func TestDeriveSelfBuildTitle_UTF8MultibyteAccent(t *testing.T) {
+	intent := strings.Repeat("a", 43) + "é and trailing text to force boundary cut"
+	got := deriveSelfBuildTitle(intent)
+	if !utf8.ValidString(got) {
+		t.Fatalf("invalid UTF-8 in result: %q (% x)", got, got)
+	}
+}
+
+func TestDeriveSelfBuildTitle_UTF8CJK(t *testing.T) {
+	intent := strings.Repeat("a", 40) + "日本語 padding extras filler more chars"
+	got := deriveSelfBuildTitle(intent)
+	if !utf8.ValidString(got) {
+		t.Fatalf("invalid UTF-8 in result: %q (% x)", got, got)
+	}
+}
+
+// Property check: random multibyte inputs must all yield valid UTF-8.
+func TestDeriveSelfBuildTitle_UTF8Property(t *testing.T) {
+	runes := []rune{'a', ' ', 'é', '🎉', '日', '本', '語', 'ñ', 'ü', '中'}
+	r := rand.New(rand.NewSource(1))
+	for i := 0; i < 100; i++ {
+		n := 30 + r.Intn(80)
+		var b strings.Builder
+		for j := 0; j < n; j++ {
+			b.WriteRune(runes[r.Intn(len(runes))])
+		}
+		intent := b.String()
+		got := deriveSelfBuildTitle(intent)
+		if !utf8.ValidString(got) {
+			t.Fatalf("invalid UTF-8 from input %q: %q (% x)", intent, got, got)
+		}
+	}
 }

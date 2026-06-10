@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
@@ -189,13 +191,34 @@ func isClarifyResponse(s string) bool {
 
 // deriveSelfBuildTitle reuses ship's intent classifier but strips redundant
 // verb prefixes — every self-build is implicitly a feature add, so [FEAT] would
-// double-prefix with [SELF-BUILD].
+// double-prefix with [SELF-BUILD]. Truncates at the last whitespace before the
+// budget so `gh issue list` reads as complete words, not orphan prepositions
+// (closes #8).
 func deriveSelfBuildTitle(intent string) string {
 	t := strings.TrimSpace(intent)
-	if len(t) > 60-len(SelfBuildTitlePrefix) {
-		t = t[:60-len(SelfBuildTitlePrefix)-3] + "..."
+	budget := 60 - len(SelfBuildTitlePrefix)
+	if len(t) <= budget {
+		return t
 	}
-	return t
+	// Rune-aware: byte-level slicing would split multibyte runes (emoji, CJK,
+	// accents) and emit invalid UTF-8 that `gh issue create` rejects.
+	cut := budget - 3
+	lastSpace := -1
+	end := 0
+	for i, r := range t {
+		next := i + utf8.RuneLen(r)
+		if next > cut {
+			break
+		}
+		end = next
+		if unicode.IsSpace(r) {
+			lastSpace = i
+		}
+	}
+	if lastSpace > 0 {
+		end = lastSpace
+	}
+	return strings.TrimRightFunc(t[:end], unicode.IsSpace) + "..."
 }
 
 // promptSHA returns a short prefix of the sha256 of the prompt file, recorded
