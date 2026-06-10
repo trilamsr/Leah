@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 const ScopeSend = "imessage:send"
@@ -64,6 +66,9 @@ type Config struct {
 	OSExec   OSExec
 	Audit    AuditSink
 	Now      func() time.Time
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 type Adapter struct {
@@ -71,6 +76,7 @@ type Adapter struct {
 	exec  OSExec
 	audit AuditSink
 	now   func() time.Time
+	m     *connectadapter.Metrics
 
 	mu    sync.Mutex
 	sends []time.Time
@@ -87,7 +93,7 @@ func New(cfg Config) (*Adapter, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return &Adapter{att: cfg.Attestor, exec: cfg.OSExec, audit: cfg.Audit, now: now}, nil
+	return &Adapter{att: cfg.Attestor, exec: cfg.OSExec, audit: cfg.Audit, now: now, m: cfg.Metrics}, nil
 }
 
 // Send order is load-bearing: validate -> rate-limit -> attest -> exec.
@@ -108,7 +114,10 @@ func (a *Adapter) Send(ctx context.Context, msg Message) error {
 		return fmt.Errorf("%w: %v", ErrAttestationDenied, err)
 	}
 	script := buildScript(msg.To, msg.Body)
-	if _, err := a.exec.Run(ctx, "osascript", []string{"-"}, []byte(script)); err != nil {
+	start := time.Now()
+	_, err := a.exec.Run(ctx, "osascript", []string{"-"}, []byte(script))
+	a.m.ObserveAPI("send", time.Since(start).Seconds())
+	if err != nil {
 		if strings.Contains(err.Error(), permissionDeniedSignal) {
 			a.record(AuditRow{Kind: "imessage_send", RecipientHash: hash, BodyLen: bodyLen, Reason: "permission_denied"})
 			return fmt.Errorf("%w: %v", ErrPermissionDenied, err)
