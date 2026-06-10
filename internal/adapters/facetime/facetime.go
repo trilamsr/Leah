@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"sync"
 	"time"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 var (
@@ -60,6 +62,9 @@ type Config struct {
 	OSExec   OSExec
 	Sink     Sink
 	Now      func() time.Time
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 type Adapter struct {
@@ -67,6 +72,7 @@ type Adapter struct {
 	ex   OSExec
 	sink Sink
 	now  func() time.Time
+	m    *connectadapter.Metrics
 
 	mu     sync.Mutex
 	bucket []time.Time
@@ -87,20 +93,22 @@ func New(cfg Config) (*Adapter, error) {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &Adapter{att: cfg.Attestor, ex: cfg.OSExec, sink: sink, now: now}, nil
+	return &Adapter{att: cfg.Attestor, ex: cfg.OSExec, sink: sink, now: now, m: cfg.Metrics}, nil
 }
 
 func (a *Adapter) InitiateVideo(ctx context.Context, callee string) error {
-	return a.initiate(ctx, callee, "video", ScopeInitiateVideo, "facetime://")
+	return a.initiate(ctx, callee, "video", ScopeInitiateVideo, "facetime://", "initiate_video")
 }
 
 func (a *Adapter) InitiateAudio(ctx context.Context, callee string) error {
-	return a.initiate(ctx, callee, "audio", ScopeInitiateAudio, "facetime-audio://")
+	return a.initiate(ctx, callee, "audio", ScopeInitiateAudio, "facetime-audio://", "initiate_audio")
 }
 
 // Order: validate -> rate-limit -> attest -> exec -> audit. Rate-limit must
 // precede attestation so a compromised Leah cannot flood consent prompts.
-func (a *Adapter) initiate(ctx context.Context, callee, mode, scope, scheme string) error {
+// ObserveAPI wraps only the exec leg — that is the actual RPC; rejecting
+// earlier (validation, rate-limit, denied attestation) is not wire-time.
+func (a *Adapter) initiate(ctx context.Context, callee, mode, scope, scheme, endpoint string) error {
 	if !calleeRE.MatchString(callee) {
 		return fmt.Errorf("%w: %q", ErrInvalidCallee, callee)
 	}
@@ -112,7 +120,10 @@ func (a *Adapter) initiate(ctx context.Context, callee, mode, scope, scheme stri
 		a.audit(mode, false, callee, "attestation denied")
 		return fmt.Errorf("%w: %v", ErrAttestationDenied, err)
 	}
-	if _, err := a.ex.Run(ctx, "open", []string{scheme + callee}, nil); err != nil {
+	start := time.Now()
+	_, err := a.ex.Run(ctx, "open", []string{scheme + callee}, nil)
+	a.m.ObserveAPI(endpoint, time.Since(start).Seconds())
+	if err != nil {
 		a.audit(mode, false, callee, "open failed")
 		return fmt.Errorf("%w: %v", ErrLaunchFailed, err)
 	}
