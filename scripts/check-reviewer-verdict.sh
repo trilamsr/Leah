@@ -19,7 +19,12 @@
 #                           Any path matching the load-bearing list
 #                           sets load-bearing=1 AND bypasses the
 #                           release-notes category auto-skip.
-#   --skip                  short-circuit pass (operator-discretion escape)
+#   --skip <reason>         short-circuit pass (operator-discretion escape).
+#                           Reason ≥32 chars REQUIRED; audit row emitted to
+#                           stderr AND appended to ~/.leah-state/audit.jsonl
+#                           with kind `ci_gate_skipped`. Bare `--skip` is a
+#                           usage error — silent bypass is the exact pattern
+#                           the audit-session adversarial review flagged.
 #   --pr-author <login>     PR author login. When provided AND the PR
 #                           carries Reviewer-recommendation: APPROVE on a
 #                           load-bearing surface, the script also enforces
@@ -78,6 +83,18 @@ RV_LIB_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/reviewer-ver
 rv_parse_args "$@"
 
 if [ "$SKIP" -eq 1 ]; then
+  if [ "${#SKIP_REASON}" -lt 32 ]; then
+    echo "check-reviewer-verdict: --skip requires a justification ≥32 chars (got ${#SKIP_REASON})" >&2
+    exit 3
+  fi
+  ts=$(date -u +%FT%TZ)
+  echo "AUDIT: check-reviewer-verdict skipped at $ts reason='$SKIP_REASON' pr='$PR_NUM' author='$PR_AUTHOR'" >&2
+  state_dir="${LEAH_STATE_DIR:-$HOME/.leah-state}"
+  if mkdir -p "$state_dir" 2>/dev/null; then
+    printf '{"ts":"%s","kind":"ci_gate_skipped","gate":"check-reviewer-verdict","reason":"%s","pr":"%s","author":"%s"}\n' \
+      "$ts" "${SKIP_REASON//\"/\\\"}" "${PR_NUM//\"/\\\"}" "${PR_AUTHOR//\"/\\\"}" \
+      >> "$state_dir/audit.jsonl" 2>/dev/null || true
+  fi
   exit 0
 fi
 

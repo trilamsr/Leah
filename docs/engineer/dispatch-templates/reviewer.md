@@ -126,7 +126,7 @@ PR BODY HYGIENE
 - [ ] AT MOST ONE aggregate tracking issue filed for this PR review (with `kind:reviewer-finding` + matching `severity:*` label); LOW findings posted as PR comments only
 - [ ] `## Comment sweep` section emitted (offenders or `clean`)
 - [ ] `Reviewer-agent-id:` token reflects the real subagent ID, not the author login
-- [ ] **TDD evidence**: PR body on `feat/*` carries a `## TDD evidence` section with pre-impl failing-test output, OR an explicit `<!-- tdd-skip-justified: <reason ≥4 chars> -->` marker. Enforced by `scripts/check-tdd-evidence.sh`; misses on #162/#199/#219 motivated the gate.
+- [ ] **TDD evidence**: PR body on `feat/*` carries a `## TDD evidence` heading PAIRED with a `FAIL`/`panic`/`RED→GREEN` token, OR an explicit `<!-- tdd-skip-justified: <reason ≥32 chars> -->` marker. Enforced by `scripts/check-tdd-evidence.sh` (locally + as CI job `pr-gates`); misses on #162/#199/#219 motivated the gate.
 
 ## Recurring-failure traps
 

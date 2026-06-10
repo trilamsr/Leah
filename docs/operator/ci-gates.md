@@ -12,22 +12,22 @@ Fails closed when:
 - The `Reviewer-agent-id:` value equals the PR author login (self-tag).
 - The PR has `autoMergeRequest != null` AND the `Reviewer-agent-id:` is the implementer's own ID (zero adversarial window).
 
-Operator escape: `<!-- reviewer-skip-justified: <reason ≥4 chars> -->` (trivial doc/typo/dep-bump only) or `<!-- operator-opened: <reason ≥4 chars> -->`.
+Operator escape: `<!-- reviewer-skip-justified: <reason ≥4 chars> -->` (trivial doc/typo/dep-bump only) or `<!-- operator-opened: <reason ≥4 chars> -->`. The CLI `--skip` flag now requires a ≥32-char reason AND emits an audit row to `~/.leah-state/audit.jsonl` (kind `ci_gate_skipped`).
 
-Motivating misses: token leaks on PR #184 / #186 / #187; self-approve-after-amend on #144 / #168 / #189 / #206.
+Motivating misses: token leaks on #144 / #168 / #184 / #186 / #187 / #189 / #206; self-approve-after-amend on the same set.
 
 ## Gate 2 — TDD evidence (feat/* only)
 
 Script: `scripts/check-tdd-evidence.sh`.
 
-Fails closed when the current branch is `feat/*` AND the PR body lacks one of:
+Fails closed when the current branch is `feat/*` AND the PR body lacks BOTH:
 
-- `## TDD evidence` heading (case-insensitive).
-- The phrase `failing test`.
-- `RED→GREEN`, `red-first`, or `test-first` token.
-- `<!-- tdd-skip-justified: <reason ≥4 chars> -->` marker.
+- A `## TDD evidence` heading (case-insensitive, full phrase — bare `## TDD` is rejected).
+- A failing-output token nearby: `--- FAIL`, `^FAIL`, `panic:`, `panic(`, `RED→GREEN`, `red-first`, or `test-first`.
 
-Wired into `scripts/check.sh` after the parallel block, alongside `check-pr-body-close-keywords.sh`. Only runs when `gh pr view` resolves a PR number for the current branch — local pre-PR runs short-circuit pass.
+A standalone `RED→GREEN` / `red-first` / `test-first` token also satisfies the gate even without the heading. Operator escape: `<!-- tdd-skip-justified: <reason ≥32 chars> -->` (4-char v1 floor let `noop`/`wip!`/`skip` pass — raised to 32 + audit row mandatory).
+
+Wired into `scripts/check.sh` AND into `.github/workflows/check.yml` as the `pr-gates` job, so the gate cannot be bypassed by an operator who skips local check. Branch protection on `main` should mark `pr-gates` required after this PR merges.
 
 Motivating misses: PR #162 / #199 / #219 landed as `feat(*)` with no pre-impl failing-test capture.
 

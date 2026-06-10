@@ -40,7 +40,7 @@ EOF
   rm -f "$body"
 }
 
-# feat/ branch, body HAS TDD evidence section → exit 0.
+# feat/ branch, body HAS TDD evidence heading PAIRED with failing output → exit 0.
 run_case_feat_with_evidence() {
   local body
   body=$(mktemp)
@@ -58,17 +58,37 @@ FAIL
 ```
 EOF
   if "$GATE" --branch feat/foo --body-file "$body" >/dev/null 2>&1; then
-    pass "feat/ branch with TDD evidence exits 0"
+    pass "feat/ branch with TDD evidence heading + FAIL exits 0"
   else
-    fail "feat/ branch with TDD evidence should exit 0"
+    fail "feat/ branch with TDD evidence heading + FAIL should exit 0"
   fi
   rm -f "$body"
 }
 
-# feat/ branch, body lacks section heading but mentions "failing test" → exit 0.
-# Token-permissive: RED→GREEN / red-first / test-first phrasings also accepted.
+# Bare `## TDD` heading with NO failing-output token → exit 1 (tightened
+# from v1 — heading alone used to pass).
+run_case_feat_bare_heading_rejected() {
+  local body
+  body=$(mktemp)
+  cat > "$body" <<'EOF'
+## Summary
+
+## TDD
+notes go here but no fail trace
+EOF
+  "$GATE" --branch feat/foo --body-file "$body" >/dev/null 2>&1
+  local rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "bare ## TDD heading w/o FAIL exits 1"
+  else
+    fail "bare ## TDD heading w/o FAIL should exit 1 (got $rc)"
+  fi
+  rm -f "$body"
+}
+
+# Explicit RED→GREEN / red-first / test-first token alone → exit 0.
 run_case_feat_token_variants() {
-  for token in "failing test output" "RED→GREEN trace" "red-first commit" "test-first capture"; do
+  for token in "RED→GREEN trace" "red-first commit" "test-first capture"; do
     local body
     body=$(mktemp)
     printf '## Summary\n\n%s\n' "$token" > "$body"
@@ -96,7 +116,7 @@ run_case_non_feat_branch_skips() {
   rm -f "$body"
 }
 
-# Operator escape: `<!-- tdd-skip-justified: <reason ≥4 chars> -->` → exit 0
+# Operator escape: `<!-- tdd-skip-justified: <reason ≥32 chars> -->` → exit 0
 # on feat/ branch even without TDD section. Audit-row mandatory.
 run_case_skip_marker() {
   local body
@@ -105,46 +125,68 @@ run_case_skip_marker() {
 ## Summary
 Pure rename — no behavior change.
 
-<!-- tdd-skip-justified: dependency-bump only, no logic touched -->
+<!-- tdd-skip-justified: dependency-bump only, no logic touched in this PR -->
 EOF
-  if "$GATE" --branch feat/dep-bump --body-file "$body" >/dev/null 2>&1; then
-    pass "tdd-skip-justified marker exits 0"
+  if LEAH_STATE_DIR=$(mktemp -d) "$GATE" --branch feat/dep-bump --body-file "$body" >/dev/null 2>&1; then
+    pass "tdd-skip-justified marker (≥32 chars) exits 0"
   else
     fail "tdd-skip-justified marker should exit 0"
   fi
   rm -f "$body"
 }
 
-# Skip marker with reason <4 chars → still fails (audit-trail integrity).
+# Skip marker with reason <32 chars → still fails (audit-trail integrity).
+# 4-char v1 floor let `noop`/`wip!`/`skip` pass; raised to 32.
 run_case_skip_marker_too_short() {
   local body
   body=$(mktemp)
   cat > "$body" <<'EOF'
 ## Summary
 
-<!-- tdd-skip-justified: x -->
+<!-- tdd-skip-justified: noop -->
 EOF
   "$GATE" --branch feat/x --body-file "$body" >/dev/null 2>&1
   local rc=$?
   if [ "$rc" -eq 1 ]; then
-    pass "skip marker with short reason exits 1"
+    pass "skip marker with short reason (<32 chars) exits 1"
   else
     fail "skip marker with short reason should exit 1 (got $rc)"
   fi
   rm -f "$body"
 }
 
-# --skip flag → exit 0 immediately (emergency operator override).
-run_case_skip_flag() {
+# Bare --skip (no reason) → exit 2 (usage error, no silent bypass).
+run_case_skip_flag_bare_rejected() {
   local body
   body=$(mktemp)
   echo "" > "$body"
-  if "$GATE" --branch feat/x --body-file "$body" --skip >/dev/null 2>&1; then
-    pass "--skip flag exits 0"
+  "$GATE" --branch feat/x --body-file "$body" --skip >/dev/null 2>&1
+  local rc=$?
+  if [ "$rc" -eq 2 ]; then
+    pass "bare --skip (no reason) exits 2"
   else
-    fail "--skip flag should exit 0"
+    fail "bare --skip should exit 2 (got $rc)"
   fi
   rm -f "$body"
+}
+
+# --skip <reason ≥32> → exit 0 + audit-row emitted.
+run_case_skip_flag_with_reason() {
+  local body audit_dir
+  body=$(mktemp)
+  audit_dir=$(mktemp -d)
+  echo "" > "$body"
+  if LEAH_STATE_DIR="$audit_dir" "$GATE" --branch feat/x --body-file "$body" \
+      --skip "emergency override: hotfix path, no test possible" >/dev/null 2>&1; then
+    if [ -s "$audit_dir/audit.jsonl" ] && grep -q '"kind":"ci_gate_skipped"' "$audit_dir/audit.jsonl"; then
+      pass "--skip <reason> exits 0 + writes audit row"
+    else
+      fail "--skip should write audit.jsonl row"
+    fi
+  else
+    fail "--skip <reason ≥32 chars> should exit 0"
+  fi
+  rm -rf "$body" "$audit_dir"
 }
 
 # Missing --body-file AND --pr → usage error exit 2.
@@ -160,11 +202,13 @@ run_case_usage_error() {
 
 run_case_feat_missing_evidence
 run_case_feat_with_evidence
+run_case_feat_bare_heading_rejected
 run_case_feat_token_variants
 run_case_non_feat_branch_skips
 run_case_skip_marker
 run_case_skip_marker_too_short
-run_case_skip_flag
+run_case_skip_flag_bare_rejected
+run_case_skip_flag_with_reason
 run_case_usage_error
 
 echo "---"
