@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=720,initial-scale=1" />
+<title>Leah HUD — Focus</title>
+<link rel="stylesheet" href="/static/focus.css" />
+</head>
+<body class="focus">
+<main id="panel" aria-label="Leah focus panel">
+  <header class="bar">
+    <span class="title">Leah</span>
+    <span id="status" class="muted">ready</span>
+    <button id="dismiss" type="button" aria-label="Dismiss (Esc)">×</button>
+  </header>
+  <form id="ask" autocomplete="off">
+    <input id="q" type="text" placeholder="Ask Leah…" aria-label="Operator query" />
+  </form>
+  <section id="response" class="response" aria-live="polite">
+    <p class="muted">Cmd+Shift+L or type a question.</p>
+  </section>
+  <section id="sources" class="sources" hidden>
+    <h3>Sources</h3>
+    <ul id="sources-list"></ul>
+  </section>
+  <section id="suggestions" class="suggestions" hidden>
+    <h3>Follow up</h3>
+    <div id="chips"></div>
+  </section>
+</main>
+<script src="/static/focus.js"></script>
+</body>
+</html>

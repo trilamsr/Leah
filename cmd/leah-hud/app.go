@@ -14,14 +14,17 @@ type App struct {
 	State   *hud.Machine
 	Client  *hud.Client
 	Widgets *hud.Widgets
+	Focus   *hud.Focus
 }
 
 func NewApp(daemonURL string) *App {
+	state := hud.NewMachine()
 	c := hud.NewClient(daemonURL)
 	return &App{
-		State:   hud.NewMachine(),
+		State:   state,
 		Client:  c,
 		Widgets: hud.NewWidgets(c),
+		Focus:   hud.NewFocus(state, daemonURL),
 	}
 }
 
@@ -31,8 +34,11 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/", a.handleIndex)
 	mux.HandleFunc("/hud/ambient", a.handleAmbient)
 	mux.HandleFunc("/hud/widgets", a.handleWidgets)
+	mux.HandleFunc("/hud/focus", a.handleFocus)
 	mux.HandleFunc("/api/state", a.handleState)
 	mux.HandleFunc("/api/events", a.handleEvents)
+	mux.HandleFunc("/api/focus/summon", a.handleFocusSummon)
+	mux.HandleFunc("/api/focus/query", a.handleFocusQuery)
 	a.Widgets.Routes(mux)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	return mux
@@ -103,6 +109,46 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 			fl.Flush()
 		}
 	}
+}
+
+func (a *App) handleFocus(w http.ResponseWriter, _ *http.Request) {
+	a.Focus.SummonHotkey()
+	f, err := hud.Static().Open("focus.html")
+	if err != nil {
+		http.Error(w, "focus.html missing", http.StatusInternalServerError)
+		return
+	}
+	defer func() { _ = f.Close() }()
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := copyTo(w, f); err != nil {
+		return
+	}
+}
+
+func (a *App) handleFocusSummon(w http.ResponseWriter, _ *http.Request) {
+	a.Focus.SummonHotkey()
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(stateResp{State: a.State.State().String()})
+}
+
+func (a *App) handleFocusQuery(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Query string `json:"query"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	resp, err := a.Focus.Query(r.Context(), req.Query)
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (a *App) Run(ctx context.Context, addr string) error {
