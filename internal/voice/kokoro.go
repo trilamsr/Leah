@@ -42,8 +42,10 @@ func (k *KokoroTTS) Speak(ctx context.Context, text string) error {
 		// investigate why kokoro produced nothing (audit L5).
 		return fmt.Errorf("kokoro: empty wav at %s", path)
 	}
-	if _, err := k.Exec.Run(ctx, "afplay", path); err != nil {
-		return fmt.Errorf("kokoro afplay: %w", err)
-	}
-	return nil
+	return withAudioDevice(func() error {
+		if _, err := k.Exec.Run(ctx, "afplay", path); err != nil {
+			return fmt.Errorf("kokoro afplay: %w", err)
+		}
+		return nil
+	})
 }

@@ -95,8 +95,10 @@ func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
 		return fmt.Errorf("openai tts: close: %w", err)
 	}
 
-	if _, err := o.Exec.Run(ctx, "afplay", path); err != nil {
-		return fmt.Errorf("openai tts afplay: %w", err)
-	}
-	return nil
+	return withAudioDevice(func() error {
+		if _, err := o.Exec.Run(ctx, "afplay", path); err != nil {
+			return fmt.Errorf("openai tts afplay: %w", err)
+		}
+		return nil
+	})
 }
