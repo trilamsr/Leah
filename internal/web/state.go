@@ -139,7 +139,7 @@ func (s *Server) Snapshot(ctx context.Context) State {
 // Kept separate from Snapshot so the caching path stays small + obvious.
 func (s *Server) computeSnapshot(ctx context.Context) State {
 	return State{
-		Audit:   tailAudit(s.AuditPath, 20),
+		Audit:   s.tailAudit(20),
 		Agents:  listAgents(ctx, s.Regatta),
 		Memory:  readMemory(s.Memory),
 		Ops:     s.readOps(),
@@ -191,7 +191,12 @@ func readMetrics(path string) interface{} {
 	return out
 }
 
-func tailAudit(path string, n int) []AuditRow {
+// auditParseErrorsCounter labels keep the metric extensible without a breaking
+// rename — future label expansion (e.g. file path) lives behind this one entry.
+var auditParseErrorsLabels = map[string]string{"source": "audit_jsonl"}
+
+func (s *Server) tailAudit(n int) []AuditRow {
+	path := s.AuditPath
 	if path == "" {
 		return []AuditRow{}
 	}
@@ -208,6 +213,11 @@ func tailAudit(path string, n int) []AuditRow {
 	for sc.Scan() {
 		var e audit.Entry
 		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
+			// Surface what used to be a silent failure mode (BB-RETRO M2, #5).
+			// Partial-log beats total-failure, so we still continue.
+			if s.Metrics != nil {
+				s.Metrics.Counter("leah_audit_parse_errors_total").Inc(auditParseErrorsLabels)
+			}
 			continue
 		}
 		rows = append(rows, AuditRow{

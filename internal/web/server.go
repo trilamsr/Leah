@@ -15,6 +15,7 @@ import (
 
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/obs"
 )
 
 //go:embed static
@@ -30,6 +31,10 @@ type Server struct {
 	Budget      *budget.Budget
 	StartTime   time.Time
 	Heartbeat   func() time.Time // optional; last successful regatta poll.
+	// Metrics, when non-nil, receives observability signals from the dashboard's
+	// snapshot path — currently leah_audit_parse_errors_total (BB-RETRO M2, #5).
+	// nil is safe; production wires the daemon's shared registry.
+	Metrics *obs.Registry
 
 	// CacheTTL caps how often Snapshot does the full audit-scan + sqlite +
 	// metrics-read aggregation. Dashboard polls at 3s; without a cache,
