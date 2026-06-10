@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 // Sentinel errors so callers switch on failure mode without string-matching.
@@ -63,6 +65,9 @@ type Config struct {
 	TokenSource TokenSource
 	Transport   Transport
 	BaseURL     string
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 // Client is the Confluence adapter. Constructor performs no I/O so daemon
@@ -72,6 +77,7 @@ type Client struct {
 	ts      TokenSource
 	tr      Transport
 	baseURL string
+	m       *connectadapter.Metrics
 }
 
 // New validates the wiring contract and returns a ready Client; no I/O.
@@ -88,7 +94,7 @@ func New(cfg Config) (*Client, error) {
 	if cfg.BaseURL == "" {
 		return nil, errors.New("confluence: Config.BaseURL required (e.g. https://acme.atlassian.net/wiki)")
 	}
-	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, baseURL: cfg.BaseURL}, nil
+	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, baseURL: cfg.BaseURL, m: cfg.Metrics}, nil
 }
 
 // ListRecentPages returns pages recently updated in the given space.
@@ -97,7 +103,10 @@ func (c *Client) ListRecentPages(ctx context.Context, space string) ([]Page, err
 	if err != nil {
 		return nil, err
 	}
-	return c.tr.ListRecent(ctx, tok, space)
+	start := time.Now()
+	pages, err := c.tr.ListRecent(ctx, tok, space)
+	c.m.ObserveAPI("list_recent", time.Since(start).Seconds())
+	return pages, err
 }
 
 // GetPage fetches a single page with storage-format body.
@@ -109,7 +118,10 @@ func (c *Client) GetPage(ctx context.Context, id string) (Page, error) {
 	if err != nil {
 		return Page{}, err
 	}
-	return c.tr.GetPage(ctx, tok, id)
+	start := time.Now()
+	page, err := c.tr.GetPage(ctx, tok, id)
+	c.m.ObserveAPI("get_page", time.Since(start).Seconds())
+	return page, err
 }
 
 // SearchCQL runs a Confluence Query Language search. CQL escaping is the
@@ -119,7 +131,10 @@ func (c *Client) SearchCQL(ctx context.Context, query string) ([]Page, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.tr.SearchCQL(ctx, tok, query)
+	start := time.Now()
+	pages, err := c.tr.SearchCQL(ctx, tok, query)
+	c.m.ObserveAPI("search", time.Since(start).Seconds())
+	return pages, err
 }
 
 // gateAndToken runs the attestation gate first; only on consent does the
