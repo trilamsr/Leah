@@ -24,10 +24,11 @@ AUTO-SKIP CHECK (decide first)
 - Run `git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.github/|scripts/|.*\.md$)'`. Empty → docs/CI/scripts-only PR; reviewer auto-skip permitted. Document the skip in PR thread.
 - Also skip: dep bumps, PR-body-edit-only, trivial doc strips.
 - **Load-bearing carve-out (NEVER auto-skip)** — when the diff touches any of:
-  - `internal/{adapters,audit,backup,brief,budget,costview,ctxmgr,daemonloop,dispatcher,embed,ghclient,intent,memory,notify,obs,operatormodel,patterns,persona,reasoner,regattaclient,reviewer,selflearn,voice,watchdog,web}/`
-  - `cmd/` — composition roots
+  - `internal/{adapters,audit,backup,brief,budget,costview,ctxmgr,daemonloop,dispatcher,embed,ghclient,intent,memory,notify,obs,operatormodel,patterns,persona,reasoner,regattaclient,reviewer,selflearn,testutil,voice,watchdog,web}/`
+  - `cmd/leah/`, `cmd/leah-daemon/` — composition roots
   - `docs/engineer/specs/*.md` — load-bearing design surface
   - `docs/engineer/dispatch-templates/*.md` — agent-rule surface
+  - `docs/engineer/autonomous-session-prompt.md` — autonomous-loop rule surface
   - `CLAUDE.md` — agent-rule surface
   - `scripts/check-*.sh` — CI gate surface
   - `.github/workflows/*` — CI gate surface
@@ -60,7 +61,7 @@ AUTOMERGE GATE (every Risk-tier+ must be addressed)
 - The implementer subagent MUST NOT enable automerge. Operator merges after reviewer clears + CI green. If the PR already has `autoMergeRequest != null` and a `Reviewer-agent-id:` is the implementer's own ID → BLOCK on findings; no operator window remains.
 
 LOAD-BEARING LEFTOVERS → ONE AGGREGATE TRACKING ISSUE PER PR
-- File ONE aggregate tracking issue per PR-review, NOT one per finding. Title: `[REVIEWER #<PR>] aggregate findings (<count>)`. Body lists tier-tagged findings with disposition column. Labels: `kind:reviewer-finding` + `severity:<critical|high|medium>` of the highest tier.
+- File ONE aggregate tracking issue per PR-review, NOT one per finding. Title: `[REVIEWER #<pr>] aggregate findings (<count>)` where `<pr>` is the PR number and `<count>` is the finding total. Body lists tier-tagged findings with disposition column. Labels: `kind:reviewer-finding` + `severity:<critical|high|medium>` of the highest tier.
 - Severity routing (mandatory):
   - `CRITICAL` / `HIGH` → tracking-issue row REQUIRED.
   - `MED` → tracking-issue row if not inline-fixed.
@@ -73,7 +74,7 @@ LOAD-BEARING LEFTOVERS → ONE AGGREGATE TRACKING ISSUE PER PR
   | MED  | bar.go:8  | <claim> | deferred — fix in followup |
   ```
 - Empty `kind:reviewer-finding` aggregate → do NOT file; PR comment suffices.
-- Filing snippet: `gh issue create --title '[REVIEWER #<PR>] aggregate findings (<count>)' --body-file <path> --label 'kind:reviewer-finding' --label 'severity:<tier>'`.
+- Filing snippet: `gh issue create --title '[REVIEWER #<pr>] aggregate findings (<count>)' --body-file <path> --label 'kind:reviewer-finding' --label 'severity:<tier>'`.
 
 OUTPUT FORMAT
 - Inline GH PR review comments OR markdown report. Each finding: `[Tier] file:line — observation — proposed fix`.

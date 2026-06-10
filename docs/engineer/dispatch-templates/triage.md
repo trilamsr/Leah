@@ -26,7 +26,7 @@ DEDUPE
 - Search existing issues/PRs before filing new tracking items.
 
 REVIEWER-FINDING + SLICE AGGREGATION (issue-volume hygiene)
-- Reviewer-finding tracking issues are aggregated ONE-PER-PR-REVIEW per `reviewer.md` §LOAD-BEARING LEFTOVERS. If a per-finding issue is encountered (legacy or drift), prefer consolidating into the aggregate (`[REVIEWER #<PR>] aggregate findings (<count>)`) over leaving N stragglers open.
+- Reviewer-finding tracking issues are aggregated ONE-PER-PR-REVIEW per `reviewer.md` §LOAD-BEARING LEFTOVERS. If a per-finding issue is encountered (legacy or drift), prefer consolidating into the aggregate (`[REVIEWER #<pr>] aggregate findings (<count>)` where `<pr>` is the PR number and `<count>` is the finding total) over leaving N stragglers open.
 - Slice umbrellas are tracked via ONE umbrella issue with task-list checkboxes per `designer.md` §UMBRELLA SPEC. If pre-filed slice issues are encountered before dispatch, close them with `state_reason: not_planned` citing the umbrella; reopen on dispatch.
 
 OUTPUT FORMAT
