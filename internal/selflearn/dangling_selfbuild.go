@@ -5,17 +5,10 @@ import (
 	"time"
 )
 
-// dangleAfter is the grace window before a dispatched self-build with no
-// paired outcome is flagged. Aligned with the resolver's default Since so
-// operators see a dangling row exactly once it falls out of the active
-// reconciliation window.
+// dangleAfter mirrors the resolver's default Since so a row surfaces exactly when it leaves the active reconciliation window.
 const dangleAfter = 7 * 24 * time.Hour
 
-// DanglingSelfBuild is a self-build dispatch whose paired
-// kind=self-build.outcome row never landed within dangleAfter. Surfaced
-// as a defect candidate to the weekly retro so operator-aborts and
-// regatta-watcher stalls accumulate visibly instead of silently masking
-// the WHERE clause `kind='self-build' AND outcome='dispatched'`.
+// DanglingSelfBuild surfaces operator-aborts and regatta-watcher stalls that would otherwise silently fail the dispatched→outcome pairing.
 type DanglingSelfBuild struct {
 	IssueURL    string
 	ArgsHash    string
@@ -23,17 +16,10 @@ type DanglingSelfBuild struct {
 	AgeDuration time.Duration
 }
 
-// selfbuildURL extracts the `url=<github URL>` token from a self-build
-// audit row's Detail. The dispatcher writes both
-// `url=https://github.com/.../issues/N` and
-// `url=https://github.com/.../pull/N` shapes (issue first, PR after the
-// regatta agent opens it) so we match either path segment.
+// selfbuildURL matches both `issues/N` and `pull/N` because dispatch writes the issue URL and the regatta agent later writes the PR URL.
 var selfbuildURL = regexp.MustCompile(`url=(https?://github\.com/[^/]+/[^/]+/(?:issues|pull)/\d+)`)
 
-// DetectDanglingSelfBuild scans the audit log at path for
-// kind=self-build, outcome=dispatched rows older than dangleAfter whose
-// extracted URL has no matching kind=self-build.outcome row. now is
-// injected so tests get a deterministic window.
+// DetectDanglingSelfBuild takes injectable now so tests get a deterministic cutoff.
 func DetectDanglingSelfBuild(path string, now func() time.Time) ([]DanglingSelfBuild, error) {
 	if now == nil {
 		now = time.Now
@@ -43,9 +29,6 @@ func DetectDanglingSelfBuild(path string, now func() time.Time) ([]DanglingSelfB
 		return nil, err
 	}
 
-	// URL → seen-an-outcome. A single terminal answer for a URL clears every
-	// dispatched row pointing at it; the operator already knows the dispatch
-	// landed because the URL is the same.
 	outcomeURL := map[string]bool{}
 	for _, e := range entries {
 		if e.Kind != "self-build.outcome" {
