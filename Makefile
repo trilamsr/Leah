@@ -1,4 +1,4 @@
-.PHONY: dev verify-pr baseline check smoke install upgrade help
+.PHONY: dev verify-pr baseline check smoke install upgrade install-janitor uninstall-janitor help
 
 # Run leah-daemon against ~/.leah-state-dev/ sandbox.
 # Opens browser to dashboard. Tails audit log in foreground.
@@ -44,5 +44,19 @@ install:
 upgrade:
 	@LEAH_UPGRADE_DRY_RUN=$(DRY_RUN) ./scripts/upgrade.sh upgrade
 
+# Install launchd manifest that sweeps merged agent-* worktrees every 5 min.
+install-janitor:
+	@mkdir -p ~/Library/LaunchAgents ~/.leah-state
+	@sed -e "s|__LEAH_ROOT__|$$(pwd)|g" -e "s|__LEAH_STATE__|$$HOME/.leah-state|g" \
+	    scripts/leah-worktree-janitor.plist > ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
+	@launchctl bootout gui/$$(id -u)/com.leah.worktree-janitor 2>/dev/null || true
+	@launchctl bootstrap gui/$$(id -u) ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
+	@echo "janitor installed; logs at ~/.leah-state/janitor.log"
+
+uninstall-janitor:
+	@launchctl bootout gui/$$(id -u)/com.leah.worktree-janitor 2>/dev/null || true
+	@rm -f ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
+	@echo "janitor uninstalled"
+
 help:
-	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1]"
+	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor"
