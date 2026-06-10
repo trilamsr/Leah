@@ -1,11 +1,30 @@
 package main
 
 import (
+	"github.com/trilam/leah/internal/adapters/confluence"
+	"github.com/trilam/leah/internal/adapters/discord"
+	"github.com/trilam/leah/internal/adapters/facetime"
+	"github.com/trilam/leah/internal/adapters/flights"
+	"github.com/trilam/leah/internal/adapters/gcal"
+	"github.com/trilam/leah/internal/adapters/gmail"
+	"github.com/trilam/leah/internal/adapters/imessage"
+	"github.com/trilam/leah/internal/adapters/jira"
+	"github.com/trilam/leah/internal/adapters/linear"
+	"github.com/trilam/leah/internal/adapters/maps"
+	"github.com/trilam/leah/internal/adapters/msteams"
+	"github.com/trilam/leah/internal/adapters/notion"
+	"github.com/trilam/leah/internal/adapters/slack"
+	"github.com/trilam/leah/internal/adapters/whatsapp"
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/dispatcher"
+	"github.com/trilam/leah/internal/feeds"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/operatormodel"
+	"github.com/trilam/leah/internal/recommend"
+	"github.com/trilam/leah/internal/selflearn"
 	"github.com/trilam/leah/internal/voice"
 )
 
@@ -30,6 +49,27 @@ func wireObs(
 	registry.Counter("leah_voice_speak_total").Add(map[string]string{"backend": "cold"}, 0)
 	registry.Counter("leah_attestation_attempts_total").Add(map[string]string{"scope": "cold", "outcome": "cold"}, 0)
 	registry.Counter("leah_web_requests_total").Add(map[string]string{"path": "cold", "status": "0"}, 0)
+
+	// W80 metric inventory backfill — register per-package series.
+	gmail.RegisterMetrics(registry)
+	gcal.RegisterMetrics(registry)
+	imessage.RegisterMetrics(registry)
+	facetime.RegisterMetrics(registry)
+	discord.RegisterMetrics(registry)
+	whatsapp.RegisterMetrics(registry)
+	maps.RegisterMetrics(registry)
+	flights.RegisterMetrics(registry)
+	slack.RegisterMetrics(registry)
+	notion.RegisterMetrics(registry)
+	linear.RegisterMetrics(registry)
+	jira.RegisterMetrics(registry)
+	confluence.RegisterMetrics(registry)
+	msteams.RegisterMetrics(registry)
+	connect.RegisterMetrics(registry)
+	feeds.RegisterMetrics(registry)
+	recommend.RegisterMetrics(registry)
+	selflearn.RegisterMetrics(registry)
+	operatormodel.RegisterMetrics(registry)
 
 	health.Register("audit", &audit.SelfChecker{Logger: a})
 	health.Register("memory", &memory.SelfChecker{Store: store})

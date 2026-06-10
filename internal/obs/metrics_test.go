@@ -179,6 +179,43 @@ func BenchmarkRegistry_Snapshot(b *testing.B) {
 	}
 }
 
+// TestHistogramDeclare_NoSampleRecorded asserts Declare creates the series
+// at count=0/sum=0 — Observe(0) would skew p50 with a real sample.
+func TestHistogramDeclare_NoSampleRecorded(t *testing.T) {
+	r := NewRegistry()
+	h := r.Histogram("h", []float64{0.1, 1})
+	h.Declare(map[string]string{"k": "v"})
+
+	path := filepath.Join(t.TempDir(), "m.json")
+	if err := r.Snapshot(path); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	// Re-Observe must not mistake a Declare for a prior sample.
+	h.Observe(map[string]string{"k": "v"}, 0.5)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.values["h|k=v"]
+	if s == nil {
+		t.Fatalf("expected series after Declare+Observe")
+	}
+	if s.count != 1 || s.sum != 0.5 {
+		t.Fatalf("Declare leaked a sample: count=%d sum=%v want count=1 sum=0.5", s.count, s.sum)
+	}
+}
+
+// TestCounterDeclare_ZeroNoOverwrite asserts Declare leaves an existing value untouched.
+func TestCounterDeclare_ZeroNoOverwrite(t *testing.T) {
+	r := NewRegistry()
+	c := r.Counter("c")
+	c.Inc(map[string]string{"k": "v"})
+	c.Declare(map[string]string{"k": "v"})
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if got := c.values["c|k=v"]; got != 1 {
+		t.Fatalf("Declare overwrote existing counter: got %d want 1", got)
+	}
+}
+
 func stringFromInt(i int) string {
 	const digits = "0123456789"
 	if i == 0 {
