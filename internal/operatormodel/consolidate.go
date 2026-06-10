@@ -42,11 +42,22 @@ const DefaultConsolidationAgeDays = 14
 const DefaultStabilityDelta = 0.05
 
 // Run executes one consolidation pass. Returns nil when LEAH_CONSOLIDATION=0
-// disables the pass at task-fire time.
+// disables the pass at task-fire time. The audit-quiesce lock is taken
+// BEFORE readAudit so any Append racing the pass either lands fully
+// pre-readAudit (and is included in rows) or fully post-release (after the
+// rewrite). Taking the lock after readAudit but before rename leaves a
+// window where mid-pass Appends land on the inode that tmp+rename then
+// overwrites — silently dropping rows.
 func (cp *ConsolidatePass) Run(ctx context.Context) error {
 	if os.Getenv("LEAH_CONSOLIDATION") == "0" {
 		return nil
 	}
+	release := func() {}
+	if cp.Audit != nil {
+		release = cp.Audit.QuiesceForConsolidation()
+	}
+	defer release()
+
 	now := cp.now()
 	ageDays := consolidationAgeDays()
 	cutoff := now.Add(-time.Duration(ageDays) * 24 * time.Hour)
@@ -65,6 +76,7 @@ func (cp *ConsolidatePass) Run(ctx context.Context) error {
 	halflife := halflifeDays()
 
 	var consolidated []consolidatedCell
+	var snapshotOnly []consolidatedCell
 	for _, c := range cells {
 		var oldTimes []time.Time
 		var firstSeen time.Time
@@ -87,26 +99,29 @@ func (cp *ConsolidatePass) Run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("load snapshot: %w", err)
 		}
-		if hasAnchor {
-			denom := wNow
-			if anchor > denom {
-				denom = anchor
-			}
-			if denom < 1e-6 {
-				denom = 1e-6
-			}
-			delta := wNow - anchor
-			if delta < 0 {
-				delta = -delta
-			}
-			if delta/denom >= stabilityDelta {
-				// Volatile — record fresh snapshot so the next pass can
-				// reconverge, but skip the consolidation write.
-				if err := upsertSnapshot(ctx, cp.Store.DB(), c.class, c.key, c.slot, wNow, now); err != nil {
-					return fmt.Errorf("upsert snapshot: %w", err)
-				}
-				continue
-			}
+		if !hasAnchor {
+			// §2 rule 2: first-time cells (anchor=0 ⇒ delta=1.0 ⇒ FAIL)
+			// write a snapshot only, deferring consolidation to the next
+			// pass that has a 14d-old anchor to diff against.
+			snapshotOnly = append(snapshotOnly, consolidatedCell{cell: c, wNow: wNow})
+			continue
+		}
+		denom := wNow
+		if anchor > denom {
+			denom = anchor
+		}
+		if denom < 1e-6 {
+			denom = 1e-6
+		}
+		delta := wNow - anchor
+		if delta < 0 {
+			delta = -delta
+		}
+		if delta/denom >= stabilityDelta {
+			// Volatile — record fresh snapshot so the next pass can
+			// reconverge, but skip the consolidation write.
+			snapshotOnly = append(snapshotOnly, consolidatedCell{cell: c, wNow: wNow})
+			continue
 		}
 		weight := decayedWeight(oldTimes, cutoff, halflife)
 		consolidated = append(consolidated, consolidatedCell{
@@ -119,8 +134,25 @@ func (cp *ConsolidatePass) Run(ctx context.Context) error {
 		})
 	}
 
+	// snapshot-only writes (first-time + volatile cells) run outside the
+	// consolidation tx — they don't touch the archive or rewrite paths, so
+	// no rollback dependency.
+	for _, sc := range snapshotOnly {
+		if err := upsertSnapshot(ctx, cp.Store.DB(), sc.cell.class, sc.cell.key, sc.cell.slot, sc.wNow, now); err != nil {
+			return fmt.Errorf("upsert snapshot: %w", err)
+		}
+	}
+
 	if len(consolidated) == 0 {
 		return nil
+	}
+
+	// Record archive size BEFORE the append so a tx-commit failure can
+	// truncate the archive back to its pre-append state (no orphan rows
+	// duplicating on retry). Empty/missing archive = offset 0.
+	archiveOffset, err := archiveSize(cp.ArchivePath)
+	if err != nil {
+		return fmt.Errorf("stat archive: %w", err)
 	}
 
 	tx, err := cp.Store.DB().BeginTx(ctx, nil)
@@ -140,18 +172,36 @@ func (cp *ConsolidatePass) Run(ctx context.Context) error {
 		return fmt.Errorf("archive append: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
+		// Roll the archive back to its pre-append size so a retry doesn't
+		// duplicate rows on top of the prior attempt.
+		if truncErr := os.Truncate(cp.ArchivePath, archiveOffset); truncErr != nil && !os.IsNotExist(truncErr) {
+			return fmt.Errorf("commit failed (%v) + archive rollback failed: %w", err, truncErr)
+		}
 		return fmt.Errorf("commit: %w", err)
 	}
 
-	release := func() {}
-	if cp.Audit != nil {
-		release = cp.Audit.QuiesceForConsolidation()
-	}
-	defer release()
 	if err := rewriteAudit(cp.AuditPath, rows, consolidated, tz); err != nil {
 		return fmt.Errorf("rewrite audit: %w", err)
 	}
 	return nil
+}
+
+// archiveSize returns the current byte length of the archive file; 0 if it
+// does not yet exist. Used as the rollback anchor when the consolidation tx
+// commits after appendArchive — a failed Commit truncates back to this
+// offset so retries don't duplicate rows.
+func archiveSize(path string) (int64, error) {
+	if path == "" {
+		return 0, nil
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return fi.Size(), nil
 }
 
 func (cp *ConsolidatePass) now() time.Time {
