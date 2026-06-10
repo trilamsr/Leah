@@ -104,10 +104,40 @@ func (s *storage) migrate() error {
 	if _, err := s.db.Exec(ddl); err != nil {
 		return fmt.Errorf("exec ddl: %w", err)
 	}
+	// S8 wiring spec §5 — additive demotion ledger. SQLite has no IF NOT
+	// EXISTS for columns; ensureColumn pre-checks via PRAGMA table_info.
+	if err := s.ensureColumn("entities", "demotion", "REAL DEFAULT 1.0"); err != nil {
+		return fmt.Errorf("ensure demotion column: %w", err)
+	}
 	if _, err := s.db.Exec(`INSERT OR REPLACE INTO schema_meta(key, value) VALUES('version', ?)`, schemaVersion); err != nil {
 		return fmt.Errorf("stamp version: %w", err)
 	}
 	return nil
+}
+
+func (s *storage) ensureColumn(table, col, decl string) error {
+	rows, err := s.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == col {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, col, decl))
+	return err
 }
 
 func (s *storage) upsertEntity(e Entity, now time.Time) error {
