@@ -503,7 +503,7 @@ func TestSelfBuildAuditsDispatchedBeforeWatcher(t *testing.T) {
 			snapshot = data
 			break
 		}
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond) // allow-sleep: scheduler yield in tight audit-row poll
 	}
 	if snapshot == nil {
 		// Read final state for the error message.
@@ -585,7 +585,7 @@ func TestSelfBuildAuditsDispatchedOnOperatorAbort(t *testing.T) {
 		if strings.Contains(string(data), `"outcome":"dispatched"`) {
 			break
 		}
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond) // allow-sleep: scheduler yield in tight audit-row poll
 	}
 
 	cancel()
