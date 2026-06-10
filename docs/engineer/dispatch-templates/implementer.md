@@ -46,7 +46,7 @@ TDD
 ADVERSARIAL REVIEW
 - After green, the operator (NOT this subagent) dispatches an independent `cavecrew-reviewer` (or equivalent fresh-slot reviewer) against this template's sibling `reviewer.md`. Address Risk-tier+ findings (inline-fix OR file `[followup]` issue + cite #).
 - AUTO-SKIP permitted only when `git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.github/|scripts/|.*\.md$)'` returns empty (docs/CI/scripts-only).
-- LOAD-BEARING CARVE-OUT (NEVER auto-skip): diffs touching `internal/{adapters,audit,backup,brief,budget,costview,ctxmgr,daemonloop,dispatcher,embed,ghclient,intent,memory,notify,obs,operatormodel,patterns,persona,reasoner,regattaclient,reviewer,selflearn,testutil,voice,watchdog,web}/`, `cmd/leah/`, `cmd/leah-daemon/`, `CLAUDE.md`, `scripts/check-*.sh`, `.github/workflows/*`, `docs/engineer/{specs,dispatch-templates}/*.md` require mandatory independent review even on `[DOCS]` / `[CI]` release-notes.
+- LOAD-BEARING CARVE-OUT (NEVER auto-skip): diffs touching `internal/{adapters,audit,backup,brief,budget,costview,ctxmgr,daemonloop,dispatcher,embed,ghclient,intent,memory,notify,obs,operatormodel,patterns,persona,reasoner,regattaclient,reviewer,selflearn,testutil,voice,watchdog,web}/`, `cmd/leah/`, `cmd/leah-daemon/`, `CLAUDE.md`, `scripts/check-*.sh`, `.github/workflows/*`, `docs/engineer/{specs,dispatch-templates}/*.md`, `docs/engineer/autonomous-session-prompt.md` require mandatory independent review even on `[DOCS]` / `[CI]` release-notes.
 
 NO SIGNATURES
 - No `Co-Authored-By`, no AI footer, no "Generated with" tags. Anywhere.
