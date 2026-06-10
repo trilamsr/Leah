@@ -13,11 +13,10 @@ Companion docs:
 
 ## 1. Goal
 
-Every load-bearing PR currently passes through one adversarial
-reviewer. When that reviewer misses, the rule lands and accretes into
-the dispatch template — the brief's calcify-as-prose failure mode.
-
-Three mechanisms close the gap without taxing cheap PRs:
+Every load-bearing PR passes through one adversarial reviewer; when
+that reviewer misses, the rule accretes into the dispatch template
+(the brief's calcify-as-prose failure mode). Three mechanisms close
+the gap without taxing cheap PRs:
 
 1. **Reflexion** — on `block-on-findings`, spawn reviewer-2 with
    reviewer-1's findings attached: "what did reviewer-1 miss?" Cost
@@ -75,26 +74,19 @@ REVIEWER-1 FINDINGS
 Constraints on reviewer-2:
 - Distinct agent-id (canonical
   `^(a[0-9a-f]{16}|cavecrew-reviewer-[a-z0-9-]+)$`).
-- Same head SHA reviewer-1 audited (or main-thread re-spawns
-  reviewer-1 on the new head first).
+- **Default**: fires on NEW head SHA after block (force-push-on-block
+  is the common case); main-thread re-spawns reviewer-1 on the new
+  head first so reviewer-2 audits the same SHA.
+- **Idempotency skip**: same head SHA + identical reviewer-1
+  finding-set → reflexion skipped (no new signal to extract).
 - Verdict is its own — MAY emit any of the three.
 
-### 2.3 Activation gates
+### 2.3 Activation defaults
 
-| Env / sentinel | Default | Behavior |
-|----------------|---------|----------|
-| `LEAH_REVIEW_REFLEXION=1` | ON for spec PRs, OFF for code PRs | Force-on |
-| `LEAH_REVIEW_REFLEXION=0` | — | Force-off |
-| `<no-reflexion>` in PR body | — | Skip reflexion for this PR |
-| `<force-reflexion>` in PR body | — | Force even on code clear-first-pass |
-
-Spec PRs default ON: load-bearing by definition, structurally higher
-block rate (rubric mismatch + deletion-default + comment sweep), and
-cost amortizes over every future implementer that cites the spec.
-
-Code PRs default OFF: file-disjoint 6-wide fan-out already provides
-cross-PR diversity; doubling cost on every code PR halves
-parallelism.
+Spec PRs default ON (load-bearing by definition; higher block rate;
+cost amortizes over every future implementer that cites the spec).
+Code PRs default OFF (file-disjoint 6-wide fan-out already provides
+cross-PR diversity). Env flags + PR-body sentinels consolidated §6.
 
 ## 3. Tournament review for load-bearing PRs
 
@@ -109,8 +101,9 @@ A PR is load-bearing when its diff touches ANY of:
 - `internal/dispatcher/**`, `internal/reasoner/**`
 - `prompts/**`, `scripts/check-*.sh`
 
-This list MUST stay lockstep with `reviewer.md` LOAD-BEARING
-CARVE-OUT — any addition updates both in the same PR (W107 below).
+W107 establishes the load-bearing surface in `reviewer.md` as a
+paired-PR; until W107 ships, the trigger list lives ONLY in this
+spec. After W107, any addition updates both in the same PR.
 
 ### 3.2 Tournament shape
 
@@ -130,11 +123,10 @@ PR opens (load-bearing) OR reviewer-1 returns block-on-findings
               unified findings + single verdict
 ```
 
-Why **designer** subagents (not reviewer) for the parallel pair: the
-load-bearing class is dominated by spec / template / prompt diffs —
-design artifacts. Designer subagents (designer.md) carry the
-research-and-cite rubric reviewer.md lacks (OSS reuse, version+sha
-citations, B/A/A+ rubric checks).
+Why **designer** (not reviewer) for the parallel pair: load-bearing
+class is dominated by spec/template/prompt diffs — design artifacts.
+designer.md carries the research-and-cite rubric reviewer.md lacks
+(OSS reuse, version+sha citations, B/A/A+ rubric).
 
 ### 3.3 Arbiter responsibilities
 
@@ -144,10 +136,15 @@ reviewer-2's when reflexion already fired). Its job:
 1. **Deduplicate** equivalent findings; cite each contributor
    agent-id.
 2. **Reconcile disagreements** — pick a side with reasoning OR
-   escalate (§3.5).
-3. **Synthesize** a single unified findings table in the reviewer.md
+   escalate (§3.5). Same-verdict / different-severity (both block,
+   one says 🔴, other 🟡): arbiter picks HIGHER severity by default
+   (deletion-default of leniency — no quiet downgrade).
+3. **Weight by severity, not count** — finding-count is not a vote;
+   one 🔴 outranks three 🔵. Anti-pattern guard against reviewer-2
+   nitpick spam (§9).
+4. **Synthesize** a single unified findings table in the reviewer.md
    aggregate-issue shape.
-4. **Verdict** — `clear-to-merge` | `block-on-findings` |
+5. **Verdict** — `clear-to-merge` | `block-on-findings` |
    `re-spawn-design` | `escalate-to-operator`.
 
 Arbiter MUST NOT introduce NEW findings — it only resolves and
@@ -156,55 +153,43 @@ is itself a tournament failure mode (caught in §3.5).
 
 ### 3.4 Dispatch ordering
 
-1. **Tournament-first** (default for `docs/engineer/specs/` PRs):
-   designer-A + designer-B + reviewer-1 fire in parallel on PR-open;
-   arbiter waits for all three. Spec PRs are slow-merging; parallel
-   tournament eats no wall-clock.
-2. **Tournament-on-block** (default for CLAUDE.md / dispatch-template
-   PRs): reviewer-1 fires first; tournament fires only on
-   `block-on-findings`. Small template PRs often clear first pass;
-   conditional tournament saves 3x cost on the common case.
+1. **Tournament-first** (default `docs/engineer/specs/`): designer-A
+   + designer-B + reviewer-1 fire in parallel on PR-open; arbiter
+   waits for all three. Spec PRs slow-merging; parallel eats no
+   wall-clock.
+2. **Tournament-on-block** (default CLAUDE.md / dispatch-templates):
+   reviewer-1 fires first; tournament only on `block-on-findings`.
+   Small template PRs often clear first pass; saves 3x on common case.
 
 ### 3.5 Failure mode — arbiter loop / disagreement
 
 If two designer reviews emit contradictory verdicts AND reviewer-1
 doesn't break the tie, arbiter emits `escalate-to-operator` + writes
 `Kind: "tournament_escalation"`. Dispatcher pauses the PR (no
-automerge) and surfaces the disagreement table to the operator. This
-is the genuine human-in-loop case — autonomous-session-prompt.md STOP
-CRITERIA explicitly defers irreversible-action gates.
+automerge) and surfaces via three parallel channels: `audit.jsonl`
+row (source of truth), HUD `hud/escalations` widget, and `gh pr
+comment` tagged `[followup] kind:tournament-escalation`. Genuine
+human-in-loop case — autonomous-session-prompt.md STOP CRITERIA
+defers irreversible-action gates.
 
 **Escalation cap**: ≥3 tournament rounds without convergence →
 dispatcher files `[followup]` tagged `kind:tournament-deadlock` and
 closes the PR with `re-spawn-design`. Better to throw the design away
 than burn unbounded arbiter cycles.
 
-### 3.6 Activation gates
+### 3.6 Activation defaults
 
-| Env / sentinel | Default | Behavior |
-|----------------|---------|----------|
-| `LEAH_REVIEW_TOURNAMENT=1` | ON for load-bearing, OFF else | Force-on |
-| `LEAH_REVIEW_TOURNAMENT=0` | — | Force-off |
-| `<no-tournament>` in PR body | — | Skip for this PR |
-| `<force-tournament>` in PR body | — | Force on code PR |
+ON for load-bearing diffs (§3.1 list), OFF otherwise. Env flags +
+PR-body sentinels consolidated §6.
 
 ## 4. Scorecard schema
 
 ### 4.1 `audit.Entry` extension (additive, no break)
 
 `audit.Entry.Detail` already carries free-form string. Scorecard rides
-inside `Detail` as JSON when `Kind` matches a scorecard-emitting role:
-
-```json
-{
-  "ts": "2026-06-10T19:30:00Z",
-  "kind": "reviewer_turn",
-  "args_hash": "<pr-sha>:<agent-id>",
-  "blast_radius": 0,
-  "outcome": "block_on_findings",
-  "detail": "{\"scorecard\":{\"template\":\"reviewer\",\"role\":\"reviewer-1\",\"tdd_order_followed\":true,\"comment_density_ok\":true,\"reviewer_clean_first_pass\":false,\"rebase_conflicts\":false,\"n_block_rounds\":1,\"pr\":172,\"head_sha\":\"abc123\"}}"
-}
-```
+inside `Detail` as JSON when `Kind` matches a scorecard-emitting
+role. Example `detail` payload (rest of `audit.Entry` unchanged):
+`{"scorecard":{"template":"reviewer","role":"reviewer-1","reviewer_clean_first_pass":false,"n_block_rounds":1,"pr":172,"head_sha":"abc123",...}}`.
 
 | Field | Type | Set by | Semantics |
 |-------|------|--------|-----------|
@@ -224,7 +209,10 @@ Fields nullable per role. Selflearn (§5) treats `null` as "n/a", not
 Why JSON-in-`Detail` not new fields: `internal/audit/audit.go`
 explicitly states the schema is stable — "renaming breaks the entire
 downstream consumer set". Riding inside `Detail` keeps every existing
-reader correct.
+reader correct. Back-compat with `resolver.go:128`: that parser only
+matches the `resolved <key>` string prefix; JSON-shaped Detail rows
+fail the prefix test and are silently no-ops, so the resolver
+invariant holds without modification.
 
 ### 4.2 Emission points
 
@@ -237,16 +225,19 @@ reader correct.
 | Reflexion fires | `reflexion_dispatch` | main-thread dispatcher |
 
 Subagents must NOT mutate the operator's audit log directly; main
-thread is the right writer for reviewer/arbiter rows. Implementer
-already writes its own `audit.Entry` rows (selfbuild flow) — it
-extends with scorecard.
+thread writes reviewer/arbiter rows. Implementer already writes its
+own rows (selfbuild flow) — extends with scorecard.
 
 ### 4.3 Privacy
 
-Scorecard rows carry NO operator PII: `pr` (public), `head_sha`
-(public), `template`/`role` (identifiers), booleans (telemetry),
-`args_hash` (SHA). Safe to ship under future S11 MCP
-`leah_search_audit` read-only tool.
+Scorecard rows carry NO direct operator PII (no email, no contact
+name). Process telemetry (per-PR pass/fail rates, role degradation,
+block counts joined to PR #) is operator-workflow data — an A2A peer
+joining `reviewer_clean_first_pass=false` against `pr=172` against
+the public PR title surfaces "which Kinds get blocked most", which
+is a workflow side-channel. S11 MCP exposure is opt-in ONLY under
+explicit `LEAH_SHARE_SCORECARDS_MCP=1` env (default OFF) AND the
+S11.0 per-field allowlist + per-peer attestation gate.
 
 ## 5. Selflearn aggregation
 
@@ -284,10 +275,9 @@ scorecard` section with two tables:
    metric. Drops >10 pp (configurable `LEAH_SCORECARD_DEGRADE_PP=10`)
    flag the row `⚠ degrading`.
 
-A `⚠ degrading` row signals: the template's prose has drifted, its
-rule-set is missing a recent failure mode, OR the dispatch shape is
-leaking adversarial coverage. The fix is a template-edit PR — which
-is itself load-bearing (§3.1) so it re-enters tournament review.
+A `⚠ degrading` row signals template-prose drift, missing failure
+mode, OR leaked adversarial coverage. Fix is a template-edit PR —
+itself load-bearing (§3.1) so re-enters tournament review.
 
 ### 5.3 Cadence
 
@@ -332,10 +322,19 @@ W106). Critical path: 3 sequential dispatches.
 | Spec, clear first pass | 4.0 (reviewer + 2 designer + arbiter) | $0.20 |
 | Spec / load-bearing, block round | 5.0 | $0.25 |
 
-At prior 14d ~25% block rate, ~15% load-bearing mix, ~30 PRs/wk:
-weighted sum ≈ **$2.56/wk** (well under S1's $15/wk cap; lives in the
-same `internal/budget` envelope). Scorecard rows are free (one append
-per existing audit write).
+Denominators: PRs/wk × block-rate × load-bearing-mix. Source:
+`audit.jsonl` 14d window prior to spec date, query
+`jq 'select(.kind=="pr_open" or .kind=="reviewer_turn")'`.
+
+| Scenario | PRs/wk | Block-rate | Load-bearing | Weekly cost |
+|----------|--------|-----------|--------------|-------------|
+| Base (prior 14d) | 30 | 25% | 15% | **$2.56** |
+| High (post-S1 eval surge) | 50 | 35% | 20% | $6.40 |
+| Worst (sustained 4-6 PR/day) | 80 | 35% | 20% | $10.24 |
+
+All three scenarios stay under S1's $15/wk cap; lives in the same
+`internal/budget` envelope. Scorecard rows are free (one append per
+existing audit write).
 
 ## 9. Failure modes
 
@@ -349,6 +348,7 @@ per existing audit write).
 | Habitual `<no-tournament>` | Retro surfaces sentinel-skip rate per template; >50% = rewrite signal |
 | Stale reviewer-2 (reviewer-1 ran on old SHA) | Dispatcher re-spawns reviewer-1 on current head first (§2.2) |
 | Arbiter deadlock | §3.5 escalate-to-operator + 3-round cap → `[followup]` + `re-spawn-design` |
+| Reviewer-2 nitpick spam (pad-the-report after "what did r1 miss?" framing) | Arbiter weights by severity not count (§3.3); for code PRs reflexion default-OFF is itself the guard; scorecard `reviewer_clean_first_pass` ratio per reviewer-N slot surfaces drift in retro |
 
 ## 10. Grade rubric
 
@@ -381,6 +381,8 @@ per existing audit write).
   the shape, not the framework (Go, not Python).
 - **S7 2-of-3 attestation** (wave-8 brief §S7): designer-A + B is the
   same idea applied to spec PRs instead of SelfBuild dispatches.
+
+All four = prior-art references only; no runtime dep, no NOTICE/LICENSE bundling.
 
 ## 12. Constraints inherited
 
