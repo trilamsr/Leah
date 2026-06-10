@@ -47,7 +47,8 @@ upgrade:
 # Install launchd manifest that sweeps merged agent-* worktrees every 5 min.
 install-janitor:
 	@mkdir -p ~/Library/LaunchAgents ~/.leah-state
-	@cp scripts/leah-worktree-janitor.plist ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
+	@sed -e "s|__LEAH_ROOT__|$$(pwd)|g" -e "s|__LEAH_STATE__|$$HOME/.leah-state|g" \
+	    scripts/leah-worktree-janitor.plist > ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
 	@launchctl bootout gui/$$(id -u)/com.leah.worktree-janitor 2>/dev/null || true
 	@launchctl bootstrap gui/$$(id -u) ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
 	@echo "janitor installed; logs at ~/.leah-state/janitor.log"

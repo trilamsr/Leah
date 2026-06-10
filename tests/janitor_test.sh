@@ -79,3 +79,18 @@ if ! grep -q "scratch" "$TMP/paths"; then
 fi
 
 echo "PASS: janitor pruned merged agent worktree, spared active + non-agent"
+
+# Plist template substitution: __LEAH_ROOT__ + __LEAH_STATE__ tokens must
+# expand to caller-supplied paths so non-treedesk dev hosts install cleanly.
+PLIST="$REPO_ROOT/scripts/leah-worktree-janitor.plist"
+grep -q "__LEAH_ROOT__" "$PLIST" || { echo "FAIL: plist missing __LEAH_ROOT__ token"; exit 1; }
+grep -q "__LEAH_STATE__" "$PLIST" || { echo "FAIL: plist missing __LEAH_STATE__ token"; exit 1; }
+
+RENDERED="$TMP/rendered.plist"
+sed -e "s|__LEAH_ROOT__|/fake/repo|g" -e "s|__LEAH_STATE__|/fake/state|g" "$PLIST" > "$RENDERED"
+grep -q "__LEAH_ROOT__" "$RENDERED" && { echo "FAIL: __LEAH_ROOT__ not substituted"; exit 1; }
+grep -q "__LEAH_STATE__" "$RENDERED" && { echo "FAIL: __LEAH_STATE__ not substituted"; exit 1; }
+grep -q "/fake/repo" "$RENDERED" || { echo "FAIL: repo path missing from rendered plist"; exit 1; }
+grep -q "/fake/state/janitor.log" "$RENDERED" || { echo "FAIL: state log path missing from rendered plist"; exit 1; }
+
+echo "PASS: plist tokens substitute cleanly"

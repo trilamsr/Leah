@@ -12,7 +12,7 @@
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/treedesk/Desktop/Projects/leah</string>
+    <string>__LEAH_ROOT__</string>
 
     <key>StartInterval</key>
     <integer>300</integer>
@@ -27,9 +27,9 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/treedesk/.leah-state/janitor.log</string>
+    <string>__LEAH_STATE__/janitor.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/treedesk/.leah-state/janitor.log</string>
+    <string>__LEAH_STATE__/janitor.log</string>
 </dict>
 </plist>
