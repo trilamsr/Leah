@@ -4,6 +4,9 @@ set -euo pipefail
 echo "==> go build"
 go build ./...
 
+echo "==> check-feature-completeness"
+"$(dirname "$0")/check-feature-completeness.sh"
+
 echo "==> go test (unit)"
 go test ./...
 
