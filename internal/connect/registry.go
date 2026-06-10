@@ -22,6 +22,7 @@ func DefaultRegistry() *Registry {
 	return NewRegistry([]Provider{
 		NewGmail(os.Getenv("LEAH_GMAIL_CLIENT_ID"), os.Getenv("LEAH_GMAIL_CLIENT_SECRET")),
 		NewGcal(os.Getenv("LEAH_GCAL_CLIENT_ID"), os.Getenv("LEAH_GCAL_CLIENT_SECRET")),
+		NewRegatta(),
 	})
 }
 
