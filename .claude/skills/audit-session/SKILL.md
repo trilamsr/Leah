@@ -1,6 +1,6 @@
 ---
 name: audit-session
-description: End-of-session audit + handoff for any agent operating in the leah repo. Use when the user says "audit session", "end session", "wrap up", "before we stop", "what did we miss", "before signing off", or any phrasing that asks Claude to validate the session's work before exit. Runs 9 phases (PR audit, reviewer-comment audit, issue audit, doc audit, code audit, worktree cleanup, learning + memory, cost + budget, NEXT-SESSION HANDOFF) and writes a single consolidated handoff file the next session reads to pick up exactly where this one left off. Default = silent pass per phase; ONE operator hand-back at end. Auto-file ONLY mechanically-derivable trackers (parity, self-tag, REVISE-slip, self-approve-after-amend). Phase 7 cross-refs the learn-from-mistakes skill — surfaces unsaved learnings if pushback/rollback events fired without that skill activating.
+description: End-of-session audit + handoff for any agent operating in the leah repo. Use when the user says "audit session", "end session", "wrap up", "before we stop", "what did we miss", "before signing off", or any phrasing that asks Claude to validate the session's work before exit. Runs Phase 0 (cross-session handoff continuity check) + 9 main phases (PR audit, reviewer-comment audit, issue audit, doc audit, code audit, worktree cleanup, learning + memory, cost + budget, NEXT-SESSION HANDOFF) + A1/A2 (roadmap + autonomy-lever, with operator-redirect count) and writes a single consolidated handoff file the next session reads to pick up exactly where this one left off. Default = silent pass per phase; ONE operator hand-back at end. Auto-file ONLY mechanically-derivable trackers (parity, self-tag, REVISE-slip, self-approve-after-amend). Phase 5 carves out instrumentation fan-out PRs from the quality-unverified scan. Phase 7 cross-refs the learn-from-mistakes skill — surfaces unsaved learnings if pushback/rollback events fired without that skill activating.
 ---
 
 # audit-session
@@ -22,9 +22,30 @@ End-of-session validator + handoff. Catches what slipped, codifies what was lear
 ## Default behavior
 
 - 9 phases sequential.
+- Phase 0 + 9 main phases sequential.
 - Silent per phase when clean; one line + action on finding.
 - After phase 9: ONE consolidated hand-back (≤30 lines).
 - Auto-file ONLY mechanically-derivable trackers. Never auto-close, auto-merge, auto-edit CLAUDE.md.
+
+## Phase 0: cross-session continuity
+
+Per session retrospective 2026-06-10: the prior session wrote `2026-06-10T21-skill-test-handoff.md` but the current session never opened it. Handoff written ≠ handoff read; the audit-session contract was satisfied while the actual continuity goal slipped.
+
+```bash
+last_handoff=$(ls -t "$HANDOFF_DIR"/*-session-handoff.md 2>/dev/null | head -1)
+if [ -z "$last_handoff" ]; then
+  exit 0  # no prior handoff — first session in this dir, silent pass.
+fi
+# Was the handoff read this session? Search transcript / conversation for the filename.
+basename=$(basename "$last_handoff")
+if [ -n "${CLAUDE_TRANSCRIPT:-}" ] && [ -r "$CLAUDE_TRANSCRIPT" ] && grep -q "$basename" "$CLAUDE_TRANSCRIPT"; then
+  exit 0  # handoff filename referenced — assume read, silent pass.
+fi
+# Cannot prove it was read. Surface in hand-back (per Hard Nos: no auto-file).
+echo "unread_prior_handoff=$last_handoff" >> "$HANDOFF_DIR/phase0-flags.txt"
+```
+
+Silent pass when no prior handoff exists OR transcript shows it was referenced. Surface in hand-back ONLY when prior handoff exists and was NOT referenced. Never auto-file an issue (per Hard Nos `NO auto-file on uncertain detection`).
 
 ## Phase 1: PR audit
 
@@ -131,6 +152,25 @@ Pointers freshness: `git diff --stat origin/main -- docs/engineer/`; ≥3 doc mo
 Scrape session transcript for: `TODO|FIXME|smell|dead|simplif|refactor|over-broad|bloat|unused|hallucinat|stale`. Cross-ref this-session-filed issues + open `followup` issues.
 
 Unfiled → operator hand-back list. **Do NOT auto-file** (noise).
+
+**Quality-unverified scan (per session retro 2026-06-10: 21/22 PRs merged on verbal `clear-to-merge` without GH-posted reviews — Phase 1 detection missed them because reviewers ran inline).** For each session PR, check `gh pr view <N> --json reviewDecision,reviews,comments`:
+
+```bash
+for n in $(jq -r '.[].number' "$HANDOFF_DIR/prs.json"); do
+  # Carve-out: instrumentation fan-out PRs are pure-add by template design.
+  # Skip when title matches the wiring pattern to avoid >50% noise.
+  title=$(gh pr view "$n" --json title --jq .title)
+  if echo "$title" | grep -qE '^(feat|test)\(.*\): (wire|add).*Metrics'; then
+    continue
+  fi
+  review_count=$(gh pr view "$n" --json reviews,comments --jq '[(.reviews // [])[], (.comments // [])[]] | length')
+  if [ "$review_count" = "0" ]; then
+    echo "$n quality-unverified: no GH-posted reviews/comments" >> "$HANDOFF_DIR/quality-unverified.txt"
+  fi
+done
+```
+
+Quality-unverified PRs (after carve-out) surface in hand-back per-PR list. Do NOT auto-file (per Hard Nos `NO auto-file on uncertain detection` — inline-only review is acceptable when transcript can prove it; this scan only catches PRs where neither GH nor transcript shows review evidence).
 
 Deletion debt:
 ```bash
@@ -256,6 +296,26 @@ Scan the session for places where the operator was a bottleneck — an action th
 - **Self-improve detector gap** — observed pattern that should self-trigger but didn't.
 - **CI gate gap** — drift that a `scripts/check-*.sh` script should mechanically catch.
 - **Operator-decision gap** — decision the operator made that could be encoded as a rule.
+
+**Operator-redirect count (per session retro 2026-06-10).** Each operator turn that asks "are we stuck?", "how do we resolve X?", "what now?", or otherwise redirects the main thread is an autonomy signal. The rate-per-hour is the metric; the absolute count is the audit-trail.
+
+```bash
+# Source (a) — session transcript when available.
+if [ -n "${CLAUDE_TRANSCRIPT:-}" ] && [ -r "$CLAUDE_TRANSCRIPT" ]; then
+  # Pattern is uncertainty-on-main-thread: "are we stuck", "how do we / can we", "what now",
+  # NOT directives like "wait for CI" or "wait on merge" — those are operator instructions,
+  # not redirects. Reviewer 2026-06-10 flagged bare `wait\b` as false-positive on directives.
+  redirects=$(grep -ciE '\b(are we stuck|are we stuck\?|how do we|how can we|what now|what next|why are we|did we (just|already))' "$CLAUDE_TRANSCRIPT" || true)
+else
+  # Source (b) — fallback: scan conversation context. Same pattern as Phase 1
+  # detection algorithm's transcript-unavailable sentinel. Surface in hand-back
+  # with "transcript_unavailable" marker; do NOT auto-file.
+  redirects="transcript_unavailable"
+fi
+echo "operator_redirects=$redirects" >> "$HANDOFF_DIR/phase-a2-flags.txt"
+```
+
+Surface in hand-back as one line. ≥5 redirects/hour signals a recurring bottleneck — propose an `[AUTONOMY-LEVER]` issue. <5 → log only.
 
 For each finding write an `[AUTONOMY-LEVER]` issue with: surface, smallest implementer brief (file:line + 1-line fix), estimated operator-touch reduction.
 
