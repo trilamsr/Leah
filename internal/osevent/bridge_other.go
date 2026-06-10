@@ -10,7 +10,7 @@ import (
 // NewSource returns a no-op Source on non-darwin builds. Subscribe yields an
 // immediately-closed channel; the daemon stays push-source agnostic so a Linux
 // dev box compiles and runs without macOS-specific shims.
-func NewSource(cfg Config) (Source, error) {
+func NewSource(_ Config) (Source, error) {
 	return &noopSource{}, nil
 }
 

@@ -41,7 +41,9 @@ type Source interface {
 // Config controls Source construction. Blocklist matches bundle-ID prefix
 // (e.g. "com.bank.") at the source for operator-trust: a blocklisted
 // foreground app suppresses the active-app event before any subscriber sees
-// it, so a single bypass cannot leak across consumers.
+// it, so a single bypass cannot leak across consumers. Blocklist applies to
+// WorkspaceActiveAppChanged only; launch/terminate/sleep/wake/contact events
+// are not gated.
 type Config struct {
 	Blocklist []string
 }

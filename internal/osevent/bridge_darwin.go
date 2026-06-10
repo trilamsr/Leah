@@ -10,7 +10,6 @@ package osevent
 
 // Implemented in bridge_darwin.m.
 extern void leahOSEventStart(uintptr_t handle);
-extern void leahOSEventStop(void);
 */
 import "C"
 

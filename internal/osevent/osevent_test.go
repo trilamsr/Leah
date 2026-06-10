@@ -166,3 +166,44 @@ func TestFake_Close_ClosesAllSubscriptions(t *testing.T) {
 		t.Fatal("Subscribe after Close: want error, got nil")
 	}
 }
+
+// Concurrent Inject across goroutines is race-free under -race.
+func TestFake_ConcurrentInject_RaceFree(t *testing.T) {
+	t.Parallel()
+	f := NewFake(Config{})
+	t.Cleanup(func() { _ = f.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	ch, err := f.Subscribe(ctx, WorkspaceLaunched)
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+
+	const writers, perWriter = 8, 32
+	done := make(chan struct{})
+	for w := 0; w < writers; w++ {
+		go func() {
+			for i := 0; i < perWriter; i++ {
+				f.Inject(Event{Kind: WorkspaceLaunched, Detail: map[string]any{"bundle_id": "com.x"}})
+			}
+			done <- struct{}{}
+		}()
+	}
+	for w := 0; w < writers; w++ {
+		<-done
+	}
+	// Drain whatever survived drop-on-full to ensure no deadlock.
+	drained := 0
+	for {
+		select {
+		case <-ch:
+			drained++
+		case <-time.After(50 * time.Millisecond): // allow-sleep: single drain deadline; not a polling loop
+			if drained == 0 {
+				t.Fatal("expected at least one delivered event after concurrent inject")
+			}
+			return
+		}
+	}
+}
