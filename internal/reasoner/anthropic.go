@@ -47,6 +47,17 @@ func NewAnthropicClient() (*AnthropicClient, error) {
 // blocks plus the LLM-dim payload (cost, tokens, model, cache-hit, egress
 // bytes). Sonnet 4.6 pricing as of 2026-06.
 func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (CompleteResult, error) {
+	return c.complete(ctx, system, user, nil)
+}
+
+// CompleteStream is Complete with an onChunk callback that fires for each
+// decoded text delta in order. Same return semantics as Complete — final
+// joined text + LLM-dim payload still come back at the end.
+func (c *AnthropicClient) CompleteStream(ctx context.Context, system, user string, onChunk func(string)) (CompleteResult, error) {
+	return c.complete(ctx, system, user, onChunk)
+}
+
+func (c *AnthropicClient) complete(ctx context.Context, system, user string, onChunk func(string)) (CompleteResult, error) {
 	sysBlock := buildSystemBlock(system)
 	cacheEnabled := string(sysBlock.CacheControl.Type) != ""
 
@@ -58,12 +69,11 @@ func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (Co
 			anthropic.NewUserMessage(anthropic.NewTextBlock(user)),
 		},
 	}
-	// EgressBytes is gated behind LEAH_AUDIT_EGRESS_BYTES=1 — the SDK
-	// doesn't surface the wire-serialized payload, so deriving it
-	// requires a parallel json.Marshal on every call (best-effort
-	// approximation, not the actual TLS-frame byte count). Default OFF
-	// keeps the unconditional CPU cost out of the hot path; operators
-	// who want byte-level egress accounting opt in.
+	// EgressBytes gated behind LEAH_AUDIT_EGRESS_BYTES=1 — the SDK doesn't
+	// surface the wire-serialized payload, so deriving it requires a
+	// parallel json.Marshal on every call (best-effort, not the actual
+	// TLS-frame byte count). Default OFF keeps the unconditional CPU cost
+	// out of the hot path.
 	var egress int64
 	if os.Getenv("LEAH_AUDIT_EGRESS_BYTES") == "1" {
 		if b, mErr := json.Marshal(params); mErr == nil {
@@ -71,10 +81,36 @@ func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (Co
 		}
 	}
 
-	resp, err := c.sdk.Messages.New(ctx, params)
-	if err != nil {
-		return CompleteResult{Model: c.model, EgressBytes: egress}, fmt.Errorf("anthropic api: %w", err)
+	var resp anthropic.Message
+	if onChunk != nil {
+		stream := c.sdk.Messages.NewStreaming(ctx, params)
+		acc := anthropic.Message{}
+		for stream.Next() {
+			event := stream.Current()
+			if err := acc.Accumulate(event); err != nil {
+				return CompleteResult{Model: c.model, EgressBytes: egress}, fmt.Errorf("anthropic stream accumulate: %w", err)
+			}
+			// ContentBlockDeltaEvent + TextDelta is the only chunk shape the
+			// operator wants surfaced — other deltas (thinking, tool input)
+			// stay internal to the accumulator.
+			if d, ok := event.AsAny().(anthropic.ContentBlockDeltaEvent); ok {
+				if td, ok := d.Delta.AsAny().(anthropic.TextDelta); ok {
+					onChunk(td.Text)
+				}
+			}
+		}
+		if err := stream.Err(); err != nil {
+			return CompleteResult{Model: c.model, EgressBytes: egress}, fmt.Errorf("anthropic stream: %w", err)
+		}
+		resp = acc
+	} else {
+		r, err := c.sdk.Messages.New(ctx, params)
+		if err != nil {
+			return CompleteResult{Model: c.model, EgressBytes: egress}, fmt.Errorf("anthropic api: %w", err)
+		}
+		resp = *r
 	}
+
 	text := ""
 	for _, blk := range resp.Content {
 		if blk.Type == "text" {

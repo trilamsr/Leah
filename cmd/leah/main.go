@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -204,12 +205,34 @@ func runAsk(ctx context.Context, query string) int {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 1
 	}
-	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt), PersonaPrefix: personaPrefixForActive()}
+	streamed := false
+	r := &reasoner.Reasoner{
+		Client:        client,
+		Budget:        b,
+		SystemPrompt:  string(systemPrompt),
+		PersonaPrefix: personaPrefixForActive(),
+		// Print each decoded delta as it arrives so the operator sees
+		// tokens at ~50-200ms ttfb instead of waiting 3-8s for the full
+		// response. Dispatcher.Out below is io.Discard when streaming —
+		// the dispatcher's trailing fmt.Fprintln would otherwise echo
+		// the whole response twice.
+		Stream: func(chunk string) {
+			streamed = true
+			_, _ = os.Stdout.WriteString(chunk)
+		},
+	}
 
-	ask := &dispatcher.Ask{Reasoner: r, Audit: a, Budget: b, Out: os.Stdout}
+	out := io.Writer(os.Stdout)
+	if r.Stream != nil {
+		out = io.Discard
+	}
+	ask := &dispatcher.Ask{Reasoner: r, Audit: a, Budget: b, Out: out}
 	if err := ask.Run(ctx, query); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", err)
 		return 1
+	}
+	if streamed {
+		_, _ = os.Stdout.WriteString("\n")
 	}
 	return 0
 }

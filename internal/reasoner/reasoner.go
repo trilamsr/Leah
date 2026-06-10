@@ -46,6 +46,15 @@ type Client interface {
 	Complete(ctx context.Context, system, user string) (CompleteResult, error)
 }
 
+// StreamingClient is the optional streaming-capable side of Client. When
+// the Reasoner has a non-nil Stream callback and Client also implements
+// this interface, Ask routes through CompleteStream so partial deltas
+// reach the operator as they're decoded — saves 3-8s of perceived
+// latency on long completions.
+type StreamingClient interface {
+	CompleteStream(ctx context.Context, system, user string, onChunk func(string)) (CompleteResult, error)
+}
+
 // Reasoner pairs a Client with the budget gate and the system prompt loaded
 // from prompts/system.md (or prompts/regatta-issue.md for Ship).
 //
@@ -59,6 +68,12 @@ type Reasoner struct {
 	Budget        *budget.Budget
 	SystemPrompt  string
 	PersonaPrefix string
+
+	// Stream, when non-nil and Client implements StreamingClient, receives
+	// each decoded text delta in order before Ask returns its full result.
+	// Lets `leah ask` print tokens as the model produces them instead of
+	// blocking 3-8s on the full completion.
+	Stream func(chunk string)
 
 	lastCall CallInfo
 }
@@ -79,7 +94,13 @@ func (r *Reasoner) Ask(ctx context.Context, user string) (string, error) {
 	if r.PersonaPrefix != "" {
 		system = r.PersonaPrefix + "\n\n" + r.SystemPrompt
 	}
-	res, err := r.Client.Complete(ctx, system, user)
+	var res CompleteResult
+	var err error
+	if sc, ok := r.Client.(StreamingClient); ok && r.Stream != nil {
+		res, err = sc.CompleteStream(ctx, system, user, r.Stream)
+	} else {
+		res, err = r.Client.Complete(ctx, system, user)
+	}
 	durMs := time.Since(start).Milliseconds()
 	// PromptSHA hashes SystemPrompt only — registry-keyed audit replay
 	// (spec §4.1/§4.2) needs SHA → SystemPrompt to resolve; PersonaPrefix
