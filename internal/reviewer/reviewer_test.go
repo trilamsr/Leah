@@ -1,8 +1,10 @@
 package reviewer
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -19,7 +21,7 @@ type fakeSubagent struct {
 	respErr   error
 }
 
-func (f *fakeSubagent) Run(ctx context.Context, systemPrompt, input string) (string, float64, error) {
+func (f *fakeSubagent) Run(ctx context.Context, systemPrompt, input string, _ io.Writer) (string, float64, error) {
 	f.gotPrompt = systemPrompt
 	f.gotInput = input
 	return f.resp, f.respCost, f.respErr
@@ -178,6 +180,47 @@ func TestReview_BodyTrimsWhitespace(t *testing.T) {
 	if strings.HasPrefix(v.Body, "\n") || strings.HasSuffix(v.Body, "\n") {
 		t.Errorf("body not trimmed: %q", v.Body)
 	}
+}
+
+// TestReview_StreamsTokensToSink asserts Review wires its TokenSink down to
+// the Subagent so partial verdict text reaches the user as it arrives —
+// without this the operator stares at a blank terminal for 4-8s.
+func TestReview_StreamsTokensToSink(t *testing.T) {
+	sink := &bytes.Buffer{}
+	sa := &streamingFakeSubagent{
+		chunks: []string{"Summary: ", "looks ", "fine.\n"},
+		resp: `Summary: looks fine.
+
+Reviewer-recommendation: APPROVE
+Reviewer-agent-id: a1234567890abcdef
+`,
+	}
+	r := &Reviewer{Subagent: sa, SystemPrompt: "x", TokenSink: sink}
+	if _, err := r.Review(context.Background(), "diff", "issue"); err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	if !sa.gotSink {
+		t.Fatalf("subagent did not receive a sink — streaming wiring broken")
+	}
+	if got := sink.String(); got != "Summary: looks fine.\n" {
+		t.Errorf("sink contents: %q", got)
+	}
+}
+
+type streamingFakeSubagent struct {
+	gotSink bool
+	resp    string
+	chunks  []string
+}
+
+func (f *streamingFakeSubagent) Run(ctx context.Context, systemPrompt, input string, sink io.Writer) (string, float64, error) {
+	if sink != nil {
+		f.gotSink = true
+		for _, c := range f.chunks {
+			_, _ = sink.Write([]byte(c))
+		}
+	}
+	return f.resp, 0, nil
 }
 
 func TestReviewBlocksOnBudgetExceeded(t *testing.T) {

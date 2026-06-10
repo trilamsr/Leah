@@ -353,7 +353,7 @@ func runReview(ctx context.Context, repo string, prNum int) int {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 1
 	}
-	r := &reviewer.Reviewer{Subagent: sub, Budget: b, SystemPrompt: string(sysPrompt)}
+	r := &reviewer.Reviewer{Subagent: sub, Budget: b, SystemPrompt: string(sysPrompt), TokenSink: os.Stdout}
 
 	gh := ghclient.New()
 	pr, err := gh.ViewPR(ctx, repo, prNum,
@@ -378,7 +378,7 @@ func runReview(ctx context.Context, repo string, prNum int) int {
 		return 1
 	}
 
-	_, _ = fmt.Println(v.Body)
+	// Body already streamed to stdout via TokenSink; just the summary line.
 	_, _ = fmt.Println()
 	_, _ = fmt.Println("Verdict:", v.Recommendation, " Agent-id:", v.AgentID)
 
