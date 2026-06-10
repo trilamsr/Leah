@@ -78,7 +78,9 @@ func (a *Adapter) Subscribe(ctx context.Context, channelIDs []string, handler fu
 	if url == "" {
 		url = defaultGatewayURL
 	}
+	start := time.Now()
 	conn, err := a.dialer.Dial(ctx, url, tok)
+	a.m.ObserveAPI("subscribe_dial", time.Since(start).Seconds())
 	if err != nil {
 		a.record(AuditRow{Kind: "discord_subscribe", Reason: "dial_failed"})
 		return fmt.Errorf("discord: gateway dial: %w", err)

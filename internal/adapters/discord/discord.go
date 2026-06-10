@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
 const (
@@ -74,6 +75,9 @@ type Config struct {
 	Now             func() time.Time
 	WebSocketDialer WebSocketDialer
 	GatewayURL      string
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
 }
 
 type Adapter struct {
@@ -86,6 +90,7 @@ type Adapter struct {
 	now            func() time.Time
 	dialer         WebSocketDialer
 	gatewayURL     string
+	m              *connectadapter.Metrics
 
 	mu    sync.Mutex
 	sends map[string][]time.Time
@@ -120,6 +125,7 @@ func New(cfg Config) (*Adapter, error) {
 		now:            now,
 		dialer:         cfg.WebSocketDialer,
 		gatewayURL:     cfg.GatewayURL,
+		m:              cfg.Metrics,
 		sends:          map[string][]time.Time{},
 	}, nil
 }
@@ -162,7 +168,9 @@ func (a *Adapter) PostMessage(ctx context.Context, channelID, body string) error
 	req.Header.Set("Authorization", "Bot "+tok)
 	req.Header.Set("Content-Type", "application/json")
 
+	start := time.Now()
 	resp, err := a.http.Do(req)
+	a.m.ObserveAPI("post_message", time.Since(start).Seconds())
 	if err != nil {
 		a.record(AuditRow{Kind: "discord_post", ChannelHash: hash, BodyLen: bodyLen, Reason: "http_error"})
 		return fmt.Errorf("%w: %v", ErrPostFailed, err)
@@ -202,7 +210,9 @@ func (a *Adapter) ListChannels(ctx context.Context, guildID string) ([]Channel, 
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bot "+tok)
+	start := time.Now()
 	resp, err := a.http.Do(req)
+	a.m.ObserveAPI("list_channels", time.Since(start).Seconds())
 	if err != nil {
 		return nil, err
 	}
