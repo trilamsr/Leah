@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=720,initial-scale=1" />
+<title>Leah HUD — Recommendations</title>
+<link rel="stylesheet" href="/static/recommendations.css" />
+</head>
+<body class="recs">
+<main id="recs-panel" aria-label="Pending operator recommendations">
+  <header class="bar">
+    <span class="title">Recommendations</span>
+    <span id="recs-status" class="muted">loading…</span>
+  </header>
+  <ul id="recs-list" class="cards" aria-live="polite"></ul>
+  <p id="recs-empty" class="muted" hidden>No pending recommendations.</p>
+</main>
+<script src="/static/recommendations.js"></script>
+</body>
+</html>
