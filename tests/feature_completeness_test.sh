@@ -107,6 +107,139 @@ EOF
   git commit -q -m test-todo
 ' 0
 
+# Reviewer 🔴: method receiver with placeholder panic was bypassing the
+# public-func regex (`^func [A-Z]` required cap-letter directly after func).
+# Canonical PR#146 case is `func (d *Decoder) SendAudio(...)`.
+run_case "feat branch + method receiver panic(not implemented) fails" '
+  git checkout -q -b feat/method-panic
+  cat > recv.go <<EOF
+package x
+type R struct{}
+func (r *R) PublicMethod() { panic("not implemented") }
+EOF
+  git add recv.go
+  git commit -q -m recv
+' 1
+
+# Reviewer 🔴 (TODO variant): method receiver with TODO in decl bypasses the
+# `^func [A-Z]` anchor because the line starts with `func (`.
+run_case "feat branch + method receiver TODO in decl fails" '
+  git checkout -q -b feat/method-todo
+  cat > rtodo.go <<EOF
+package x
+type R struct{}
+func (r *R) PublicMethod() { // TODO finish
+  return
+}
+EOF
+  git add rtodo.go
+  git commit -q -m rtodo
+' 1
+
+# Reviewer 🟡a: "not yet implemented" — common stdlib idiom — was bypassing.
+run_case "feat branch + panic(not yet implemented) fails" '
+  git checkout -q -b feat/notyet
+  cat > a.go <<EOF
+package x
+func A() { panic("not yet implemented") }
+EOF
+  git add a.go
+  git commit -q -m a
+' 1
+
+# Reviewer 🟡b: underscore variant "not_implemented" was bypassing.
+run_case "feat branch + panic(not_implemented) fails" '
+  git checkout -q -b feat/underscore
+  cat > b.go <<EOF
+package x
+func B() { panic("not_implemented") }
+EOF
+  git add b.go
+  git commit -q -m b
+' 1
+
+# Reviewer 🟡c: wrapped error panic(errors.New("TODO")) was bypassing.
+run_case "feat branch + panic(errors.New TODO) fails" '
+  git checkout -q -b feat/errors-new
+  cat > c.go <<EOF
+package x
+import "errors"
+func C() { panic(errors.New("TODO")) }
+EOF
+  git add c.go
+  git commit -q -m c
+' 1
+
+# Reviewer 🟡c2: panic(fmt.Errorf("not implemented")) was bypassing.
+run_case "feat branch + panic(fmt.Errorf not implemented) fails" '
+  git checkout -q -b feat/fmt-errorf
+  cat > d.go <<EOF
+package x
+import "fmt"
+func D() { panic(fmt.Errorf("not implemented")) }
+EOF
+  git add d.go
+  git commit -q -m d
+' 1
+
+# Reviewer 🟡d: multi-line public func signature with placeholder panic
+# was bypassing line-based grep.
+run_case "feat branch + multiline public func panic fails" '
+  git checkout -q -b feat/multiline
+  cat > ml.go <<EOF
+package x
+func Multi(
+    a int,
+    b int,
+) error {
+    panic("not implemented")
+}
+EOF
+  git add ml.go
+  git commit -q -m ml
+' 1
+
+# Reviewer #4: return errors.New("TODO") in non-test files is a placeholder.
+run_case "feat branch + return errors.New(TODO) fails" '
+  git checkout -q -b feat/return-todo
+  cat > rt.go <<EOF
+package x
+import "errors"
+func RT() error { return errors.New("TODO") }
+EOF
+  git add rt.go
+  git commit -q -m rt
+' 1
+
+# Wrapped honest-sentinel pattern must still pass — panic(SomeNamedErr) where
+# the named error references "not implemented" only in its message string.
+run_case "feat branch + named-sentinel wrap still passes" '
+  git checkout -q -b feat/honest-wrap
+  cat > hw.go <<EOF
+package x
+import "errors"
+var ErrNotShipped = errors.New("feature not yet implemented — owner T-1")
+func (R) Send() { panic(ErrNotShipped) }
+type R struct{}
+EOF
+  git add hw.go
+  git commit -q -m hw
+' 0
+
+# Allow returning a named sentinel error that mentions TODO/not-implemented
+# in its message string (honest deferral, not a placeholder return).
+run_case "feat branch + return named-sentinel passes" '
+  git checkout -q -b feat/return-sentinel
+  cat > rs.go <<EOF
+package x
+import "errors"
+var ErrPending = errors.New("not yet implemented")
+func RS() error { return ErrPending }
+EOF
+  git add rs.go
+  git commit -q -m rs
+' 0
+
 echo "---"
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
