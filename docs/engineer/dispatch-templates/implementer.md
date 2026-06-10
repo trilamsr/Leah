@@ -160,6 +160,12 @@ Session 2026-06-10 observed six trap classes recurring across dispatched subagen
    - HOW: every mutating Bash call MUST be self-contained — start with `cd "$WORKTREE_PATH"` (or use an absolute `git -C "$WORKTREE_PATH" ...` form) inside the SAME call as the mutation. Never rely on a previous call having set the directory.
    - Observed: session 2026-06-10 multiple subagent dispatches; recovery via `git reset --hard b749fe4`.
 
+   **1a. `Write` tool absolute paths land in PRIMARY worktree, not the agent worktree.**
+   - WHY: the harness's `Write` tool resolves absolute paths against the primary clone (`/Users/treedesk/Desktop/Projects/leah/<file>`), bypassing the agent's worktree at `.claude/worktrees/agent-<id>/<file>`. Three+ subagents have committed to primary main this way (recovered via `git reset --hard <main-sha>`).
+   - HOW: when writing files from a subagent, ALWAYS use either the worktree-relative path (`Write file_path="internal/foo/bar.go"`, NOT `Write file_path="/Users/treedesk/Desktop/Projects/leah/internal/foo/bar.go"`) OR an absolute path that includes the agent worktree slug (`Write file_path="/Users/treedesk/Desktop/Projects/leah/.claude/worktrees/agent-<your-id>/internal/foo/bar.go"`).
+   - Recovery if primary contaminated: `git -C /Users/treedesk/Desktop/Projects/leah reset --hard origin/main` (only if no operator-owned uncommitted work). Then re-run the dispatch from a clean worktree.
+   - Observed: PR #87 (W56), PR #115 (W30), PR #121 (W32).
+
 2. **Implementer subagents over-self-review instead of shipping.**
    - WHY: adversarial review is the reviewer subagent's job; implementer self-review burns hours producing findings that the independent reviewer would have surfaced anyway, and delays RED→GREEN→PR.
    - HOW: implementer's loop is RED → GREEN → PR. Do NOT generate adversarial findings beyond the dispatch-spec's test plan. Ship; let the operator dispatch `cavecrew-reviewer`.
