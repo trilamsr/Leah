@@ -140,3 +140,34 @@ CREATE TABLE IF NOT EXISTS workspace_persona (
   voice_id    TEXT NOT NULL DEFAULT '',
   updated_at  TEXT NOT NULL
 );
+
+-- schema_version: 7 (additive — W124/S9 nightly consolidation pass)
+-- See docs/engineer/specs/2026-06-10-memory-consolidation.md §3
+-- Summary rows collapse stable (class, key, slot) cells so
+-- Profile.Update reads cheap durable summaries for >14d history.
+
+CREATE TABLE IF NOT EXISTS operator_profile_consolidated (
+  class                  TEXT NOT NULL,
+  key                    TEXT NOT NULL,
+  slot                   TEXT NOT NULL,
+  weight                 REAL NOT NULL,
+  count                  INTEGER NOT NULL,
+  first_seen_ts          TEXT NOT NULL,
+  last_consolidated_at   TEXT NOT NULL,
+  source_window_end      TEXT NOT NULL,
+  PRIMARY KEY (class, key, slot)
+);
+CREATE INDEX IF NOT EXISTS idx_consolidated_last
+  ON operator_profile_consolidated(last_consolidated_at);
+
+-- §3.3 — 14d-anchor for §2 rule 2 (delta gate). Each pass writes one
+-- snapshot row per consolidated cell; the next pass reads w(T-14d)
+-- from here rather than re-scanning raw audit rows that already aged out.
+CREATE TABLE IF NOT EXISTS operator_profile_snapshot (
+  class                TEXT NOT NULL,
+  key                  TEXT NOT NULL,
+  slot                 TEXT NOT NULL,
+  weight_at_snapshot   REAL NOT NULL,
+  snapshot_ts          TEXT NOT NULL,
+  PRIMARY KEY (class, key, slot)
+);

@@ -63,12 +63,19 @@ type Logger struct {
 	subsMu       sync.Mutex
 	subs         []*subscription
 	totalDropped uint64 // atomic; cumulative across lifetime, survives cancel
+	// quiesceMu is held shared (RLock) by every Append and exclusive (Lock)
+	// by QuiesceForConsolidation. The consolidator must own the writer side
+	// while rewriting audit.jsonl on a tmp+rename path (§4 step 7) so no
+	// Append can write to the orphaned inode and silently lose its row.
+	quiesceMu sync.RWMutex
 }
 
 // Append writes e as a single JSON line, stamping Timestamp from Now (or
 // time.Now().UTC() when unset). File is opened 0600 to keep the operator's
 // audit history off other users' read paths.
 func (l *Logger) Append(e Entry) (retErr error) {
+	l.quiesceMu.RLock()
+	defer l.quiesceMu.RUnlock()
 	defer func() {
 		if l.OnAppend != nil {
 			l.OnAppend(retErr)
@@ -96,4 +103,15 @@ func (l *Logger) Append(e Entry) (retErr error) {
 	}
 	l.fanout(e)
 	return nil
+}
+
+// QuiesceForConsolidation blocks new Append calls and returns a release
+// handle. Callers (the W125 ConsolidatePass) hold the exclusive lock while
+// rewriting audit.jsonl via tmp+rename so an Append racing the swap cannot
+// land on the orphaned pre-rename inode. The returned func is idempotent —
+// double-fire is a no-op rather than a double-unlock panic.
+func (l *Logger) QuiesceForConsolidation() func() {
+	l.quiesceMu.Lock()
+	var once sync.Once
+	return func() { once.Do(l.quiesceMu.Unlock) }
 }
