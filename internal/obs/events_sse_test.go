@@ -273,6 +273,23 @@ func TestSSE_RecommendationEventEmitted(t *testing.T) {
 	}
 }
 
+// TestBroadcaster_DropCounter increments when a subscriber chan is full.
+func TestBroadcaster_DropCounter(t *testing.T) {
+	b := NewBroadcaster()
+	sub, err := b.Subscribe(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer func() { _ = sub.Close() }()
+	// 16 = broadcasterSub.ch cap; emit far past it without draining.
+	for i := 0; i < 32; i++ {
+		b.Emit(Event{Kind: "audit.append"})
+	}
+	if got := b.Dropped(); got == 0 {
+		t.Fatalf("Dropped() = 0, want >0 with overflowed subscriber")
+	}
+}
+
 // TestBroadcaster_FilterByKind: subscriber with kinds=[a] does not receive kind b.
 func TestBroadcaster_FilterByKind(t *testing.T) {
 	b := NewBroadcaster()

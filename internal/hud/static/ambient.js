@@ -32,11 +32,9 @@
       case "market":
         if (m.text) $("ticker").textContent = m.text;
         break;
-      case "state":
       case "hud.state": {
         const p = m.payload || m;
-        const stateName = p.state || p.value || "ambient";
-        $("state").textContent = stateName;
+        $("state").textContent = p.value || "ambient";
         $("listen").classList.toggle("active", !!p.listening);
         $("think").classList.toggle("active", !!p.thinking);
         break;

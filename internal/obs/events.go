@@ -37,6 +37,16 @@ type Event struct {
 	Payload   interface{} `json:"payload,omitempty"`
 }
 
+// HUDStateEvent is the Payload schema for `hud.state` events consumed by
+// ambient.js. Field names MUST stay in sync with the JS reader
+// (`p.value`, `p.listening`, `p.thinking`) — anything else freezes the
+// state pill at its default.
+type HUDStateEvent struct {
+	Value     string `json:"value"`
+	Listening bool   `json:"listening"`
+	Thinking  bool   `json:"thinking"`
+}
+
 // EventQuery is a Query filter. Mutually-additive fields AND together.
 type EventQuery struct {
 	Since    time.Time

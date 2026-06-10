@@ -25,17 +25,22 @@ events causally relate to each other?"
 
 ```go
 type Event struct {
-    TS        time.Time `json:"ts"`
-    Kind      string    `json:"kind"`
-    Actor     string    `json:"actor"`
-    Target    string    `json:"target,omitempty"`
-    Scope     string    `json:"scope,omitempty"`
-    LatencyMS int64     `json:"latency_ms,omitempty"`
-    Outcome   string    `json:"outcome"`
-    RefID     string    `json:"ref_id,omitempty"`
-    Detail    string    `json:"detail,omitempty"`
+    TS        time.Time   `json:"ts"`
+    Kind      string      `json:"kind"`
+    Actor     string      `json:"actor"`
+    Target    string      `json:"target,omitempty"`
+    Scope     string      `json:"scope,omitempty"`
+    LatencyMS int64       `json:"latency_ms,omitempty"`
+    Outcome   string      `json:"outcome"`
+    RefID     string      `json:"ref_id,omitempty"`
+    Detail    string      `json:"detail,omitempty"`
+    Payload   interface{} `json:"payload,omitempty"`
 }
 ```
+
+`Payload` is transport-only and carries structured per-kind data (e.g. the
+`HUDStateEvent` shape consumed by `ambient.js` on the `hud.state` channel).
+SQLite persistence ignores it so the row schema stays narrow.
 
 Field semantics:
 
@@ -151,6 +156,13 @@ enumeration list — prevents drift.
 - `obs.panic` — recovered panic (mirrors the existing slog log line
   from `internal/obs/recover.go`).
 
+### 3.11 HUD
+
+- `hud.state` — overlay state-machine transition (hidden / ambient /
+  focus) plus listen/think indicators. Payload type `obs.HUDStateEvent`
+  (`{value, listening, thinking}`) is the wire contract for
+  `ambient.js`; renames break the state pill silently.
+
 ## 4. Causal linking via RefID
 
 Every emission site that begins an "operation" generates a `RefID`
@@ -216,6 +228,24 @@ The writer goroutine consumes a buffered channel of `Event`, batches
 inserts into transactions of up to 100 rows or 100ms, and increments
 the failure counters from §4.10 of the observability spec when the
 SQLite write fails.
+
+In-process fan-out to live SSE subscribers (V2/W87) goes through a
+sibling `Broadcaster` so HUD clients receive events with no SQLite
+round trip:
+
+```go
+b := obs.NewBroadcaster()
+obs.SetDefaultBroadcaster(b)
+obs.Publish(e) // → every matching b.Subscribe channel
+
+// Subscribers feed the SSE transport:
+h := &obs.SSEHandler{Subscribe: b.Subscribe}
+```
+
+`EmitEvent` writes both: `Publish(e)` for live subscribers AND
+`store.Emit(ctx, e)` for SQLite. Either side is a no-op when its sink
+is unset. Drops on a slow subscriber are counted via
+`Broadcaster.Dropped()` rather than blocking the producer.
 
 ## 6. Query API
 
@@ -298,6 +328,9 @@ PR review checklist adds: "every `EmitEvent` call must show that its
 - Schema-drift test: enumerate `Kind` enum values from the source,
   cross-check against a frozen list in `event_kinds_test.go` — every
   new kind requires test-file update.
+- HUDStateEvent contract test: assert the serialized `hud.state`
+  Payload exposes `value`, `listening`, `thinking` — the exact fields
+  `ambient.js` reads. Field renames break the state pill silently.
 
 ## 11. Migration
 

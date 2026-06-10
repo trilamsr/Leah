@@ -116,7 +116,7 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-heartbeat.C:
-			_, _ = fmt.Fprintf(w, "data: {\"kind\":\"state\",\"value\":%q}\n\n", a.State.State().String())
+			_, _ = fmt.Fprintf(w, "event: hud.state\ndata: {\"kind\":\"hud.state\",\"payload\":{\"value\":%q,\"listening\":false,\"thinking\":false}}\n\n", a.State.State().String())
 			fl.Flush()
 		}
 	}

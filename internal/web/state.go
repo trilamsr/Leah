@@ -149,14 +149,21 @@ func (s *Server) computeSnapshot(ctx context.Context) State {
 		Costs:   readCosts(s.AuditPath),
 		Metrics: readMetrics(s.MetricsPath),
 	}
-	obs.Publish(obs.Event{
+	obs.Publish(computeHUDStateEvent("ambient", false, false))
+	return out
+}
+
+// computeHUDStateEvent builds an obs.Event whose Payload matches the
+// ambient.js reader contract (value/listening/thinking). Extracted so the
+// payload shape is testable without standing up the full Snapshot path.
+func computeHUDStateEvent(value string, listening, thinking bool) obs.Event {
+	return obs.Event{
 		TS:      time.Now().UTC(),
 		Kind:    "hud.state",
 		Actor:   "web.snapshot",
 		Outcome: "ok",
-		Payload: out,
-	})
-	return out
+		Payload: obs.HUDStateEvent{Value: value, Listening: listening, Thinking: thinking},
+	}
 }
 
 // readCosts derives a dashboard-sized projection from audit.jsonl. Single

@@ -112,15 +112,25 @@ func parseKinds(csv string) []string {
 }
 
 // Broadcaster fan-outs Emit calls to every live SSE subscriber. Drops on a
-// slow subscriber rather than blocking the producer.
+// slow subscriber rather than blocking the producer; the drop is counted
+// so an operator-visible signal exists when a HUD client falls behind.
 type Broadcaster struct {
-	mu   sync.Mutex
-	subs map[*broadcasterSub]struct{}
+	mu      sync.Mutex
+	subs    map[*broadcasterSub]struct{}
+	dropped uint64
 }
 
 // NewBroadcaster returns a Broadcaster with no subscribers.
 func NewBroadcaster() *Broadcaster {
 	return &Broadcaster{subs: map[*broadcasterSub]struct{}{}}
+}
+
+// Dropped returns the running count of Emit deliveries skipped because a
+// subscriber's channel was full.
+func (b *Broadcaster) Dropped() uint64 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.dropped
 }
 
 type broadcasterSub struct {
@@ -168,6 +178,7 @@ func (b *Broadcaster) Emit(e Event) {
 		subs = append(subs, s)
 	}
 	b.mu.Unlock()
+	var drops uint64
 	for _, s := range subs {
 		if s.kinds != nil {
 			if _, ok := s.kinds[e.Kind]; !ok {
@@ -177,7 +188,13 @@ func (b *Broadcaster) Emit(e Event) {
 		select {
 		case s.ch <- e:
 		default:
+			drops++
 		}
+	}
+	if drops > 0 {
+		b.mu.Lock()
+		b.dropped += drops
+		b.mu.Unlock()
 	}
 }
 
