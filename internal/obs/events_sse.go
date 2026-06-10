@@ -1,9 +1,6 @@
-// SSE handler for the structured-event stream. W77 ships ahead of W75's
-// SQLite EventStore by depending only on the local EventReader/Subscriber
-// interfaces below; once W75 lands, its EventStore satisfies both contracts
-// and the daemon wires it in. Keep-alive comment every 15s mirrors the
-// event-timeline.md §7 contract; client disconnect (ctx done) tears down
-// the goroutine without leaking the subscription.
+// SSE transport for the W75 event timeline; canonical Event lives in events.go.
+// Keep-alive comment every 15s mirrors event-timeline.md §7; client disconnect
+// (ctx done) tears down the subscription.
 
 package obs
 
@@ -15,21 +12,6 @@ import (
 	"strings"
 	"time"
 )
-
-// Event mirrors the schema from docs/engineer/specs/2026-06-10-event-timeline.md
-// §2.1. W75 will move this to event.go alongside Query / EmitEvent; until then
-// the SSE handler depends only on this struct shape, not on the storage layer.
-type Event struct {
-	TS        time.Time `json:"ts"`
-	Kind      string    `json:"kind"`
-	Actor     string    `json:"actor"`
-	Target    string    `json:"target,omitempty"`
-	Scope     string    `json:"scope,omitempty"`
-	LatencyMS int64     `json:"latency_ms,omitempty"`
-	Outcome   string    `json:"outcome"`
-	RefID     string    `json:"ref_id,omitempty"`
-	Detail    string    `json:"detail,omitempty"`
-}
 
 // SSESubscriber yields events as they arrive. Close() must stop the channel
 // and release all writer-side resources.
