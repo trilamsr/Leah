@@ -23,6 +23,7 @@ import (
 	"github.com/trilam/leah/internal/macos/activeapp"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/recommend"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/watchdog"
@@ -101,6 +102,11 @@ func main() {
 	}
 
 	startActiveAppPush(ctx, lg, registry, activeapp.DefaultBlocklist)
+
+	bus := obs.NewBroadcaster()
+	obs.SetDefaultBroadcaster(bus)
+	stopRec, _ := startRecommendDispatcher(ctx, lg, registry, bus, recommend.NewMemoryEngine(a))
+	defer stopRec()
 
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)
 
