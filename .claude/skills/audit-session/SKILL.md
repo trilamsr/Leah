@@ -117,7 +117,7 @@ Decision: hand back commands; NO auto-remove. Per CLAUDE.md `Worktree discipline
 - **Twice-burned scan.** Transcript grep `same|again|twice|retry|second time|broken again`. Cluster by root cause. ≥2 + no `feedback_*` entry → new candidate.
 - **Repeated operator directive.** ≥2 user turns with same phrasing → queue codification candidate.
 - **Trap projection.** Trap operator hit ≥2 → propose worker-side fix at gate / prompt / dispatch-template boundary.
-- **Self-approve-after-amend gate.** Per memory `feedback_no_self_approve_after_edits`: scan transcript for `merge-after-edits|block-on-findings` reviewer verdicts → confirm re-spawned reviewer fired before merge → if not, file `[SESSION-AUDIT][self-approve-after-amend]` retroactively.
+- **Self-approve-after-amend gate.** Per memory `feedback_no_self_approve_after_edits` + S5 reflexion-loop (`docs/engineer/specs/2026-06-10-reflexion-loop.md`): scan transcript for `block-on-findings` reviewer verdicts → confirm re-spawned reviewer returned `clear-to-merge` before merge → if not, file `[SESSION-AUDIT][self-approve-after-amend]` retroactively.
 
 **Cross-ref `learn-from-mistakes` skill (binding):** Scan transcript for friction triggers — user pushback (`no`, `don't`, `stop`, `revert`, `undo that`), in-session rollback, test failing twice for related reasons, rediscovered ruled-out answer. For each trigger, verify `learn-from-mistakes` skill activated (look for "/learn" invocation or `feedback_*.md` write in session). If trigger fired WITHOUT skill activation → surface the unsaved learning candidate in the consolidated hand-back so the operator can decide whether to capture or drop. Do NOT auto-invoke the skill (per Hard Nos); only surface the gap.
 
