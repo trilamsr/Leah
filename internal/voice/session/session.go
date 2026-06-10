@@ -10,6 +10,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/voice/listener"
 )
 
@@ -54,6 +55,9 @@ type Session struct {
 	// Now is injected so idle-timeout tests stay deterministic; production
 	// uses time.Now.
 	Now func() time.Time
+	// Metrics, when non-nil, receives per-turn + per-stage timing observations.
+	// nil-safe: the timer methods drop silently on a nil receiver.
+	Metrics *voice.TurnInstrumentation
 }
 
 // Run drives the state machine until ctx is cancelled, the operator denies
@@ -81,10 +85,24 @@ func (s *Session) Run(ctx context.Context) error {
 	var (
 		replyCancel context.CancelFunc
 		replyWG     sync.WaitGroup
+		turnTimer   *voice.TurnTimer
+		// turnTimerMu pins reads/writes between the loop goroutine (which
+		// nils the pointer on barge-in/cleanup) and the reply goroutine
+		// (which reads it across the reasoner→tts boundary).
+		turnTimerMu sync.Mutex
 	)
 
-	cancelReply := func() {
+	loadTimer := func() *voice.TurnTimer {
+		turnTimerMu.Lock()
+		defer turnTimerMu.Unlock()
+		return turnTimer
+	}
+
+	cancelReply := func(bargedIn bool) {
 		if replyCancel != nil {
+			if bargedIn {
+				loadTimer().BargeIn()
+			}
 			replyCancel()
 			replyCancel = nil
 		}
@@ -106,28 +124,45 @@ func (s *Session) Run(ctx context.Context) error {
 	startTurn := func(prompt string) {
 		rctx, rcancel := context.WithCancel(ctx)
 		replyCancel = rcancel
+		tt := s.Metrics.NewTurnTimer(s.Now())
+		turnTimerMu.Lock()
+		turnTimer = tt
+		turnTimerMu.Unlock()
 		replyWG.Add(1)
 		go func() {
 			defer replyWG.Done()
+			tt.MarkReasonerAsk(s.Now())
 			reply, rerr := s.Reason.Ask(rctx, prompt)
 			if rerr != nil {
 				if errors.Is(rctx.Err(), context.Canceled) {
+					tt.MarkReasonerDone(s.Now(), "barged_in")
 					s.recordTurn("interrupted")
+					tt.Finish(s.Now(), "barged_in")
 					return
 				}
+				tt.MarkReasonerDone(s.Now(), "error")
 				_ = s.Speak.Speak(rctx, "I couldn't reason that through, try again.")
 				s.recordTurn("reasoner_error")
+				tt.Finish(s.Now(), "error")
 				return
 			}
+			tt.MarkReasonerDone(s.Now(), "completed")
+			tt.MarkTTSFirstByte(s.Now(), "completed")
 			if err := s.Speak.Speak(rctx, reply); err != nil {
 				if errors.Is(rctx.Err(), context.Canceled) {
+					tt.MarkTTSDone(s.Now(), "barged_in")
 					s.recordTurn("interrupted")
+					tt.Finish(s.Now(), "barged_in")
 					return
 				}
+				tt.MarkTTSDone(s.Now(), "error")
 				s.recordTurn("tts_error")
+				tt.Finish(s.Now(), "error")
 				return
 			}
+			tt.MarkTTSDone(s.Now(), "completed")
 			s.recordTurn("success")
+			tt.Finish(s.Now(), "completed")
 		}()
 		st = stateSpeaking
 		resetIdle()
@@ -136,11 +171,11 @@ func (s *Session) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			cancelReply()
+			cancelReply(false)
 			return nil
 		case seg, ok := <-segs:
 			if !ok {
-				cancelReply()
+				cancelReply(false)
 				return nil
 			}
 			if !seg.Final {
@@ -150,21 +185,24 @@ func (s *Session) Run(ctx context.Context) error {
 			switch st {
 			case stateArmedWaitingAttest:
 				if !strings.EqualFold(text, attestPhrase) {
+					s.Metrics.RecordWakeEvent("cancelled_phrase")
 					s.recordTurn("attestation_denied")
 					return ErrAttestationDenied
 				}
 				if s.Attest != nil {
 					if err := s.Attest.Attest(ctx, "voice_session"); err != nil {
+						s.Metrics.RecordWakeEvent("cancelled_phrase")
 						s.recordTurn("attestation_denied")
 						return ErrAttestationDenied
 					}
 				}
+				s.Metrics.RecordWakeEvent("armed")
 				st = stateArmed
 				resetIdle()
 			case stateSpeaking:
 				// Barge-in: cancel in-flight reply ctx, then arm the next
 				// turn on the same Final segment (spec §4 step 5–6).
-				cancelReply()
+				cancelReply(true)
 				startTurn(text)
 			case stateArmed, stateRequiresWake:
 				startTurn(text)
@@ -172,11 +210,12 @@ func (s *Session) Run(ctx context.Context) error {
 		case <-idleTimer.C:
 			switch st {
 			case stateArmed:
+				s.Metrics.RecordWakeEvent("cancelled_silence")
 				_ = s.speakControl(ctx, "Going to sleep.")
 				st = stateRequiresWake
 				resetIdle()
 			case stateRequiresWake:
-				cancelReply()
+				cancelReply(false)
 				return nil
 			default:
 				// Reply in flight — extend the idle window.
