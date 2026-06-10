@@ -29,7 +29,6 @@ func NewHealthRegistry() *HealthRegistry {
 	return &HealthRegistry{checks: map[string]SelfChecker{}, started: time.Now()}
 }
 
-// Register replaces any prior checker for name.
 func (r *HealthRegistry) Register(name string, c SelfChecker) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
