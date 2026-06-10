@@ -116,8 +116,8 @@ func TestWidget_CalendarNext_RendersTime(t *testing.T) {
 	}
 }
 
-func TestWidget_Failure_RendersPlaceholder(t *testing.T) {
-	// Unreachable daemon → placeholder tile, no error returned (UX > strictness).
+func TestWidget_Failure_RendersErrorTile(t *testing.T) {
+	// Unreachable daemon → explicit "couldn't load" tile, no error returned (UX > strictness).
 	wg := NewWidgets(NewClient("http://127.0.0.1:1"))
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
@@ -127,10 +127,10 @@ func TestWidget_Failure_RendersPlaceholder(t *testing.T) {
 		call func() (string, error)
 		cls  string
 	}{
-		{"weather", func() (string, error) { return wg.Weather(ctx) }, "widget weather placeholder"},
-		{"market", func() (string, error) { return wg.Market(ctx, "AAPL") }, "widget market placeholder"},
-		{"news", func() (string, error) { return wg.News(ctx) }, "widget news placeholder"},
-		{"calendar", func() (string, error) { return wg.CalendarNext(ctx) }, "widget calendar placeholder"},
+		{"weather", func() (string, error) { return wg.Weather(ctx) }, "widget weather widget-error"},
+		{"market", func() (string, error) { return wg.Market(ctx, "AAPL") }, "widget market widget-error"},
+		{"news", func() (string, error) { return wg.News(ctx) }, "widget news widget-error"},
+		{"calendar", func() (string, error) { return wg.CalendarNext(ctx) }, "widget calendar widget-error"},
 	}
 	for _, tc := range cases {
 		html, err := tc.call()
@@ -140,13 +140,13 @@ func TestWidget_Failure_RendersPlaceholder(t *testing.T) {
 		if !strings.Contains(html, tc.cls) {
 			t.Errorf("%s: missing class %q in %q", tc.name, tc.cls, html)
 		}
-		if !strings.Contains(html, "—") {
-			t.Errorf("%s: missing em-dash placeholder in %q", tc.name, html)
+		if !strings.Contains(html, "couldn't load") {
+			t.Errorf("%s: missing error copy in %q", tc.name, html)
 		}
 	}
 }
 
-func TestWidget_Failure_BadJSON_RendersPlaceholder(t *testing.T) {
+func TestWidget_Failure_BadJSON_RendersErrorTile(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "not json")
 	}))
@@ -158,8 +158,8 @@ func TestWidget_Failure_BadJSON_RendersPlaceholder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Weather (bad-json): %v", err)
 	}
-	if !strings.Contains(html, "placeholder") {
-		t.Errorf("bad-json should yield placeholder, got %q", html)
+	if !strings.Contains(html, "widget-error") {
+		t.Errorf("bad-json should yield widget-error, got %q", html)
 	}
 }
 
@@ -261,6 +261,69 @@ func TestWidget_TTLs_MatchSpec(t *testing.T) {
 	for k, v := range want {
 		if got[k] != v {
 			t.Errorf("TTL %s = %v, want %v", k, got[k], v)
+		}
+	}
+}
+
+// Freshness label must appear on every successful tile so stale data is visually distinct.
+func TestWidget_FreshnessLabel_Present(t *testing.T) {
+	srv := daemonStub(t, map[string]string{
+		"/feeds/weather":           `{"location":"SF","condition":"Sunny","temp":"68F","high":"72F","low":"58F"}`,
+		"/feeds/market/AAPL":       `{"symbol":"AAPL","price":"1","change_pct":0.1}`,
+		"/feeds/news":              `{"headline":"H","source":"S"}`,
+		"/dashboard/calendar/next": `{"time":"09:00","title":"T","location":"L"}`,
+	})
+	defer srv.Close()
+	wg := NewWidgets(NewClient(srv.URL))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	cases := []struct {
+		name string
+		call func() (string, error)
+	}{
+		{"weather", func() (string, error) { return wg.Weather(ctx) }},
+		{"market", func() (string, error) { return wg.Market(ctx, "AAPL") }},
+		{"news", func() (string, error) { return wg.News(ctx) }},
+		{"calendar", func() (string, error) { return wg.CalendarNext(ctx) }},
+	}
+	for _, tc := range cases {
+		html, err := tc.call()
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if !strings.Contains(html, `widget-as-of`) {
+			t.Errorf("%s: missing widget-as-of span in %q", tc.name, html)
+		}
+		if !strings.Contains(html, `data-ts="`) {
+			t.Errorf("%s: missing data-ts attribute in %q", tc.name, html)
+		}
+		if !strings.Contains(html, `as of `) {
+			t.Errorf("%s: missing 'as of' label in %q", tc.name, html)
+		}
+	}
+}
+
+// Failure tiles must carry an explicit error class so the client can render a "couldn't load" state.
+func TestWidget_Failure_ExplicitErrorClass(t *testing.T) {
+	wg := NewWidgets(NewClient("http://127.0.0.1:1"))
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	for _, tc := range []struct {
+		name string
+		call func() (string, error)
+	}{
+		{"weather", func() (string, error) { return wg.Weather(ctx) }},
+		{"market", func() (string, error) { return wg.Market(ctx, "AAPL") }},
+		{"news", func() (string, error) { return wg.News(ctx) }},
+		{"calendar", func() (string, error) { return wg.CalendarNext(ctx) }},
+	} {
+		html, err := tc.call()
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if !strings.Contains(html, "widget-error") {
+			t.Errorf("%s: missing widget-error class in %q", tc.name, html)
 		}
 	}
 }

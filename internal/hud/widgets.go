@@ -12,13 +12,24 @@ import (
 )
 
 // Widgets renders info-feed tiles by proxying the leah-daemon feed endpoints.
-// Failure mode is "show em-dash, never block" — operators staring at a HUD
-// shouldn't see a stack trace when the daemon flaps.
+// Stale-vs-fresh ambiguity is the failure mode we care about: every successful
+// tile carries an "as of HH:MM" stamp; every failure tile is marked widget-error
+// so the client renders an explicit "couldn't load" instead of an indistinguishable
+// em-dash.
 type Widgets struct {
 	Daemon *Client
+	// Now is overridable so freshness-label tests are deterministic.
+	Now func() time.Time
 }
 
-func NewWidgets(c *Client) *Widgets { return &Widgets{Daemon: c} }
+func NewWidgets(c *Client) *Widgets { return &Widgets{Daemon: c, Now: time.Now} }
+
+func (w *Widgets) now() time.Time {
+	if w.Now != nil {
+		return w.Now()
+	}
+	return time.Now()
+}
 
 // TTLs returns the spec-canonical refresh intervals so widgets.js can render
 // matching `data-ttl-ms` hints without hard-coding the same numbers twice.
@@ -74,6 +85,13 @@ func (w *Widgets) fetchJSON(ctx context.Context, path string, into any) error {
 	return json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(into)
 }
 
+// asOf is appended to every successful tile so the operator can tell stale from fresh.
+const asOfFmt = `<span class="widget-as-of muted" data-ts="%s">as of %s</span>`
+
+func asOfSpan(t time.Time) string {
+	return fmt.Sprintf(asOfFmt, t.UTC().Format(time.RFC3339), t.Format("15:04"))
+}
+
 var (
 	tmplWeather = template.Must(template.New("weather").Parse(
 		`<div class="widget weather" data-ttl-ms="600000">` +
@@ -81,38 +99,40 @@ var (
 			`<span class="cond">{{.Condition}}</span>` +
 			`<span class="temp mono">{{.Temp}}</span>` +
 			`<span class="hilo muted mono">{{.High}}/{{.Low}}</span>` +
-			`</div>`,
+			`{{.AsOf}}</div>`,
 	))
 	tmplMarket = template.Must(template.New("market").Parse(
 		`<div class="widget market {{.Dir}}" data-ttl-ms="60000">` +
 			`<span class="sym">{{.Symbol}}</span>` +
 			`<span class="px mono">{{.Price}}</span>` +
 			`<span class="chg mono">{{.Pct}}</span>` +
-			`</div>`,
+			`{{.AsOf}}</div>`,
 	))
 	tmplNews = template.Must(template.New("news").Parse(
 		`<div class="widget news" data-ttl-ms="900000">` +
 			`<span class="headline">{{.Headline}}</span>` +
 			`<span class="src muted">{{.Source}}</span>` +
-			`</div>`,
+			`{{.AsOf}}</div>`,
 	))
 	tmplCal = template.Must(template.New("cal").Parse(
 		`<div class="widget calendar" data-ttl-ms="30000">` +
 			`<span class="time mono">{{.Time}}</span>` +
 			`<span class="title">{{.Title}}</span>` +
 			`<span class="loc muted">{{.Location}}</span>` +
-			`</div>`,
+			`{{.AsOf}}</div>`,
 	))
 )
 
-func placeholder(kind string) string {
-	return fmt.Sprintf(`<div class="widget %s placeholder">—</div>`, kind)
+// errorTile replaces the silent em-dash placeholder so a long-running fetch
+// failure is visible. Client-side widgets.js styles widget-error explicitly.
+func errorTile(kind string) string {
+	return fmt.Sprintf(`<div class="widget %s widget-error">couldn't load — retry</div>`, kind)
 }
 
 func render(t *template.Template, data any, kind string) string {
 	var b strings.Builder
 	if err := t.Execute(&b, data); err != nil {
-		return placeholder(kind)
+		return errorTile(kind)
 	}
 	return b.String()
 }
@@ -120,15 +140,18 @@ func render(t *template.Template, data any, kind string) string {
 func (w *Widgets) Weather(ctx context.Context) (string, error) {
 	var p weatherPayload
 	if err := w.fetchJSON(ctx, "/feeds/weather", &p); err != nil {
-		return placeholder("weather"), nil
+		return errorTile("weather"), nil
 	}
-	return render(tmplWeather, p, "weather"), nil
+	return render(tmplWeather, struct {
+		weatherPayload
+		AsOf template.HTML
+	}{p, template.HTML(asOfSpan(w.now()))}, "weather"), nil
 }
 
 func (w *Widgets) Market(ctx context.Context, symbol string) (string, error) {
 	var p marketPayload
 	if err := w.fetchJSON(ctx, "/feeds/market/"+symbol, &p); err != nil {
-		return placeholder("market"), nil
+		return errorTile("market"), nil
 	}
 	dir := "flat"
 	sign := ""
@@ -139,26 +162,34 @@ func (w *Widgets) Market(ctx context.Context, symbol string) (string, error) {
 	}
 	return render(tmplMarket, struct {
 		Symbol, Price, Dir, Pct string
+		AsOf                    template.HTML
 	}{
 		Symbol: p.Symbol, Price: p.Price, Dir: dir,
-		Pct: fmt.Sprintf("%s%.2f%%", sign, p.ChangePct),
+		Pct:  fmt.Sprintf("%s%.2f%%", sign, p.ChangePct),
+		AsOf: template.HTML(asOfSpan(w.now())),
 	}, "market"), nil
 }
 
 func (w *Widgets) News(ctx context.Context) (string, error) {
 	var p newsPayload
 	if err := w.fetchJSON(ctx, "/feeds/news", &p); err != nil {
-		return placeholder("news"), nil
+		return errorTile("news"), nil
 	}
-	return render(tmplNews, p, "news"), nil
+	return render(tmplNews, struct {
+		newsPayload
+		AsOf template.HTML
+	}{p, template.HTML(asOfSpan(w.now()))}, "news"), nil
 }
 
 func (w *Widgets) CalendarNext(ctx context.Context) (string, error) {
 	var p calendarPayload
 	if err := w.fetchJSON(ctx, "/dashboard/calendar/next", &p); err != nil {
-		return placeholder("calendar"), nil
+		return errorTile("calendar"), nil
 	}
-	return render(tmplCal, p, "calendar"), nil
+	return render(tmplCal, struct {
+		calendarPayload
+		AsOf template.HTML
+	}{p, template.HTML(asOfSpan(w.now()))}, "calendar"), nil
 }
 
 // Routes registers /api/widgets/* on the given mux. Handlers always return
