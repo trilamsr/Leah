@@ -41,4 +41,7 @@ fi
 echo "==> check-doc-links"
 "$(dirname "$0")/check-doc-links.sh"
 
+echo "==> check-base-fresh"
+"$(dirname "$0")/check-base-fresh.sh"
+
 echo "==> all checks passed"
