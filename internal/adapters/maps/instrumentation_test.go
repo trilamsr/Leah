@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +71,16 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 			},
 		},
 		{
+			name:     "reverse_geocode failure still observed",
+			endpoint: "reverse_geocode",
+			body:     `{"status":"REQUEST_DENIED"}`,
+			run: func(t *testing.T, a *Adapter) {
+				if _, err := a.ReverseGeocode(context.Background(), 1, 2); err == nil {
+					t.Fatal("ReverseGeocode: expected api status error")
+				}
+			},
+		},
+		{
 			name:     "route success",
 			endpoint: "route",
 			body:     `{"status":"OK","routes":[{"overview_polyline":{"points":"p"},"legs":[{"distance":{"value":1},"duration":{"value":1}}]}]}`,
@@ -95,6 +107,16 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 			run: func(t *testing.T, a *Adapter) {
 				if _, err := a.POINearby(context.Background(), Place{Lat: 1, Lng: 2}, 100, "cafe"); err != nil {
 					t.Fatalf("POINearby: %v", err)
+				}
+			},
+		},
+		{
+			name:     "poi_nearby failure still observed",
+			endpoint: "poi_nearby",
+			body:     `{"status":"REQUEST_DENIED"}`,
+			run: func(t *testing.T, a *Adapter) {
+				if _, err := a.POINearby(context.Background(), Place{Lat: 1, Lng: 2}, 100, "cafe"); err == nil {
+					t.Fatal("POINearby: expected api status error")
 				}
 			},
 		},
@@ -168,5 +190,48 @@ func TestObserveAPI_NilMetricsNoop(t *testing.T) {
 	}
 	if _, err := a.Geocode(context.Background(), "x"); err != nil {
 		t.Fatalf("Geocode: %v", err)
+	}
+}
+
+// TestObserveAPI_CacheHitBypass proves cache hits do not increment api_call_total — only wire-bound RPCs count.
+func TestObserveAPI_CacheHitBypass(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"OK","results":[{"place_id":"p1","formatted_address":"x","geometry":{"location":{"lat":1,"lng":2}}}]}`))
+	}))
+	defer srv.Close()
+	cache, err := OpenCache(filepath.Join(t.TempDir(), "cache.db"))
+	if err != nil {
+		t.Fatalf("OpenCache: %v", err)
+	}
+	defer func() { _ = cache.Close() }()
+	r := obs.NewRegistry()
+	RegisterMetrics(r)
+	a, err := New(Config{
+		Attestor:   &fakeAttestor{},
+		HTTPClient: srv.Client(),
+		APIKey:     "k",
+		BaseURL:    srv.URL,
+		Cache:      cache,
+		Metrics:    Metrics(r),
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := a.Geocode(context.Background(), "addr"); err != nil {
+		t.Fatalf("Geocode 1: %v", err)
+	}
+	if _, err := a.Geocode(context.Background(), "addr"); err != nil {
+		t.Fatalf("Geocode 2: %v", err)
+	}
+	keys := obstest.SnapshotKeys(t, r)
+	count := 0
+	for _, k := range keys {
+		if strings.Contains(k, "leah_connect_api_call_total") && strings.Contains(k, "endpoint=geocode") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected one series row for geocode (single wire call); got %d (%v)", count, keys)
 	}
 }
