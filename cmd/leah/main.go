@@ -156,6 +156,8 @@ func runCommand(ctx context.Context, args []string) int {
 		return runNews(ctx, rest, os.Stdout)
 	case "quote":
 		return runQuote(ctx, rest, os.Stdout)
+	case "whoami":
+		return runWhoami(ctx, rest, os.Stdout)
 	default:
 		usage()
 		return 2
@@ -463,5 +465,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  forget <pattern-id|all> [--dry-run] [--yes]  wipe pattern(s) from operator-model recs")
 	_, _ = fmt.Fprintln(os.Stderr, "  news                      synthesized daily news digest (RSS sources)")
 	_, _ = fmt.Fprintln(os.Stderr, "  quote <symbol>...         market quotes for given symbols (Alpha Vantage)")
+	_, _ = fmt.Fprintln(os.Stderr, "  whoami [--full]           print workspace + integrations, or enumerate persisted state (M1)")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
