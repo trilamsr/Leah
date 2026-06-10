@@ -221,6 +221,31 @@ func TestSnapshotRefreshesAfterTTL(t *testing.T) {
 	}
 }
 
+// TestSSE_HUDStateEvent_ShapeMatchesJSContract asserts the hud.state
+// Payload exposes value/listening/thinking — the exact fields ambient.js
+// reads to drive the state pill + listen/think rings. Pre-V2 the payload
+// was web.State{} which has none of these → the pill froze at "ambient"
+// whenever the daemon /events relay was up.
+func TestSSE_HUDStateEvent_ShapeMatchesJSContract(t *testing.T) {
+	e := computeHUDStateEvent("focus", true, false)
+	raw, err := json.Marshal(e.Payload)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	js := string(raw)
+	for _, want := range []string{`"value"`, `"listening"`, `"thinking"`} {
+		if !strings.Contains(js, want) {
+			t.Errorf("payload missing field %s: %s", want, js)
+		}
+	}
+	if !strings.Contains(js, `"value":"focus"`) {
+		t.Errorf("payload value mismatch: %s", js)
+	}
+	if !strings.Contains(js, `"listening":true`) {
+		t.Errorf("payload listening mismatch: %s", js)
+	}
+}
+
 // TestSnapshotConcurrentReadsNoRace exercises concurrent Snapshot calls
 // under -race to assert the cache + RWMutex are safe.
 func TestSnapshotConcurrentReadsNoRace(t *testing.T) {

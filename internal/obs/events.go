@@ -21,17 +21,30 @@ import (
 )
 
 // Event is one row in the causal timeline — internal sibling to audit.jsonl;
-// captures denied/failed paths audit elides (spec §2.1).
+// captures denied/failed paths audit elides (spec §2.1). Payload carries
+// transport-only structured data (e.g. HUD state snapshot) on the SSE path;
+// SQLite persistence ignores it so the row schema stays narrow.
 type Event struct {
-	TS        time.Time `json:"ts"`
-	Kind      string    `json:"kind"`
-	Actor     string    `json:"actor"`
-	Target    string    `json:"target,omitempty"`
-	Scope     string    `json:"scope,omitempty"`
-	LatencyMS int64     `json:"latency_ms,omitempty"`
-	Outcome   string    `json:"outcome"`
-	RefID     string    `json:"ref_id,omitempty"`
-	Detail    string    `json:"detail,omitempty"`
+	TS        time.Time   `json:"ts"`
+	Kind      string      `json:"kind"`
+	Actor     string      `json:"actor"`
+	Target    string      `json:"target,omitempty"`
+	Scope     string      `json:"scope,omitempty"`
+	LatencyMS int64       `json:"latency_ms,omitempty"`
+	Outcome   string      `json:"outcome"`
+	RefID     string      `json:"ref_id,omitempty"`
+	Detail    string      `json:"detail,omitempty"`
+	Payload   interface{} `json:"payload,omitempty"`
+}
+
+// HUDStateEvent is the Payload schema for `hud.state` events consumed by
+// ambient.js. Field names MUST stay in sync with the JS reader
+// (`p.value`, `p.listening`, `p.thinking`) — anything else freezes the
+// state pill at its default.
+type HUDStateEvent struct {
+	Value     string `json:"value"`
+	Listening bool   `json:"listening"`
+	Thinking  bool   `json:"thinking"`
 }
 
 // EventQuery is a Query filter. Mutually-additive fields AND together.
@@ -480,8 +493,19 @@ func SetDefaultEventStore(store EventStore) {
 	defaultStoreMu.Unlock()
 }
 
-// EmitEvent enqueues e against the default store; no-op when unset.
+// EmitEvent enqueues e against the default store AND fans it out to the
+// default Broadcaster's live SSE subscribers (V2/W87). Either side is a no-op
+// when its sink is unset, so this stays safe for callers that only wire one.
 func EmitEvent(ctx context.Context, e Event) {
+	if e.TS.IsZero() {
+		e.TS = time.Now().UTC()
+	}
+	if e.RefID == "" {
+		if id := RefID(ctx); id != "" {
+			e.RefID = id
+		}
+	}
+	Publish(e)
 	defaultStoreMu.RLock()
 	s := defaultStore
 	defaultStoreMu.RUnlock()
@@ -504,6 +528,7 @@ var KnownEventKinds = []string{
 	"recommendation.propose", "recommendation.accept",
 	"recommendation.reject", "recommendation.apply",
 	"obs.snapshot", "obs.selfcheck", "obs.panic",
+	"hud.state",
 }
 
 // SafeDetail strips chars outside [\w\-\.:/], truncates 128r (spec §9 PII).
