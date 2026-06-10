@@ -1,6 +1,6 @@
 # Autonomous Session Trigger Prompt
 
-Copy-paste this prompt to bootstrap a fully autonomous leah dev session. Designed for max velocity: subagent-heavy, decision-deferred-to-review, no user round-trips.
+Copy-paste this prompt to bootstrap a fully autonomous leah dev session. Designed for max velocity: subagent-heavy, decision-deferred-to-review, automerge-after-adversarial-review, no user round-trips. Up to 6 concurrent subagents; PR is not terminal — the merge-and-advance loop is.
 
 This prompt EXTENDS `CLAUDE.md` (auto-loaded for every agent in the tree). It only captures rules specific to the indefinite-autonomous-loop mode that wouldn't make sense in a one-off dev session. For per-agent role rules (designer / implementer / reviewer / triage), see the per-role templates under [docs/engineer/dispatch-templates/](docs/engineer/dispatch-templates/).
 
@@ -11,7 +11,7 @@ In leah, the autonomous session IS the orchestrator — the operator + Claude ma
 ## Prompt
 
 ```
-Continue leah development autonomously. Operate INDEFINITELY in auto mode — execute don't ask, ship don't explain, stop only when externally interrupted. NEVER ask for clarification; decide via subagent + memory rules per the decision priority in CLAUDE.md (UX > performance > long-term benefits; default simpler). When blocked: file [followup] issue + add to watch-triggers list + pick next priority. Pause only for genuinely irreversible action (tag signing, secret rotation, branch-protection downgrade, force-push to main).
+Continue leah development autonomously. Operate INDEFINITELY in auto mode — execute don't ask, ship don't explain, automerge once adversarial-reviewed, stop only when externally interrupted. NEVER ask for clarification; decide via subagent + memory rules per the decision priority in CLAUDE.md (UX > performance > long-term benefits; default simpler). PR is NOT terminal — merge is, and the loop continues across merges. Read roadmap (`docs/engineer/specs/`, `docs/engineer/briefs/`, `ARCHITECTURE.md`, `PRINCIPLES.md`, GH issues) freely to pick next work. Run up to 6 concurrent subagents across design / plan / impl / review / roadmap-planning. Anticipate bottlenecks + preempt them. When blocked: file [followup] issue + add to watch-triggers list + pick next priority. Pause only for genuinely irreversible action (tag signing, secret rotation, branch-protection downgrade, force-push to main).
 
 BOOT
 1. cd /Users/treedesk/Desktop/Projects/leah && git fetch && git pull --ff-only origin main
@@ -43,7 +43,8 @@ The bulk of agent rules live in repo-root `CLAUDE.md` (auto-loaded by every agen
 DRIFT DISCIPLINE
 - 15-min drift check: every 15 min OR every operator-prompt turn (whichever first), audit current actions vs: decision-priority alignment (UX > performance > long-term benefits); unmerged-PR sweep; reviewer findings → trackers filed; adversarial-review on every load-bearing surface; #1 critical-path blocker identified + worked.
 - 5-min status pulse (tighter cadence): list active subagents, PR states, blockers, parallel headroom.
-- Parallel cap: default 3-4 implementer subagents. File-disjoint only; shared-primitive owner sequencing.
+- Parallel cap: up to 6 concurrent subagents across roles (designer / implementer / reviewer / triage). File-disjoint only; shared-primitive owner sequencing. Fill idle slots aggressively — see "Preemptive unblock" below.
+- Multi-track concurrency: dispatch design / plan / impl / review / roadmap-planning across DIFFERENT work-items in parallel up to the cap. Same-item stages remain sequential (design → plan → impl → review). Different items run independently.
 
 AUTONOMOUS-LOOP CADENCE
 - Dispatch discipline — 3 loops: (1) parallelize by default, sequence on dep-graph; (2) status-report cadence after every wave-dispatch + ~3 subagent completions + when wave drains to ≤2 lanes; (3) GH-API throttle — batch `gh pr list --json` polls, ls-remote over fetch.
@@ -57,14 +58,34 @@ AUTONOMOUS-LOOP CADENCE
 - Self-improvement: when session friction observed (slow ops, repeated lookups, ambiguous dispatch prompts), self-diagnose root cause + ship fix in same session.
 - Meta-codify repeat directives: when operator repeats a directive ≥2 times in same session AND it's not yet codified in CLAUDE.md / autonomous-prompt / dispatch templates → file as memory rule THIS session AND queue codification PR. Route by rule type — universal → CLAUDE.md, autonomous-loop-only → this prompt, role-specific → one of [implementer.md](docs/engineer/dispatch-templates/implementer.md) / [reviewer.md](docs/engineer/dispatch-templates/reviewer.md) / [designer.md](docs/engineer/dispatch-templates/designer.md) / [triage.md](docs/engineer/dispatch-templates/triage.md).
 
-AUTOMERGE GATING
-- Review before automerge: automerge fires ONLY when (1) independent reviewer ran on current head (not stale rev) AND (2) every Risk-tier+ finding addressed (inline-fix OR tracking issue #).
-- Review every step: pipeline gate at design draft, roadmap, plan, impl. Each iterates edit-in-place + re-review → ADOPT.
-- No implementer-enabled automerge: implementer subagents MUST NOT run `gh pr merge --auto` (or any automerge-enabling form). End with `gh pr ready <N>` + operator-merge handoff. Author both writing own APPROVE token AND enabling automerge = zero operator window between APPROVE and merge.
-- No self-tagged APPROVE: author writing own `Reviewer-recommendation: APPROVE` = zero adversarial pass. Spawn an independent reviewer (cavecrew-reviewer or canonical agent-id shape) in a fresh slot BEFORE the token lands. If reviewer finds HIGH/MED, fix inline OR file tracking issue + cite # before writing APPROVE.
-- Post-automerge CI monitor: after `gh pr merge --auto`, CI may fail post-rebase OR DIRTY merge-state may surface silently. Re-check `gh pr view --json mergeStateStatus,statusCheckRollup` until merged-or-failed.
+AUTOMERGE — AUTHORIZED
+- Automerge is the default landing path. Main thread MAY enable `gh pr merge --auto --squash` once the adversarial-review pass is GREEN. PR is NOT a terminal step — merge is. Loop continues across merges.
+- Adversarial-review pass scope (ALL dimensions must clear before APPROVE): correctness/bugs, unintended side effects, conciseness, refactor opportunities, simplification, doc updates, comment trimming (WHY-not-WHAT, godoc 1-line max), test coverage + TDD-order, deletion-default ("what got smaller"), no AI signatures, no ceremony.
+- Review-fix-repeat loop: dispatch independent reviewer (cavecrew-reviewer or canonical agent-id) on current head → address every finding (inline-fix OR tracking issue #) → re-spawn reviewer on new head → repeat until reviewer returns APPROVE with zero open Risk-tier findings. Then enable automerge.
+- Review every stage: pipeline gate at design draft, roadmap, plan, impl, post-merge audit. Each iterates edit-in-place + re-review → ADOPT.
+- No self-tagged APPROVE: author writing own `Reviewer-recommendation: APPROVE` = zero adversarial pass. Reviewer MUST be independent agent on the current head SHA, not the author.
+- Reviewer must run on current head: stale-rev review does not count. Verify `gh pr view --json headRefOid` matches the SHA the reviewer audited.
+- No implementer-enabled automerge: implementer subagents MUST NOT run `gh pr merge --auto`. Only the main-thread dispatcher enables automerge, AFTER it confirms independent-reviewer APPROVE on current head.
+- Post-automerge CI monitor: after `gh pr merge --auto`, CI may fail post-rebase OR DIRTY merge-state may surface silently. Re-check `gh pr view --json mergeStateStatus,statusCheckRollup` until merged-or-failed. If CI red post-rebase → re-dispatch reviewer + fix loop; do not abandon.
 - Watch PR until merged: PR not done until `mergedAt != null` AND `state = MERGED`. Automerge enabling + 'CLEAN' status + 'approved' DO NOT count. Poll on every return; post-approval CI flake regularly stalls at OPEN/BLOCKED.
+- Post-merge → next: when PR merges, immediately advance to next item in queue. Do NOT pause for user confirmation. PR is not terminal — the loop is the unit.
 - Agent load-bearing → issues: subagent findings NOT addressed in own PR → main thread files tracking issue, never leaves as PR comment. Universal rule, no PR-type exempt.
+
+PREEMPTIVE UNBLOCK
+- Anticipate bottlenecks: every status pulse, name the next 2 likely blockers (CI flake, shared-primitive contention, missing spec, reviewer queue depth, branch-protection, untriaged issue blocking dispatch). For each, queue an unblock action BEFORE it stalls a lane.
+- Bottleneck classes + preempt actions:
+  - Spec gap → spawn designer subagent for next-horizon brief while current wave still in impl.
+  - Reviewer queue depth → dedicate a slot to reviewer-only dispatch when queue >2 PRs awaiting review.
+  - Shared-primitive contention → identify owner-file overlap at plan stage; serialize those subtasks, parallelize the rest.
+  - CI flake → on second hit, file [followup] + pin to root-cause subagent, don't retry blindly.
+  - Roadmap drain (<2 unblocked items) → spawn roadmap-planner subagent to read `docs/engineer/specs/`, `docs/engineer/briefs/`, open issues, and emit next-wave priority list.
+- Roadmap + feature-set authority: main thread MAY read `docs/engineer/specs/`, `docs/engineer/briefs/`, `docs/engineer/roadmap*.md`, `ARCHITECTURE.md`, `PRINCIPLES.md`, GH issue tracker, and milestone labels FREELY to pick next work. No user round-trip required to pull next item.
+- Fan-out target: keep ≥4 of 6 slots filled whenever roadmap has supply. If <4 active, dispatch from preempt-queue immediately.
+
+LOOP SKILL INTEGRATION
+- Use `/loop` skill for indefinite self-paced cadence. Pass `<<autonomous-loop-dynamic>>` sentinel via ScheduleWakeup so the loop re-enters this prompt each wake.
+- Wake cadence: dynamic. Short (60-270s) when polling CI on an active automerge. Long (1200-1800s) when all 6 slots full + waiting on subagent completion (harness notifies on subagent finish — no poll needed; long wake is fallback only).
+- Each wake = one status pulse + dispatch round: drain merged PRs, advance queue, fill idle slots, file followups for new blockers, schedule next wake.
 
 WORKTREE / GIT HYGIENE (long-session)
 - Agent tree spillage: harness sometimes drops agents into primary tree instead of worktree. Stash primary before reset; verify `.claude/worktrees/agent-<id>/` matches before edits.
@@ -95,6 +116,7 @@ WHEN BLOCKED
 
 STOP CRITERIA — indefinite mode
 - Continue until externally interrupted (user signal) OR genuinely irreversible action required (tag signing, secret rotation, branch-protection downgrade, force-push to main).
+- PR-merge is NOT a stop signal. Adversarial-review APPROVE + automerge enabled + merged → immediately advance queue, dispatch next item.
 - Per-session soft-stop on context-budget pressure: if approaching context limit mid-wave, finish the current implementer-subagent batch + checkpoint progress, then end-of-turn cleanly (no half-applied state).
 - Wave-finish checkpoints are NOT stop signals — immediately pre-fetch next horizon and dispatch next wave's design subagent.
 - Watch-triggers list: blocked items file as [followup] GH issues with trigger conditions (e.g. "unblock when X merges") in PR body; loop back when trigger fires; never deadlock waiting.
@@ -112,7 +134,8 @@ Begin BOOT. After boot, pick highest priority + dispatch design subagent.
 - Escape valve named: blocked → file issue → pick next. No deadlock on one item.
 - Genuine irreversibility named explicitly: tag signing, secrets, protection downgrade, force-push to main. Everything else proceeds.
 - Indefinite by design: STOP CRITERIA bounds the per-session soft-stop only; the prompt never says "we're done" because the roadmap is infinite. Pre-fetch keeps queue full.
-- Latitude is bounded by quality gates, not by stop signals: adversarial review + deletion-default enforce quality regardless of how indefinite the session runs.
+- Latitude is bounded by quality gates, not by stop signals: adversarial review (correctness, side effects, conciseness, refactor, simplification, doc, comments, test coverage, deletion-default) + automerge-only-after-APPROVE enforce quality regardless of how indefinite the session runs.
+- Concurrency cap 6: enough to fan out across design/plan/impl/review/triage/roadmap-planner without thrashing dep-graph or shared-primitive contention.
 
 ## How this composes
 
