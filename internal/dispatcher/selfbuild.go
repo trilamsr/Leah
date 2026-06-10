@@ -128,12 +128,7 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 		Title:    title,
 		TmpDir:   s.TmpDir,
 
-		// Watch is force-disabled on the inner Ship so inner.Run returns
-		// synchronously after gh-create. SelfBuild runs the watcher itself
-		// below — split is load-bearing for Defect-2: the BR=4 dispatched
-		// audit row MUST land after gh-create and BEFORE the watcher
-		// (which may block indefinitely / be aborted by Ctrl-C when
-		// regatta isn't running locally).
+		// Watch=false on inner Ship: dispatched audit row MUST land before watcher (Defect-2).
 		Watch:     false,
 		Regatta:   s.Regatta,
 		Heartbeat: s.Heartbeat,
@@ -149,17 +144,10 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 		return err
 	}
 
-	// Defect-2 fix: emit BR=4 dispatched row IMMEDIATELY after inner.Run
-	// returns (which means gh-create succeeded). Prior code gated this
-	// behind inner.Run() returning AFTER the watcher — which never happens
-	// when the operator aborts the watcher (regatta not running locally).
+	// Land dispatched row before watcher so operator-abort still leaves a self-build trace (Defect-2).
 	s.appendAuditSuccess(intent, inner.LastURL)
 
-	// Watcher runs in SelfBuild's frame so we can append a second
-	// kind=self-build.outcome row with the terminal state once it returns.
-	// Operator abort during watch leaves the dispatched row landed +
-	// no outcome row — the selflearn resolver can flag the
-	// dangling-dispatched after N days.
+	// Outcome row pairs with dispatched; dangling dispatched-without-outcome is flagged by selflearn.
 	if s.Watch {
 		state := inner.watch(ctx)
 		s.appendAuditOutcome(intent, state, inner.LastURL)
