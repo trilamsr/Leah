@@ -8,7 +8,7 @@ Spec: `docs/engineer/specs/2026-06-10-trust-moats.md` §7 (S10 M6).
 
 ## What the workflow publishes
 
-For every tag matching `v*`, `.github/workflows/reproducible-build.yml` emits:
+For every tag matching `v*`, `.github/workflows/release-attest.yml` emits:
 
 - `leah-<os>-<arch>` + `leah-daemon-<os>-<arch>` — stripped, trimpath'd Go
   binaries built with `CGO_ENABLED=0 -trimpath -mod=readonly -ldflags="-s -w -buildid="`.
@@ -21,8 +21,10 @@ For every tag matching `v*`, `.github/workflows/reproducible-build.yml` emits:
   OIDC, no long-lived signing key). The cert binds the signature to the GHA
   workflow run that produced it.
 - `leah.intoto.jsonl` — SLSA L2 provenance from
-  `slsa-framework/slsa-github-generator@v2.0.0`. Records the build's source
-  commit, builder ID, and entry-point workflow.
+  `slsa-framework/slsa-github-generator@v2.1.0`. Records the build's source
+  commit, builder ID, and entry-point workflow. The four matrix legs feed a
+  `combine_hashes` aggregator job so one provenance file signs every leg's
+  binary (single-output-per-matrix is a GHA limitation, not a SLSA one).
 
 ## The chain an operator verifies
 
@@ -52,6 +54,13 @@ make verify-checksums LEAH_VERIFY_VERSION=v1.2.3
 brew install cosign slsa-verifier
 make verify-attestation LEAH_VERIFY_VERSION=v1.2.3
 ```
+
+Spec §7.2 specifies a single `verify-checksums` target. We ship two — Stage 1
+runs with only `sha256sum` + `gh`, Stage 2 requires cosign + slsa-verifier —
+so a wary operator can prove the digest match without installing the full
+attestation toolchain. The cosign + slsa-verifier checks live in
+`verify-attestation`. Same artifacts, same `LEAH_VERIFY_VERSION` env, two
+ladder rungs.
 
 `verify-attestation` pins the certificate identity to
 `https://github.com/trilamsr/Leah/...` and the OIDC issuer to
@@ -83,7 +92,7 @@ toolchain is the most common false-negative.
 | Builder          | GitHub Actions runner            | Compromised runner image              |
 | SBOM             | anchore/syft                     | Missed transitive dep                 |
 | Signature        | Sigstore Fulcio + Rekor log      | Sigstore root key compromise          |
-| Provenance       | slsa-github-generator (v2.0.0)   | Pinned tag — `@main` drift mitigated  |
+| Provenance       | slsa-github-generator (v2.1.0)   | Pinned tag — `@main` drift mitigated  |
 
 The reproducible-build path (rebuild + diff) shortcuts the builder + SBOM +
 signature rows: if the local build matches the published digest, the only

@@ -1,4 +1,4 @@
-name: reproducible-build
+name: release-attest
 
 # W135 / S10 / M6: reproducible build + SBOM (syft) + SLSA L2 provenance
 # (slsa-github-generator) + cosign keyless sign-blob. Triggered on v* tag push.
@@ -33,8 +33,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # GHA matrix builds cannot share a single output key — every leg would race
+    # to the same slot. Per-leg hash-<os>-<arch> keys are merged into one
+    # base64 payload by the combine_hashes aggregator (slsa-github-generator
+    # canonical pattern, see generator_generic_slsa3 README).
     outputs:
-      digests: ${{ steps.hash.outputs.digests }}
+      hash-linux-amd64: ${{ steps.hash.outputs.hash-linux-amd64 }}
+      hash-linux-arm64: ${{ steps.hash.outputs.hash-linux-arm64 }}
+      hash-darwin-amd64: ${{ steps.hash.outputs.hash-darwin-amd64 }}
+      hash-darwin-arm64: ${{ steps.hash.outputs.hash-darwin-arm64 }}
     strategy:
       matrix:
         include:
@@ -70,8 +77,24 @@ jobs:
           go build -ldflags="${LDFLAGS}" -o "dist/leah-${GOOS}-${GOARCH}" ./cmd/leah
           go build -ldflags="${LDFLAGS}" -o "dist/leah-daemon-${GOOS}-${GOARCH}" ./cmd/leah-daemon
 
+      - name: Reproducibility self-test (build twice, assert byte-identical)
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        # Spec §7.3: repro check builds the same binary twice and diffs sha256.
+        # A non-deterministic ldflag or toolchain flag would diverge here.
+        run: |
+          go build -ldflags="${LDFLAGS}" -o "/tmp/leah-rebuild-${GOOS}-${GOARCH}" ./cmd/leah
+          a=$(sha256sum "dist/leah-${GOOS}-${GOARCH}" | cut -d' ' -f1)
+          b=$(sha256sum "/tmp/leah-rebuild-${GOOS}-${GOARCH}" | cut -d' ' -f1)
+          if [ "$a" != "$b" ]; then
+            echo "::error::non-reproducible build for ${GOOS}/${GOARCH}: $a != $b"
+            exit 1
+          fi
+          echo "reproducible: ${GOOS}/${GOARCH} sha256=$a"
+
       - name: Generate SBOM (SPDX-JSON)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: .
           format: spdx-json
@@ -86,16 +109,16 @@ jobs:
                     leah-${{ matrix.goos }}-${{ matrix.goarch }}.spdx.json \
             > SHA256SUMS-${{ matrix.goos }}-${{ matrix.goarch }}
 
-      - name: Export per-artifact digests for SLSA provenance
+      - name: Export per-leg digests for SLSA provenance
         id: hash
         working-directory: dist
+        # base64-encoded SHA256SUMS payload — input format expected by
+        # slsa-github-generator's combine_hashes pattern.
         run: |
-          # base64-encoded SHA256SUMS payload — input format expected by
-          # slsa-github-generator/generator_generic_slsa3.yml.
           digests=$(sha256sum leah-${{ matrix.goos }}-${{ matrix.goarch }} \
                               leah-daemon-${{ matrix.goos }}-${{ matrix.goarch }} \
                     | base64 -w0)
-          echo "digests=${digests}" >> "$GITHUB_OUTPUT"
+          echo "hash-${{ matrix.goos }}-${{ matrix.goarch }}=${digests}" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -104,17 +127,37 @@ jobs:
           path: dist/
           retention-days: 7
 
+  combine_hashes:
+    name: combine matrix hashes
+    runs-on: ubuntu-latest
+    needs: [build]
+    outputs:
+      hashes: ${{ steps.hashes.outputs.hashes }}
+    env:
+      # toJSON over needs.build.outputs gives all 4 hash-<os>-<arch> values.
+      HASHES: ${{ toJSON(needs.build.outputs) }}
+    steps:
+      - name: Aggregate
+        id: hashes
+        # Decode each leg's base64 payload, concat into one hashes.txt, then
+        # re-base64 the merged file. Generator signs every line as a subject.
+        run: |
+          set -euo pipefail
+          echo "$HASHES" | jq -r '.[] | @base64d' | sed '/^$/d' > hashes.txt
+          cat hashes.txt
+          echo "hashes=$(base64 -w0 < hashes.txt)" >> "$GITHUB_OUTPUT"
+
   provenance:
     name: slsa L2 provenance
-    needs: [build]
+    needs: [combine_hashes]
     permissions:
       actions: read
       id-token: write
       contents: write
-    # Pin to a specific tag (spec §15 risk #2: avoid @main drift).
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    # Pin to v2.1.0 (GA 2025-02-24, spec §15 risk #2: no @main drift).
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
-      base64-subjects: ${{ needs.build.outputs.digests }}
+      base64-subjects: ${{ needs.combine_hashes.outputs.hashes }}
       upload-assets: true
       provenance-name: leah.intoto.jsonl
 
