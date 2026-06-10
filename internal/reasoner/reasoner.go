@@ -46,6 +46,33 @@ type Client interface {
 	Complete(ctx context.Context, system, user string) (CompleteResult, error)
 }
 
+// ToolUseEvent surfaces an SDK content_block_start with type=tool_use during
+// streaming. Reserved for W17+ skill wiring; AskStream suppresses it from the
+// text channel so callers consuming `<-chan string` see text-only deltas.
+type ToolUseEvent struct {
+	Name string
+	ID   string
+}
+
+// Delta is one streaming event. Text != "" → text delta; ToolUse != nil →
+// tool-use block; Final == true → terminal delta carrying cumulative token
+// counts; Err != nil → stream aborted (channel still drains to close).
+type Delta struct {
+	Text      string
+	ToolUse   *ToolUseEvent
+	Final     bool
+	InputTok  int
+	OutputTok int
+	Err       error
+}
+
+// StreamingClient extends Client with delta streaming. Anthropic implements
+// this in production; non-streaming Clients keep Complete only.
+type StreamingClient interface {
+	Client
+	Stream(ctx context.Context, system, user string) (<-chan Delta, error)
+}
+
 // Reasoner pairs a Client with the budget gate and the system prompt loaded
 // from prompts/system.md (or prompts/regatta-issue.md for Ship).
 //
@@ -67,6 +94,44 @@ type Reasoner struct {
 // safe for concurrent Asks on the same Reasoner — by contract one
 // Reasoner per CLI invocation (see package doc).
 func (r *Reasoner) LastCallInfo() CallInfo { return r.lastCall }
+
+// AskStream returns a text-only delta channel for the streaming voice path
+// (W109). The underlying Client must implement StreamingClient; non-streaming
+// Clients return an error so callers can fall back to Ask.
+//
+// Tool-use deltas are suppressed from the returned channel — they belong to
+// the skill surface (W17+) which has not landed; for now they're a no-op.
+// Budget charging is deferred until Stream surfaces the Final delta because
+// token counts aren't known until the stream completes.
+func (r *Reasoner) AskStream(ctx context.Context, user string) (<-chan string, error) {
+	sc, ok := r.Client.(StreamingClient)
+	if !ok {
+		return nil, fmt.Errorf("reasoner: client does not support streaming")
+	}
+	system := r.SystemPrompt
+	if r.PersonaPrefix != "" {
+		system = r.PersonaPrefix + "\n\n" + r.SystemPrompt
+	}
+	deltas, err := sc.Stream(ctx, system, user)
+	if err != nil {
+		return nil, fmt.Errorf("reasoner: %w", err)
+	}
+	out := make(chan string, 8)
+	go func() {
+		defer close(out)
+		for d := range deltas {
+			if d.Text == "" {
+				continue
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case out <- d.Text:
+			}
+		}
+	}()
+	return out, nil
+}
 
 // Ask sends user to Client.Complete + charges the returned cost. Budget
 // exceeded → returns *budget.ExceededError without surfacing partial text.

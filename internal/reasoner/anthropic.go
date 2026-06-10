@@ -106,3 +106,57 @@ func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (Co
 		CacheHit:     cacheHit,
 	}, nil
 }
+
+// Stream issues a streaming messages call and translates SDK events into
+// reasoner.Delta. Text deltas pass through; tool-use blocks surface as
+// ToolUseEvent (suppressed by AskStream callers today). Token counts fire on
+// the Final delta from message_delta usage. Returned channel closes when the
+// SDK stream ends OR ctx is cancelled.
+func (c *AnthropicClient) Stream(ctx context.Context, system, user string) (<-chan Delta, error) {
+	sysBlock := buildSystemBlock(system)
+	params := anthropic.MessageNewParams{
+		Model:     anthropic.Model(c.model),
+		MaxTokens: 4096,
+		System:    []anthropic.TextBlockParam{sysBlock},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(user)),
+		},
+	}
+	stream := c.sdk.Messages.NewStreaming(ctx, params)
+	out := make(chan Delta, 16)
+	go func() {
+		defer close(out)
+		var inTok, outTok int
+		for stream.Next() {
+			ev := stream.Current()
+			switch v := ev.AsAny().(type) {
+			case anthropic.ContentBlockStartEvent:
+				if tu := v.ContentBlock.AsToolUse(); tu.Name != "" {
+					select {
+					case <-ctx.Done():
+						return
+					case out <- Delta{ToolUse: &ToolUseEvent{Name: tu.Name, ID: tu.ID}}:
+					}
+				}
+			case anthropic.ContentBlockDeltaEvent:
+				if td := v.Delta.AsTextDelta(); td.Text != "" {
+					select {
+					case <-ctx.Done():
+						return
+					case out <- Delta{Text: td.Text}:
+					}
+				}
+			case anthropic.MessageStartEvent:
+				inTok = int(v.Message.Usage.InputTokens)
+			case anthropic.MessageDeltaEvent:
+				outTok = int(v.Usage.OutputTokens)
+			}
+		}
+		if err := stream.Err(); err != nil {
+			out <- Delta{Err: fmt.Errorf("anthropic stream: %w", err)}
+			return
+		}
+		out <- Delta{Final: true, InputTok: inTok, OutputTok: outTok}
+	}()
+	return out, nil
+}
