@@ -18,10 +18,11 @@ type MemoryEngine struct {
 	mu       sync.Mutex
 	pending  map[string]Recommendation // id → rec, awaiting decision
 	accepted map[string]bool           // id → true once Accept lands
+	feedback *feedbackStore            // per-engine signal ledger
 
-	matchers      []SignalMatcher
-	lastFiredAt   map[string]time.Time // pattern → last OnSignal fire
-	now           func() time.Time     // test seam; default time.Now().UTC()
+	matchers    []SignalMatcher
+	lastFiredAt map[string]time.Time // pattern → last OnSignal fire
+	now         func() time.Time     // test seam; default time.Now().UTC()
 }
 
 // NewMemoryEngine constructs an empty engine. The audit Logger may be nil
@@ -32,6 +33,7 @@ func NewMemoryEngine(logger *audit.Logger) *MemoryEngine {
 		audit:       logger,
 		pending:     make(map[string]Recommendation),
 		accepted:    make(map[string]bool),
+		feedback:    newFeedbackStore(),
 		lastFiredAt: make(map[string]time.Time),
 		now:         func() time.Time { return time.Now().UTC() },
 	}

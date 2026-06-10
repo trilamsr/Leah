@@ -67,9 +67,9 @@ type feedbackEvent struct {
 	at   time.Time
 }
 
-// feedbackStore is the per-engine side table. Lives outside MemoryEngine
-// so engine.go stays untouched (W15 surface is frozen for W16's SQLite
-// swap; feedback bolts on at the W18 boundary).
+// feedbackStore is the per-engine signal ledger. SQLiteEngine reads the
+// same shape directly out of the feedback table; MemoryEngine carries the
+// store as a field (W100 collapsed the sync.Map indirection).
 type feedbackStore struct {
 	mu        sync.Mutex
 	events    map[string][]feedbackEvent // pattern → events
@@ -81,20 +81,6 @@ func newFeedbackStore() *feedbackStore {
 		events:    make(map[string][]feedbackEvent),
 		forgotten: make(map[string]time.Time),
 	}
-}
-
-// engineFeedback maps MemoryEngine instances to their feedbackStore. A
-// sync.Map keeps engine.go field-list pristine while still giving us
-// per-engine state with goroutine-safe lazy init.
-var engineFeedback sync.Map // *MemoryEngine → *feedbackStore
-
-func feedbackFor(e *MemoryEngine) *feedbackStore {
-	if v, ok := engineFeedback.Load(e); ok {
-		return v.(*feedbackStore)
-	}
-	fs := newFeedbackStore()
-	actual, _ := engineFeedback.LoadOrStore(e, fs)
-	return actual.(*feedbackStore)
 }
 
 // nowUTC is the engine's wall-clock seam. Overridable per call by passing
@@ -114,7 +100,7 @@ func (e *MemoryEngine) Feedback(ctx context.Context, id string, kind FeedbackKin
 		return ErrNotFound
 	}
 
-	fs := feedbackFor(e)
+	fs := e.feedback
 	fs.mu.Lock()
 	fs.events[rec.Pattern] = append(fs.events[rec.Pattern], feedbackEvent{kind: kind, at: engineNow()})
 	fs.mu.Unlock()
@@ -130,7 +116,7 @@ func (e *MemoryEngine) RankedPropose(ctx context.Context) ([]Recommendation, err
 	if err != nil {
 		return nil, err
 	}
-	fs := feedbackFor(e)
+	fs := e.feedback
 	now := engineNow()
 
 	adjusted := make([]Recommendation, 0, len(recs))
@@ -201,7 +187,7 @@ func decayedMagnitude(initial float64, at, now time.Time, halflifeDays float64) 
 // before invoking this — the engine treats Forget as already-authorized
 // to keep the dependency arrow one-way (recommend → audit only).
 func (e *MemoryEngine) Forget(ctx context.Context, patternOrAll string) error {
-	fs := feedbackFor(e)
+	fs := e.feedback
 
 	e.mu.Lock()
 	if patternOrAll == ForgetAll {
@@ -246,7 +232,7 @@ func (e *MemoryEngine) Forget(ctx context.Context, patternOrAll string) error {
 // post-Forget cooldown. Surfaces (Propose callers) wrap Seed with this
 // to drop resurfaced rows; tests use it to assert §11 behavior.
 func (e *MemoryEngine) Quarantined(pattern string) bool {
-	fs := feedbackFor(e)
+	fs := e.feedback
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	until, ok := fs.forgotten[pattern]

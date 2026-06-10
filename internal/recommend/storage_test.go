@@ -259,3 +259,124 @@ func TestSQLite_RecordFeedback(t *testing.T) {
 func TestSQLite_Engine_InterfaceParity(t *testing.T) {
 	var _ Engine = (*SQLiteEngine)(nil)
 }
+
+// TestSQLiteEngine_ProposeBlendsFeedbackRows — accept signal raises confidence above seed.
+func TestSQLiteEngine_ProposeBlendsFeedbackRows(t *testing.T) {
+	dir := t.TempDir()
+	eng, err := NewSQLiteEngine(filepath.Join(dir, "r.db"), nil)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer func() { _ = eng.Close() }()
+
+	const seed = 0.5
+	rec := Recommendation{ID: "rb1", Pattern: "p_accept", Tier: TierConfirm, Source: "s", Confidence: seed, CreatedAt: time.Now()}
+	if err := eng.Seed(rec); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := eng.RecordFeedback(context.Background(), "rb1", string(FeedbackAccept), signalAccept); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	out, err := eng.Propose(context.Background())
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("want 1 rec, got %d", len(out))
+	}
+	if out[0].Confidence <= seed {
+		t.Fatalf("propose did not blend accept feedback: seed=%v got=%v", seed, out[0].Confidence)
+	}
+}
+
+// TestSQLiteEngine_Reject_PersistThenRanks_DampensConfidence — reject lowers confidence below seed.
+func TestSQLiteEngine_Reject_PersistThenRanks_DampensConfidence(t *testing.T) {
+	dir := t.TempDir()
+	eng, err := NewSQLiteEngine(filepath.Join(dir, "r.db"), nil)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer func() { _ = eng.Close() }()
+
+	const seed = 0.7
+	if err := eng.Seed(Recommendation{ID: "a", Pattern: "p_dampen", Tier: TierConfirm, Source: "s", Confidence: seed, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("seed a: %v", err)
+	}
+	if err := eng.Seed(Recommendation{ID: "b", Pattern: "p_dampen", Tier: TierConfirm, Source: "s", Confidence: seed, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("seed b: %v", err)
+	}
+	if err := eng.RecordFeedback(context.Background(), "a", string(FeedbackReject), signalReject); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	if err := eng.Reject(context.Background(), "a"); err != nil {
+		t.Fatalf("reject: %v", err)
+	}
+	out, err := eng.Propose(context.Background())
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	if len(out) != 1 || out[0].ID != "b" {
+		t.Fatalf("want only rec b pending, got %+v", out)
+	}
+	if out[0].Confidence >= seed {
+		t.Fatalf("reject did not dampen confidence: seed=%v got=%v", seed, out[0].Confidence)
+	}
+}
+
+// TestSQLiteEngine_DecayOver7Days_HalvesSignal — 7d-old signal blends in at ~50%.
+func TestSQLiteEngine_DecayOver7Days_HalvesSignal(t *testing.T) {
+	dir := t.TempDir()
+	eng, err := NewSQLiteEngine(filepath.Join(dir, "r.db"), nil)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer func() { _ = eng.Close() }()
+
+	const seed = 0.5
+	if err := eng.Seed(Recommendation{ID: "rd", Pattern: "p_decay", Tier: TierConfirm, Source: "s", Confidence: seed, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	sevenDaysAgo := time.Now().Add(-7 * 24 * time.Hour).UTC().UnixNano()
+	if _, err := eng.db.Exec(
+		`INSERT INTO feedback (id, rec_id, pattern, kind, signal, ts) VALUES (?, ?, ?, ?, ?, ?)`,
+		"fb-old", "rd", "p_decay", string(FeedbackAccept), signalAccept, sevenDaysAgo,
+	); err != nil {
+		t.Fatalf("insert aged feedback: %v", err)
+	}
+	out, err := eng.Propose(context.Background())
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("want 1 rec, got %d", len(out))
+	}
+	delta := out[0].Confidence - seed
+	if delta < 0.45 || delta > 0.55 {
+		t.Fatalf("want decayed delta ≈0.5, got %v (confidence=%v)", delta, out[0].Confidence)
+	}
+}
+
+// TestSQLiteEngine_NoFeedbackRows_FallsBackToSeed — empty feedback leaves seed untouched.
+func TestSQLiteEngine_NoFeedbackRows_FallsBackToSeed(t *testing.T) {
+	dir := t.TempDir()
+	eng, err := NewSQLiteEngine(filepath.Join(dir, "r.db"), nil)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer func() { _ = eng.Close() }()
+
+	const seed = 0.42
+	if err := eng.Seed(Recommendation{ID: "rn", Pattern: "p_seed", Tier: TierConfirm, Source: "s", Confidence: seed, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	out, err := eng.Propose(context.Background())
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("want 1 rec, got %d", len(out))
+	}
+	if out[0].Confidence != seed {
+		t.Fatalf("no-feedback path mutated confidence: seed=%v got=%v", seed, out[0].Confidence)
+	}
+}

@@ -20,7 +20,7 @@ import (
 
 // sqliteSchemaVersion is the embedded DDL version. Parsed-int compare per PR #58
 // avoids the lex "10" < "9" bug; on-disk newer than embedded refuses to migrate.
-const sqliteSchemaVersion = "1"
+const sqliteSchemaVersion = "2"
 
 // sqliteDDL provisions the two tables used by SQLiteEngine. Kept inline (no
 // embed) because the schema is small and the recommend package owns it end to end.
@@ -42,11 +42,12 @@ CREATE TABLE IF NOT EXISTS recommendations (
 CREATE TABLE IF NOT EXISTS feedback (
   id      TEXT PRIMARY KEY,
   rec_id  TEXT NOT NULL,
+  pattern TEXT NOT NULL DEFAULT '',
   kind    TEXT NOT NULL,
   signal  REAL NOT NULL,
-  ts      INTEGER NOT NULL,
-  FOREIGN KEY (rec_id) REFERENCES recommendations(id)
+  ts      INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS feedback_pattern_idx ON feedback(pattern);
 `
 
 // SQLiteEngine is the persistent twin of MemoryEngine — same Engine surface
@@ -141,6 +142,20 @@ func (e *SQLiteEngine) migrate() error {
 	if _, err := e.db.Exec(sqliteDDL); err != nil {
 		return fmt.Errorf("exec schema: %w", err)
 	}
+	// v1→v2: feedback.pattern landed in W100 for propose-time blending.
+	// PRAGMA-based probe avoids re-running ALTER on already-migrated dbs.
+	hasPattern, err := columnExists(e.db, "feedback", "pattern")
+	if err != nil {
+		return fmt.Errorf("probe feedback.pattern: %w", err)
+	}
+	if !hasPattern {
+		if _, err := e.db.Exec(`ALTER TABLE feedback ADD COLUMN pattern TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("add feedback.pattern: %w", err)
+		}
+		if _, err := e.db.Exec(`UPDATE feedback SET pattern = COALESCE((SELECT pattern FROM recommendations WHERE id = feedback.rec_id), '') WHERE pattern = ''`); err != nil {
+			return fmt.Errorf("backfill feedback.pattern: %w", err)
+		}
+	}
 	if _, err := e.db.Exec(`INSERT OR REPLACE INTO schema_meta(key, value) VALUES('version', ?)`, sqliteSchemaVersion); err != nil {
 		return fmt.Errorf("stamp schema version: %w", err)
 	}
@@ -151,6 +166,27 @@ func (e *SQLiteEngine) migrate() error {
 // strconv.Atoi guards against lex "10" < "9" mis-ordering.
 func parseRecommendSchemaVersion(s string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(s))
+}
+
+func columnExists(db *sql.DB, table, column string) (bool, error) {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return false, err
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 // Seed inserts a Recommendation into recommendations as pending (accepted_at=0).
@@ -179,7 +215,10 @@ func (e *SQLiteEngine) Seed(rec Recommendation) error {
 	return nil
 }
 
-// Propose returns pending (not-yet-accepted) recommendations.
+// Propose returns pending (not-yet-accepted) recommendations with persisted
+// per-pattern feedback blended into Confidence (W100 / S4) — same semantics
+// as MemoryEngine.RankedPropose, so the rows written by RecordFeedback are
+// no longer orphaned.
 func (e *SQLiteEngine) Propose(ctx context.Context) ([]Recommendation, error) {
 	rows, err := e.db.QueryContext(ctx, `
 		SELECT id, pattern, tier, source, confidence, created_at
@@ -189,6 +228,7 @@ func (e *SQLiteEngine) Propose(ctx context.Context) ([]Recommendation, error) {
 	}
 	defer func() { _ = rows.Close() }()
 	var out []Recommendation
+	patterns := make(map[string]struct{})
 	for rows.Next() {
 		var rec Recommendation
 		var tier string
@@ -201,9 +241,58 @@ func (e *SQLiteEngine) Propose(ctx context.Context) ([]Recommendation, error) {
 		e.mu.Lock()
 		rec.Action = e.actions[rec.ID]
 		e.mu.Unlock()
+		patterns[rec.Pattern] = struct{}{}
 		out = append(out, rec)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	deltas, err := e.feedbackDeltas(ctx, patterns)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Confidence += deltas[out[i].Pattern]
+	}
+	return out, nil
+}
+
+// feedbackDeltas reads denormalized feedback.pattern so the dampener on a
+// pattern survives a Reject of the originating rec — pattern, not rec ID,
+// is the durable identity per spec §9.
+func (e *SQLiteEngine) feedbackDeltas(ctx context.Context, patterns map[string]struct{}) (map[string]float64, error) {
+	if len(patterns) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, 0, len(patterns))
+	args := make([]any, 0, len(patterns))
+	for p := range patterns {
+		placeholders = append(placeholders, "?")
+		args = append(args, p)
+	}
+	q := `SELECT pattern, kind, signal, ts FROM feedback
+	      WHERE pattern IN (` + strings.Join(placeholders, ",") + `)`
+	rows, err := e.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("feedback blend: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	now := time.Now().UTC()
+	deltas := make(map[string]float64, len(patterns))
+	for rows.Next() {
+		var pattern, kind string
+		var signal float64
+		var ts int64
+		if err := rows.Scan(&pattern, &kind, &signal, &ts); err != nil {
+			return nil, fmt.Errorf("feedback scan: %w", err)
+		}
+		hl := feedbackHalflifeDays
+		if FeedbackKind(kind) == FeedbackIgnore {
+			hl = behavioralHalflifeDays
+		}
+		deltas[pattern] += decayedMagnitude(signal, time.Unix(0, ts).UTC(), now, hl)
+	}
+	return deltas, rows.Err()
 }
 
 // Get returns the stored row for id plus whether it has been Accept-ed.
@@ -361,15 +450,20 @@ func (e *SQLiteEngine) OnSignal(ctx context.Context, sig Signal) ([]Recommendati
 
 // RecordFeedback persists one feedback row keyed by recommendation id; the
 // signal/kind shape mirrors spec §8 (Accept=+1.0, Reject=-0.5, Ignore=-0.1,
-// Apply.success=+0.2, Apply.failed=-0.3). The propose-time blender lands in W18.
+// Apply.success=+0.2, Apply.failed=-0.3). Pattern is denormalized onto the row
+// so the W100 propose-time blender survives a later Reject of the parent rec.
 func (e *SQLiteEngine) RecordFeedback(ctx context.Context, recID, kind string, signal float64) error {
 	id, err := newFeedbackID()
 	if err != nil {
 		return err
 	}
+	var pattern string
+	if err := e.db.QueryRowContext(ctx, `SELECT pattern FROM recommendations WHERE id = ?`, recID).Scan(&pattern); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("lookup pattern: %w", err)
+	}
 	_, err = e.db.ExecContext(ctx,
-		`INSERT INTO feedback (id, rec_id, kind, signal, ts) VALUES (?, ?, ?, ?, ?)`,
-		id, recID, kind, signal, time.Now().UTC().UnixNano(),
+		`INSERT INTO feedback (id, rec_id, pattern, kind, signal, ts) VALUES (?, ?, ?, ?, ?, ?)`,
+		id, recID, pattern, kind, signal, time.Now().UTC().UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("record feedback: %w", err)
