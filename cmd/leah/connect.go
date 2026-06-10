@@ -38,6 +38,13 @@ func runConnect(ctx context.Context, args []string, w io.Writer) int {
 	}
 
 	name := args[0]
+	// regatta is not an OAuth provider — it's either a local Docker container
+	// or a cloud bearer-token connect. Pre-empt the OAuth registry lookup so
+	// `leah connect regatta [--cloud …]` reaches the right handler (without
+	// this, runConnect would route through Authorize → ErrRegattaUseConnectRegatta).
+	if name == "regatta" {
+		return runConnectRegatta(ctx, args[1:], w, nil)
+	}
 	p, err := reg.Lookup(name)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect: %v: %q (try --list)\n", err, name)
