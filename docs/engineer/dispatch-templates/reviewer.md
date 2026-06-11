@@ -35,13 +35,13 @@ AUTO-SKIP CHECK (decide first)
   ...mandatory independent reviewer dispatch. `[DOCS]` / `[CI]` release-notes does NOT bypass when these paths change.
 
 LENSES (apply in order)
-1. **Edge cases** — boundary inputs, empty/nil, concurrency, partial failure, context cancellation.
+1. **Edge cases** — boundary inputs, empty/nil, concurrency, partial failure, context cancellation, resource-lifecycle Open/Close/Cancel pairs (cite SDK / source line for the matching Close).
 2. **Refactor** — simplification ≥1 candidate; deletion ≥1 candidate (deletion default).
 3. **Risk** — classify each finding `Low | Med | High | Critical`; floor = `<RISK-TIER-FLOOR>`. Routing: LOW → PR comment only; MED → comment + aggregate row if not inline-fixed; HIGH/CRITICAL → aggregate row required.
 4. **Spec fidelity** — measure target against `<SPEC-PATH>` rubric; flag implementer deviations (re-spawn design subagent rather than letting implementer pick a pattern).
 5. **TDD trace** — verify failing-test-first commit ordering. `git log --reverse <branch>` should show a RED commit before the green one; the failing output should appear in the PR body.
 6. **CI lint reproduction** — re-run `./scripts/check.sh` locally. Don't trust the author's claim of "all green" — ~10% lie rate.
-7. **Subagent verification** — when the author cites a subagent finding ("investigator reported X"), spot-check 2-3 file:line refs. Subagent output is a LEAD, not GROUND TRUTH.
+7. **Subagent verification** — when the author cites a subagent finding ("investigator reported X"), spot-check 2-3 file:line refs. Subagent output is a LEAD, not GROUND TRUTH. Same discipline applies to the author's own self-claims in the PR description: for any finding above LOW tier, quote the actual line content from the cited file:line and verify it matches.
 8. **Load-bearing leftovers** — every unaddressed load-bearing item rolls into the SINGLE aggregate tracking issue for this PR; cite that one issue # in the PR body.
 9. **Comment sweep (MED severity)** — inspect every added/modified comment per `implementer.md` §Comments: zero by default. Severity rules:
    - **MED** on any implementer-template hard-rule hit: name-restating godoc, signature-restating godoc, section banner, multi-paragraph narration, untagged TODO/FIXME/XXX/HACK, current-PR/wave/reviewer references, multi-line Test/Fuzz/Benchmark godoc, AI signature.
