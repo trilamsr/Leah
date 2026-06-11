@@ -507,8 +507,8 @@ Investigation pass on perf/responsiveness through the lens of **time from user-a
 |---|---------|-----------|-----------------|--------------|--------|-----------|
 | P3 | HUD calendar/market/news/weather | `internal/hud/static/widgets.js:3-8` | Per-tile TTLs: weather 600000ms, market 60000ms, news 900000ms, calendar 30000ms | Stale data shown without "as of HH:MM" label; user can't tell loading/failed/15-min-stale | S | trust signal (couple with B5/I2) |
 | P4 | SSE channel | `cmd/leah-hud/app.go` (handleEvents heartbeat-only) | Heartbeat-only ("Real telemetry frames arrive in W35") | Infrastructure exists, daemon→HUD push for non-rec state still missing | M | unlocks future widget push |
-| P5 | `leah ask` CLI | `internal/reasoner/anthropic.go:45` | `Messages.New()` blocking, no `cache_control` | User stares at frozen prompt 3-8s, no first-token feedback | S | -3-5s perceived |
-| P6 | `leah review` CLI | `internal/reviewer/anthropic.go:44` | Same blocking pattern | Verdict appears all-at-once after full completion | S | -3-5s perceived |
+| P5 | `leah ask` CLI | `internal/reasoner/anthropic.go:87` (was :45 at baseline; main now adds streaming at :138 via merged #217) | `Messages.New()` blocking on synchronous path; `runAsk` not yet wired to AskStream channel — issue #234 | User stares at frozen prompt 3-8s, no first-token feedback | S | -3-5s perceived |
+| P6 | `leah review` CLI | `internal/reviewer/anthropic.go:44` | `Messages.New()` blocking, no `cache_control` (PR #231 adds streaming + cache) | Verdict appears all-at-once after full completion | S | -3-5s perceived |
 | P7 | Prompt caching | grep `cache_control "ephemeral"` → **zero hits** | System prompts never cached | Repeated input cost on every call (token spend) | S | -90% input cost on repeats (if sys prompt >1024 tok) |
 
 ### Refuted / re-scoped from initial audit
@@ -541,7 +541,7 @@ Investigation pass on perf/responsiveness through the lens of **time from user-a
 ### Verified source observations (post-reviewer-pass)
 
 - HUD: `recommendations.js:102/114` (fetch + EventSource), `ambient.js:47/57` (EventSource + clock-tick only), `widgets.js:3-8` (TTLs)
-- LLM (verified): `internal/reasoner/anthropic.go:45`, `internal/reviewer/anthropic.go:44`
+- LLM (re-verified against current main): `internal/reasoner/anthropic.go:87` (Messages.New) + `:138` (Messages.NewStreaming added by merged #217); `internal/reviewer/anthropic.go:44` (Messages.New, pending #231 streaming switch)
 - Brief (orphan-status confirmed): `internal/brief/feeds.go:77-101`
 - Voice (stub-status confirmed): `internal/voice/listener/listener.go:97`
 
