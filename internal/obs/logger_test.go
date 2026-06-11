@@ -18,8 +18,13 @@ func TestDailyRotator_WriteRacesRotate(t *testing.T) {
 	rot := newDailyRotator(logsDir)
 	mw := &multiWriter{rotator: rot}
 
-	day1 := time.Date(2026, 6, 9, 23, 59, 59, 0, time.UTC)
-	day2 := time.Date(2026, 6, 10, 0, 0, 1, 0, time.UTC)
+	// Derive both days from real wall-clock UTC so the test does not silently
+	// pass before some hard-coded date and start failing the day after. The
+	// multiWriter.Write path uses time.Now().UTC(); day1 MUST be today so
+	// writes land in the file the assertion reads.
+	now := time.Now().UTC()
+	day1 := now
+	day2 := now.Add(24 * time.Hour)
 
 	// Prime day1.
 	if _, err := rot.writerFor(day1); err != nil {
@@ -80,8 +85,8 @@ func TestDailyRotator_WriteRacesRotate(t *testing.T) {
 
 	// Every recorded line must be present across both day files. Lost or
 	// truncated writes indicate the close-during-write race.
-	f1, _ := os.ReadFile(filepath.Join(logsDir, "leah-2026-06-09.jsonl"))
-	f2, _ := os.ReadFile(filepath.Join(logsDir, "leah-2026-06-10.jsonl"))
+	f1, _ := os.ReadFile(filepath.Join(logsDir, "leah-"+day1.Format("2006-01-02")+".jsonl"))
+	f2, _ := os.ReadFile(filepath.Join(logsDir, "leah-"+day2.Format("2006-01-02")+".jsonl"))
 	combined := string(f1) + string(f2)
 	got := strings.Count(combined, "record\n")
 	want := int(writes.Load())
