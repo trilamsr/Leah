@@ -24,7 +24,7 @@ Summary: ok
 Reviewer-recommendation: APPROVE
 Reviewer-agent-id: cavecrew-reviewer-test-2026-06-09
 `
-	resp, cost, err := sa.Run(context.Background(), prompt, "trivial diff")
+	resp, cost, err := sa.Run(context.Background(), prompt, "trivial diff", nil)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}

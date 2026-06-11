@@ -7,25 +7,27 @@ package reviewer
 import (
 	"context"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 
 	"github.com/trilam/leah/internal/budget"
 )
 
-// Subagent is the LLM completion surface used for review. Defined here so
-// tests can stub canned verdicts without dragging in the SDK.
+// Subagent is the LLM completion surface used for review. sink, when non-nil,
+// receives token-sized text chunks as they arrive — that's what gives
+// `leah review` its progressive feel instead of a 4-8s blank-terminal wait.
 type Subagent interface {
-	Run(ctx context.Context, systemPrompt, input string) (text string, costUSD float64, err error)
+	Run(ctx context.Context, systemPrompt, input string, sink io.Writer) (text string, costUSD float64, err error)
 }
 
 // Reviewer pairs a Subagent with the reviewer system prompt + optional
-// budget gate. Budget is optional because some test paths exercise verdict
-// parsing without setting up a real budget.
+// budget gate. TokenSink, when non-nil, receives verdict text as it streams.
 type Reviewer struct {
 	Subagent     Subagent
 	Budget       *budget.Budget // optional; if nil, cost not charged
 	SystemPrompt string
+	TokenSink    io.Writer // optional; nil disables streaming
 }
 
 // Verdict is the parsed reviewer response — the recommendation token
@@ -47,7 +49,7 @@ var (
 // gate would reject the verdict anyway, better to surface it here.
 func (r *Reviewer) Review(ctx context.Context, diff, linkedIssue string) (Verdict, error) {
 	input := "Linked issue body:\n" + linkedIssue + "\n\n---\n\nDiff:\n" + diff
-	resp, cost, err := r.Subagent.Run(ctx, r.SystemPrompt, input)
+	resp, cost, err := r.Subagent.Run(ctx, r.SystemPrompt, input, r.TokenSink)
 	if err != nil {
 		return Verdict{}, fmt.Errorf("reviewer subagent: %w", err)
 	}
