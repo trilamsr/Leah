@@ -6,7 +6,7 @@ Owners: Leah daemon (in-process), operator dashboard (local HTTP)
 
 Companion docs:
 - `docs/engineer/specs/2026-06-10-event-timeline.md` — structured event schema
-- `docs/engineer/briefs/2026-06-10-observability-plan.md` — W73–W80 rollout
+- W73–W80 rollout: Linear MAY-219..MAY-226 (https://linear.app/themaydow/project/leah-a8d553e8cc88)
 
 ## 1. Goal
 
