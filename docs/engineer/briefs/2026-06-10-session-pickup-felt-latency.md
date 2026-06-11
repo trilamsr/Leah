@@ -70,7 +70,8 @@ PR #237 propagates the first three to dispatch-template + skill so subagents inh
 
 - **Part 3 blocker #1 (HUD widget state machine + kill polling)** — *partially cleared.* Recs + ambient already on SSE pre-session; widget freshness labels shipping in PR #229. Remaining: W35 telemetry frames for non-rec widgets.
 - **Part 3 blocker #2 (Voice earcons)** — *decoupled from latency.* Voice non-functional (`listener.go:97 ErrNotImplemented`); feature-gap blocked on W12, not a latency item.
-- **Part 7 ship-order #1 (LLM streaming + cache):** `leah review` shipping in PR #231; `leah ask` re-routed via #234.
+- **Part 7 ship-order #1 (HUD SSE push, P1+P2+P4):** recs + ambient already on SSE pre-session; widget freshness labels shipping in PR #229. Remaining: W35 telemetry frames for non-rec widgets.
+- **Part 7 ship-order #2 (LLM streaming + cache):** `leah review` shipping in PR #231; `leah ask` re-routed via #234.
 
 ## Next-session first action
 
