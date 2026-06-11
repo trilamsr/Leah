@@ -3,7 +3,7 @@
 Personal AI chief-of-staff. MVP-5: 5 CLI commands dispatching GitHub PRs through regatta with independent reviewer + per-process cost ceiling + JSONL audit.
 
 - Specs: `docs/specs/`
-- MVP-5 plan: `docs/plans/2026-06-09-leah-mvp5.md`
+- Work tracker: [Linear — Leah](https://linear.app/themaydow/project/leah-a8d553e8cc88)
 - Phase X deferred items: `docs/specs/2026-06-09-leah-phase-x-multi-operator-roadmap.md`
 
 ## First-time install (Mac)

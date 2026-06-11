@@ -6,5 +6,5 @@
 // the layering.
 //
 // Recognition is regex+keyword for the MVP; LLM-based intent recognition
-// is deferred per docs/engineer/briefs/2026-06-10-trip-planning-plan.md.
+// is deferred (tracked in Linear, trip-planning milestone).
 package intents
