@@ -38,11 +38,17 @@ for f in "$LOG"/*; do
 done
 
 # Network-dependent: kept serial after parallel block. Catches the
-# space-separated `closes #N #M` form GitHub silently drops.
-if command -v gh >/dev/null 2>&1; then
+# space-separated `closes #N #M` form GitHub silently drops; also enforces
+# pre-impl TDD-evidence on feat/* PRs.
+# LEAH_CI_GATES=skip is the documented emergency operator override; an
+# audit-row appears in /tmp/cicheck.log so the skip is traceable.
+if [ "${LEAH_CI_GATES:-}" = "skip" ]; then
+  echo "=== LEAH_CI_GATES=skip — pr-body + tdd-evidence gates bypassed ==="
+elif command -v gh >/dev/null 2>&1; then
   PR_NUM=$(gh pr view --json number --jq '.number' 2>/dev/null || true)
   if [ -n "$PR_NUM" ]; then
     "$SCRIPT_DIR/check-pr-body-close-keywords.sh" --pr "$PR_NUM" || FAILED=1
+    "$SCRIPT_DIR/check-tdd-evidence.sh" --pr "$PR_NUM" || FAILED=1
   fi
 fi
 
