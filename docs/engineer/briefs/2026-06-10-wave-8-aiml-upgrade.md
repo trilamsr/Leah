@@ -179,3 +179,47 @@ Phase 3 (frontier voice + moats):
 - Voice + multimodal critique (agent a8fb8649): cascaded pipeline loses 600-1500ms vs native S2S, energy-threshold wake is 2015-era, no streaming Reasoner→TTS, no speaker-ID, hardware form-factor gap.
 - Agent loop + meta-learning critique (agent ab12f297): no benchmark → uncalibrated meta-learning, templates calcify, closed ecosystem (no MCP server, no A2A), single-vendor Claude-Code lock-in.
 - Obs + product critique (agent a1d62293): 2018-classical obs ported to 2026 (no prompt-version, no eval, no LLM dim on audit), per-process budget hides monthly cost, distribution gap blocks non-dev operators, no defensible moat artifacts.
+
+## Wave-8 closeout status (2026-06-10)
+
+**Spec chain S1-S12: ALL MERGED ON MAIN**
+
+| Spec | PR | Status |
+|---|---|---|
+| S1 eval pipeline | #154 | merged |
+| S2 LLM-dim observability | #166 | merged |
+| S3 memory-as-dispatch-input | #168 | merged |
+| S4 Thompson-sampling recommender | #171 | merged |
+| S5 reflexion loop + tournament review | #172 | merged |
+| S6 voice frontier upgrade | #173 | merged |
+| S7 SelfBuild attestation risk-tiering | #175 | merged |
+| S8 knowledge-graph wiring | #177 | merged |
+| S9 memory consolidation pass | #185 | merged |
+| S10 operator-trust moat artifacts | #188 | merged |
+| S11 MCP server + A2A endpoint | #189 | merged |
+| S12 signed + notarized distribution | #190 | merged |
+
+**Impl waves shipped:**
+- W82 eval harness (#195)
+- W92+W93 LLM-dim audit schema + reasoner instrumentation (#196)
+- W94 CostMonth + circuit breaker (#215)
+- W100 SQLite propose-time blender (#181)
+- W101 Beta posterior + Thompson sampling (#216)
+- W109 streaming Reasoner→TTS (#217)
+- W116 risk-score + tier (#207)
+- W120 knowledge-graph TTL+demotion (#192)
+- W124 nightly consolidation pass (#219)
+- W130 leah whoami --full (#194)
+- W131 leah purge --everything (#208)
+- W132 leah export/import (#218)
+- W135 reproducible build + SLSA L2 (#206)
+- W137 MCP server scaffold (#193)
+- W138 MCP tools + redact (#199)
+- W139 A2A endpoint + SelfBuild over A2A (#209)
+- W141 GHA signed release workflow (#205)
+
+**Impl waves NOT YET shipped:** W121 W122-W123 W125-W127 W133-W134 W136 W142 W143 — see #249.
+
+**Prevention bundle landed:** PR #236 — `scripts/check-{reviewer-verdict,tdd-evidence}.sh` gates + GHA `pr-gates` job + `docs/operator/ci-gates.md`. Operator must promote to required-check (see #246).
+
+**Audit issues filed:** #242 (self-approve token leaks), #243 (self-approve-after-amend), #244 (TDD-evidence misses), #246 (branch protection), #247 (worktree janitor install), #248 (memory codification), #250 (UX-audit B1/B5 still open).
