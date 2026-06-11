@@ -495,3 +495,62 @@ CLI (35 verbs, main.go + 30 sibling files) · HUD ambient/widgets/focus/recommen
 - Memory editor read vs read-write scope not decided.
 - Multi-language story missing entirely.
 - Competitive positioning paragraph is the AUDIT's guess; needs owner confirmation.
+## Part 7 — Felt-latency investigation (2026-06-10 follow-up, **amended**)
+
+Investigation pass on perf/responsiveness through the lens of **time from user-action → felt-response**. Four parallel probes ran; adversarial reviewer on PR #220 caught 2 hallucinated file:line claims (P1+P2) that did not survive re-verification against actual code. Table below reflects **verified** state only.
+
+**Amendment note (2026-06-10):** Original Part 7 claimed `recommendations.js:100` had `setInterval(load, 15000)` and `ambient.js:65` had `setInterval(pollMetrics, 5000)`. Re-verification: `recommendations.js` is 135 lines with **zero setInterval calls** (EventSource at line 114); `ambient.js` is 59 lines with only `setInterval(tickClock, 1000)` at line 57 (EventSource at line 47). HUD state push is **already implemented for recs + ambient**. The lag claim was wrong. Issue #210 closed retroactively.
+
+### Verified felt-latency sources
+
+| # | Surface | File:line | Current cadence | Felt symptom | Effort | Δ latency |
+|---|---------|-----------|-----------------|--------------|--------|-----------|
+| P3 | HUD calendar/market/news/weather | `internal/hud/static/widgets.js:3-8` | Per-tile TTLs: weather 600000ms, market 60000ms, news 900000ms, calendar 30000ms | Stale data shown without "as of HH:MM" label; user can't tell loading/failed/15-min-stale | S | trust signal (couple with B5/I2) |
+| P4 | SSE channel | `cmd/leah-hud/app.go` (handleEvents heartbeat-only) | Heartbeat-only ("Real telemetry frames arrive in W35") | Infrastructure exists, daemon→HUD push for non-rec state still missing | M | unlocks future widget push |
+| P5 | `leah ask` CLI | `internal/reasoner/anthropic.go:45` | `Messages.New()` blocking, no `cache_control` | User stares at frozen prompt 3-8s, no first-token feedback | S | -3-5s perceived |
+| P6 | `leah review` CLI | `internal/reviewer/anthropic.go:44` | Same blocking pattern | Verdict appears all-at-once after full completion | S | -3-5s perceived |
+| P7 | Prompt caching | grep `cache_control "ephemeral"` → **zero hits** | System prompts never cached | Repeated input cost on every call (token spend) | S | -90% input cost on repeats (if sys prompt >1024 tok) |
+
+### Refuted / re-scoped from initial audit
+
+| Item | Initial claim | Reality | Action |
+|------|---------------|---------|--------|
+| HUD recommendations 15s poll (P1) | "setInterval(load, 15000) blocks rec UI" | recommendations.js has NO setInterval; line 114 opens EventSource on `/api/events`. Accept/reject re-fetches once at line 102 | **Already on SSE.** #210 closed. |
+| HUD ambient 5s poll (P2) | "setInterval(pollMetrics, 5000) polls /api/state" | ambient.js has NO pollMetrics; line 47 opens EventSource. Only setInterval is 1s clock-tick | **Already on SSE.** No issue filed. |
+| Brief feed gather serial | "morning brief stalls behind slowest API, 2-3s" | `internal/brief/feeds.go:77-101` IS serial, but reporters are **orphaned / staged-then-deleted** (not on active path) | Defer until W32 re-wires; trap-issue #214 filed |
+| Voice latency budget | "voice loop high felt-lag" | `internal/voice/listener/listener.go:97` `Real.Start()` returns `ErrNotImplemented`; Session.Run unreachable from CLI/daemon | **No current felt-lag — voice non-functional.** Feature-gap, not latency. Blocked on W12. |
+| Brief / Trip / HUD make LLM calls | "streaming benefits these surfaces" | Brief has zero LLM; trip W62 is adapter-only; HUD streams from daemon, doesn't call LLM | Drop from streaming surface |
+
+### Ship order by verified felt-latency-per-effort
+
+| Rank | Item | Effort | Notes |
+|------|------|--------|-------|
+| 1 | Stream `leah ask` + `leah review` (`NewStreaming` swap) + add `cache_control` on System block | S+S | **Now #1 — was #2.** Only verified daily-pain LLM lag. Self-contained per-package. Measure system-prompt tokens first. Issues #212 #213. |
+| 2 | "as of HH:MM" freshness label on every widget (P3) — pair with B5/I2 | S | Trust signal. Issue #211. |
+| 3 | Knowledge ingest tx-batch (Part 2 cross-app reads) | S | Background → foreground read latency. |
+| 4 | SSE telemetry frames (W35) — daemon-pushed state events for non-rec widgets | M | Genuine gap, but recs+ambient already on SSE so smaller delta than originally claimed. |
+| 5 | Brief `errgroup` fan-out | S | **Deferred** — orphaned reporters; revisit at W32 re-wire. Trap #214. |
+| 6 | Voice whisper-stream (W12) + speculative-intent dispatch | L | Feature-gap not latency-fix. |
+
+### Parallelizable PR slots (file-disjoint, fits 6-cap dispatch rule)
+
+- Slot A: `internal/reasoner/` — stream + cache_control (#212)
+- Slot B: `internal/reviewer/` — stream + cache_control (#213)
+- Slot C: `internal/hud/static/widgets.js` + `internal/hud/widgets/*` — freshness labels (#211)
+
+### Verified source observations (post-reviewer-pass)
+
+- HUD: `recommendations.js:102/114` (fetch + EventSource), `ambient.js:47/57` (EventSource + clock-tick only), `widgets.js:3-8` (TTLs)
+- LLM (verified): `internal/reasoner/anthropic.go:45`, `internal/reviewer/anthropic.go:44`
+- Brief (orphan-status confirmed): `internal/brief/feeds.go:77-101`
+- Voice (stub-status confirmed): `internal/voice/listener/listener.go:97`
+
+### Cross-ref to Part 3
+
+- Part 3 #1 (HUD widget state machine + kill polling) — **partially-cleared.** Recs+ambient already on SSE; widget freshness labels + W35 telemetry frames remain.
+- Part 3 #2 (Voice earcons + attestation) — **decoupled** from latency; voice is feature-gap.
+- New: streaming `ask`/`review` + prompt cache — add as Major fix #21.
+
+### Meta-lesson
+
+Two of four investigator-claimed file:line refs (P1 + P2) were hallucinated and survived ranker + initial audit-session Phase 5 scrape. Reviewer on PR #220 caught them. Codified as `feedback_verify_on_path_before_ranking.md` + `feedback_skill_compliance_vs_adversarial.md`. All future "X is slow / X is broken" claims at S+ effort must include either (a) re-verified file:line at PR time or (b) explicit `[unverified]` tag pending probe.
