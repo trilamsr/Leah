@@ -17,6 +17,7 @@ import (
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
 	"github.com/trilam/leah/internal/notify"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/persona"
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/regattaclient"
@@ -43,13 +44,30 @@ func run() int {
 // drive the defer-flush path with a pre-canceled ctx without forking.
 func runAndFlush(ctx context.Context, auditPath string, args []string) int {
 	defer writeInterruptedAudit(ctx, auditPath)
-	return runCommand(ctx, args)
+	reg := obs.NewRegistry()
+	defer snapshotCLIMetrics(reg)
+	return runCommand(ctx, reg, args)
+}
+
+// snapshotCLIMetrics writes the CLI registry to <stateDir>/metrics/cli-latest.json.
+// Best-effort — a snapshot failure on the exit path can't surface as an error
+// because the program is already done.
+func snapshotCLIMetrics(reg *obs.Registry) {
+	if reg == nil {
+		return
+	}
+	_ = reg.Snapshot(filepath.Join(stateDir(), "metrics", "cli-latest.json"))
 }
 
 // runCommand dispatches argv (without the program name) under a shared ctx.
 // Extracted from main() so tests can drive the dispatcher with an arbitrary
 // (possibly canceled) ctx without spawning a subprocess.
-func runCommand(ctx context.Context, args []string) int {
+//
+// The reg argument owns the per-invocation metric registry; each subcommand
+// wraps os.Stdout via dispatcher.FirstByteTimer.Wrap so the
+// leah_cli_dispatch_to_first_byte_seconds histogram fires on the first
+// non-LLM stdout byte. A nil reg disables instrumentation (test paths).
+func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 	if len(args) < 1 {
 		usage()
 		return 2
@@ -57,9 +75,11 @@ func runCommand(ctx context.Context, args []string) int {
 
 	cmd := args[0]
 	rest := args[1:]
+	fbt := dispatcher.NewFirstByteTimer(reg, cmd)
+	stdout := fbt.Wrap(os.Stdout)
 	switch cmd {
 	case "version", "-v", "--version":
-		_, _ = fmt.Println(version)
+		_, _ = fmt.Fprintln(stdout, version)
 		return 0
 	case "ask":
 		if len(rest) < 1 || shouldShowHelp(rest) {
@@ -102,7 +122,7 @@ func runCommand(ctx context.Context, args []string) int {
 		}
 		s := &dispatcher.Status{
 			AuditPath: filepath.Join(stateDir(), "audit.jsonl"),
-			Out:       os.Stdout,
+			Out:       stdout,
 			Limit:     20,
 			JSON:      jsonMode,
 		}
@@ -143,7 +163,7 @@ func runCommand(ctx context.Context, args []string) int {
 		}
 		return runSelfBuild(ctx, rest[0])
 	case "self-build-status":
-		return runSelfBuildStatus(rest, os.Stdout)
+		return runSelfBuildStatus(rest, stdout)
 	case "cost":
 		return runCost(rest)
 	case "brief":
@@ -153,25 +173,25 @@ func runCommand(ctx context.Context, args []string) int {
 	case "backup":
 		return runBackup(ctx, rest)
 	case "connect":
-		return runConnect(ctx, rest, os.Stdout)
+		return runConnect(ctx, rest, stdout)
 	case "disconnect":
-		return runDisconnect(ctx, rest, os.Stdout)
+		return runDisconnect(ctx, rest, stdout)
 	case "forget":
-		return runForget(ctx, rest, os.Stdout)
+		return runForget(ctx, rest, stdout)
 	case "purge":
-		return runPurge(ctx, rest, os.Stdout)
+		return runPurge(ctx, rest, stdout)
 	case "news":
-		return runNews(ctx, rest, os.Stdout)
+		return runNews(ctx, rest, stdout)
 	case "quote":
-		return runQuote(ctx, rest, os.Stdout)
+		return runQuote(ctx, rest, stdout)
 	case "whoami":
-		return runWhoami(ctx, rest, os.Stdout)
+		return runWhoami(ctx, rest, stdout)
 	case "export":
 		return runExport(ctx, rest, os.Stderr)
 	case "import":
 		return runImport(ctx, rest, os.Stderr)
 	case "self-upgrade":
-		return runSelfUpgrade(ctx, rest, os.Stdout, nil)
+		return runSelfUpgrade(ctx, rest, stdout, nil)
 	default:
 		usage()
 		return 2

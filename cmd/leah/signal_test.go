@@ -66,7 +66,7 @@ func TestRunCommand_HonorsCancellation(t *testing.T) {
 	cancel()
 
 	done := make(chan int, 1)
-	go func() { done <- runCommand(ctx, []string{"version"}) }()
+	go func() { done <- runCommand(ctx, nil, []string{"version"}) }()
 
 	select {
 	case <-done:
@@ -79,7 +79,7 @@ func TestRunCommand_HonorsCancellation(t *testing.T) {
 // signal-aware dispatcher still routes recognized subcommands.
 func TestRunCommand_DispatchesVersion(t *testing.T) {
 	ctx := context.Background()
-	if got := runCommand(ctx, []string{"version"}); got != 0 {
+	if got := runCommand(ctx, nil, []string{"version"}); got != 0 {
 		t.Errorf("runCommand version = %d; want 0", got)
 	}
 }
@@ -91,7 +91,7 @@ func TestRunCommand_DispatchesVersion(t *testing.T) {
 func TestRunCommand_BriefBadFlag_ReturnsTwo(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", tmp)
-	if got := runCommand(context.Background(), []string{"brief", "--no-such-flag"}); got != 2 {
+	if got := runCommand(context.Background(), nil, []string{"brief", "--no-such-flag"}); got != 2 {
 		t.Errorf("runCommand brief --no-such-flag = %d; want 2", got)
 	}
 }
@@ -102,7 +102,7 @@ func TestRunCommand_BriefBadFlag_ReturnsTwo(t *testing.T) {
 func TestRunCommand_BackupBadTarget_ReturnsTwo(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", tmp)
-	if got := runCommand(context.Background(), []string{"backup", "--target", "bogus"}); got != 2 {
+	if got := runCommand(context.Background(), nil, []string{"backup", "--target", "bogus"}); got != 2 {
 		t.Errorf("runCommand backup --target bogus = %d; want 2", got)
 	}
 }

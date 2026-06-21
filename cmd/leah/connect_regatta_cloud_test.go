@@ -581,7 +581,7 @@ func TestRunCommand_ConnectRegattaCloud_Dispatch(t *testing.T) {
 	// Force the host to be allowlisted but unreachable — the handler still
 	// gets reached; failure mode is healthz_transport, not "unknown provider"
 	// from the OAuth registry.
-	code := runCommand(context.Background(), []string{
+	code := runCommand(context.Background(), nil, []string{
 		"connect", "regatta", "--cloud",
 		"--url", "https://regatta.example.com",
 		"--token", "sekret",
