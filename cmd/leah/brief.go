@@ -21,9 +21,8 @@ func runBrief(parent context.Context, args []string) int {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah brief [--voice] [--silent] [--since=<RFC3339>]")
 		return 0
 	}
-	// Reuse recall's parseSinceFlag so the cursor syntax is identical across
-	// brief / recall / news. Bare `--since` returns the sentinel "<missing>"
-	// which fails the RFC3339 parse below — same exit-2 surface as a typo.
+	// Bare `--since` returns the sentinel "<missing>" which fails the
+	// RFC3339 parse below — same exit-2 surface as a typo.
 	since, args := parseSinceFlag(args)
 	var anchor time.Time
 	if since != "" {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -73,6 +74,18 @@ func TestBriefSinceValidRFC3339Accepted(t *testing.T) {
 	}
 	if strings.Contains(stderr, "invalid --since") {
 		t.Fatalf("unexpected invalid --since: %q", stderr)
+	}
+	// The cursor must propagate all the way to WriteFile — filename is
+	// derived from the anchor, so a 2026-06-21 cursor writes 2026-06-21.md
+	// regardless of real wall-clock. Catches future refactors that route
+	// --silent through time.Now() instead of the parsed anchor.
+	if _, err := os.Stat(filepath.Join(tmp, "briefs", "2026-06-21.md")); err != nil {
+		entries, _ := os.ReadDir(filepath.Join(tmp, "briefs"))
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Fatalf("cursor not propagated to WriteFile: missing 2026-06-21.md; brief/ has %v", names)
 	}
 }
 
