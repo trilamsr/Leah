@@ -18,59 +18,48 @@ func TestDailyRotator_WriteRacesRotate(t *testing.T) {
 	rot := newDailyRotator(logsDir)
 	mw := &multiWriter{rotator: rot}
 
-	// Derive both days from real wall-clock UTC so the test does not silently
-	// pass before some hard-coded date and start failing the day after. The
-	// multiWriter.Write path uses time.Now().UTC(); day1 MUST be today so
-	// writes land in the file the assertion reads.
+	// Derive both days from real wall-clock UTC. multiWriter.Write stamps
+	// time.Now().UTC() per call — day1 MUST be today so the writer's date
+	// matches the file the assertion reads.
 	now := time.Now().UTC()
 	day1 := now
 	day2 := now.Add(24 * time.Hour)
 
-	// Prime day1.
 	if _, err := rot.writerFor(day1); err != nil {
 		t.Fatalf("prime day1: %v", err)
 	}
 
-	var (
-		wg          sync.WaitGroup
-		writes      atomic.Int64
-		shortWrites atomic.Int64
-		writeErrs   atomic.Int64
+	// Per-writer bounded counts: deterministic upper bound on attempted writes
+	// eliminates the prior busy-loop that under contended CI scheduling could
+	// fail to drain before close(stop), losing accounting in atomic.Int64.
+	const (
+		writers      = 8
+		writesPerGo  = 2000
+		closeCycles  = 500
 	)
-
-	// Writers stamp records continuously. Each record MUST land somewhere.
-	const writers = 8
-	stop := make(chan struct{})
 	record := []byte("record\n")
+
+	var wg sync.WaitGroup
+	var writeErrs atomic.Int64
 	for i := 0; i < writers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-				}
-				n, err := mw.Write(record)
-				writes.Add(1)
-				if err != nil {
+			for j := 0; j < writesPerGo; j++ {
+				if _, err := mw.Write(record); err != nil {
 					writeErrs.Add(1)
-				}
-				if n != len(record) {
-					shortWrites.Add(1)
 				}
 			}
 		}()
 	}
 
-	// Closer thread forces rotation by alternately closing and re-priming
-	// for day2 — the window between writerFor's unlock and *os.File.Write
-	// is exactly the bug.
+	// Closer races the writers by alternately closing curFile and re-priming
+	// for day2 then day1. Bounded iterations so the goroutine terminates
+	// without depending on writer drain timing.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 500; i++ {
+		for i := 0; i < closeCycles; i++ {
 			rot.close()
 			_, _ = rot.writerFor(day2)
 			rot.close()
@@ -78,21 +67,23 @@ func TestDailyRotator_WriteRacesRotate(t *testing.T) {
 		}
 	}()
 
-	time.Sleep(50 * time.Millisecond) // allow-sleep: let writers race the rotator long enough to expose the window
-	close(stop)
 	wg.Wait()
 	rot.close()
 
-	// Every recorded line must be present across both day files. Lost or
-	// truncated writes indicate the close-during-write race.
+	if got := writeErrs.Load(); got != 0 {
+		t.Fatalf("mw.Write returned err on %d calls; want 0", got)
+	}
+
+	// Every record must land in day1 or day2 — those are the only dates the
+	// rotator ever opened. Lost or truncated writes indicate the close-during-
+	// write race.
 	f1, _ := os.ReadFile(filepath.Join(logsDir, "leah-"+day1.Format("2006-01-02")+".jsonl"))
 	f2, _ := os.ReadFile(filepath.Join(logsDir, "leah-"+day2.Format("2006-01-02")+".jsonl"))
-	combined := string(f1) + string(f2)
-	got := strings.Count(combined, "record\n")
-	want := int(writes.Load())
+	got := strings.Count(string(f1), "record\n") + strings.Count(string(f2), "record\n")
+	want := writers * writesPerGo
 	if got != want {
-		t.Fatalf("lost writes: file lines=%d, attempted writes=%d (errs=%d, short=%d)",
-			got, want, writeErrs.Load(), shortWrites.Load())
+		t.Fatalf("lost writes: file lines=%d, want %d (day1=%d bytes, day2=%d bytes)",
+			got, want, len(f1), len(f2))
 	}
 }
 

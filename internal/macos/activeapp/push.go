@@ -50,6 +50,12 @@ func (p *PushSource) Run(ctx context.Context) error {
 			return ctx.Err()
 		case ev, ok := <-ch:
 			if !ok {
+				// Source.Subscribe closes ch on ctx.Done; if cancel raced the
+				// select, the !ok branch can win even though Run was canceled.
+				// Surface ctx.Err so callers can distinguish cancel from EOF.
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				return nil
 			}
 			if p.ObsEmit == nil {
