@@ -28,6 +28,7 @@ import (
 	"github.com/trilam/leah/internal/selflearn"
 	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/voice/listener"
+	voiceloop "github.com/trilam/leah/internal/voice/loop"
 )
 
 func wireObs(
@@ -74,6 +75,7 @@ func wireObs(
 	selflearn.RegisterMetrics(registry)
 	operatormodel.RegisterMetrics(registry)
 	listener.RegisterMetrics(registry)
+	voiceloop.RegisterMetrics(registry)
 
 	health.Register("audit", &audit.SelfChecker{Logger: a})
 	health.Register("memory", &memory.SelfChecker{Store: store})
