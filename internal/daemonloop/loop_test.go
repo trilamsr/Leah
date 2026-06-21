@@ -11,10 +11,33 @@ import (
 	"testing"
 	"time"
 
+	"bufio"
+	"encoding/json"
+
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/selfbuildstatus"
 )
+
+func readAuditEntries(t *testing.T, path string) []audit.Entry {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	var out []audit.Entry
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		var e audit.Entry
+		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
 
 type fakeRegatta struct {
 	resps [][]regattaclient.Agent
@@ -111,6 +134,51 @@ func TestLoopNotifiesOnTerminalTransition(t *testing.T) {
 	data, _ := os.ReadFile(dir + "/audit.jsonl")
 	if !strings.Contains(string(data), `"kind":"daemon.transition"`) {
 		t.Errorf("audit missing daemon.transition: %s", data)
+	}
+}
+
+// TestTransitionBindsOriginatingArgsHash asserts a merged daemon.transition
+// for an agent whose PR was recorded by a prior self-build dispatch row carries
+// that dispatch's ArgsHash so selfbuildstatus.Classify reaches CLOSED (MAY-265).
+func TestTransitionBindsOriginatingArgsHash(t *testing.T) {
+	dir := t.TempDir()
+	a := &audit.Logger{Path: dir + "/audit.jsonl"}
+	mustAppend(t, a, audit.Entry{Kind: "self-build", ArgsHash: "deadbeef", Outcome: "dispatched", Detail: "url=https://github.com/trilamsr/Leah/issues/9"})
+	mustAppend(t, a, audit.Entry{Kind: "ship", ArgsHash: "deadbeef", Outcome: "pending"})
+	mustAppend(t, a, audit.Entry{Kind: "self-build.outcome", ArgsHash: "deadbeef", Outcome: "MERGED", Detail: "state=MERGED pr=1234"})
+
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{
+		{{ID: "a1", State: "running", PR: 1234}},
+		{{ID: "a1", State: "merged", PR: 1234}},
+	}}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	l.tick(context.Background())
+	l.tick(context.Background())
+
+	entries := readAuditEntries(t, dir+"/audit.jsonl")
+	var tr *audit.Entry
+	for i := range entries {
+		if entries[i].Kind == "daemon.transition" {
+			tr = &entries[i]
+		}
+	}
+	if tr == nil {
+		t.Fatalf("no daemon.transition row written: %+v", entries)
+	}
+	if tr.ArgsHash != "deadbeef" {
+		t.Fatalf("daemon.transition ArgsHash = %q, want originating %q", tr.ArgsHash, "deadbeef")
+	}
+
+	loops := selfbuildstatus.Classify(entries)
+	if len(loops) != 1 || !loops[0].Closed {
+		t.Fatalf("classifier must reach CLOSED for the bound loop, got %+v", loops)
+	}
+}
+
+func mustAppend(t *testing.T, a *audit.Logger, e audit.Entry) {
+	t.Helper()
+	if err := a.Append(e); err != nil {
+		t.Fatal(err)
 	}
 }
 

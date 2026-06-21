@@ -5,7 +5,9 @@
 package daemonloop
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -408,10 +410,44 @@ func (l *Loop) notifyTransition(ctx context.Context, id, from, to string, agents
 	)
 	_ = l.Notify.Notify(ctx, title, body)
 	_ = l.Audit.Append(audit.Entry{
-		Kind:        "daemon.transition",
+		Kind: "daemon.transition",
+		// Bind the transition to its originating self-build so the closed-loop
+		// classifier can satisfy the merged checkpoint (MAY-265). The dispatch's
+		// self-build.outcome row carries pr=<N>; an empty hash (no match) leaves
+		// the loop PENDING — never falsely CLOSED.
+		ArgsHash:    l.argsHashForPR(pr),
 		BlastRadius: 0,
 		Outcome:     "observed",
 		Detail:      body,
 	})
 	_, _ = fmt.Fprintln(l.Out, body)
+}
+
+// argsHashForPR scans the audit log for a self-build-family row recording
+// pr=<pr> and returns its ArgsHash. Returns "" when pr is 0, the log is
+// unreadable, or no row matches — the safe default that keeps the loop PENDING.
+func (l *Loop) argsHashForPR(pr int) string {
+	if pr <= 0 || l.Audit == nil || l.Audit.Path == "" {
+		return ""
+	}
+	f, err := os.Open(l.Audit.Path)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+	needle := fmt.Sprintf(" pr=%d", pr)
+	var hash string
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		var e audit.Entry
+		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
+			continue
+		}
+		if e.ArgsHash == "" || !strings.HasSuffix(e.Detail, needle) {
+			continue
+		}
+		hash = e.ArgsHash // last writer wins — the most recent dispatch for this PR
+	}
+	return hash
 }
