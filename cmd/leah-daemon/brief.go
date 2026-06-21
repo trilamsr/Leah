@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/brief"
+	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/notify"
 )
@@ -28,30 +29,71 @@ func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File) daemon
 		taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		now := time.Now()
-		data := brief.Gather(taskCtx, now, sd, rc)
+		data := brief.Gather(taskCtx, now, sd, rc, briefOpts(sd))
 		body := brief.Render(data)
 		if err := brief.WriteFile(sd, now, body); err != nil {
 			_, _ = fmt.Fprintf(out, "leah-daemon: brief write error: %v\n", err)
 		} else {
 			_, _ = fmt.Fprintf(out, "leah-daemon: brief written to %s/briefs/%s.md\n", sd, now.Format("2006-01-02"))
 		}
-		// Only speak/push when voice is opted in — the daemon brief MUST
-		// stay silent for operators who run the CLI on demand instead.
+		// Only push when proactive delivery is opted in — the daemon brief
+		// MUST stay silent for operators who run the CLI on demand instead.
 		if os.Getenv("LEAH_VOICE_ENABLED") == "1" {
 			summary := brief.VoiceSummary(data)
-			if v := notify.NewVoice(); v != nil {
-				if err := v.Notify(taskCtx, "Morning brief", summary); err != nil {
-					_, _ = fmt.Fprintf(out, "leah-daemon: brief voice error: %v\n", err)
-				}
-			}
-			if d := notify.NewDesktop(); d != nil {
-				if err := d.Notify(taskCtx, "Leah: morning brief", summary); err != nil {
-					_, _ = fmt.Fprintf(out, "leah-daemon: brief desktop error: %v\n", err)
-				}
+			if err := buildBriefNotifier().Notify(taskCtx, "Morning brief", summary); err != nil {
+				_, _ = fmt.Fprintf(out, "leah-daemon: brief push error: %v\n", err)
 			}
 		}
 	}
 }
+
+// buildBriefNotifier fans the brief summary across every configured push
+// channel. Desktop + voice are the opt-in pair; pushover joins only when its
+// creds are set so an unconfigured phone push stays silent rather than
+// erroring on every fire. Slack/discord/whatsapp have no notify.Notifier
+// yet — wiring one is the next-wave adapter work, not this push path.
+func buildBriefNotifier() *notify.Fanout {
+	ns := []notify.Notifier{notify.NewDesktop(), notify.NewVoice()}
+	if os.Getenv("LEAH_PUSHOVER_USER") != "" && os.Getenv("LEAH_PUSHOVER_TOKEN") != "" {
+		ns = append(ns, notify.NewPushover())
+	}
+	return &notify.Fanout{Notifiers: ns}
+}
+
+// briefOpts wires gmail + gcal into the live daemon brief, gated on the
+// operator having connected the integration (its OAuth token file present).
+// An absent token yields a nil lister so Gather omits the section — unconfigured
+// is silent absence, not "(unavailable)". Each lister is built only when its
+// token is present so a never-connected integration stays silent.
+func briefOpts(sd string) brief.GatherOpts {
+	var o brief.GatherOpts
+	if connected(connect.DefaultTokenPath("gmail")) {
+		if c := newGmailLister(); c != nil {
+			o.Gmail = c
+		}
+	}
+	if connected(connect.DefaultTokenPath("gcal")) {
+		if c := newGcalLister(); c != nil {
+			o.Gcal = c
+		}
+	}
+	return o
+}
+
+// connected reports whether an integration's OAuth token file is present.
+func connected(tokenPath string) bool {
+	_, err := os.Stat(tokenPath)
+	return err == nil
+}
+
+// newGmailLister returns a connected gmail lister, or nil while the adapter
+// lacks a production gmail.Transport (it ships only a test seam) — a nil
+// keeps the brief silent rather than branding the inbox "(unavailable)".
+func newGmailLister() brief.GmailLister { return nil }
+
+// newGcalLister mirrors newGmailLister: nil until the adapter ships a
+// production calendarService.
+func newGcalLister() brief.GcalLister { return nil }
 
 // wireBriefSchedule attaches briefTask to either the daily or weekly slot on
 // loop based on LEAH_BRIEF_DAILY. LEAH_BRIEF_DAILY=1 promotes the brief to

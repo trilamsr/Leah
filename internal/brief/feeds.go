@@ -19,6 +19,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // Forecast is the brief-local weather payload. Mirrors feeds.Forecast field-
@@ -72,33 +74,45 @@ type MarketReporter interface {
 	Snapshot(ctx context.Context) (Pulse, error)
 }
 
-// gatherFeeds populates the feeds-related Data fields. Pulled out so
-// Gather stays readable; each feed soft-fails independently.
+// gatherFeeds populates the feeds-related Data fields. Each feed soft-fails
+// independently and the three run concurrently — serial HTTP fetches here
+// were the 2-3s morning-brief stall flagged in the UX audit (MAY-8).
 func gatherFeeds(ctx context.Context, d *Data, o GatherOpts) {
+	var g errgroup.Group
 	if o.Weather != nil {
-		if f, err := o.Weather.Today(ctx); err != nil {
-			d.WeatherUnavailable = true
-		} else {
-			fc := f
-			d.Weather = &fc
-		}
+		g.Go(func() error {
+			if f, err := o.Weather.Today(ctx); err != nil {
+				d.WeatherUnavailable = true
+			} else {
+				fc := f
+				d.Weather = &fc
+			}
+			return nil
+		})
 	}
 	if o.News != nil {
-		if a, err := o.News.Top(ctx); err != nil {
-			d.NewsUnavailable = true
-		} else {
-			ar := a
-			d.News = &ar
-		}
+		g.Go(func() error {
+			if a, err := o.News.Top(ctx); err != nil {
+				d.NewsUnavailable = true
+			} else {
+				ar := a
+				d.News = &ar
+			}
+			return nil
+		})
 	}
 	if o.Market != nil {
-		if p, err := o.Market.Snapshot(ctx); err != nil {
-			d.MarketUnavailable = true
-		} else {
-			pl := p
-			d.Market = &pl
-		}
+		g.Go(func() error {
+			if p, err := o.Market.Snapshot(ctx); err != nil {
+				d.MarketUnavailable = true
+			} else {
+				pl := p
+				d.Market = &pl
+			}
+			return nil
+		})
 	}
+	_ = g.Wait()
 }
 
 // renderWeather appends the Weather section. Silent absence when nil + not
