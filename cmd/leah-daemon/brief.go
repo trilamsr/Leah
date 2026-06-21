@@ -95,6 +95,7 @@ func briefOpts(sd string) brief.GatherOpts {
 			o.Gcal = c
 		}
 	}
+	wireWorkTools(&o)
 	return o
 }
 

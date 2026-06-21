@@ -35,6 +35,9 @@ const gcalCap = 10
 // title cannot wrap and break the section layout.
 const subjectMaxLen = 80
 
+// workCap bounds each work-tool list to a scannable glance, matching gcalCap.
+const workCap = 10
+
 // GmailLister is the gmail-adapter subset the brief consumes; defining
 // it here keeps the dependency one-way (brief → adapters) and lets tests
 // inject a fake without dragging in the real attestation gate.
@@ -56,15 +59,35 @@ type GcalLister interface {
 	ListToday(ctx context.Context) ([]Event, error)
 }
 
+// WorkItem is the brief-local row for every work-tool section. Title is the
+// primary label, Detail an optional status/space suffix; callers map each
+// adapter's own type onto these two fields at the wire-up site so the brief
+// package stays free of any adapter import.
+type WorkItem struct {
+	Title  string
+	Detail string
+}
+
+// WorkLister is the one-method shape every work-tool lister satisfies. The
+// wire site adapts the adapter's real read RPC (jira/linear ListMyIssues,
+// notion ListDatabases, confluence ListRecentPages) onto it.
+type WorkLister interface {
+	List(ctx context.Context) ([]WorkItem, error)
+}
+
 // GatherOpts carries the optional adapter listers. Zero value = adapters
 // not configured → brief omits the corresponding sections entirely
 // (silent absence beats noisy "unavailable" for unconfigured features).
 type GatherOpts struct {
-	Gmail   GmailLister
-	Gcal    GcalLister
-	Weather WeatherReporter
-	News    NewsReporter
-	Market  MarketReporter
+	Gmail      GmailLister
+	Gcal       GcalLister
+	Weather    WeatherReporter
+	News       NewsReporter
+	Market     MarketReporter
+	Jira       WorkLister
+	Linear     WorkLister
+	Notion     WorkLister
+	Confluence WorkLister
 }
 
 // Data is the pure-data input to Render — all IO happens upstream so the
@@ -96,6 +119,18 @@ type Data struct {
 	NewsUnavailable    bool
 	Market             *Pulse
 	MarketUnavailable  bool
+
+	// Work-tool sections — same silent-absence vs runtime-failure split as
+	// mail/calendar: nil items + Unavailable=false → tool not connected,
+	// section omitted; Unavailable=true → connected but the read failed.
+	JiraItems             []WorkItem
+	JiraUnavailable       bool
+	LinearItems           []WorkItem
+	LinearUnavailable     bool
+	NotionItems           []WorkItem
+	NotionUnavailable     bool
+	ConfluenceItems       []WorkItem
+	ConfluenceUnavailable bool
 }
 
 // RegattaLister is the subset of regattaclient.Client Gather needs.
@@ -192,6 +227,11 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 		})
 	}
 
+	gatherWork(ctx, &g, o.Jira, &d.JiraItems, &d.JiraUnavailable)
+	gatherWork(ctx, &g, o.Linear, &d.LinearItems, &d.LinearUnavailable)
+	gatherWork(ctx, &g, o.Notion, &d.NotionItems, &d.NotionUnavailable)
+	gatherWork(ctx, &g, o.Confluence, &d.ConfluenceItems, &d.ConfluenceUnavailable)
+
 	g.Go(func() error {
 		gatherFeeds(ctx, &d, o)
 		return nil
@@ -199,6 +239,23 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 
 	_ = g.Wait()
 	return d
+}
+
+// gatherWork fans one work-tool lister into its own goroutine, writing a
+// disjoint pair of Data fields so the errgroup needs no lock and one tool's
+// failure flips only its own Unavailable flag (MAY-8 isolation).
+func gatherWork(ctx context.Context, g *errgroup.Group, l WorkLister, items *[]WorkItem, unavail *bool) {
+	if l == nil {
+		return
+	}
+	g.Go(func() error {
+		if got, err := l.List(ctx); err != nil {
+			*unavail = true
+		} else {
+			*items = got
+		}
+		return nil
+	})
 }
 
 // truncateSubjects caps the slice and ellipsizes any subject over max.
@@ -341,6 +398,11 @@ func Render(d Data) string {
 		fmt.Fprintln(&b)
 	}
 
+	renderWorkSection(&b, "Jira", d.JiraItems, d.JiraUnavailable)
+	renderWorkSection(&b, "Linear", d.LinearItems, d.LinearUnavailable)
+	renderWorkSection(&b, "Notion", d.NotionItems, d.NotionUnavailable)
+	renderWorkSection(&b, "Confluence", d.ConfluenceItems, d.ConfluenceUnavailable)
+
 	renderNews(&b, d)
 	renderMarket(&b, d)
 
@@ -350,6 +412,37 @@ func Render(d Data) string {
 	fmt.Fprintf(&b, "  projected mo  $%.4f\n", d.ProjectedMonthly)
 
 	return b.String()
+}
+
+// renderWorkSection mirrors the mail/calendar gating: silent when the tool
+// is unconnected (no items, not unavailable), "(unavailable)" on runtime
+// failure, else the capped item list with an overflow marker.
+func renderWorkSection(b *strings.Builder, name string, items []WorkItem, unavailable bool) {
+	if !unavailable && len(items) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "## %s\n", name)
+	if unavailable {
+		fmt.Fprintln(b, "  (unavailable)")
+		fmt.Fprintln(b)
+		return
+	}
+	max := workCap
+	if len(items) < max {
+		max = len(items)
+	}
+	fmt.Fprintf(b, "  %d items\n", len(items))
+	for _, it := range items[:max] {
+		if it.Detail != "" {
+			fmt.Fprintf(b, "  - %s — %s\n", it.Title, it.Detail)
+		} else {
+			fmt.Fprintf(b, "  - %s\n", it.Title)
+		}
+	}
+	if len(items) > max {
+		fmt.Fprintf(b, "  …and %d more\n", len(items)-max)
+	}
+	fmt.Fprintln(b)
 }
 
 // VoiceSummary is the 1-sentence form spoken when TTS notify is wired. TTS
