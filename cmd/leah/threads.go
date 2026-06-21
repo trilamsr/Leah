@@ -17,7 +17,6 @@ import (
 	"github.com/trilam/leah/internal/recommend/sources"
 )
 
-// threadRow is the unified JSON projection — one work item, one row.
 type threadRow struct {
 	Tool    string    `json:"tool"`
 	Key     string    `json:"key"`
@@ -31,9 +30,6 @@ type threadsOpts struct {
 	stderr io.Writer
 }
 
-// runThreads is the CLI entry. Production wiring builds adapter-backed seams
-// from the operator's connected tools; runThreadsWith takes injected seams so
-// tests stay hermetic without touching token files or HTTP.
 func runThreads(parent context.Context, args []string, w io.Writer) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(w, "usage: leah threads [--tool <name>] [--since <dur>] [--json]")
@@ -44,7 +40,7 @@ func runThreads(parent context.Context, args []string, w io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
-	return runThreadsWith(ctx, threadsOpts{now: time.Now().UTC(), seams: liveSeams()}, args, w)
+	return runThreadsWith(ctx, threadsOpts{now: time.Now().UTC(), seams: liveSeams(os.Stderr)}, args, w)
 }
 
 func runThreadsWith(ctx context.Context, opts threadsOpts, args []string, w io.Writer) int {
@@ -90,7 +86,6 @@ func runThreadsWith(ctx context.Context, opts threadsOpts, args []string, w io.W
 		}
 		items, err := seam.StaleItems(ctx, window)
 		if err != nil {
-			// One adapter's failure must not blank the whole inbox.
 			_, _ = fmt.Fprintf(opts.stderr, "leah threads: %s: %v\n", name, err)
 			continue
 		}
@@ -123,56 +118,77 @@ func runThreadsWith(ctx context.Context, opts threadsOpts, args []string, w io.W
 	return 0
 }
 
-// liveSeams builds seam-satisfying shims for every adapter the operator has
-// connected; absent tokens silently drop that tool so `leah threads` degrades
-// to the subset the operator can actually reach.
-func liveSeams() map[string]sources.WorkItemSeam {
+// Missing tokens emit a stderr note rather than silently dropping the tool —
+// the inbox keeps going (unlike shiptool, which can't fake write-consent).
+func liveSeams(stderr io.Writer) map[string]sources.WorkItemSeam {
 	out := map[string]sources.WorkItemSeam{}
 	hc := &http.Client{Timeout: 15 * time.Second}
+	now := func() time.Time { return time.Now().UTC() }
+	for _, tool := range []string{"jira", "linear", "confluence"} {
+		if staticTokenForName(tool) == "" {
+			_, _ = fmt.Fprintf(stderr, "leah threads: %s not connected (run leah connect %s)\n", tool, tool)
+		}
+	}
 	if ts := staticTokenForName("jira"); ts != "" {
 		base := os.Getenv("LEAH_SHIP_JIRA_BASE_URL")
 		if ad, err := jira.New(jira.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: jira.NewHTTPTransport(hc, base), BaseURL: base}); err == nil {
-			out["jira"] = jiraSeam{ad}
+			out["jira"] = jiraSeam{ad: ad, now: now}
 		}
 	}
 	if ts := staticTokenForName("linear"); ts != "" {
 		if ad, err := linear.New(linear.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: linear.NewHTTPTransport(hc, "https://api.linear.app/graphql")}); err == nil {
-			out["linear"] = linearSeam{ad}
+			out["linear"] = linearSeam{ad: ad, now: now}
 		}
 	}
 	if ts := staticTokenForName("confluence"); ts != "" {
 		base := os.Getenv("LEAH_SHIP_CONFLUENCE_BASE_URL")
 		if ad, err := confluence.New(confluence.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: confluence.NewHTTPTransport(hc, base), BaseURL: base}); err == nil {
 			space := os.Getenv("LEAH_THREADS_CONFLUENCE_SPACE")
-			out["confluence"] = confluenceSeam{ad: ad, space: space}
+			out["confluence"] = confluenceSeam{ad: ad, space: space, now: now}
 		}
 	}
 	return out
 }
 
-type jiraSeam struct{ ad *jira.Client }
+// Adapter read RPCs lack a server-side "updated within N" filter, so each seam
+// enforces the WorkItemSeam window client-side. now is injected for test pinning.
+type jiraSeam struct {
+	ad  *jira.Client
+	now func() time.Time
+}
 
-func (s jiraSeam) StaleItems(ctx context.Context, _ time.Duration) ([]sources.WorkItem, error) {
+func (s jiraSeam) StaleItems(ctx context.Context, within time.Duration) ([]sources.WorkItem, error) {
 	iss, err := s.ad.ListMyIssues(ctx)
 	if err != nil {
 		return nil, err
 	}
+	cutoff := s.now().Add(-within)
 	out := make([]sources.WorkItem, 0, len(iss))
 	for _, i := range iss {
+		if i.Updated.Before(cutoff) {
+			continue
+		}
 		out = append(out, sources.WorkItem{Key: i.Key, Title: i.Summary, Updated: i.Updated})
 	}
 	return out, nil
 }
 
-type linearSeam struct{ ad *linear.Client }
+type linearSeam struct {
+	ad  *linear.Client
+	now func() time.Time
+}
 
-func (s linearSeam) StaleItems(ctx context.Context, _ time.Duration) ([]sources.WorkItem, error) {
+func (s linearSeam) StaleItems(ctx context.Context, within time.Duration) ([]sources.WorkItem, error) {
 	iss, err := s.ad.ListMyIssues(ctx)
 	if err != nil {
 		return nil, err
 	}
+	cutoff := s.now().Add(-within)
 	out := make([]sources.WorkItem, 0, len(iss))
 	for _, i := range iss {
+		if i.Updated.Before(cutoff) {
+			continue
+		}
 		out = append(out, sources.WorkItem{Key: i.Identifier, Title: i.Title, Updated: i.Updated})
 	}
 	return out, nil
@@ -181,15 +197,20 @@ func (s linearSeam) StaleItems(ctx context.Context, _ time.Duration) ([]sources.
 type confluenceSeam struct {
 	ad    *confluence.Client
 	space string
+	now   func() time.Time
 }
 
-func (s confluenceSeam) StaleItems(ctx context.Context, _ time.Duration) ([]sources.WorkItem, error) {
+func (s confluenceSeam) StaleItems(ctx context.Context, within time.Duration) ([]sources.WorkItem, error) {
 	pages, err := s.ad.ListRecentPages(ctx, s.space)
 	if err != nil {
 		return nil, err
 	}
+	cutoff := s.now().Add(-within)
 	out := make([]sources.WorkItem, 0, len(pages))
 	for _, p := range pages {
+		if p.Updated.Before(cutoff) {
+			continue
+		}
 		out = append(out, sources.WorkItem{Key: p.ID, Title: p.Title, Updated: p.Updated})
 	}
 	return out, nil
