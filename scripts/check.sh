@@ -55,6 +55,11 @@ fi
 # W90 base-staleness gate: serial — needs git fetch + ancestry walks.
 "$SCRIPT_DIR/check-base-fresh.sh" || FAILED=1
 
+# MAY-16: guard the destructive-regression class on the worktree janitor.
+# Mutation tests confirm both the prefix-check and the merged/deleted
+# guard are load-bearing — dropping either prunes live agent work.
+"$SCRIPT_DIR/leah-worktree-janitor_test.sh" >/dev/null 2>&1 || { echo "leah-worktree-janitor_test.sh failed"; FAILED=1; }
+
 # MAY-V6: warn-only on first ship — flip to FAILED=1 once 7 consecutive
 # days of feat/* PRs land with zero new-placeholder hits.
 if ! "$SCRIPT_DIR/check-placeholders.sh"; then
