@@ -72,17 +72,56 @@ func TestEarconTracker_OutOfOrder_NoRecord(t *testing.T) {
 	}
 }
 
-// TestEarconTracker_Buckets_Sized_For_150ms_Target: bucket boundaries must
-// straddle the 150ms p95 target so p95 lands inside a bucket, not at +Inf.
+// TestEarconTracker_Buckets_Sized_For_150ms_Target asserts the histogram
+// can actually resolve the MAY-A1 target: the 150ms boundary is present
+// (so p95 reports a tight upper bound, not the next slot up), the slice is
+// strictly increasing, and a 50ms vs 200ms sample land in different
+// cumulative buckets — otherwise on-target vs regressed is indistinguishable.
 func TestEarconTracker_Buckets_Sized_For_150ms_Target(t *testing.T) {
 	t.Parallel()
-	want := []float64{0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5}
-	if len(EarconBuckets) != len(want) {
-		t.Fatalf("EarconBuckets len=%d want %d", len(EarconBuckets), len(want))
+	if len(EarconBuckets) < 2 {
+		t.Fatalf("EarconBuckets must have ≥2 boundaries, got %v", EarconBuckets)
 	}
-	for i, b := range want {
-		if EarconBuckets[i] != b {
-			t.Fatalf("EarconBuckets[%d]=%v want %v", i, EarconBuckets[i], b)
+	last := EarconBuckets[len(EarconBuckets)-1]
+	if 0.15 > last {
+		t.Fatalf("150ms target lands at +Inf: max bucket=%v", last)
+	}
+	hasTarget := false
+	for _, b := range EarconBuckets {
+		if b == 0.15 {
+			hasTarget = true
+			break
 		}
+	}
+	if !hasTarget {
+		t.Fatalf("0.15 missing from EarconBuckets=%v; p95 widens to next boundary", EarconBuckets)
+	}
+	for i := 1; i < len(EarconBuckets); i++ {
+		if EarconBuckets[i] <= EarconBuckets[i-1] {
+			t.Fatalf("EarconBuckets not strictly increasing at %d: %v", i, EarconBuckets)
+		}
+	}
+
+	reg := obs.NewRegistry()
+	tr := NewEarconTracker(reg, "energy")
+	base := time.Unix(0, 0)
+	tr.WakeDetected(base)
+	tr.EarconPlayed(base.Add(50 * time.Millisecond))
+	tr.WakeDetected(base)
+	tr.EarconPlayed(base.Add(200 * time.Millisecond))
+
+	var buf bytes.Buffer
+	if err := reg.WritePrometheus(&buf); err != nil {
+		t.Fatalf("WritePrometheus: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, `bucket{detector="energy",le="0.05"} 1`) {
+		t.Fatalf("50ms sample not in le=0.05 bucket:\n%s", out)
+	}
+	if !strings.Contains(out, `bucket{detector="energy",le="0.15"} 1`) {
+		t.Fatalf("200ms sample leaked under le=0.15:\n%s", out)
+	}
+	if !strings.Contains(out, `bucket{detector="energy",le="0.25"} 2`) {
+		t.Fatalf("200ms sample not in le=0.25 bucket:\n%s", out)
 	}
 }

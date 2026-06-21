@@ -13,6 +13,10 @@ var EarconBuckets = []float64{0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5}
 // EarconTracker times wake-detected → first-earcon. The earcon is the
 // perceptible "I heard you" cue — until it plays, the user has no signal
 // that the wake word landed, so this span is the felt-latency of waking.
+//
+// Not goroutine-safe. WakeDetected and EarconPlayed must be called from a
+// single owner goroutine (the session-loop turn driver) — the histogram
+// handle is registry-locked, but the wakeAt cursor is single-writer.
 type EarconTracker struct {
 	hist     *obs.Histogram
 	detector string
