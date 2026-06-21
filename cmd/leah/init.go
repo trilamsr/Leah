@@ -147,11 +147,22 @@ func promptAdapters(ctx context.Context, w io.Writer, in io.Reader) {
 			continue
 		}
 		fmt.Fprintf(w, "    connect %s now? [y/N] ", s.Name)
-		line, _ := r.ReadString('\n')
+		line, err := r.ReadString('\n')
+		// EOF = closed stdin (piped / headless install). Treat as "skip rest" —
+		// re-prompting on a dead reader would spin. Other read errors are
+		// per-adapter soft-fails so a transient stdin glitch can't strand the
+		// wizard mid-loop.
+		if err == io.EOF {
+			fmt.Fprintln(w, "    (stdin closed — skipping remaining prompts)")
+			return
+		}
+		if err != nil {
+			fmt.Fprintf(w, "    (input error: %v — skipping %s)\n", err, s.Name)
+			continue
+		}
 		switch strings.ToLower(strings.TrimSpace(line)) {
 		case "y", "yes":
-			code := runConnect(ctx, []string{s.Name}, w)
-			if code != 0 {
+			if code := runConnect(ctx, []string{s.Name}, w); code != 0 {
 				fmt.Fprintf(w, "    (skipped — re-run later with `leah connect %s`)\n", s.Name)
 			}
 		}
