@@ -57,6 +57,11 @@ type WorkspaceActiveAppEvent struct {
 	Name     string `json:"name"`
 }
 
+// ContactStoreChangedEvent is the Payload schema for `contact_store_changed`.
+// Empty struct — the notification itself is the signal; CNContactStore does
+// not name the changed records (privacy-by-design).
+type ContactStoreChangedEvent struct{}
+
 // EventQuery is a Query filter. Mutually-additive fields AND together.
 type EventQuery struct {
 	Since    time.Time
@@ -512,6 +517,7 @@ var KnownEventKinds = []string{
 	"obs.snapshot", "obs.selfcheck", "obs.panic",
 	"hud.state",
 	"workspace.active_app_changed",
+	"contact_store_changed",
 }
 
 // SafeDetail strips chars outside [\w\-\.:/], truncates 128r (spec §9 PII).
