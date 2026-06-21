@@ -17,6 +17,7 @@ import (
 	"github.com/oklog/ulid/v2"
 	_ "modernc.org/sqlite"
 
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/sqlstore"
 )
 
@@ -124,6 +125,14 @@ func (s *Store) fireWrite(table, id string) {
 	if s.OnWrite != nil {
 		s.OnWrite(table, id)
 	}
+	obs.Publish(obs.Event{
+		TS:      time.Now().UTC(),
+		Kind:    "memory.upsert",
+		Actor:   "memory",
+		Outcome: "ok",
+		Target:  table,
+		RefID:   id,
+	})
 }
 
 // --- Contact ---

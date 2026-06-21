@@ -10,6 +10,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/trilam/leah/internal/obs"
 )
 
 // Entry is one audit row. Stable on-disk schema — fields are read by
@@ -102,6 +104,15 @@ func (l *Logger) Append(e Entry) (retErr error) {
 		return fmt.Errorf("write entry: %w", err)
 	}
 	l.fanout(e)
+	obs.Publish(obs.Event{
+		TS:      time.Now().UTC(),
+		Kind:    "audit.append",
+		Actor:   "audit",
+		Outcome: "ok",
+		Target:  e.Kind,
+		Detail:  e.Detail,
+		Payload: e,
+	})
 	return nil
 }
 
