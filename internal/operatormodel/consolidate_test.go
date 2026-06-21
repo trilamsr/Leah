@@ -345,7 +345,16 @@ func TestConsolidate_ConcurrentAppend_NoRowsLost(t *testing.T) {
 		}
 	}
 
-	a := &audit.Logger{Path: auditPath}
+	// Pin Append's timestamp to a (hour, weekday) disjoint from every seeded
+	// cell — a racing Append whose wall-clock slot collides with a seed cell
+	// drags a fresh-weighted time into that cell, blows the stability gate,
+	// and leaves the seed row unarchived. The orphan-inode contract this
+	// test guards is independent of clock alignment, and a wall-clock-pinned
+	// Append clock is what makes the assertion deterministic across the day.
+	// Tue 03:00 UTC: hour 3 ≠ seed hour 09; Tue ≠ any seed weekday (seeds span
+	// Wed→Mon, May 20→25, 2026).
+	appendNow := time.Date(2026, 6, 16, 3, 0, 0, 0, time.UTC)
+	a := &audit.Logger{Path: auditPath, Now: func() time.Time { return appendNow }}
 	cp := &ConsolidatePass{
 		Now:         func() time.Time { return fixedT },
 		Store:       store,
