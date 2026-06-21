@@ -79,6 +79,28 @@ func newTestAdapter(t *testing.T, att Attestor, ts TokenSource, srv *httptest.Se
 	return a
 }
 
+// TestLimiterStats_SurfacesSendsAndDenials: the dashboard spam panel reads this.
+func TestLimiterStats_SurfacesSendsAndDenials(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"m"}`))
+	}))
+	defer srv.Close()
+	now := time.Unix(0, 0)
+	a := newTestAdapter(t, &fakeAttestor{}, &fakeTokenSource{}, srv, func() time.Time { return now }, &fakeAudit{})
+	for i := 0; i < maxOutboundPerWindow+1; i++ {
+		_ = a.PostMessage(context.Background(), "chan-1", "hi")
+	}
+	st := a.LimiterStats()
+	if st.Sends != maxOutboundPerWindow {
+		t.Errorf("Sends: got %d, want %d", st.Sends, maxOutboundPerWindow)
+	}
+	if st.Denied != 1 {
+		t.Errorf("Denied: got %d, want 1", st.Denied)
+	}
+}
+
 // TestPostMessage_HappyPath: body+channel reach Discord REST after attestation+token load.
 func TestPostMessage_HappyPath(t *testing.T) {
 	t.Parallel()

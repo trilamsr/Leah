@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/trilam/leah/internal/adapters/discord"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/memory"
@@ -20,7 +21,7 @@ import (
 // the memory SelfChecker registered at daemon boot). addr is the listen
 // address; auditPath + snapPath feed /api/state. 10s cache TTL absorbs the
 // dashboard's 3s poll cadence (H4 audit fix).
-func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, rc *regattaclient.Client, loop *daemonloop.Loop, registry *obs.Registry, health *obs.HealthRegistry, store *memory.Store) (func(), error) {
+func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, rc *regattaclient.Client, loop *daemonloop.Loop, registry *obs.Registry, health *obs.HealthRegistry, store *memory.Store, discordAdpt *discord.Adapter) (func(), error) {
 	_ = sd
 	srv := &web.Server{
 		Addr:        addr,
@@ -34,6 +35,7 @@ func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, r
 		CacheTTL:    10 * time.Second,
 		Metrics:     registry,
 		Health:      health,
+		SpamStats:   spamStatsFor(discordAdpt),
 	}
 	go func() {
 		if err := startWithMiddleware(ctx, srv, registry); err != nil {

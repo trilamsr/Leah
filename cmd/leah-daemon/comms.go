@@ -11,14 +11,11 @@ import (
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/notify"
 	"github.com/trilam/leah/internal/voice"
+	"github.com/trilam/leah/internal/web"
 )
 
-// newDiscordNotifier returns nil unless discord is connected and a channel set.
-func newDiscordNotifier() *notify.DiscordNotify {
-	channel := os.Getenv("LEAH_BRIEF_DISCORD_CHANNEL")
-	if channel == "" {
-		return nil
-	}
+// connectedDiscordAdapter builds the adapter when discord is connected, else nil.
+func connectedDiscordAdapter() *discord.Adapter {
 	path := connect.DefaultTokenPath("discord")
 	if !connected(path) {
 		return nil
@@ -28,6 +25,29 @@ func newDiscordNotifier() *notify.DiscordNotify {
 		TokenSource: fileToken{path},
 	})
 	if err != nil {
+		return nil
+	}
+	return a
+}
+
+// spamStatsFor returns the dashboard SpamStats provider reading the shared
+// adapter's live limiter, or nil when not connected (panel renders empty).
+func spamStatsFor(a *discord.Adapter) func() []web.SpamStat {
+	if a == nil {
+		return nil
+	}
+	return func() []web.SpamStat {
+		st := a.LimiterStats()
+		return []web.SpamStat{{Adapter: "discord", Sends: st.Sends, Denied: st.Denied}}
+	}
+}
+
+// newDiscordNotifier wraps the shared adapter as a brief notifier; nil unless a
+// channel is set and the adapter is connected. Sharing the adapter means the
+// dashboard spam panel reports the same limiter that gates these sends.
+func newDiscordNotifier(a *discord.Adapter) *notify.DiscordNotify {
+	channel := os.Getenv("LEAH_BRIEF_DISCORD_CHANNEL")
+	if channel == "" || a == nil {
 		return nil
 	}
 	n := &notify.DiscordNotify{Poster: a, ChannelID: channel}

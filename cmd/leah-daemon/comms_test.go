@@ -32,7 +32,7 @@ func TestBriefNotifierAppendsDiscordWhenConnectedAndChannelSet(t *testing.T) {
 	writeDiscordToken(t, sd)
 	t.Setenv("LEAH_BRIEF_DISCORD_CHANNEL", "C123")
 
-	f := buildBriefNotifier()
+	f := buildBriefNotifier(connectedDiscordAdapter())
 	if got := len(f.Notifiers); got != 3 {
 		t.Errorf("desktop+voice+discord = 3, got %d", got)
 	}
@@ -47,7 +47,7 @@ func TestBriefNotifierOmitsDiscordWhenChannelUnset(t *testing.T) {
 	writeDiscordToken(t, sd)
 	t.Setenv("LEAH_BRIEF_DISCORD_CHANNEL", "")
 
-	f := buildBriefNotifier()
+	f := buildBriefNotifier(connectedDiscordAdapter())
 	if got := len(f.Notifiers); got != 2 {
 		t.Errorf("discord channel unset → desktop+voice = 2, got %d", got)
 	}
@@ -61,9 +61,33 @@ func TestBriefNotifierOmitsDiscordWhenNotConnected(t *testing.T) {
 	t.Setenv("LEAH_BRIEF_WHATSAPP_TO", "")
 	t.Setenv("LEAH_BRIEF_DISCORD_CHANNEL", "C123")
 
-	f := buildBriefNotifier()
+	f := buildBriefNotifier(connectedDiscordAdapter())
 	if got := len(f.Notifiers); got != 2 {
 		t.Errorf("discord token absent → desktop+voice = 2, got %d", got)
+	}
+}
+
+func TestSpamStatsFor_ReadsLiveLimiter(t *testing.T) {
+	sd := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", sd)
+	writeDiscordToken(t, sd)
+	a := connectedDiscordAdapter()
+	if a == nil {
+		t.Fatal("adapter must be connected")
+	}
+	provider := spamStatsFor(a)
+	if provider == nil {
+		t.Fatal("provider must be non-nil when connected")
+	}
+	rows := provider()
+	if len(rows) != 1 || rows[0].Adapter != "discord" {
+		t.Fatalf("rows: got %+v, want one discord row", rows)
+	}
+}
+
+func TestSpamStatsFor_NilWhenUnconnected(t *testing.T) {
+	if spamStatsFor(nil) != nil {
+		t.Error("provider must be nil when adapter is nil")
 	}
 }
 

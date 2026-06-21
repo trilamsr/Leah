@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/trilam/leah/internal/adapters/discord"
 	"github.com/trilam/leah/internal/adapters/gcal"
 	"github.com/trilam/leah/internal/adapters/gmail"
 	"github.com/trilam/leah/internal/brief"
@@ -27,7 +28,7 @@ import (
 // so a hung regattaclient.List call cannot block the weekly goroutine
 // until daemon shutdown. Soft-fails per surface: TTS error never gates
 // the file write, file-write error never gates voice/desktop.
-func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File) daemonloop.WeeklyTask {
+func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File, discordAdpt *discord.Adapter) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
 		data := pullBriefSnapshot(ctx, sd, rc, out)
 		// Only push when proactive delivery is opted in — the daemon brief
@@ -36,7 +37,7 @@ func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File) daemon
 			taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
 			summary := brief.VoiceSummary(data)
-			if err := buildBriefNotifier().Notify(taskCtx, "Morning brief", summary); err != nil {
+			if err := buildBriefNotifier(discordAdpt).Notify(taskCtx, "Morning brief", summary); err != nil {
 				_, _ = fmt.Fprintf(out, "leah-daemon: brief push error: %v\n", err)
 			}
 		}
@@ -64,12 +65,12 @@ func buildDegradedPullTask(sd string, rc daemonloop.RegattaClient, out *os.File)
 
 // buildBriefNotifier fans the brief across every configured push channel;
 // each remote joins only when configured so an unset channel stays silent.
-func buildBriefNotifier() *notify.Fanout {
+func buildBriefNotifier(discordAdpt *discord.Adapter) *notify.Fanout {
 	ns := []contracts.Notifier{notify.NewDesktop(), notify.NewVoice()}
 	if os.Getenv("LEAH_PUSHOVER_USER") != "" && os.Getenv("LEAH_PUSHOVER_TOKEN") != "" {
 		ns = append(ns, notify.NewPushover())
 	}
-	if d := newDiscordNotifier(); d != nil {
+	if d := newDiscordNotifier(discordAdpt); d != nil {
 		ns = append(ns, d)
 	}
 	if w := newWhatsAppNotifier(); w != nil {

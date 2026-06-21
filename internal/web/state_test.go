@@ -65,6 +65,24 @@ func newTestServer(t *testing.T) *Server {
 	}
 }
 
+func TestSpamView_WiredProviderSurfacesStats(t *testing.T) {
+	s := newTestServer(t)
+	s.SpamStats = func() []SpamStat {
+		return []SpamStat{{Adapter: "discord", Sends: 4, Denied: 1}}
+	}
+	v := s.Snapshot(context.Background()).Spam
+	if len(v) != 1 || v[0].Adapter != "discord" || v[0].Sends != 4 || v[0].Denied != 1 {
+		t.Errorf("Spam: got %+v, want [{discord 4 1}]", v)
+	}
+}
+
+func TestSpamView_NilProviderDegradesToEmpty(t *testing.T) {
+	s := newTestServer(t)
+	if v := s.Snapshot(context.Background()).Spam; len(v) != 0 {
+		t.Errorf("Spam with nil provider: got %+v, want empty", v)
+	}
+}
+
 // TestSnapshotAggregatesFromAllSources verifies the State struct pulls
 // expected values from audit log + memory store + regatta lister + budget +
 // start time + heartbeat function.

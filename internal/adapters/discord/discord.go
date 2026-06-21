@@ -127,6 +127,9 @@ func New(cfg Config) (*Adapter, error) {
 	}, nil
 }
 
+// LimiterStats exposes the outbound limiter reading for the dashboard spam panel.
+func (a *Adapter) LimiterStats() ratelimit.Stat { return a.limiter.Stats() }
+
 // PostMessage order is load-bearing: validate -> rate-limit -> attest -> token -> POST.
 // Token-load BEFORE attestation would leak the bot token via panic traces on deny.
 func (a *Adapter) PostMessage(ctx context.Context, channelID, body string) error {

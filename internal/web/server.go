@@ -46,6 +46,12 @@ type Server struct {
 	// to obs.EventStore.Subscribe once W75 lands.
 	EventsSubscribe obs.SSESubscribeFunc
 
+	// SpamStats, when non-nil, returns one row per connected adapter's
+	// outbound rate-limiter (sends + cumulative denials) for the dashboard
+	// spam panel. nil is safe; the panel renders empty. Daemon wires this to
+	// the live adapter limiters (MAY-169/W24).
+	SpamStats func() []SpamStat
+
 	// HealthProbeTimeout caps each SelfCheck call; zero defaults to 2s so a
 	// stuck dependency cannot wedge the liveness endpoint.
 	HealthProbeTimeout time.Duration

@@ -61,6 +61,10 @@ func main() {
 	// operator opts in (avoids unexpected TTS on every PR merge).
 	logVoiceState(os.Stdout)
 
+	// One shared discord adapter: the brief pushes through it and the dashboard
+	// spam panel reads its limiter, so the panel reflects real send pressure.
+	discordAdpt := connectedDiscordAdapter()
+
 	loop := daemonloop.New(rc, watchdog.New(), buildNotifier(), a, os.Stdout, pollEvery)
 	loop.WeeklyTracker = filepath.Join(sd, "last-weekly.txt")
 	loop.WeeklyHour = 9
@@ -70,7 +74,7 @@ func main() {
 		}
 	}
 	loop.Weekly = buildWeeklyTasks(sd, auditPath, a, os.Stdout)
-	wireBriefSchedule(loop, sd, buildBriefTask(sd, rc, os.Stdout), os.Stdout)
+	wireBriefSchedule(loop, sd, buildBriefTask(sd, rc, os.Stdout, discordAdpt), os.Stdout)
 	wireDegradedPull(loop, sd, rc, os.Stdout)
 
 	store, err := memory.NewStore(filepath.Join(sd, "memory.db"))
@@ -134,7 +138,7 @@ func main() {
 	startLogRetention(ctx, lg, registry, sd)
 
 	if *dashboardAddr != "" {
-		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc, loop, registry, health, store)
+		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc, loop, registry, health, store, discordAdpt)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
 			os.Exit(1)

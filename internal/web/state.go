@@ -25,7 +25,17 @@ type State struct {
 	Memory  MemoryView  `json:"memory"`
 	Ops     OpsView     `json:"ops"`
 	Costs   CostsView   `json:"costs"`
+	Spam    []SpamStat  `json:"spam"`
 	Metrics interface{} `json:"metrics,omitempty"` // raw obs.Registry snapshot when latest.json exists
+}
+
+// SpamStat is one adapter's outbound rate-limiter reading. Sends is the
+// rolling 1-minute count (every adapter window is 60s); Denied is cumulative
+// rejections. Surfaced so the operator sees runaway-send blast radius live.
+type SpamStat struct {
+	Adapter string `json:"adapter"`
+	Sends   int    `json:"sends"`
+	Denied  int    `json:"denied"`
 }
 
 // CostsView is the dashboard projection of audit.jsonl cost_dollars: a
@@ -147,6 +157,7 @@ func (s *Server) computeSnapshot(ctx context.Context) State {
 		Memory:  readMemory(s.Memory),
 		Ops:     s.readOps(),
 		Costs:   readCosts(s.AuditPath),
+		Spam:    s.readSpam(),
 		Metrics: readMetrics(s.MetricsPath),
 	}
 	obs.Publish(computeHUDStateEvent("ambient", false, false))
@@ -188,6 +199,19 @@ func readCosts(auditPath string) CostsView {
 		v.TodayUSD = today.TotalUSD
 	}
 	return v
+}
+
+// readSpam invokes the wired SpamStats provider, returning an empty (never
+// nil) slice when unset so /api/state stays a stable shape and the dashboard
+// renders an empty panel rather than 500ing.
+func (s *Server) readSpam() []SpamStat {
+	if s.SpamStats == nil {
+		return []SpamStat{}
+	}
+	if v := s.SpamStats(); v != nil {
+		return v
+	}
+	return []SpamStat{}
 }
 
 // readMetrics returns the latest obs.Registry snapshot as a raw map, or nil

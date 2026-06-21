@@ -118,6 +118,17 @@ function renderCosts(c) {
   $('ops-cost-top').innerHTML = `<span class="label">top kinds</span><span class="val" title="${esc(txt)}">${txt}</span>`;
 }
 
+function renderSpam(rows) {
+  const el = $('spam-list');
+  if (!el) return;
+  if (!rows || !rows.length) { el.innerHTML = emptyLi('no adapters connected'); return; }
+  el.innerHTML = rows.map(s => `
+    <li>
+      <span class="kind">${esc(s.adapter)}</span>
+      <span class="detail ${s.denied ? 'outcome-warn' : 'outcome-ok'}">${esc(String(s.sends))}/min · ${esc(String(s.denied))} denied</span>
+    </li>`).join('');
+}
+
 function renderMetrics(m) {
   const el = $('ops-metrics');
   if (!el) return;
@@ -164,6 +175,7 @@ async function tick() {
     renderMemory(data.memory);
     renderOps(data.ops);
     renderCosts(data.costs);
+    renderSpam(data.spam);
     renderMetrics(data.metrics);
     if (!booted) { booted = true; document.body.classList.remove('boot'); }
   } catch (e) {

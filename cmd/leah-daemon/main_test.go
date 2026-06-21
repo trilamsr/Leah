@@ -29,7 +29,7 @@ func TestBriefTaskWritesFile(t *testing.T) {
 	t.Setenv("LEAH_STATE_DIR", sd)
 	t.Setenv("LEAH_VOICE_ENABLED", "0")
 
-	task := buildBriefTask(sd, stubRegatta{}, os.Stdout)
+	task := buildBriefTask(sd, stubRegatta{}, os.Stdout, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -65,7 +65,7 @@ func TestBriefTaskOmitsSectionsWhenUnconfigured(t *testing.T) {
 	sd := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", sd)
 	t.Setenv("LEAH_VOICE_ENABLED", "0")
-	task := buildBriefTask(sd, stubRegatta{}, os.Stdout)
+	task := buildBriefTask(sd, stubRegatta{}, os.Stdout, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	task(ctx)
@@ -82,7 +82,7 @@ func TestBriefTaskOmitsSectionsWhenUnconfigured(t *testing.T) {
 func TestBriefNotifierFansToConfiguredChannels(t *testing.T) {
 	t.Setenv("LEAH_PUSHOVER_USER", "u")
 	t.Setenv("LEAH_PUSHOVER_TOKEN", "tok")
-	f := buildBriefNotifier()
+	f := buildBriefNotifier(nil)
 	if got := len(f.Notifiers); got != 3 {
 		t.Errorf("pushover+desktop+voice = 3 channels, got %d", got)
 	}
@@ -92,7 +92,7 @@ func TestBriefNotifierFansToConfiguredChannels(t *testing.T) {
 func TestBriefNotifierSkipsUnconfiguredChannels(t *testing.T) {
 	t.Setenv("LEAH_PUSHOVER_USER", "")
 	t.Setenv("LEAH_PUSHOVER_TOKEN", "")
-	f := buildBriefNotifier()
+	f := buildBriefNotifier(nil)
 	if got := len(f.Notifiers); got != 2 {
 		t.Errorf("desktop+voice = 2 channels when pushover absent, got %d", got)
 	}
@@ -106,7 +106,7 @@ func TestBriefTaskIdempotentOverwriteSameDay(t *testing.T) {
 	t.Setenv("LEAH_STATE_DIR", sd)
 	t.Setenv("LEAH_VOICE_ENABLED", "0")
 
-	task := buildBriefTask(sd, stubRegatta{}, os.Stdout)
+	task := buildBriefTask(sd, stubRegatta{}, os.Stdout, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
