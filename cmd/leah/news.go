@@ -121,16 +121,16 @@ func bundleArticles(ctx context.Context, name string, client *http.Client, att f
 	case "dev":
 		srcs := feeds.DefaultReleaseSources()
 		if bundleURLOverride != "" {
-			srcs = make([]feeds.ReleaseSource, len(feeds.DefaultReleaseSources()))
-			for i, s := range feeds.DefaultReleaseSources() {
-				srcs[i] = feeds.ReleaseSource{Name: s.Name, URL: bundleURLOverride}
+			for i := range srcs {
+				srcs[i].URL = bundleURLOverride
 			}
 		}
 		r, err := feeds.NewReleases(feeds.ReleasesConfig{Attestor: att, HTTPClient: client, Sources: srcs})
 		if err != nil {
 			return nil, true, err
 		}
-		return forwardFetch(ctx, r.Fetch)
+		arts, err := r.Fetch(ctx)
+		return arts, true, err
 	default:
 		src, ok := bundleSources(name)
 		if !ok {
@@ -138,13 +138,6 @@ func bundleArticles(ctx context.Context, name string, client *http.Client, att f
 		}
 		return fetchNews(ctx, client, att, src)
 	}
-}
-
-// forwardFetch unwraps an Article-returning Fetch into bundleArticles' tuple
-// shape without per-case duplication.
-func forwardFetch(ctx context.Context, fetch func(context.Context) ([]feeds.Article, error)) ([]feeds.Article, bool, error) {
-	arts, err := fetch(ctx)
-	return arts, true, err
 }
 
 // fetchNews runs the RSS adapter for the news/tech/ai bundles + the
