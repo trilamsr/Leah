@@ -22,7 +22,7 @@ Four axes. Each is a *drift* check, not a *correctness* check — correctness is
 
 1. **Open PR queue.** Any PR open > 24h without reviewer comment, any PR with reviewer REQUEST_CHANGES unaddressed, any PR with failing CI ignored. Drift = the queue grew silently.
 2. **CLAUDE.md drift.** Any rule the agent followed this session that is not yet codified — a new convention discovered mid-session lives only in the conversation until written down. Audit asks: what did we learn we have not saved?
-3. **Dispatch-template drift.** Same question against `docs/engineer/dispatch-templates/` and `autonomous-session-prompt.md`. A successful new dispatch pattern that is not templated will not survive the next session.
+3. **Dispatch-template drift.** Same question against every file under `docs/engineer/dispatch-templates/` plus `docs/engineer/autonomous-session-prompt.md` (glob-scan, not a hardcoded list — new templates get audited automatically). A successful new dispatch pattern that is not templated will not survive the next session.
 4. **Worktree hygiene.** `.claude/worktrees/agent-*/` dirs whose branch is merged, deleted upstream, or whose last commit is > 7 days old. The janitor handles the easy cases; audit catches what slipped past it.
 
 ## Steps
@@ -30,10 +30,10 @@ Four axes. Each is a *drift* check, not a *correctness* check — correctness is
 Run in order. Stop and surface findings rather than auto-fix anything except worktree pruning.
 
 1. **Worktree sweep.** `git worktree list` + per-worktree `git status --short` + `git log -1 --format=%cr`. Identify: clean+merged (prune), dirty (surface — operator decides), stale > 7d (surface).
-2. **Open PR snapshot.** `gh pr list --state=open --json number,title,createdAt,reviews,statusCheckRollup --jq '...'`. Count + flag each that violates the queue rules above. Use the explicit `--json` allowlist per CLAUDE.md token economy — never bare `gh pr list`.
-3. **Memory diff.** Compare current `~/.claude/projects/.../memory/MEMORY.md` against the version at session-start (git-tracked or first-message snapshot). New patterns the agent picked up that did not make it into a memory file get flagged. Do not auto-write — the operator chooses what becomes durable.
-4. **CLAUDE.md + dispatch-template drift check.** Read CLAUDE.md and `dispatch-templates/` and ask: did anything the agent did this session violate, extend, or contradict these? Violations are bugs; extensions are candidate rules.
-5. **Cleanup.** Auto-prune merged-and-clean worktrees (`git worktree remove`). Auto-close PRs whose branch was deleted upstream. Everything else — surface, do not act.
+2. **Open PR snapshot.** `gh pr list --repo trilamsr/Leah --state=open --json number,title,createdAt,reviews,statusCheckRollup --jq '...'`. The explicit `--repo` is load-bearing — subagents run in worktrees whose default remote may drift. The `--json` allowlist enforces CLAUDE.md token economy. Count + flag each PR that violates the queue rules above.
+3. **Convention diff.** Re-read the session transcript for patterns the agent followed that are not codified in CLAUDE.md, the memory index, or a runbook. The detection signal is concrete: an operator pushback ("don't do X again"), a rule the agent invented and reused (e.g. "always pass `--repo`"), or a convention the reviewer enforced inline. Do not auto-write — the operator chooses what becomes durable.
+4. **CLAUDE.md + dispatch-template drift check.** Read CLAUDE.md and every file matched by step 3's drift axis and ask: did anything the agent did this session violate, extend, or contradict these? Violations are bugs; extensions are candidate rules.
+5. **Cleanup.** Auto-prune merged-and-clean worktrees (`git worktree remove`). Auto-close PRs whose branch was deleted upstream. Everything else — surface, do not act. Report the auto-fix counts in the output (see below) so the operator can audit the audit.
 
 ## Output shape
 
@@ -45,7 +45,7 @@ One paragraph + bullets. No headers, no decoration.
 > - <action item 2>
 > - ...
 
-If the bulleted list is empty, the audit ends with "no operator action needed" and that is the entire output. Silence is the success signal.
+If the bulleted list is empty AND the auto-fix counts are zero, the audit prints "no drift, no operator action needed" — one line, that is the entire output. If auto-fixes ran but no operator action is needed, print only the summary paragraph (with non-zero counts) and skip the bullets. The signal: bullets always mean "operator do something"; their absence means the loop is healthy.
 
 ## Tradeoffs and non-goals
 
