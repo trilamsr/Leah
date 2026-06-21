@@ -349,6 +349,7 @@ func TestEventKinds_FrozenList(t *testing.T) {
 		"notes_changed",
 		"safari.history_changed",
 		"focus.state_changed",
+		"calendar.store_changed",
 		"photos.library_changed",
 		"reminders.store_changed",
 	}
