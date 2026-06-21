@@ -179,23 +179,24 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 
 	if s.Watch {
 		lg.Info("dispatcher.watch.start", "poll_every", s.PollEvery.String(), "max_polls", s.MaxPolls)
-		s.watch(ctx)
+		_, _ = s.watch(ctx)
 	}
 	return nil
 }
 
 // watch polls regatta until a terminal agent transition, MaxPolls, or
-// ctx.Done. The returned string is the terminal-state classifier used by
-// SelfBuild to emit a second audit row (kind=self-build.outcome): one of
-// "merged" / "escalated" / "failed" (regatta agent transitioned),
-// "timeout" (MaxPolls exhausted without a transition), or "cancelled"
-// (ctx.Done — typically operator Ctrl-C).
-func (s *Ship) watch(ctx context.Context) string {
+// ctx.Done. Returns the terminal-state classifier — one of "merged" /
+// "escalated" / "failed" (regatta agent transitioned), "timeout" (MaxPolls
+// exhausted), or "cancelled" (ctx.Done) — and the terminal agent's PR (0
+// for non-transition exits). SelfBuild records the PR on its
+// kind=self-build.outcome row so the daemon can bind a later merge
+// transition back to this dispatch's ArgsHash (MAY-265).
+func (s *Ship) watch(ctx context.Context) (string, int) {
 	lg := obs.LoggerFromCtx(ctx).With("package", "dispatcher")
 	polls := 0
 	for {
 		if s.MaxPolls > 0 && polls >= s.MaxPolls {
-			return "timeout"
+			return "timeout", 0
 		}
 		polls++
 		if s.Heartbeat != nil {
@@ -225,13 +226,13 @@ func (s *Ship) watch(ctx context.Context) string {
 						_ = s.Notify.Notify(ctx, "Leah",
 							fmt.Sprintf("agent %s: %s (PR #%d)", a.ID, a.State, a.PR))
 					}
-					return a.State
+					return a.State, a.PR
 				}
 			}
 		}
 		select {
 		case <-ctx.Done():
-			return "cancelled"
+			return "cancelled", 0
 		case <-time.After(s.PollEvery):
 		}
 	}

@@ -167,8 +167,8 @@ func (s *SelfBuild) Run(ctx context.Context, intent string) error {
 
 	// Outcome row pairs with dispatched; dangling dispatched-without-outcome is flagged by selflearn.
 	if s.Watch {
-		state := inner.watch(ctx)
-		s.appendAuditOutcome(intent, state, inner.LastURL)
+		state, pr := inner.watch(ctx)
+		s.appendAuditOutcome(intent, state, inner.LastURL, pr)
 	}
 	return nil
 }
@@ -284,8 +284,9 @@ func (s *SelfBuild) appendAuditClarify(intent string) {
 // args_hash as the dispatched row. selflearn correlates the pair via
 // (ArgsHash, Kind ∈ {self-build, self-build.outcome}); a dangling
 // dispatched row with no outcome after N days flags an operator-abort or
-// regatta-watcher failure.
-func (s *SelfBuild) appendAuditOutcome(intent, state, issueURL string) {
+// regatta-watcher failure. pr is the terminal agent's PR (0 = none): the
+// daemon's join key for binding a merge transition back to this ArgsHash.
+func (s *SelfBuild) appendAuditOutcome(intent, state, issueURL string, pr int) {
 	if state == "" {
 		// No Regatta client wired → nothing observed → nothing to record.
 		return
@@ -293,6 +294,12 @@ func (s *SelfBuild) appendAuditOutcome(intent, state, issueURL string) {
 	detail := "state=" + state
 	if issueURL != "" {
 		detail += " url=" + issueURL
+	}
+	if pr > 0 {
+		// pr=<N> is the daemon's join key: a later daemon.transition to=merged
+		// for an agent with this PR copies this row's ArgsHash so the closed-loop
+		// classifier can bind merged→loop (MAY-265).
+		detail += fmt.Sprintf(" pr=%d", pr)
 	}
 	_ = s.Audit.Append(audit.Entry{
 		Kind:        attestation.ScopeSelfBuild + ".outcome",
