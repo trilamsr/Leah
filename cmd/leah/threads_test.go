@@ -211,12 +211,15 @@ func TestThreadsWithinDropsOlderThanWindow(t *testing.T) {
 		}, now: now},
 	}
 	var buf bytes.Buffer
-	code := runThreadsWith(context.Background(), threadsOpts{now: now, seams: seams}, []string{"--within", "24h"}, &buf)
+	code := runThreadsWith(context.Background(), threadsOpts{now: now, seams: seams}, []string{"--within", "24h", "--json"}, &buf)
 	if code != 0 {
 		t.Fatalf("exit=%d", code)
 	}
-	out := buf.String()
-	if !strings.Contains(out, "HOT-1") || strings.Contains(out, "COLD-1") {
-		t.Fatalf("--within not enforced: %q", out)
+	var rows []threadRow
+	if err := json.Unmarshal(buf.Bytes(), &rows); err != nil {
+		t.Fatalf("bad json: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Key != "HOT-1" {
+		t.Fatalf("--within not enforced; rows=%+v", rows)
 	}
 }

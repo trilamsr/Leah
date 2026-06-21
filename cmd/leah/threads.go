@@ -131,18 +131,27 @@ func liveSeams(stderr io.Writer) map[string]sources.WorkItemSeam {
 	}
 	if ts := staticTokenForName("jira"); ts != "" {
 		base := os.Getenv("LEAH_SHIP_JIRA_BASE_URL")
-		if ad, err := jira.New(jira.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: jira.NewHTTPTransport(hc, base), BaseURL: base}); err == nil {
+		ad, err := jira.New(jira.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: jira.NewHTTPTransport(hc, base), BaseURL: base})
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "leah threads: jira init: %v\n", err)
+		} else {
 			out["jira"] = jiraSeam{ad: ad, now: now}
 		}
 	}
 	if ts := staticTokenForName("linear"); ts != "" {
-		if ad, err := linear.New(linear.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: linear.NewHTTPTransport(hc, "https://api.linear.app/graphql")}); err == nil {
+		ad, err := linear.New(linear.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: linear.NewHTTPTransport(hc, "https://api.linear.app/graphql")})
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "leah threads: linear init: %v\n", err)
+		} else {
 			out["linear"] = linearSeam{ad: ad, now: now}
 		}
 	}
 	if ts := staticTokenForName("confluence"); ts != "" {
 		base := os.Getenv("LEAH_SHIP_CONFLUENCE_BASE_URL")
-		if ad, err := confluence.New(confluence.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: confluence.NewHTTPTransport(hc, base), BaseURL: base}); err == nil {
+		ad, err := confluence.New(confluence.Config{Attestor: noopAttestor{}, TokenSource: ts, Transport: confluence.NewHTTPTransport(hc, base), BaseURL: base})
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "leah threads: confluence init: %v\n", err)
+		} else {
 			space := os.Getenv("LEAH_THREADS_CONFLUENCE_SPACE")
 			out["confluence"] = confluenceSeam{ad: ad, space: space, now: now}
 		}
