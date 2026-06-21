@@ -32,3 +32,26 @@ func startMetricsSnapshotter(ctx context.Context, lg *slog.Logger, registry *obs
 	})
 	return snapPath
 }
+
+// startLogRetention caps <sd>/logs growth: one sweep on start, then every 6h.
+func startLogRetention(ctx context.Context, lg *slog.Logger, registry *obs.Registry, sd string) {
+	logsDir := filepath.Join(sd, "logs")
+	obs.SafeGo(lg, registry, "log-retention", func() {
+		ticker := time.NewTicker(6 * time.Hour)
+		defer ticker.Stop()
+		sweep := func() {
+			if err := obs.PruneLogs(logsDir, time.Now(), obs.RetentionDays()); err != nil {
+				lg.Error("log retention sweep failed", "err", err)
+			}
+		}
+		sweep()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				sweep()
+			}
+		}
+	})
+}
