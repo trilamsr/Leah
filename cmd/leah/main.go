@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -239,17 +240,21 @@ func openCostBreaker() reasoner.Breaker {
 	return costmonth.NewBreaker(store)
 }
 
-func runAsk(ctx context.Context, query string) int {
-	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
-	b := budget.New()
+// askStreamer is the surface runAskWith depends on — *reasoner.Reasoner
+// satisfies it; tests wire a scripted fake. Kept narrow so the test fake
+// doesn't drag in budget/audit setup.
+type askStreamer interface {
+	AskStream(ctx context.Context, user string) (<-chan string, error)
+}
 
+func runAsk(ctx context.Context, query string) int {
 	systemPrompt, err := os.ReadFile(filepath.Join(promptDir(), "system.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read system prompt: %v\n", err)
 		return 1
 	}
 
+	b := budget.New()
 	br := openCostBreaker()
 	client, err := reasoner.NewRoutedClient("reasoner", br, b, nil)
 	if err != nil {
@@ -258,11 +263,27 @@ func runAsk(ctx context.Context, query string) int {
 	}
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt), PersonaPrefix: personaPrefixForActive()}
 
-	ask := &dispatcher.Ask{Reasoner: r, Audit: a, Budget: b, Out: os.Stdout}
-	if err := ask.Run(ctx, query); err != nil {
+	return runAskWith(ctx, r, os.Stdout, query)
+}
+
+// runAskWith drains AskStream's delta channel straight into out — each
+// delta becomes its own Write so the firstByteWriter wrapping os.Stdout
+// (A6) sees the first model token at first-delta time, not full-reply
+// time. The trailing newline preserves the legacy `leah ask` UX where
+// the response always ends with one \n.
+func runAskWith(ctx context.Context, s askStreamer, out io.Writer, query string) int {
+	ch, err := s.AskStream(ctx, query)
+	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", err)
 		return 1
 	}
+	for delta := range ch {
+		if _, werr := io.WriteString(out, delta); werr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", werr)
+			return 1
+		}
+	}
+	_, _ = io.WriteString(out, "\n")
 	return 0
 }
 
