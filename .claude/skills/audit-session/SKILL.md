@@ -50,6 +50,16 @@ mark_done() {
   awk -v n="$n" '$0 ~ "^phase" n "=pending$" { print "phase" n "=done"; next } { print }' \
     "$ledger" > "$tmp" && mv "$tmp" "$ledger"
 }
+
+# Intentional skip — completion gate accepts =skipped:<reason> the same as =done.
+# Without this helper, a skipped phase left untouched would block summary emission
+# and force the caller to hand-edit the ledger, defeating the structural guarantee.
+mark_skipped() {
+  local n="$1" reason="${2:-unspecified}" ledger="$HANDOFF_DIR/phase-ledger.txt" tmp
+  tmp=$(mktemp)
+  awk -v n="$n" -v r="$reason" '$0 ~ "^phase" n "=pending$" { print "phase" n "=skipped:" r; next } { print }' \
+    "$ledger" > "$tmp" && mv "$tmp" "$ledger"
+}
 ```
 
 ## Phase 0: cross-session continuity
@@ -392,9 +402,20 @@ if [ "$pending" -ne 0 ]; then
   grep '=pending$' "$HANDOFF_DIR/phase-ledger.txt" | sed 's/=pending$//' | sed 's/^/  - /'
   exit 1
 fi
+
+# Phase 4 gate-boundary-gaps must reach the operator. The Phase 4 block wrote
+# every missing-from-template slug to gate-boundary-gaps.txt; emit each line
+# verbatim under FILED so the operator sees which dispatch-template needs the
+# patch (skill itself cannot auto-edit dispatch-templates per Hard Nos).
+gbg_count=0
+if [ -s "$HANDOFF_DIR/gate-boundary-gaps.txt" ]; then
+  gbg_count=$(wc -l < "$HANDOFF_DIR/gate-boundary-gaps.txt" | tr -d ' ')
+  echo "--- gate-boundary-gaps (Phase 4) ---"
+  cat "$HANDOFF_DIR/gate-boundary-gaps.txt"
+fi
 ```
 
-After all 9 phases + A1/A2 run, emit ONE consolidated hand-back block:
+After all 9 phases + A1/A2 run, emit ONE consolidated hand-back block (the `[GATE-BOUNDARY-GAP] x N` count below = `gbg_count`; the individual lines emitted above this block name each template that needs the patch):
 
 ```
 audit-session: <N PRs merged, M issues, K subagents this session>
