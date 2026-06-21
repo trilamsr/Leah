@@ -152,8 +152,51 @@ func TestReleases_FetchMalformedXML_ReturnsError(t *testing.T) {
 	}
 }
 
-// TestDefaultReleaseSources_Shape — curated list is non-empty and well-formed.
-// Catches accidental empty-default or malformed-URL regressions during list edits.
+// atomEdgeCasesBody hits pickAtomLink fallback + parseAtomTime zero-time path.
+const atomEdgeCasesBody = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>tag:github.com,2008:Repository/1/v3.0.0</id>
+    <updated>not-a-date</updated>
+    <link rel="self" type="application/atom+xml" href="https://example.com/self"/>
+    <link rel="edit" type="application/atom+xml" href="https://example.com/edit"/>
+    <title>v3.0.0</title>
+    <content type="html">edge.</content>
+  </entry>
+</feed>`
+
+// TestReleases_FetchAtom_HelperFallbacks covers non-alternate link fallback + malformed updated.
+func TestReleases_FetchAtom_HelperFallbacks(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/atom+xml")
+		_, _ = w.Write([]byte(atomEdgeCasesBody))
+	}))
+	defer srv.Close()
+
+	r, err := feeds.NewReleases(feeds.ReleasesConfig{
+		Attestor:   &fakeAttestor{},
+		HTTPClient: srv.Client(),
+		Sources:    []feeds.ReleaseSource{{Name: "x/y", URL: srv.URL}},
+	})
+	if err != nil {
+		t.Fatalf("NewReleases: %v", err)
+	}
+	arts, err := r.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(arts) != 1 {
+		t.Fatalf("got %d, want 1", len(arts))
+	}
+	if arts[0].URL != "https://example.com/self" {
+		t.Errorf("URL = %q, want first-link fallback https://example.com/self", arts[0].URL)
+	}
+	if !arts[0].Published.IsZero() {
+		t.Errorf("Published = %v, want zero on malformed updated", arts[0].Published)
+	}
+}
+
+// TestDefaultReleaseSources_Shape catches empty-default or malformed-URL regressions.
 func TestDefaultReleaseSources_Shape(t *testing.T) {
 	srcs := feeds.DefaultReleaseSources()
 	if len(srcs) < 10 {
