@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
@@ -18,7 +19,21 @@ var (
 	ErrNoResults         = errors.New("maps: no results")
 	ErrNoRoute           = errors.New("maps: no route")
 	ErrAPIStatus         = errors.New("maps: api non-OK status")
+	ErrUnsupported       = errors.New("maps: RPC not served by this provider")
 )
+
+// Provider is the surface both *Adapter (Google) and *OSM share so operators
+// swap backends config-time.
+type Provider interface {
+	Geocode(ctx context.Context, address string) ([]Place, error)
+	ReverseGeocode(ctx context.Context, lat, lng float64) ([]Place, error)
+	Route(ctx context.Context, origin, dest string, mode TransportMode) (Route, error)
+	POINearby(ctx context.Context, center Place, radiusM int, category string) ([]Place, error)
+	POIAlongRoute(ctx context.Context, route Route, opts CorridorOpts) ([]Place, error)
+	TrafficETA(ctx context.Context, route Route, departAt time.Time) (ETA, error)
+}
+
+var _ Provider = (*Adapter)(nil)
 
 // Scopes the Attestor sees. Distinct per RPC so the operator-attestation log
 // attributes consent at the per-action grain (geocode vs. route vs. poi).
