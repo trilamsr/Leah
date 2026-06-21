@@ -30,7 +30,7 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 ## TDD + review
 
 - Failing test FIRST; capture failing output in PR body; then impl; then green.
-- Independent reviewer subagent for EVERY PR — verdict via PR comment OR subagent transcript. Author posting own APPROVE = self-approval. Spawn cavecrew-reviewer immediately after `gh pr create`. Adversarial framing.
+- Independent reviewer subagent for EVERY PR — verdict via `gh pr comment <N>` OR subagent transcript; main arms merge only after a verdict exists in ONE of those channels. Author posting own APPROVE = self-approval regardless of channel. Spawn reviewer (agent-id shape `^(a[0-9a-f]{16}|cavecrew-reviewer-[a-z0-9-]+)$`) immediately after `gh pr create`. Adversarial framing.
 - Review dimensions every PR (ALL must clear before APPROVE): correctness/bugs, unintended side effects, conciseness, refactor, simplification, doc updates, comment trimming, test coverage, deletion-default, no AI signatures, no ceremony.
 
 ## Worktree discipline
