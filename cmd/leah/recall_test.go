@@ -51,3 +51,32 @@ func TestStreamRecallSynthesis_WritesDeltasInOrderWithSingleTrailingNewline(t *t
 		t.Errorf("prompt missing query/source context: %q", sr.gotUser)
 	}
 }
+
+// Unlike suggest --llm (one AskStream per rec), recall packs every hit into a
+// single combined prompt and streams once — the synthesis spans all hits. Pin
+// that shape: many results still yield one stream + one trailing newline.
+func TestStreamRecallSynthesis_ManyResultsOneStreamOneNewline(t *testing.T) {
+	sr := &fakeRecallStreamReasoner{deltas: []string{"summary ", "across hits."}}
+	results := []recallResult{
+		{Source: "audit", Timestamp: "2026-06-20T10:00:00Z", Text: "ship: merged PR #1"},
+		{Source: "project", Timestamp: "2026-06-19T09:00:00Z", Text: "[active] leah"},
+		{Source: "decision", Timestamp: "2026-06-18T08:00:00Z", Text: "tracker -> Linear"},
+	}
+	var buf bytes.Buffer
+	if err := streamRecallSynthesis(context.Background(), sr, &buf, "ship", results); err != nil {
+		t.Fatalf("streamRecallSynthesis: %v", err)
+	}
+	got := buf.String()
+	want := "summary across hits.\n"
+	if got != want {
+		t.Fatalf("output mismatch:\n got: %q\nwant: %q", got, want)
+	}
+	if strings.Count(got, "\n") != 1 {
+		t.Errorf("want exactly one trailing newline (single combined stream), got %d", strings.Count(got, "\n"))
+	}
+	for _, hit := range results {
+		if !strings.Contains(sr.gotUser, hit.Text) {
+			t.Errorf("combined prompt missing hit %q; got %q", hit.Text, sr.gotUser)
+		}
+	}
+}
