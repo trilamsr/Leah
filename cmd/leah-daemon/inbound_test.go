@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/trilam/leah/internal/adapters/discord"
+	"github.com/trilam/leah/internal/attestation"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/inbound"
 	"github.com/trilam/leah/internal/recommend"
@@ -198,6 +200,7 @@ func TestStartInboundDiscordWiresRouter(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	att := &recordingAttestor{}
 	stop, err := startInboundDiscord(ctx, inboundOpts{
 		StateDir: sd,
 		Engine:   eng,
@@ -205,6 +208,7 @@ func TestStartInboundDiscordWiresRouter(t *testing.T) {
 		Dialer:   dialer,
 		Pending:  pending,
 		Enroll:   enroll,
+		Attestor: att,
 	})
 	if err != nil {
 		t.Fatalf("start: %v", err)
@@ -224,4 +228,108 @@ func TestStartInboundDiscordWiresRouter(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("router never consumed pending entry: dialed=%d", dialer.dialed.Load())
+}
+
+// recordingAttestor captures the scopes presented to it so tests can assert
+// the load-bearing rule (spec §4.2): a self-build rec accepted from a remote
+// channel MUST attest the self-build scope, not the weaker inbound-apply.
+type recordingAttestor struct {
+	mu     sync.Mutex
+	scopes []string
+}
+
+func (r *recordingAttestor) Attest(_ context.Context, scope string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.scopes = append(r.scopes, scope)
+	return nil
+}
+
+func (r *recordingAttestor) Scopes() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, len(r.scopes))
+	copy(out, r.scopes)
+	return out
+}
+
+// TestStartInboundDiscordSelfBuildAttestsSelfBuildScope is the spec §7
+// load-bearing test: a self-build rec accepted via Discord attests
+// `self-build`, NOT `inbound-apply`. If this regresses, a compromised Discord
+// account could trick the operator into approving a self-build merge with the
+// weaker inbound-apply prompt — exactly the spec §8 privilege-escalation risk
+// the consent contract exists to prevent.
+func TestStartInboundDiscordSelfBuildAttestsSelfBuildScope(t *testing.T) {
+	sd := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", sd)
+	t.Setenv("LEAH_INBOUND_DISCORD", "1")
+	t.Setenv("LEAH_INBOUND_DISCORD_CHANNELS", "C1")
+	t.Setenv("LEAH_INBOUND_DISCORD_GUILDS", "G1")
+	tokenPath := writeTokenFile(t, sd, "discord", "T")
+	t.Setenv("LEAH_INBOUND_DISCORD_TOKEN_PATH", tokenPath)
+
+	frame, _ := json.Marshal(map[string]any{
+		"op": 0, "t": "MESSAGE_CREATE",
+		"d": map[string]any{
+			"channel_id": "C1", "guild_id": "G1", "content": "approve",
+			"author": map[string]string{"id": "U1"},
+			"timestamp": time.Now().Format(time.RFC3339Nano),
+		},
+	})
+	dialer := &fakeDialer{frames: [][]byte{frame}}
+
+	a := &audit.Logger{Path: filepath.Join(sd, "audit.jsonl")}
+	eng := recommend.NewMemoryEngine(a)
+	// TierConfirm + Source "self-build" → resolver MUST return self-build scope.
+	eng.Seed(recommend.Recommendation{
+		ID: "rec-sb", Pattern: "self-build:merge-pr", Source: "self-build.dispatcher",
+		Tier: recommend.TierConfirm,
+	})
+	pending := inbound.NewMemoryPendingStore()
+	_ = pending.Put(inbound.Pending{RecID: "rec-sb", Channel: "discord", ConvID: "C1", PeerID: "U1", SentAt: time.Now()})
+	enroll := inbound.NewMemoryEnrollStore()
+	_ = enroll.Enroll("discord", "U1")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	att := &recordingAttestor{}
+	stop, err := startInboundDiscord(ctx, inboundOpts{
+		StateDir: sd, Engine: eng, Audit: a, Dialer: dialer,
+		Pending: pending, Enroll: enroll, Attestor: att,
+	})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if got := att.Scopes(); len(got) > 0 {
+			if got[0] != attestation.ScopeSelfBuild {
+				t.Fatalf("scope downgrade: got %q want %q (spec §4.2 — remote origin must NOT downgrade gate)", got[0], attestation.ScopeSelfBuild)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("attestor never called: dialed=%d", dialer.dialed.Load())
+}
+
+// TestStartInboundDiscordDefaultsFailClosed: with no attestor injected, the
+// default failClosedAttestor must deny accepts. Proves spec §4.2 layer-2
+// can't be bypassed by an unwired daemon (better deny-on-accept than silently
+// apply via a noop).
+func TestStartInboundDiscordDefaultsFailClosed(t *testing.T) {
+	g := &inbound.Gate{
+		Attestor: failClosedAttestor{},
+		Resolver: inbound.StaticScopeResolver{Scope: attestation.ScopeInboundApply},
+		Store:    inbound.NewMemoryEnrollStore(),
+	}
+	err := g.Authorize(context.Background(),
+		inbound.Pending{RecID: "x", Channel: "discord", ConvID: "C1", PeerID: "U1"},
+		inbound.IntentAccept)
+	if err == nil {
+		t.Fatalf("default attestor must fail closed on Authorize; got nil error")
+	}
 }

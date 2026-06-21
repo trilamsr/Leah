@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/trilam/leah/internal/adapters/discord"
+	"github.com/trilam/leah/internal/attestation"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/inbound"
 	"github.com/trilam/leah/internal/recommend"
 )
@@ -22,9 +24,12 @@ const (
 	envInboundDiscordTokenPath = "LEAH_INBOUND_DISCORD_TOKEN_PATH"
 )
 
-// inboundOpts collects daemon-side seams. Pending/Enroll/Dialer are optional;
-// production fills the first two with persistent defaults and leaves Dialer
-// nil (no production gateway dialer is wired in v1 — spec §6 step 4).
+// inboundOpts collects daemon-side seams. Pending/Enroll/Dialer/Attestor are
+// optional; production fills Pending+Enroll with persistent defaults, leaves
+// Dialer nil (no production gateway dialer wired in v1 — spec §6 step 4), and
+// defaults Attestor to a fail-closed shim so an opt-in deployment without a
+// real interactive attestor errors on Accept rather than silently mutating
+// (spec §4.2: per-action consent collected locally, never noop).
 type inboundOpts struct {
 	StateDir string
 	Engine   *recommend.MemoryEngine
@@ -32,6 +37,7 @@ type inboundOpts struct {
 	Dialer   discord.WebSocketDialer
 	Pending  inbound.PendingStore
 	Enroll   inbound.EnrollStore
+	Attestor contracts.Attestor
 }
 
 // startInboundDiscord wires the F3 inbound-reply router behind
@@ -91,11 +97,16 @@ func startInboundDiscord(ctx context.Context, opts inboundOpts) (func(), error) 
 		}
 	}
 
+	att := opts.Attestor
+	if att == nil {
+		att = failClosedAttestor{}
+	}
+
 	router := &inbound.Router{
 		Pending: pending,
 		Consent: &inbound.Gate{
-			Attestor: noopAttestor{},
-			Resolver: inbound.StaticScopeResolver{Scope: inbound.DefaultApplyScope},
+			Attestor: att,
+			Resolver: recScopeResolver{eng: opts.Engine},
 			Store:    enroll,
 		},
 		Classify: inbound.NewRegexClassifier(),
@@ -168,6 +179,54 @@ func (e engineByID) Apply(ctx context.Context, id string) error {
 		}
 	}
 	return errors.New("inbound: rec not found for apply: " + id)
+}
+
+// recScopeResolver maps a pending RecID back to the rec via the engine and
+// returns the scope keyed to the rec's blast radius (spec §4.2). The
+// load-bearing rule: a self-build rec accepted from a remote channel attests
+// the *self-build* scope, NOT the weaker inbound-apply — remote origin never
+// downgrades the gate. A missing rec returns inbound-apply as a conservative
+// default rather than "" (no-scope = no prompt), so a race where Take fires
+// between Authorize and engine lookup still gates rather than silently
+// applies. Source/Pattern-prefix matching keeps the daemon decoupled from a
+// (not-yet-shipped) per-rec scope field.
+type recScopeResolver struct{ eng *recommend.MemoryEngine }
+
+func (r recScopeResolver) ScopeFor(recID string) string {
+	if r.eng == nil {
+		return attestation.ScopeInboundApply
+	}
+	recs, err := r.eng.Propose(context.Background())
+	if err != nil {
+		return attestation.ScopeInboundApply
+	}
+	for _, rec := range recs {
+		if rec.ID != recID {
+			continue
+		}
+		switch {
+		case hasPrefix(rec.Source, "self-build"), hasPrefix(rec.Pattern, "self-build"):
+			return attestation.ScopeSelfBuild
+		case hasPrefix(rec.Source, "self-upgrade"), hasPrefix(rec.Pattern, "self-upgrade"):
+			return attestation.ScopeSelfUpgrade
+		default:
+			return attestation.ScopeInboundApply
+		}
+	}
+	return attestation.ScopeInboundApply
+}
+
+func hasPrefix(s, prefix string) bool { return strings.HasPrefix(s, prefix) }
+
+// failClosedAttestor is the daemon's default when no interactive attestor is
+// wired. Always denies — accepts from remote will error rather than silently
+// apply (spec §4.2: per-action consent must be collected locally; noop on a
+// non-attestor would bypass the load-bearing layer-2 gate). The operator
+// wires a real attestor when the daemon's interactive surface lands.
+type failClosedAttestor struct{}
+
+func (failClosedAttestor) Attest(context.Context, string) error {
+	return errors.New("inbound: no interactive attestor wired; remote accept denied (spec §4.2)")
 }
 
 func auditSink(a *audit.Logger) func(inbound.AuditRow) {
