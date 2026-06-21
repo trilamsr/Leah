@@ -153,3 +153,123 @@ func TestPushSource_Run_RequiresSource(t *testing.T) {
 		t.Fatal("Run with nil Source: want error")
 	}
 }
+
+type clock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (c *clock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *clock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.t = c.t.Add(d)
+}
+
+// Coalesce: NSWorkspace re-fires the same bundle on focus-without-switch
+// (e.g. window raise inside the same app). Downstream recommender treats every
+// emit as a fresh signal, so duplicates inflate scores.
+func TestPushSource_Coalesce_DropsRepeatBundleID(t *testing.T) {
+	t.Parallel()
+	src := osevent.NewFake(osevent.Config{})
+	t.Cleanup(func() { _ = src.Close() })
+
+	rec := &recorder{}
+	clk := &clock{t: time.Unix(0, 0)}
+	p := &PushSource{
+		Source:   src,
+		ObsEmit:  rec.emit,
+		Debounce: 0, // isolate coalesce
+		NowFn:    clk.now,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = p.Run(ctx) }()
+
+	ev := osevent.Event{Kind: osevent.WorkspaceActiveAppChanged, Detail: map[string]any{"bundle_id": "com.apple.Safari", "name": "Safari"}}
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		src.Inject(ev)
+		return len(rec.snapshot()) >= 1
+	})
+	for i := 0; i < 5; i++ {
+		clk.advance(time.Second) // past debounce window
+		src.Inject(ev)
+	}
+	// Inject a sentinel distinct bundle; once it lands the dup spam has flushed.
+	clk.advance(time.Second)
+	src.Inject(osevent.Event{Kind: osevent.WorkspaceActiveAppChanged, Detail: map[string]any{"bundle_id": "com.apple.Notes", "name": "Notes"}})
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		for _, e := range rec.snapshot() {
+			if p, _ := e.Payload.(obs.WorkspaceActiveAppEvent); p.BundleID == "com.apple.Notes" {
+				return true
+			}
+		}
+		return false
+	})
+
+	if got := len(rec.snapshot()); got != 2 {
+		t.Fatalf("emits=%d want 2 (1 safari coalesced + 1 notes sentinel)", got)
+	}
+}
+
+// Debounce: rapid app-switch storms (cmd-tab through 5 apps in 200ms) should
+// emit only after motion settles, otherwise the recommender thrashes.
+func TestPushSource_Debounce_SuppressesRapidSwitches(t *testing.T) {
+	t.Parallel()
+	src := osevent.NewFake(osevent.Config{})
+	t.Cleanup(func() { _ = src.Close() })
+
+	rec := &recorder{}
+	clk := &clock{t: time.Unix(0, 0)}
+	p := &PushSource{
+		Source:   src,
+		ObsEmit:  rec.emit,
+		Debounce: 250 * time.Millisecond,
+		NowFn:    clk.now,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = p.Run(ctx) }()
+
+	// First switch always passes (no prior emit to debounce against).
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		src.Inject(osevent.Event{Kind: osevent.WorkspaceActiveAppChanged, Detail: map[string]any{"bundle_id": "com.apple.Safari", "name": "Safari"}})
+		return len(rec.snapshot()) >= 1
+	})
+
+	// Storm of distinct bundles within 100ms of the first emit. Advance + inject
+	// + bounded settle for each — the settle window must elapse before the next
+	// clock advance, else the loop could read now() AFTER the advance and
+	// falsely emit a storm bundle past the debounce gate.
+	for _, b := range []string{"com.google.Chrome", "com.tinyspeck.slackmacgap", "com.apple.Terminal"} {
+		clk.advance(50 * time.Millisecond)
+		src.Inject(osevent.Event{Kind: osevent.WorkspaceActiveAppChanged, Detail: map[string]any{"bundle_id": b, "name": b}})
+		time.Sleep(20 * time.Millisecond) // allow-sleep: bounded settle so the loop reads now() at the current clock value, not a later advance
+		if len(rec.snapshot()) != 1 {
+			t.Fatalf("storm bundle %s leaked an emit: %+v", b, rec.snapshot())
+		}
+	}
+	// After the debounce window elapses, the next switch passes through —
+	// arrival of Notes proves the storm fully drained.
+	clk.advance(300 * time.Millisecond)
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		src.Inject(osevent.Event{Kind: osevent.WorkspaceActiveAppChanged, Detail: map[string]any{"bundle_id": "com.apple.Notes", "name": "Notes"}})
+		return len(rec.snapshot()) >= 2
+	})
+
+	got := rec.snapshot()
+	if len(got) != 2 {
+		t.Fatalf("emits=%d want 2 (safari + notes only, storm debounced): %+v", len(got), got)
+	}
+	if p, _ := got[0].Payload.(obs.WorkspaceActiveAppEvent); p.BundleID != "com.apple.Safari" {
+		t.Fatalf("emit[0]=%+v want safari", got[0])
+	}
+	if p, _ := got[1].Payload.(obs.WorkspaceActiveAppEvent); p.BundleID != "com.apple.Notes" {
+		t.Fatalf("emit[1]=%+v want notes", got[1])
+	}
+}
