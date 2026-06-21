@@ -62,6 +62,19 @@ type WorkspaceActiveAppEvent struct {
 // not name the changed records (privacy-by-design).
 type ContactStoreChangedEvent struct{}
 
+// MessagesChangedEvent is the Payload for `messages_changed`. The FSEvents
+// WAL watcher never opens chat.db — consumers re-query under their own
+// macos:messages:query scope, so no row data ships in the payload.
+type MessagesChangedEvent struct{}
+
+// MailChangedEvent — Envelope Index WAL mutation; consumers re-query under
+// macos:mail:query.
+type MailChangedEvent struct{}
+
+// NotesChangedEvent — NoteStore.sqlite WAL mutation; consumers re-query under
+// macos:notes:query.
+type NotesChangedEvent struct{}
+
 // EventQuery is a Query filter. Mutually-additive fields AND together.
 type EventQuery struct {
 	Since    time.Time
@@ -518,6 +531,9 @@ var KnownEventKinds = []string{
 	"hud.state",
 	"workspace.active_app_changed",
 	"contact_store_changed",
+	"messages_changed",
+	"mail_changed",
+	"notes_changed",
 }
 
 // SafeDetail strips chars outside [\w\-\.:/], truncates 128r (spec §9 PII).
