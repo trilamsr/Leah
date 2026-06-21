@@ -89,6 +89,10 @@ type FocusStateChangedEvent struct{}
 // under macos:photos:query. UUIDs are not surfaced (PII).
 type PhotosLibraryChangedEvent struct{}
 
+// RemindersStoreChangedEvent — Reminders Group Container store WAL mutation;
+// consumers re-query under macos:reminders:query.
+type RemindersStoreChangedEvent struct{}
+
 // EventQuery is a Query filter. Mutually-additive fields AND together.
 type EventQuery struct {
 	Since    time.Time
@@ -551,6 +555,7 @@ var KnownEventKinds = []string{
 	"safari.history_changed",
 	"focus.state_changed",
 	"photos.library_changed",
+	"reminders.store_changed",
 }
 
 // SafeDetail strips chars outside [\w\-\.:/], truncates 128r (spec §9 PII).
