@@ -29,11 +29,16 @@ import (
 // Each task is built by a per-subsystem helper so future parallel agents
 // touch their own file (split closes Wave 7 god-file retros KK / JJ / MM).
 func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []daemonloop.WeeklyTask {
+	// One-way feedback edge: resolver outcomes feed the operator model so
+	// recommendations reflect recent ship results. The resolver task runs
+	// before the operatormodel task (ordering below), draining into this
+	// shared observer in between.
+	feedback := &operatormodel.FeedbackObserver{}
 	return []daemonloop.WeeklyTask{
-		buildResolverTask(auditPath, a, out),
+		buildResolverTask(auditPath, a, out, feedback),
 		buildPatternsTask(sd, auditPath, out),
 		buildRetroTask(sd, auditPath, out),
-		buildOperatorModelTask(sd, auditPath, out),
+		buildOperatorModelTask(sd, auditPath, out, feedback),
 		buildPanicDetectTask(sd, out),
 		buildBackupSnapshotTask(sd, a, out),
 		buildBackupVerifyTask(a, out),
@@ -44,19 +49,38 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 // regatta.ship rule. Panic-rate detection runs in buildPanicDetectTask —
 // keep concerns separate (resolver = audit-row verdicts; panic-detect =
 // metric-snapshot deltas). Errors log + skip — the next weekly tick retries.
-func buildResolverTask(auditPath string, a *audit.Logger, out *os.File) daemonloop.WeeklyTask {
+func buildResolverTask(auditPath string, a *audit.Logger, out *os.File, feedback *operatormodel.FeedbackObserver) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
+		sink := selflearn.NewOutcomeSink(64, func(o selflearn.Outcome) {
+			feedback.Observe(operatormodel.ShipOutcome{Verdict: shipVerdict(o), At: time.Now().UTC()})
+		})
+		defer sink.Close() // flush in-flight before the operatormodel task drains
 		r := &selflearn.Resolver{
 			AuditPath: auditPath,
 			Logger:    a,
 			Rules: map[string]selflearn.Rule{
 				"regatta.ship": rules.RegattaPR{},
 			},
-			Out: out,
+			Out:       out,
+			OnOutcome: sink.Emit,
 		}
 		if err := r.Run(ctx); err != nil {
 			_, _ = fmt.Fprintf(out, "leah-daemon: weekly resolver error: %v\n", err)
 		}
+	}
+}
+
+// shipVerdict maps a selflearn resolver verdict to the operator-model
+// ship_outcome slot, keeping the import arrow one-way (the translation
+// lives at the daemon boundary, not inside operatormodel).
+func shipVerdict(o selflearn.Outcome) string {
+	switch o {
+	case selflearn.OutcomeSuccess:
+		return operatormodel.VerdictOK
+	case selflearn.OutcomeFailed:
+		return operatormodel.VerdictFailed
+	default:
+		return operatormodel.VerdictDangling
 	}
 }
 
@@ -113,7 +137,7 @@ func buildRetroTask(sd, auditPath string, out *os.File) daemonloop.WeeklyTask {
 // window (Wave 2-J). The ctxmgr handle wires context_transition observations
 // — without it the class stays silently zero (#10). Cold-start gate inside
 // Update() ensures Ready stays false until 50 rows + 7d.
-func buildOperatorModelTask(sd, auditPath string, out *os.File) daemonloop.WeeklyTask {
+func buildOperatorModelTask(sd, auditPath string, out *os.File, feedback *operatormodel.FeedbackObserver) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
 		dbPath := filepath.Join(sd, "memory.db")
 		store, err := memory.NewStore(dbPath)
@@ -129,7 +153,7 @@ func buildOperatorModelTask(sd, auditPath string, out *os.File) daemonloop.Weekl
 			return
 		}
 		defer func() { _ = mgr.Close() }()
-		if err := operatormodel.UpdateProfile(ctx, store, auditPath, mgr); err != nil {
+		if err := operatormodel.UpdateProfile(ctx, store, auditPath, mgr, feedback); err != nil {
 			_, _ = fmt.Fprintf(out, "leah-daemon: weekly operatormodel error: %v\n", err)
 		}
 	}

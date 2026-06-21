@@ -44,6 +44,10 @@ type Resolver struct {
 	Since     time.Duration
 	Now       func() time.Time
 	Out       io.Writer
+	// OnOutcome, if set, receives each resolved verdict so a downstream
+	// observer (operatormodel) reflects recent ship results. Must not block —
+	// the daemon wires it through OutcomeSink (queue-with-drop).
+	OnOutcome func(Outcome)
 
 	mu sync.Mutex
 }
@@ -112,6 +116,9 @@ func (r *Resolver) Run(ctx context.Context) error {
 			continue
 		}
 		resolvedKeys[key] = true
+		if r.OnOutcome != nil {
+			r.OnOutcome(verdict)
+		}
 	}
 	return nil
 }
