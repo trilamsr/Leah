@@ -29,6 +29,8 @@ func DefaultRegistry() *Registry {
 		newTokenPaste(tokenPasteSpec{name: "notion", fields: []string{"Integration secret"}, assemble: rawToken}, os.Stdin, os.Stdout),
 		newTokenPaste(tokenPasteSpec{name: "linear", fields: []string{"API key (lin_api_…)"}, assemble: rawToken}, os.Stdin, os.Stdout),
 		newTokenPaste(tokenPasteSpec{name: "msteams", fields: []string{"Graph API bearer token"}, assemble: rawToken}, os.Stdin, os.Stdout),
+		newNativeMac("imessage", "osascript"),
+		newNativeMac("facetime", "open"),
 	})
 }
 

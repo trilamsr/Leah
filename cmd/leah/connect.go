@@ -92,7 +92,7 @@ func printConnectUsage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "usage: leah connect <integration>")
 	_, _ = fmt.Fprintln(w, "       leah connect --list")
 	_, _ = fmt.Fprintln(w, "")
-	_, _ = fmt.Fprintln(w, "Device-code OAuth for gmail/gcal; API-token paste for confluence, jira, slack, notion, linear, msteams.")
+	_, _ = fmt.Fprintln(w, "Device-code OAuth for gmail/gcal; API-token paste for confluence, jira, slack, notion, linear, msteams; macOS-native consent for imessage, facetime.")
 }
 
 type connectAttestor struct{}
