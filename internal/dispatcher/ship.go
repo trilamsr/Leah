@@ -151,6 +151,14 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		return err
 	}
 	lg.Info("dispatcher.issue.created", "url", url, "title", title)
+	obs.Publish(obs.Event{
+		TS:      time.Now().UTC(),
+		Kind:    "dispatch.ship",
+		Actor:   "dispatcher",
+		Outcome: "pending",
+		Target:  title,
+		Detail:  url,
+	})
 
 	if err := s.Audit.Append(audit.Entry{
 		Kind:        "ship",
@@ -203,6 +211,16 @@ func (s *Ship) watch(ctx context.Context) string {
 			}
 			for _, a := range agents {
 				if a.State == "merged" || a.State == "escalated" || a.State == "failed" {
+					if a.State == "merged" {
+						obs.Publish(obs.Event{
+							TS:      time.Now().UTC(),
+							Kind:    "dispatch.merge",
+							Actor:   "dispatcher",
+							Outcome: "ok",
+							Target:  a.ID,
+							Detail:  fmt.Sprintf("PR #%d", a.PR),
+						})
+					}
 					if s.Notify != nil {
 						_ = s.Notify.Notify(ctx, "Leah",
 							fmt.Sprintf("agent %s: %s (PR #%d)", a.ID, a.State, a.PR))

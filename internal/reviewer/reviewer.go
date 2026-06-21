@@ -10,8 +10,10 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/obs"
 )
 
 // Subagent is the LLM completion surface used for review. sink, when non-nil,
@@ -49,6 +51,12 @@ var (
 // gate would reject the verdict anyway, better to surface it here.
 func (r *Reviewer) Review(ctx context.Context, diff, linkedIssue string) (Verdict, error) {
 	input := "Linked issue body:\n" + linkedIssue + "\n\n---\n\nDiff:\n" + diff
+	obs.Publish(obs.Event{
+		TS:      time.Now().UTC(),
+		Kind:    "subagent.spawn",
+		Actor:   "reviewer",
+		Outcome: "started",
+	})
 	resp, cost, err := r.Subagent.Run(ctx, r.SystemPrompt, input, r.TokenSink)
 	if err != nil {
 		return Verdict{}, fmt.Errorf("reviewer subagent: %w", err)
@@ -76,5 +84,13 @@ func (r *Reviewer) Review(ctx context.Context, diff, linkedIssue string) (Verdic
 		return v, err
 	}
 
+	obs.Publish(obs.Event{
+		TS:      time.Now().UTC(),
+		Kind:    "subagent.complete",
+		Actor:   "reviewer",
+		Outcome: "ok",
+		Target:  v.AgentID,
+		Detail:  v.Recommendation,
+	})
 	return v, nil
 }
