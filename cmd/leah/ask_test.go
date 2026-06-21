@@ -13,13 +13,24 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/reasoner"
 )
 
 // fakeAskStreamer scripts a delta channel for runAskWith — mirrors what
-// reasoner.AskStream returns to runAsk in production.
+// reasoner.AskStream returns to runAsk in production. When info is set
+// it also satisfies dispatcher.LLMDimReporter so the W94 audit-stamp
+// branch in runAskWith is exercised.
 type fakeAskStreamer struct {
 	deltas []string
 	err    error
+	info   *reasoner.CallInfo
+}
+
+func (f *fakeAskStreamer) LastCallInfo() reasoner.CallInfo {
+	if f.info == nil {
+		return reasoner.CallInfo{}
+	}
+	return *f.info
 }
 
 func (f *fakeAskStreamer) AskStream(ctx context.Context, user string) (<-chan string, error) {
@@ -215,5 +226,40 @@ func TestRunAskWith_SuccessWritesAuditRow(t *testing.T) {
 	e := entries[0]
 	if e.Kind != "ask" || e.Outcome != "success" || e.ArgsHash == "" {
 		t.Fatalf("audit row = %+v; want kind=ask outcome=success non-empty hash", e)
+	}
+}
+
+// TestRunAskWith_StampsLLMDimFields pins the W94 audit-stamp contract:
+// when the streamer implements dispatcher.LLMDimReporter (production
+// *reasoner.Reasoner does), runAskWith MUST copy every CallInfo field
+// onto the audit row. Replaces the dropped dispatcher.Ask.Run test of
+// the same invariant.
+func TestRunAskWith_StampsLLMDimFields(t *testing.T) {
+	info := reasoner.CallInfo{
+		Model:        "claude-sonnet-4-6",
+		PromptSHA:    "deadbeefcafef00d",
+		InputTokens:  100,
+		OutputTokens: 50,
+		LatencyMS:    321,
+		EgressBytes:  1024,
+		CacheHit:     true,
+	}
+	s := &fakeAskStreamer{deltas: []string{"ok"}, info: &info}
+	var buf bytes.Buffer
+	a := newTestAudit(t)
+	b := &budget.Budget{Ceiling: 1.0}
+	if code := runAskWith(context.Background(), s, &buf, a, b, "hi"); code != 0 {
+		t.Fatalf("runAskWith = %d; want 0", code)
+	}
+	entries := readAuditEntries(t, a)
+	if len(entries) != 1 {
+		t.Fatalf("audit entries = %d; want 1", len(entries))
+	}
+	got := entries[0]
+	if got.Model != info.Model || got.PromptSHA != info.PromptSHA ||
+		got.InputTokens != info.InputTokens || got.OutputTokens != info.OutputTokens ||
+		got.LatencyMS != info.LatencyMS || got.EgressBytes != info.EgressBytes ||
+		got.CacheHit != info.CacheHit {
+		t.Errorf("LLM-dim fields not stamped:\n got  %+v\n want %+v", got, info)
 	}
 }
