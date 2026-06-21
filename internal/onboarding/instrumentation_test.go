@@ -9,8 +9,7 @@ import (
 	"github.com/trilam/leah/internal/onboarding"
 )
 
-// TestRegisterMetrics_AddsSeries — A9 install→first-reply histogram surfaces
-// pre-event so /metrics scrape returns the series even before the first ask.
+// TestRegisterMetrics_AddsSeries — A9 series surfaces pre-event on /metrics.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
 	r := obs.NewRegistry()
 	onboarding.RegisterMetrics(r)
@@ -21,9 +20,7 @@ func TestRegisterMetrics_AddsSeries(t *testing.T) {
 	}
 }
 
-// TestRecordFirstReply_ObservesOnce — first call records, subsequent calls
-// drop. A9 measures the time-to-first-useful-reply, which is by definition
-// a once-per-install event.
+// TestRecordFirstReply_ObservesOnce — observer seals after first sample; A9 is once-per-install.
 func TestRecordFirstReply_ObservesOnce(t *testing.T) {
 	t.Parallel()
 	r := obs.NewRegistry()
@@ -38,8 +35,7 @@ func TestRecordFirstReply_ObservesOnce(t *testing.T) {
 	}
 }
 
-// TestRecordFirstReply_NilSafe — registry-less callers get nil observer; Record
-// returns false and is a no-op.
+// TestRecordFirstReply_NilSafe — nil observer Record is no-op, returns false.
 func TestRecordFirstReply_NilSafe(t *testing.T) {
 	t.Parallel()
 	var obs1 *onboarding.FirstReplyObserver
@@ -48,8 +44,7 @@ func TestRecordFirstReply_NilSafe(t *testing.T) {
 	}
 }
 
-// TestFirstReplyBuckets_Sized_For_5min_SLA — A9 SLA is 5 min (300s). The
-// boundary must be present so p95 reports a tight upper bound, not +Inf.
+// TestFirstReplyBuckets_Sized_For_5min_SLA — 300s boundary present so p95 lands inside a bucket.
 func TestFirstReplyBuckets_Sized_For_5min_SLA(t *testing.T) {
 	t.Parallel()
 	hasTarget := false

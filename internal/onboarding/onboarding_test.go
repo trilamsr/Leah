@@ -9,9 +9,7 @@ import (
 	"github.com/trilam/leah/internal/onboarding"
 )
 
-// TestMarkInstalled_Idempotent: second call must NOT overwrite the first
-// timestamp — install-marker is the anchor for the A9 5-min SLA span; a later
-// write would silently reset elapsed-time to zero.
+// TestMarkInstalled_Idempotent — second call must NOT overwrite first timestamp; A9 SLA anchor cannot reset.
 func TestMarkInstalled_Idempotent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -59,8 +57,7 @@ func TestMarkInstalled_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestMarkInstalled_CreatesOnboardingDir — caller may pass a stateDir that
-// has no onboarding subdir; MarkInstalled creates it.
+// TestMarkInstalled_CreatesOnboardingDir — onboarding/ subdir auto-created under stateDir.
 func TestMarkInstalled_CreatesOnboardingDir(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
