@@ -198,6 +198,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runPurge(ctx, rest, stdout)
 	case "news":
 		return runNews(ctx, rest, stdout)
+	case "oncall":
+		return runOncallDefault(rest)
 	case "paper":
 		return runPaper(ctx, rest, stdout, os.Stderr)
 	case "quote":
@@ -657,6 +659,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  forget <pattern-id|all> [--dry-run] [--yes]  wipe pattern(s) from operator-model recs")
 	_, _ = fmt.Fprintln(os.Stderr, "  purge --everything        BR=4: OAuth revoke + rm -rf ~/.leah-state/ + brew/PATH hints")
 	_, _ = fmt.Fprintln(os.Stderr, "  news                      synthesized daily news digest (RSS sources)")
+	_, _ = fmt.Fprintln(os.Stderr, "  oncall [--since D] [--kind SUBSTR]  alarming audit signals from last 1h (default)")
 	_, _ = fmt.Fprintln(os.Stderr, "  paper <save|list|read>    arXiv read-later queue (id or arxiv.org URL)")
 	_, _ = fmt.Fprintln(os.Stderr, "  quote <symbol>...         market quotes for given symbols (Alpha Vantage)")
 	_, _ = fmt.Fprintln(os.Stderr, "  watch [<sym>|--rm <sym>]  manage watchlist symbols read by the morning brief")
