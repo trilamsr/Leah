@@ -5,14 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/ctxmgr"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/operatormodel"
+	"github.com/trilam/leah/internal/reasoner"
 )
 
 // runSuggest implements `leah suggest [--context X] [--llm]`. Surfaces the
@@ -89,13 +92,72 @@ func runSuggest(ctx context.Context, args []string) int {
 	}
 
 	if useLLM {
-		// TODO(#17): wire --llm phrasing — currently prints template form
-		_, _ = fmt.Println("(--llm phrasing TODO; printing template form)")
+		sr, err := newSuggestReasoner()
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "suggest --llm: %v\n", err)
+			return 1
+		}
+		if err := streamLLMPhrasing(ctx, sr, os.Stdout, recs); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "suggest --llm: %v\n", err)
+			return 1
+		}
+		return 0
 	}
 	for i, r := range recs {
 		fmt.Printf("%d. %s — %s (weight %.2f)\n", i+1, r.Kind, r.Reason, r.Weight)
 	}
 	return 0
+}
+
+// streamReasoner is the AskStream-only slice of *reasoner.Reasoner that the
+// --llm phrasing path needs. Defined narrowly so the test can drive it with
+// a scripted fake without spinning up the full reasoner stack.
+type streamReasoner interface {
+	AskStream(ctx context.Context, user string) (<-chan string, error)
+}
+
+// streamLLMPhrasing rephrases each template-form recommendation as one
+// short natural-language sentence by streaming deltas straight to w.
+// Each rec gets its own line; the trailing newline lands once the stream
+// for that rec drains. WHY: the no-LLM path prints one line per rec, so
+// the --llm path mirrors that shape — operators reading both side-by-side
+// see the same row count.
+func streamLLMPhrasing(ctx context.Context, sr streamReasoner, w io.Writer, recs []operatormodel.Recommendation) error {
+	for _, r := range recs {
+		prompt := fmt.Sprintf(
+			"Rephrase this recommendation in one short natural-language sentence. "+
+				"Don't add caveats or hedging. Template: %s — %s (weight %.2f)",
+			r.Kind, r.Reason, r.Weight,
+		)
+		ch, err := sr.AskStream(ctx, prompt)
+		if err != nil {
+			return err
+		}
+		for delta := range ch {
+			if _, werr := io.WriteString(w, delta); werr != nil {
+				return werr
+			}
+		}
+		if _, werr := io.WriteString(w, "\n"); werr != nil {
+			return werr
+		}
+	}
+	return nil
+}
+
+// newSuggestReasoner builds the production Reasoner the --llm path streams
+// through. Mirrors runAsk's wiring (RoutedClient + cost breaker + budget)
+// minus the system prompt: the phrasing prompt is the entire instruction,
+// so an empty system prompt avoids dragging the full Leah persona into a
+// single-sentence rewrite.
+func newSuggestReasoner() (*reasoner.Reasoner, error) {
+	b := budget.New()
+	br := openCostBreaker()
+	client, err := reasoner.NewRoutedClient("reasoner", br, b, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &reasoner.Reasoner{Client: client, Budget: b, PersonaPrefix: personaPrefixForActive()}, nil
 }
 
 // runSuggestReplay implements `leah suggest replay --since=<RFC3339>
