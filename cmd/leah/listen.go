@@ -12,6 +12,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/intent"
+	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/voice"
 )
 
@@ -29,7 +30,7 @@ import (
 //
 // One audit row per invocation: kind=voice.input, BR=0, detail=truncated
 // transcript + classified verb.
-func runListen(ctx context.Context, args []string) int {
+func runListen(ctx context.Context, reg *obs.Registry, args []string) int {
 	fs := flag.NewFlagSet("listen", flag.ExitOnError)
 	duration := fs.Duration("duration", 0, "max recording length (e.g. 30s); 0 = silence-detector only")
 	model := fs.String("model", "ggml-large-v3-turbo-q5_0.bin", "whisper.cpp model filename in --model-dir")
@@ -68,7 +69,7 @@ func runListen(ctx context.Context, args []string) int {
 
 	switch kind {
 	case intent.KindAsk:
-		return runAsk(ctx, transcript)
+		return runAsk(ctx, reg, transcript)
 	case intent.KindShip:
 		if *repo == "" {
 			_, _ = fmt.Println("ship intent detected — re-run with --repo <repo> to dispatch")

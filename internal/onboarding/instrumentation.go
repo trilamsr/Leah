@@ -1,11 +1,16 @@
 package onboarding
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"github.com/trilam/leah/internal/obs"
 )
+
+const firstReplySealRel = "onboarding/first_reply.done"
 
 // FirstReplyBuckets — A9 SLA: brew install → first useful reply ≤5 min p95.
 // Boundaries straddle the 300s target so the SLA line lands inside a bucket
@@ -55,5 +60,39 @@ func (o *FirstReplyObserver) Record(elapsed time.Duration) bool {
 		return false
 	}
 	o.hist.Observe(nil, elapsed.Seconds())
+	return true
+}
+
+// RecordFirstReplyIfNotYetRecorded is the callsite contract used by short-lived
+// processes (the CLI `leah ask`) where an in-memory atomic.Bool would not
+// survive process exit. O_EXCL on the seal file is the only mechanism that
+// makes "once per install" hold across N independent CLI invocations.
+// No-op (returns false) when the install marker is missing — we cannot
+// compute elapsed and a daemon-side MarkInstalled has not run yet.
+func RecordFirstReplyIfNotYetRecorded(stateDir string, registry *obs.Registry, now time.Time) bool {
+	if stateDir == "" || registry == nil {
+		return false
+	}
+	installedAt, ok, err := InstalledAt(stateDir)
+	if err != nil || !ok {
+		return false
+	}
+	sealPath := filepath.Join(stateDir, firstReplySealRel)
+	if err := os.MkdirAll(filepath.Dir(sealPath), 0o755); err != nil {
+		return false
+	}
+	f, err := os.OpenFile(sealPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		// Already-exists is the steady-state no-op path; any other error
+		// means we cannot prove single-write semantics so refuse to observe.
+		_ = errors.Is(err, os.ErrExist)
+		return false
+	}
+	_ = f.Close()
+	elapsed := now.Sub(installedAt)
+	if elapsed < 0 {
+		return false
+	}
+	registry.Histogram("leah_onboarding_install_to_first_reply_seconds", FirstReplyBuckets).Observe(nil, elapsed.Seconds())
 	return true
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/trilam/leah/internal/ghclient"
 	"github.com/trilam/leah/internal/notify"
 	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/onboarding"
 	"github.com/trilam/leah/internal/persona"
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/regattaclient"
@@ -102,7 +103,7 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 			}
 			return 2
 		}
-		return runAsk(ctx, rest[0])
+		return runAsk(ctx, reg, rest[0])
 	case "ship":
 		return runShipArgs(ctx, rest)
 	case "call":
@@ -182,7 +183,7 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 	case "brief":
 		return runBrief(ctx, rest)
 	case "listen":
-		return runListen(ctx, rest)
+		return runListen(ctx, reg, rest)
 	case "backup":
 		return runBackup(ctx, rest)
 	case "init":
@@ -271,7 +272,7 @@ type askStreamer interface {
 	AskStream(ctx context.Context, user string) (<-chan string, error)
 }
 
-func runAsk(ctx context.Context, query string) int {
+func runAsk(ctx context.Context, reg *obs.Registry, query string) int {
 	systemPrompt, err := os.ReadFile(filepath.Join(promptDir(), "system.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read system prompt: %v\n", err)
@@ -288,7 +289,13 @@ func runAsk(ctx context.Context, query string) int {
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt), PersonaPrefix: personaPrefixForActive()}
 
 	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
-	return runAskWith(ctx, r, os.Stdout, a, b, query)
+	code := runAskWith(ctx, r, os.Stdout, a, b, query)
+	if code == 0 {
+		// A9 SLA close-out: filesystem-sealed so a second `leah ask` (new
+		// process, fresh registry) cannot record a near-zero sample.
+		onboarding.RecordFirstReplyIfNotYetRecorded(stateDir(), reg, time.Now())
+	}
+	return code
 }
 
 // runAskWith drains AskStream's delta channel straight into out — each
