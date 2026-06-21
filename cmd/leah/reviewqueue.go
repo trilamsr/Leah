@@ -123,18 +123,26 @@ func fetchReviewQueue(ctx context.Context, exec ghclient.Executor, org string) (
 		if len(n) == 0 {
 			continue
 		}
-		r := reviewRow{}
-		if v, ok := n["number"].(float64); ok {
-			r.Number = int(v)
+		// Drop malformed nodes rather than render ghost rows (#0, epoch-zero
+		// "from 1970" ages). GH's search GraphQL union returns {} for non-PR
+		// matches even with is:pr, and field-presence drift across API
+		// versions is real.
+		num, ok := n["number"].(float64)
+		if !ok || num <= 0 {
+			continue
 		}
+		ts, ok := n["updatedAt"].(string)
+		if !ok {
+			continue
+		}
+		updated, err := time.Parse(time.RFC3339, ts)
+		if err != nil || updated.IsZero() {
+			continue
+		}
+		r := reviewRow{Number: int(num), UpdatedAt: updated}
 		r.Title, _ = n["title"].(string)
 		r.URL, _ = n["url"].(string)
 		r.IsDraft, _ = n["isDraft"].(bool)
-		if ts, ok := n["updatedAt"].(string); ok {
-			if t, err := time.Parse(time.RFC3339, ts); err == nil {
-				r.UpdatedAt = t
-			}
-		}
 		if repo, ok := n["repository"].(map[string]any); ok {
 			r.Repo, _ = repo["nameWithOwner"].(string)
 		}

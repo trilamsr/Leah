@@ -198,6 +198,96 @@ func TestRunReviewQueueBadFlag(t *testing.T) {
 	}
 }
 
+// TestRunReviewQueueTextOutput pins the human-readable render path — guards
+// against silent regression where rows would be fetched but never written.
+func TestRunReviewQueueTextOutput(t *testing.T) {
+	nodes := []map[string]any{
+		{
+			"number":     42,
+			"title":      "feat: payments",
+			"url":        "https://github.com/acme/api/pull/42",
+			"updatedAt":  "2026-06-20T09:00:00Z",
+			"isDraft":    false,
+			"repository": map[string]any{"nameWithOwner": "acme/api"},
+		},
+	}
+	fx := &fakeExec{responses: map[string]string{"gh api graphql": graphqlPayload(nodes)}}
+	var buf strings.Builder
+	rc := runReviewQueueWith(context.Background(), fx, []string{}, &buf)
+	if rc != 0 {
+		t.Errorf("text exit = %d, want 0", rc)
+	}
+	for _, want := range []string{"#42", "acme/api", "feat: payments"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("text output missing %q in %q", want, buf.String())
+		}
+	}
+}
+
+// TestFetchReviewQueue_SkipsMalformed pins the no-ghost-row guard. A node
+// missing number / updatedAt would otherwise render as "#0  …  from 1970".
+func TestFetchReviewQueue_SkipsMalformed(t *testing.T) {
+	nodes := []map[string]any{
+		{}, // empty-union shape from non-PR search hit
+		{"title": "no number"},
+		{"number": float64(0), "updatedAt": "2026-06-20T09:00:00Z"},
+		{"number": float64(5)}, // missing updatedAt
+		{"number": float64(6), "updatedAt": "not-a-time"},
+		{
+			"number":     99,
+			"title":      "ok",
+			"updatedAt":  "2026-06-20T09:00:00Z",
+			"repository": map[string]any{"nameWithOwner": "x/y"},
+		},
+	}
+	fx := &fakeExec{responses: map[string]string{"gh api graphql": graphqlPayload(nodes)}}
+	got, err := fetchReviewQueue(context.Background(), fx, "")
+	if err != nil {
+		t.Fatalf("fetchReviewQueue: %v", err)
+	}
+	if len(got) != 1 || got[0].Number != 99 {
+		t.Errorf("malformed nodes not dropped; got %d rows: %+v", len(got), got)
+	}
+}
+
+// errExec returns a synthetic gh failure so the exec-error path is wired.
+type errExec struct{ err error }
+
+func (e *errExec) Run(_ context.Context, _ []string) (string, error) {
+	return "", e.err
+}
+
+func TestFetchReviewQueue_ExecError(t *testing.T) {
+	fx := &errExec{err: context.DeadlineExceeded}
+	_, err := fetchReviewQueue(context.Background(), fx, "")
+	if err == nil {
+		t.Fatalf("expected exec error to bubble")
+	}
+	if !strings.Contains(err.Error(), "gh api graphql") {
+		t.Errorf("error should be wrapped with gh api graphql context; got %v", err)
+	}
+}
+
+func TestFetchReviewQueue_BadJSON(t *testing.T) {
+	fx := &fakeExec{responses: map[string]string{"gh api graphql": "not json {"}}
+	_, err := fetchReviewQueue(context.Background(), fx, "")
+	if err == nil {
+		t.Fatalf("expected json parse error")
+	}
+	if !strings.Contains(err.Error(), "parse graphql json") {
+		t.Errorf("error should be wrapped with parse context; got %v", err)
+	}
+}
+
+func TestRunReviewQueueFetchError(t *testing.T) {
+	fx := &errExec{err: context.DeadlineExceeded}
+	var buf strings.Builder
+	rc := runReviewQueueWith(context.Background(), fx, []string{}, &buf)
+	if rc != 1 {
+		t.Errorf("fetch-error exit = %d, want 1", rc)
+	}
+}
+
 // captureExec records the gh args it was called with so we can assert on
 // query content (e.g. org: qualifier) without depending on response shape.
 type captureExec struct {
