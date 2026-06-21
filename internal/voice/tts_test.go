@@ -332,15 +332,26 @@ func TestKokoroEmptyTextNoop(t *testing.T) {
 	}
 }
 
-// slowSynthTTS sleeps in Speak to model OpenAI HTTP latency, then records
-// a play() callback. Used to assert ChainTTS no longer serializes synth.
+// slowSynthTTS sleeps in Speak to model OpenAI HTTP latency, tracks peak
+// concurrent synths in flight, then records a play() callback. Used to assert
+// ChainTTS no longer serializes synth.
 type slowSynthTTS struct {
-	delay time.Duration
-	play  func()
+	delay    time.Duration
+	play     func()
+	inFlight atomic.Int32
+	peak     atomic.Int32
 }
 
 func (s *slowSynthTTS) Speak(ctx context.Context, text string) error {
-	time.Sleep(s.delay) // allow-sleep: wall-clock fixture for parallel-synth assertion
+	n := s.inFlight.Add(1)
+	for {
+		p := s.peak.Load()
+		if n <= p || s.peak.CompareAndSwap(p, n) {
+			break
+		}
+	}
+	time.Sleep(s.delay) // allow-sleep: latency fixture so concurrent synths overlap
+	s.inFlight.Add(-1)
 	if s.play == nil {
 		return nil
 	}
@@ -350,14 +361,13 @@ func (s *slowSynthTTS) Speak(ctx context.Context, text string) error {
 	})
 }
 
-// TestChainTTS_SynthParallel asserts two concurrent Speak calls finish in
-// roughly one synth-delay, not two — proof the chain lock no longer wraps
-// synthesis.
+// TestChainTTS_SynthParallel asserts two concurrent Speak calls run synthesis
+// at the same time — peak in-flight reaches 2, proof the chain lock no longer
+// wraps synthesis.
 func TestChainTTS_SynthParallel(t *testing.T) {
-	const delay = 200 * time.Millisecond
-	c := NewChain(&slowSynthTTS{delay: delay})
+	synth := &slowSynthTTS{delay: 50 * time.Millisecond}
+	c := NewChain(synth)
 
-	start := time.Now()
 	var wg sync.WaitGroup
 	wg.Add(2)
 	for i := 0; i < 2; i++ {
@@ -369,12 +379,9 @@ func TestChainTTS_SynthParallel(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	elapsed := time.Since(start)
 
-	// Serial = 2*delay = 400ms; parallel ≈ delay = 200ms. 1.8x leaves
-	// generous CI slack but still rejects the serial baseline.
-	if elapsed >= 2*delay*9/10 {
-		t.Fatalf("two parallel Speak took %v ; expected < %v (synth serialized)", elapsed, 2*delay*9/10)
+	if got := synth.peak.Load(); got != 2 {
+		t.Fatalf("peak concurrent synth = %d, want 2 (synth serialized behind chain lock)", got)
 	}
 }
 
