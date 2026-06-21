@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -259,17 +262,21 @@ func openCostBreaker() reasoner.Breaker {
 	return costmonth.NewBreaker(store)
 }
 
-func runAsk(ctx context.Context, query string) int {
-	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
-	b := budget.New()
+// askStreamer is the surface runAskWith depends on — *reasoner.Reasoner
+// satisfies it; tests wire a scripted fake. Kept narrow so the test fake
+// doesn't drag in budget/audit setup.
+type askStreamer interface {
+	AskStream(ctx context.Context, user string) (<-chan string, error)
+}
 
+func runAsk(ctx context.Context, query string) int {
 	systemPrompt, err := os.ReadFile(filepath.Join(promptDir(), "system.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read system prompt: %v\n", err)
 		return 1
 	}
 
+	b := budget.New()
 	br := openCostBreaker()
 	client, err := reasoner.NewRoutedClient("reasoner", br, b, nil)
 	if err != nil {
@@ -278,12 +285,65 @@ func runAsk(ctx context.Context, query string) int {
 	}
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt), PersonaPrefix: personaPrefixForActive()}
 
-	ask := &dispatcher.Ask{Reasoner: r, Audit: a, Budget: b, Out: os.Stdout}
-	if err := ask.Run(ctx, query); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", err)
-		return 1
+	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	return runAskWith(ctx, r, os.Stdout, a, b, query)
+}
+
+// runAskWith drains AskStream's delta channel straight into out — each
+// delta becomes its own Write so the firstByteWriter wrapping os.Stdout
+// (A6) sees the first model token at first-delta time, not full-reply
+// time. Audit row is written on every exit path (success + any write or
+// stream error) to preserve the charged-Reasoner-call invariant the old
+// dispatcher.Ask.Run held.
+func runAskWith(ctx context.Context, s askStreamer, out io.Writer, a *audit.Logger, b *budget.Budget, query string) int {
+	entry := audit.Entry{Kind: "ask", ArgsHash: askArgsHash(query), BlastRadius: 0}
+	finish := func(code int, detail string) int {
+		entry.CostDollars = b.Spent()
+		if rich, ok := any(s).(dispatcher.LLMDimReporter); ok {
+			info := rich.LastCallInfo()
+			entry.Model = info.Model
+			entry.PromptSHA = info.PromptSHA
+			entry.InputTokens = info.InputTokens
+			entry.OutputTokens = info.OutputTokens
+			entry.LatencyMS = info.LatencyMS
+			entry.EgressBytes = info.EgressBytes
+			entry.CacheHit = info.CacheHit
+		}
+		if code == 0 {
+			entry.Outcome = "success"
+		} else {
+			entry.Outcome = "failed"
+			entry.Detail = detail
+		}
+		_ = a.Append(entry)
+		return code
 	}
-	return 0
+	write := func(p string) error {
+		_, werr := io.WriteString(out, p)
+		return werr
+	}
+
+	ch, err := s.AskStream(ctx, query)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", err)
+		return finish(1, err.Error())
+	}
+	for delta := range ch {
+		if werr := write(delta); werr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", werr)
+			return finish(1, werr.Error())
+		}
+	}
+	if werr := write("\n"); werr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", werr)
+		return finish(1, werr.Error())
+	}
+	return finish(0, "")
+}
+
+func askArgsHash(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:8])
 }
 
 // runShipArgs parses the `leah ship` flag set + dispatches. Supports:
