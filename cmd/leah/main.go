@@ -200,6 +200,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runNews(ctx, rest, stdout)
 	case "quote":
 		return runQuote(ctx, rest, stdout)
+	case "watch":
+		return runWatch(rest, stdout, os.Stderr)
 	case "whoami":
 		return runWhoami(ctx, rest, stdout)
 	case "export":
@@ -646,6 +648,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  purge --everything        BR=4: OAuth revoke + rm -rf ~/.leah-state/ + brew/PATH hints")
 	_, _ = fmt.Fprintln(os.Stderr, "  news                      synthesized daily news digest (RSS sources)")
 	_, _ = fmt.Fprintln(os.Stderr, "  quote <symbol>...         market quotes for given symbols (Alpha Vantage)")
+	_, _ = fmt.Fprintln(os.Stderr, "  watch [<sym>|--rm <sym>]  manage watchlist symbols read by the morning brief")
 	_, _ = fmt.Fprintln(os.Stderr, "  whoami [--full]           print workspace + integrations, or enumerate persisted state (M1)")
 	_, _ = fmt.Fprintln(os.Stderr, "  export --all [--out PATH]  encrypted archive of ~/.leah-state (M3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  import <archive> [--overwrite]  restore encrypted archive (M3)")
