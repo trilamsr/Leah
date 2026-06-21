@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 // Scope for operator attestation on every Query call. Spec §7 places this
@@ -125,7 +125,7 @@ func (m *Messages) Query(ctx context.Context, q Query) ([]Item, error) {
 	if _, err := os.Stat(m.path); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
-	db, err := m.open("sqlite", roDSN(m.path))
+	db, err := m.open("sqlite", sqliteopen.RODSN(m.path))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
@@ -156,13 +156,6 @@ func (m *Messages) Query(ctx context.Context, q Query) ([]Item, error) {
 func hashBody(b string) string {
 	sum := sha256.Sum256([]byte(b))
 	return hex.EncodeToString(sum[:])[:8]
-}
-
-func roDSN(path string) string {
-	return fmt.Sprintf(
-		"file:%s?mode=ro&immutable=1&_journal_mode=OFF&_query_only=1",
-		url.PathEscape(path),
-	)
 }
 
 // macEpoch — Messages.app stores message.date as nanoseconds since

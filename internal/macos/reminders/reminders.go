@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 // Scope for operator attestation on every Query call.
@@ -111,21 +111,12 @@ func (r *Reminders) Query(ctx context.Context, q Query) ([]Item, error) {
 	if _, err := os.Stat(r.path); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
-	db, err := r.open("sqlite", roDSN(r.path))
+	db, err := r.open("sqlite", sqliteopen.RODSN(r.path))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
 	defer func() { _ = db.Close() }()
 	return queryItems(ctx, db, q)
-}
-
-// roDSN — immutable=1 sidesteps WAL-recovery contention with iCloud-sync
-// writes (spec §4, §7 risk row 1).
-func roDSN(path string) string {
-	return fmt.Sprintf(
-		"file:%s?mode=ro&immutable=1&_journal_mode=OFF&_query_only=1",
-		url.PathEscape(path),
-	)
 }
 
 // macEpoch — Reminders.app stores ZDUEDATE as seconds since 2001-01-01 UTC
