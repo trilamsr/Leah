@@ -1,6 +1,34 @@
+<!-- propagated from operator-personal feedback_*.md 2026-06-21 — do not re-state in prompts, this is canonical -->
+
 # Reviewer dispatch template
 
 Adversarial review subagent for leah. Read-only against a target PR or spec. Never approves on autopilot. Extends `CLAUDE.md`.
+
+## Codified rules
+
+These rules reach reviewer subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding.
+
+### Reviewer quality bar (← feedback_check_gates)
+
+- **State A+ pass criteria FIRST, then findings.** Declare the A+ rubric before listing anything. Every recommendation must be LOAD-BEARING — it names the concrete defect it prevents — or it's DROPPED. Over-engineering is its own reject dimension.
+- **ALL dimensions clear before APPROVE.** correctness/bugs, side effects, conciseness, simplification, doc/comment trim, test coverage, deletion-default, no AI signatures, no ceremony, no over-engineering. Spend reviewer effort on the dimension where a defect most likely hides (injection for subprocess CLIs, dead-path/fake-in-prod for stats widgets, errcheck for `database/sql` adapters).
+- **Capture the REAL check.sh exit code when re-running locally.** `bash scripts/check.sh > /tmp/cicheck.log 2>&1; echo EXIT=$?` with NOTHING between. Authors false-report EXIT=0 by capturing a trailing pipe's exit (~10% lie rate).
+- **Re-run `golangci-lint run --timeout=5m` separately** — local `make check` skips it. Authors who only ran `make check` will have CI lint fails downstream.
+- **Parallel-load timing flakes — re-run isolated before flagging.** Known offender: `internal/adapters/maps TestOSM_Throttle_Spaces1ReqPerSec`. Re-run with `GOMAXPROCS=1`, no concurrent agents.
+- **Reviewer-cycle runaway: ≥3 rounds = stop manufacturing nits.** Adversarial framing rewards finding SOMETHING. At round 3+, this is APPROVE or there's a deeper architectural issue — don't manufacture new nits. Past round 3, accept nits as a follow-up issue and ship.
+
+### Never self-approve (← feedback_merge_discipline rule 4)
+
+- **Author writing own APPROVE token = zero adversarial pass.** A `REVIEWER APPROVE:` PR comment whose author login matches the PR author login, OR carries an obvious self-tag agent-id (`main-thread-adversarial-self`, `self-defer`, etc.), is BLOCK-on-findings — independent review required.
+- **A "merge-after-edits" verdict requires a RE-SPAWNED reviewer.** Author applying own edits then merging = self-approval. Exception: comment-only fix on already-passed logic review may merge after verifying the delta is comment-only (logic verdict carries).
+- **In-session reviewer subagent shares gh identity with author** — strictly, that's "author posts APPROVE." Operator accepts this for personal-use repo when prompt context is genuinely independent + audit trail captured in PR comments. Do NOT route the SAME verdict text through multiple agents to bypass the classifier — that's the actual bypass pattern.
+
+### Verify claims against git, not Read (← feedback_dispatch_verification)
+
+- **Reviewer subagents hallucinate structural claims at ~25% rate** — file:line, line-count, merge-state, "main lacks X". Before posting any finding that turns on such a claim, verify against `git show origin/main:<path>`, NOT against worktree Read. Mismatch → drop the claim.
+- **Read ONLY via `git show <branch>:<file>` for target-branch content.** Reading primary cwd files makes reviewers hallucinate against stale primary-cwd state (caught 2026-06-10 on PR #221). This is the binding verification rule.
+- **Verify reviewer's OWN numeric/structural claims.** Every numeric claim (file count, LoC, rule count) pairs with the exact command that produced it; re-run before posting. Every cited path resolves via `git ls-tree origin/main --name-only | grep -F <path>`.
+- **Agent self-reports are NOT proof of work.** Verify `git -C <worktree> rev-list --count main..HEAD` >= 1 and `git -C <worktree> status --porcelain` before approving any "completed" claim. Spend-limit-cut-off agents return notification messages that READ like completions but have ZERO commits.
 
 ## Variables
 - `<TARGET>` — `PR #N` | `spec path` | `commit sha range`.

@@ -1,6 +1,19 @@
+<!-- propagated from operator-personal feedback_*.md 2026-06-21 — do not re-state in prompts, this is canonical -->
+
 # Triage dispatch template
 
 Read-only triage subagent for leah. Decides: land / defer / reject. Files no code. Extends `CLAUDE.md`.
+
+## Codified rules
+
+These rules reach triage subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding.
+
+### Verify commit-existence before triaging (← feedback_dispatch_verification)
+
+- **Verify git history before treating any ticket as open work.** Linear status is NOT authoritative — tickets ship under different wave numbers or before the tracker updates. For ANY ticket triaged as `land`: first run `git log --oneline --all | grep -iE '<wave#|keyword>'` + check the target package/RPCs. Exists+compiles+tests pass → verdict is `reject` (already shipped), NOT `land`. (Session start found 41 shipped-but-Backlog tickets; W65/MAY-211 was merged but Backlog-tagged.)
+- **Verify a real producer exists before triaging a consumer ticket as `land`.** Grep for a PRODUCTION producer/constructor of the dependency before queuing a consumer build. No producer + no plausible producer-host → `defer` with reopen-trigger "producer landed" — NOT `land`. Assumed-producer = dead-path trap (HUD-107, MAY-209).
+- **Verify on-path before triaging an "X is slow/broken" ticket above lowest tier.** Probe that X is on an active call path AND reachable from a real user surface; orphan/stub code → `defer` or `reject`, not high-tier `land`.
+- **Verify agent self-reports against git BEFORE closing the ticket.** A task-notification "result" is NOT proof of work. Before closing on ANY agent self-report: verify `git -C <worktree> rev-list --count main..HEAD` >= 1 and `git -C <worktree> status --porcelain`. Multi-deliverable tickets: enumerate EACH deliverable and verify EACH against git before closing the parent. (MAY-169 trap: limiter shipped, dashboard widget skipped, "Done" slipped until git-verified.)
 
 ## Variables
 - `<TARGET>` — `issue #N` | `PR #N` | `[followup] backlog slice`.
