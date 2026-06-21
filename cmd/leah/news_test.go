@@ -292,3 +292,129 @@ func TestRunNews_SinceDuplicate(t *testing.T) {
 		t.Fatalf("exit %d, want 2", code)
 	}
 }
+
+// TestRunNews_SinceSpaceForm verifies `--since <value>` parses identically to
+// `--since=<value>` — operators conditioned by Unix conventions reach for both.
+func TestRunNews_SinceSpaceForm(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(rssBody))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_FEEDS_AUTO_ATTEST", "1")
+	cfg := []map[string]string{{"Name": "test", "URL": srv.URL}}
+	raw, _ := json.Marshal(cfg)
+	if err := os.WriteFile(filepath.Join(dir, "feeds-news.json"), raw, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if code := runNews(context.Background(), []string{"--since", "2026-06-10T11:00:00Z"}, &buf); code != 0 {
+		t.Fatalf("exit %d, want 0; output=%q", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "Newest item") {
+		t.Errorf("space-form --since failed to filter correctly: %q", buf.String())
+	}
+	if strings.Contains(buf.String(), "Older item") {
+		t.Errorf("space-form --since left older item: %q", buf.String())
+	}
+}
+
+// TestRunNews_SinceWithBundle pins the --since + --bundle interaction so
+// composed cursor+source-list usage doesn't silently regress.
+func TestRunNews_SinceWithBundle(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(rssBody))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_FEEDS_AUTO_ATTEST", "1")
+	prev := bundleURLOverride
+	bundleURLOverride = srv.URL
+	t.Cleanup(func() { bundleURLOverride = prev })
+
+	var buf bytes.Buffer
+	args := []string{"--bundle", "ai", "--since=2026-06-10T11:00:00Z"}
+	if code := runNews(context.Background(), args, &buf); code != 0 {
+		t.Fatalf("exit %d, want 0; output=%q", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "Newest item") {
+		t.Errorf("bundle+since combo missing newest item: %q", buf.String())
+	}
+	if strings.Contains(buf.String(), "Older item") {
+		t.Errorf("bundle+since combo left older item: %q", buf.String())
+	}
+}
+
+// TestRunNews_SinceBoundaryInclusive — an item with pubDate exactly at the
+// cursor is kept. Cursor semantics are "since X" not "after X"; off-by-one
+// here loses items on the seam between two daily runs.
+func TestRunNews_SinceBoundaryInclusive(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(rssBody))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_FEEDS_AUTO_ATTEST", "1")
+	cfg := []map[string]string{{"Name": "test", "URL": srv.URL}}
+	raw, _ := json.Marshal(cfg)
+	if err := os.WriteFile(filepath.Join(dir, "feeds-news.json"), raw, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var buf bytes.Buffer
+	// Newest item pubDate is exactly 2026-06-10T12:00:00Z.
+	if code := runNews(context.Background(), []string{"--since=2026-06-10T12:00:00Z"}, &buf); code != 0 {
+		t.Fatalf("exit %d, want 0; output=%q", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "Newest item") {
+		t.Errorf("boundary item dropped — cursor should be inclusive: %q", buf.String())
+	}
+}
+
+// rssBodyMissingPubDate has one valid-dated item + one with no pubDate. Used to
+// pin the "drop zero-pubDate when cursor set" policy: caller asked for "since X"
+// and an undated item can't be proven to meet it.
+const rssBodyMissingPubDate = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+<title>Test</title>
+<item><title>Dated item</title><link>https://example.com/dated</link><pubDate>Wed, 10 Jun 2026 12:00:00 +0000</pubDate></item>
+<item><title>Undated item</title><link>https://example.com/undated</link></item>
+</channel>
+</rss>`
+
+// TestRunNews_SinceDropsZeroPubDate pins the policy that items with no parsable
+// pubDate are filtered out when --since is set.
+func TestRunNews_SinceDropsZeroPubDate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(rssBodyMissingPubDate))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_FEEDS_AUTO_ATTEST", "1")
+	cfg := []map[string]string{{"Name": "test", "URL": srv.URL}}
+	raw, _ := json.Marshal(cfg)
+	if err := os.WriteFile(filepath.Join(dir, "feeds-news.json"), raw, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if code := runNews(context.Background(), []string{"--since=2026-06-10T00:00:00Z"}, &buf); code != 0 {
+		t.Fatalf("exit %d, want 0; output=%q", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "Dated item") {
+		t.Errorf("dated item missing: %q", buf.String())
+	}
+	if strings.Contains(buf.String(), "Undated item") {
+		t.Errorf("undated item should be dropped under cursor: %q", buf.String())
+	}
+}
