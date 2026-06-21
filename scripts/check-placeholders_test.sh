@@ -68,6 +68,21 @@ case_new_fixme_fails() {
   rm -rf "$dir"
 }
 
+# All-caps PLACEHOLDER — reviewer caught the regex missing it.
+case_new_all_caps_placeholder_fails() {
+  local dir; dir=$(mkrepo)
+  (
+    cd "$dir"
+    printf 'package p\n\n// PLACEHOLDER: wire later\nfunc Z() {}\n' > z.go
+    git add z.go
+    git commit -q -m add
+  )
+  "$GATE" --repo "$dir" --base main --branch feat/x >/dev/null 2>&1
+  [ $? -eq 1 ] && pass "new PLACEHOLDER (caps) exits 1" \
+    || fail "new PLACEHOLDER should exit 1"
+  rm -rf "$dir"
+}
+
 # feat/* introducing panic("not implemented") → exit 1.
 case_new_panic_not_impl_fails() {
   local dir; dir=$(mkrepo)
@@ -186,6 +201,7 @@ case_self_does_not_trip() {
 
 case_new_todo_fails
 case_new_fixme_fails
+case_new_all_caps_placeholder_fails
 case_new_panic_not_impl_fails
 case_clean_addition_passes
 case_preexisting_todo_ignored

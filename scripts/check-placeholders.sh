@@ -100,8 +100,8 @@ fi
 
 # Marker set, ERE-anchored. `XXX` requires word boundary to skip
 # legit hex-literal contexts like `0xXXX` in comments.
-# `placeholder` is case-insensitive — covers `Placeholder`, `PLACEHOLDER`.
-pat='(\bTODO\b|\bFIXME\b|\bXXX\b|[Pp]laceholder|panic\("not implemented"\))'
+# `placeholder` matches lower / Title / all-caps SHOUT forms.
+pat='(\bTODO\b|\bFIXME\b|\bXXX\b|placeholder|Placeholder|PLACEHOLDER|panic\("not implemented"\))'
 
 fail=0
 hits=""
