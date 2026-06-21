@@ -20,6 +20,7 @@ const (
 	WorkspaceWillSleep        Kind = "workspace.will_sleep"
 	WorkspaceDidWake          Kind = "workspace.did_wake"
 	ContactStoreChanged       Kind = "contact_store_changed"
+	SafariHistoryChanged      Kind = "safari.history_changed"
 )
 
 // Event is one push notification. Detail carries source-specific fields:
