@@ -85,7 +85,7 @@ func runNews(parent context.Context, args []string, w io.Writer) int {
 		_, _ = fmt.Fprintf(os.Stderr, "leah news: %v\n", err)
 		return 2
 	}
-	since, rest, err := parseSinceFlag(rest)
+	since, rest, err := parseSinceTime(rest)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah news: %v\nusage: leah news [--bundle <name>] [--since <RFC3339>]\n", err)
 		return 2
@@ -200,10 +200,10 @@ func parseBundleFlag(args []string) (bundle string, rest []string, err error) {
 	return bundle, rest, nil
 }
 
-// parseSinceFlag consumes a single --since <RFC3339> pair. Mirrors parseBundleFlag
+// parseSinceTime consumes a single --since <RFC3339> pair. Mirrors parseBundleFlag
 // shape so duplicate detection and = vs space forms work identically — operator
 // muscle-memory from --bundle transfers.
-func parseSinceFlag(args []string) (since time.Time, rest []string, err error) {
+func parseSinceTime(args []string) (since time.Time, rest []string, err error) {
 	rest = make([]string, 0, len(args))
 	seen := false
 	var raw string
