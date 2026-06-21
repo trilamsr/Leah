@@ -35,13 +35,14 @@ type IntentRouterSeam interface {
 }
 
 // Config is the loop's seam bundle. Listener / Reasoner / TTS / Wake are
-// required; IntentRouter is optional.
+// required; IntentRouter and IntentToFirstAudio are optional.
 type Config struct {
-	Listener     listener.Listener
-	Reasoner     ReasonerSeam
-	TTS          TTSSeam
-	Wake         WakeSeam
-	IntentRouter IntentRouterSeam
+	Listener           listener.Listener
+	Reasoner           ReasonerSeam
+	TTS                TTSSeam
+	Wake               WakeSeam
+	IntentRouter       IntentRouterSeam
+	IntentToFirstAudio *IntentToFirstAudioTracker
 }
 
 // Loop is the §4-arbitration goroutine: one select over wake events, listener
@@ -110,9 +111,12 @@ func (l *Loop) Run(ctx context.Context) error {
 			defer close(done)
 			if l.cfg.IntentRouter != nil {
 				handled, ierr := l.cfg.IntentRouter.Recognize(tctx, text)
+				l.cfg.IntentToFirstAudio.MarkIntentDone(time.Now())
 				if ierr == nil && handled {
 					return
 				}
+			} else {
+				l.cfg.IntentToFirstAudio.MarkIntentDone(time.Now())
 			}
 			reply, rerr := l.cfg.Reasoner.Ask(tctx, text)
 			if rerr != nil {
@@ -120,10 +124,12 @@ func (l *Loop) Run(ctx context.Context) error {
 					return
 				}
 				errCtx, errCancel := context.WithTimeout(tctx, errAnnounceTimeout)
+				l.cfg.IntentToFirstAudio.MarkFirstAudio(time.Now(), "error")
 				_ = l.cfg.TTS.Speak(errCtx, errReasonFallback)
 				errCancel()
 				return
 			}
+			l.cfg.IntentToFirstAudio.MarkFirstAudio(time.Now(), "ok")
 			_ = l.cfg.TTS.Speak(tctx, reply)
 		}()
 	}
