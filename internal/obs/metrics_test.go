@@ -5,7 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 	"unsafe"
 )
 
@@ -75,86 +74,58 @@ func TestFlatten_CacheCollisionResolves(t *testing.T) {
 	}
 }
 
-// TestRegistry_Snapshot_DoesNotBlockObserve runs concurrent observers + a
-// Snapshot loop; copy-and-release retains ≥50% of baseline registration
-// throughput vs. the nested-lock impl which collapses to <10%.
+// TestRegistry_Snapshot_DoesNotBlockObserve proves Snapshot releases r.mu
+// before marshalling: Counter() registrations interleave freely with a fixed
+// run of Snapshots. Nested-lock throttles Counter to ~1 per Snapshot;
+// copy-and-release lets many complete per Snapshot.
 func TestRegistry_Snapshot_DoesNotBlockObserve(t *testing.T) {
-	if testing.Short() {
-		t.Skip("contention timing test; skipped in -short")
+	r := NewRegistry()
+	// Large enough that one Snapshot's marshal dwarfs one Counter() — so under
+	// nested-lock a registrant could complete at most ~1 per Snapshot.
+	const series = 2000
+	const pointsPerSeries = 20
+	for i := 0; i < series; i++ {
+		c := r.Counter("c_" + stringFromInt(i))
+		for j := 0; j < pointsPerSeries; j++ {
+			c.Add(map[string]string{"k": stringFromInt(j)}, 1)
+		}
 	}
-	build := func() *Registry {
-		r := NewRegistry()
-		// Large enough that a single Snapshot's marshal phase is hundreds of µs.
-		const series = 2000
-		const pointsPerSeries = 20
-		for i := 0; i < series; i++ {
-			c := r.Counter("c_" + stringFromInt(i))
-			for j := 0; j < pointsPerSeries; j++ {
-				c.Add(map[string]string{"k": stringFromInt(j)}, 1)
+	path := filepath.Join(t.TempDir(), "snap.json")
+
+	const snapshots = 20
+	stop := make(chan struct{})
+	var registered atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// Re-lookup one fixed name: Counter still takes r.mu (the contended
+		// lock) but never grows the registry, so snapshot cost stays flat.
+		for {
+			select {
+			case <-stop:
+				return
+			default:
 			}
+			_ = r.Counter("dyn")
+			registered.Add(1)
 		}
-		return r
-	}
-
-	const window = 200 * time.Millisecond
-	// Baseline: registrants alone, no snapshot.
-	registerFor := func(r *Registry, snap func()) int64 {
-		stop := make(chan struct{})
-		var wg sync.WaitGroup
-		if snap != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for {
-					select {
-					case <-stop:
-						return
-					default:
-					}
-					snap()
-				}
-			}()
+	}()
+	for i := 0; i < snapshots; i++ {
+		if err := r.Snapshot(path); err != nil {
+			t.Fatalf("Snapshot: %v", err)
 		}
-		var total atomic.Int64
-		for w := 0; w < 4; w++ {
-			w := w
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				i := 0
-				for {
-					select {
-					case <-stop:
-						return
-					default:
-					}
-					_ = r.Counter("dyn_" + stringFromInt(w) + "_" + stringFromInt(i))
-					i++
-					total.Add(1)
-				}
-			}()
-		}
-		time.Sleep(window)
-		close(stop)
-		wg.Wait()
-		return total.Load()
 	}
+	close(stop)
+	wg.Wait()
 
-	baseline := registerFor(build(), nil)
-	r := build()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "snap.json")
-	contended := registerFor(r, func() { _ = r.Snapshot(path) })
-
-	// Nested-lock Snapshot serialized Registry.Counter behind the full marshal,
-	// collapsing throughput. Copy-and-release keeps r.mu held only for the
-	// brief handle-copy window, so registrants retain at least half throughput.
-	if contended*2 < baseline {
-		t.Fatalf("Counter throughput collapsed: baseline=%d contended=%d (%.1f%%) — Snapshot blocks r.mu across marshal",
-			baseline, contended, 100*float64(contended)/float64(baseline))
+	// Nested-lock would serialize the registrant to ~1 Counter() per Snapshot
+	// (~snapshots total). Copy-and-release lets it interleave; 10x is a floor
+	// the real ratio (hundreds) clears even under GOMAXPROCS=1.
+	if got := registered.Load(); got < 10*snapshots {
+		t.Fatalf("Counter starved during Snapshot: %d registrations across %d snapshots — Snapshot holds r.mu across marshal",
+			got, snapshots)
 	}
-	t.Logf("Counter throughput: baseline=%d contended=%d (%.1f%%)",
-		baseline, contended, 100*float64(contended)/float64(baseline))
 }
 
 // BenchmarkRegistry_Snapshot measures wall-clock per Snapshot on a populated registry.

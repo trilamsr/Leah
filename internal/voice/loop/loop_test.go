@@ -343,7 +343,7 @@ func TestLoop_StuckReasoner_OuterCancelUnwedges(t *testing.T) {
 	// reply path with delay larger than the test deadline — but ignores ctx,
 	// because the fakeReasoner's select returns ctx.Err on cancel. Override
 	// with a stub that truly ignores ctx.
-	rs := &stuckReasoner{release: make(chan struct{})}
+	rs := &stuckReasoner{entered: make(chan struct{}), release: make(chan struct{})}
 	wake := armed()
 
 	l := loop.New(loop.Config{Listener: fl, Reasoner: rs, TTS: tts, Wake: wake})
@@ -354,27 +354,20 @@ func TestLoop_StuckReasoner_OuterCancelUnwedges(t *testing.T) {
 	fl.waitReady(t)
 
 	fl.Emit(listener.Segment{Text: "anything", Final: true})
-	// Give the turn goroutine time to enter Ask before cancelling.
-	testutil.Eventually(t, 1*time.Second, 5*time.Millisecond, func() bool {
-		return rs.entered.Load()
-	})
+	<-rs.entered // turn goroutine is inside Ask, wedged
 
 	cancel()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Run did not exit despite stuck reasoner")
-	}
-	close(rs.release) // unblock the orphan goroutine so the test exits clean
+	<-done // unwedges via outer-ctx fall-through; blocks (not wall-clock) until Run exits
+	close(rs.release)
 }
 
 type stuckReasoner struct {
-	entered atomic.Bool
+	entered chan struct{}
 	release chan struct{}
 }
 
 func (s *stuckReasoner) Ask(_ context.Context, _ string) (string, error) {
-	s.entered.Store(true)
+	close(s.entered)
 	<-s.release
 	return "", nil
 }

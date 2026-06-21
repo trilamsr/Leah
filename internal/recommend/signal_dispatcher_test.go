@@ -192,11 +192,14 @@ func TestSignalDispatcher_DropMonitor_EmitsCounterDelta(t *testing.T) {
 	for i := 0; i < 64; i++ {
 		b.Emit(obs.Event{Kind: "voice.speak", TS: time.Now().UTC()})
 	}
-	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+	testutil.Eventually(t, 5*time.Second, time.Millisecond, func() bool {
 		return b.Dropped() > 0
 	})
 	want := b.Dropped()
-	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+	// Behavioral assert: the monitor's next tick folds the drop delta into the
+	// counter. Deadline is a generous ceiling so a starved ticker can't blow
+	// it; the asserted quantity is the counter value, not elapsed time.
+	testutil.Eventually(t, 5*time.Second, time.Millisecond, func() bool {
 		return counterTotal(t, reg, "leah_signal_dispatcher_dropped_total") >= int64(want)
 	})
 }

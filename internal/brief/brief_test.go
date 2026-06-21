@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -418,14 +419,35 @@ func TestGatherGcalErrorMarksUnavailable(t *testing.T) {
 	}
 }
 
-// slowGmail blocks for d so a concurrent Gather is distinguishable by time.
+// inFlightPeak tracks how many listers run synth at once, recording the peak.
+type inFlightPeak struct {
+	cur  atomic.Int32
+	peak atomic.Int32
+}
+
+func (p *inFlightPeak) enter() {
+	n := p.cur.Add(1)
+	for {
+		old := p.peak.Load()
+		if n <= old || p.peak.CompareAndSwap(old, n) {
+			break
+		}
+	}
+}
+
+func (p *inFlightPeak) leave() { p.cur.Add(-1) }
+
+// slowGmail sleeps in ListUnread and records concurrency via the shared peak.
 type slowGmail struct {
 	d        time.Duration
 	subjects []string
+	peak     *inFlightPeak
 }
 
 func (s *slowGmail) ListUnread(ctx context.Context) ([]string, error) {
-	time.Sleep(s.d)
+	s.peak.enter()
+	defer s.peak.leave()
+	time.Sleep(s.d) // allow-sleep: latency fixture so concurrent listers overlap
 	return s.subjects, nil
 }
 
@@ -433,26 +455,30 @@ func (s *slowGmail) ListUnread(ctx context.Context) ([]string, error) {
 type slowGcal struct {
 	d      time.Duration
 	events []Event
+	peak   *inFlightPeak
 }
 
 func (s *slowGcal) ListToday(ctx context.Context) ([]Event, error) {
-	time.Sleep(s.d)
+	s.peak.enter()
+	defer s.peak.leave()
+	time.Sleep(s.d) // allow-sleep: latency fixture so concurrent listers overlap
 	return s.events, nil
 }
 
-// TestGatherFetchesConcurrently asserts two 80ms fetches finish under the 160ms serial floor.
+// TestGatherFetchesConcurrently asserts Gmail and Gcal listers run at the same
+// time — peak in-flight reaches 2, proof Gather fans them out concurrently.
 func TestGatherFetchesConcurrently(t *testing.T) {
 	dir := t.TempDir()
-	const fetch = 80 * time.Millisecond
+	const fetch = 30 * time.Millisecond
+	peak := &inFlightPeak{}
 	opts := GatherOpts{
-		Gmail: &slowGmail{d: fetch, subjects: []string{"a"}},
-		Gcal:  &slowGcal{d: fetch, events: []Event{{Summary: "x", Start: time.Now()}}},
+		Gmail: &slowGmail{d: fetch, subjects: []string{"a"}, peak: peak},
+		Gcal:  &slowGcal{d: fetch, events: []Event{{Summary: "x", Start: time.Now()}}, peak: peak},
 	}
-	start := time.Now()
 	d := Gather(context.Background(), time.Now(), dir, nil, opts)
-	elapsed := time.Since(start)
-	if elapsed >= 2*fetch {
-		t.Errorf("Gather serial: elapsed %v >= serial floor %v", elapsed, 2*fetch)
+
+	if got := peak.peak.Load(); got != 2 {
+		t.Errorf("peak concurrent listers = %d, want 2 (Gather fetches serially)", got)
 	}
 	if len(d.UnreadMail) != 1 || len(d.TodayEvents) != 1 {
 		t.Errorf("concurrent fetch dropped data: mail=%v events=%v", d.UnreadMail, d.TodayEvents)
