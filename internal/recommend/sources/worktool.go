@@ -46,19 +46,6 @@ func newWorkToolSource(name string, seam WorkItemSeam, opts WorkToolOpts) *workT
 	return &workToolSource{name: name, seam: seam, opts: opts}
 }
 
-// NewJiraSource wires jira.ListMyIssues; Linear/Confluence wire their analogues.
-func NewJiraSource(seam WorkItemSeam, opts WorkToolOpts) Source {
-	return newWorkToolSource("jira", seam, opts)
-}
-
-func NewLinearSource(seam WorkItemSeam, opts WorkToolOpts) Source {
-	return newWorkToolSource("linear", seam, opts)
-}
-
-func NewConfluenceSource(seam WorkItemSeam, opts WorkToolOpts) Source {
-	return newWorkToolSource("confluence", seam, opts)
-}
-
 func (s *workToolSource) Name() string { return s.name }
 
 // Recommendations fires one confirm-tier rec per item untouched ≥StaleSpan.

@@ -23,11 +23,6 @@ type Listener interface {
 	Start(ctx context.Context) (<-chan Segment, error)
 }
 
-// ErrNotImplemented is returned by the W11 real-backend placeholder. W12
-// replaces the body with whisper-stream wiring; tests assert the sentinel so
-// the transition is mechanical.
-var ErrNotImplemented = errors.New("voice/listener: real backend not implemented (W12 owns whisper-stream wiring)")
-
 // Fake is the deterministic Listener used by every session-layer test. The
 // test goroutine calls Emit; the channel returned by Start replays them in
 // order. Concurrent Emit calls are safe — a sync.Mutex guards the close
@@ -98,15 +93,3 @@ func (f *Fake) Emit(s Segment) {
 	instr.RecordFinal(s)
 }
 
-// Real is the production Listener — W11 ships only the shell. W12 replaces
-// Start with the whisper-stream subprocess pipeline (spec §3.3).
-type Real struct{}
-
-// NewReal returns the placeholder Real. Calling Start returns
-// ErrNotImplemented until W12.
-func NewReal() *Real { return &Real{} }
-
-// Start is a W12 stub; see ErrNotImplemented.
-func (r *Real) Start(_ context.Context) (<-chan Segment, error) {
-	return nil, ErrNotImplemented
-}

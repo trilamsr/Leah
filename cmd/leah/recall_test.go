@@ -118,29 +118,3 @@ func TestFilterResultsSince_EmptyInputReturnsEmpty(t *testing.T) {
 	}
 }
 
-func TestParseSinceFlag_Forms(t *testing.T) {
-	cases := []struct {
-		name string
-		args []string
-		want string
-		rest []string
-	}{
-		{"equals form", []string{"--since=2026-06-20T00:00:00Z", "ship"}, "2026-06-20T00:00:00Z", []string{"ship"}},
-		{"space form", []string{"--since", "2026-06-20T00:00:00Z", "ship"}, "2026-06-20T00:00:00Z", []string{"ship"}},
-		{"absent", []string{"ship"}, "", []string{"ship"}},
-		{"mixed with --llm", []string{"--llm", "--since=2026-06-20T00:00:00Z", "ship"}, "2026-06-20T00:00:00Z", []string{"--llm", "ship"}},
-		{"bare trailing --since does not leak into query", []string{"ship", "--since"}, "<missing>", []string{"ship"}},
-		{"bare only --since", []string{"--since"}, "<missing>", []string{}},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			gotSince, gotRest := parseSinceFlag(c.args)
-			if gotSince != c.want {
-				t.Errorf("since: got %q want %q", gotSince, c.want)
-			}
-			if strings.Join(gotRest, " ") != strings.Join(c.rest, " ") {
-				t.Errorf("rest: got %v want %v", gotRest, c.rest)
-			}
-		})
-	}
-}

@@ -42,15 +42,10 @@ func runRecall(ctx context.Context, args []string) int {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] [--since=<RFC3339>] <query>")
 		return 0
 	}
-	since, args := parseSinceFlag(args)
-	var sinceT time.Time
-	if since != "" {
-		t, err := time.Parse(time.RFC3339, since)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "leah recall: invalid --since %q: %v\n", since, err)
-			return 2
-		}
-		sinceT = t
+	sinceT, args, err := ParseSince(args)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
+		return 2
 	}
 	useLLM := false
 	useSemantic := false
@@ -106,7 +101,7 @@ func runRecall(ctx context.Context, args []string) int {
 		})
 	}
 
-	if since != "" {
+	if !sinceT.IsZero() {
 		results = filterResultsSince(results, sinceT)
 	}
 
@@ -374,34 +369,6 @@ func semanticRecall(ctx context.Context, db *sql.DB, query string) ([]recallResu
 		})
 	}
 	return out, nil
-}
-
-// parseSinceFlag strips `--since=<v>` and `--since <v>` out of args, returning
-// the value (empty if absent) and the remaining args. Mirrors the shape used by
-// `leah suggest replay` so operators see one cursor syntax across surfaces.
-// Bare trailing `--since` is consumed (not leaked into query) and returns the
-// sentinel "<missing>" so the caller's RFC3339 parse rejects it with the usage
-// line — same exit-2 surface as a malformed timestamp.
-func parseSinceFlag(args []string) (string, []string) {
-	var since string
-	rest := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case strings.HasPrefix(a, "--since="):
-			since = a[len("--since="):]
-		case a == "--since":
-			if i+1 < len(args) {
-				since = args[i+1]
-				i++
-			} else {
-				since = "<missing>"
-			}
-		default:
-			rest = append(rest, a)
-		}
-	}
-	return since, rest
 }
 
 // filterResultsSince keeps rows whose RFC3339 Timestamp is at or after the
