@@ -75,6 +75,11 @@ type MailChangedEvent struct{}
 // macos:notes:query.
 type NotesChangedEvent struct{}
 
+// SafariHistoryChangedEvent is the Payload schema for `safari.history_changed`.
+// Empty struct — the FSEvent fires once History.db WAL has flushed; row ids
+// are intentionally not surfaced (PII; downstream re-reads the db).
+type SafariHistoryChangedEvent struct{}
+
 // EventQuery is a Query filter. Mutually-additive fields AND together.
 type EventQuery struct {
 	Since    time.Time
@@ -534,6 +539,7 @@ var KnownEventKinds = []string{
 	"messages_changed",
 	"mail_changed",
 	"notes_changed",
+	"safari.history_changed",
 }
 
 // SafeDetail strips chars outside [\w\-\.:/], truncates 128r (spec §9 PII).
