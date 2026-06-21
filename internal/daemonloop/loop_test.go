@@ -705,3 +705,132 @@ func TestLoopRespectsContextCancellation(t *testing.T) {
 		t.Fatal("Run did not exit after cancel")
 	}
 }
+
+func TestDegradedTaskFiresAfterInterval(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-degraded.txt"
+
+	old := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{}, 1)
+	var fired atomic.Int32
+	task := func(ctx context.Context) {
+		fired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DegradedTracker = tracker
+	l.DegradedInterval = 5 * time.Minute
+	l.Degraded = []WeeklyTask{task}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("degraded task did not fire after its interval elapsed")
+	}
+	if got := fired.Load(); got != 1 {
+		t.Errorf("fired = %d, want 1", got)
+	}
+}
+
+func TestDegradedTaskDoesNotFireWithinInterval(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-degraded.txt"
+
+	recent := time.Now().Add(-30 * time.Second).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(recent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired atomic.Int32
+	task := func(ctx context.Context) { fired.Add(1) }
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DegradedTracker = tracker
+	l.DegradedInterval = 5 * time.Minute
+	l.Degraded = []WeeklyTask{task}
+	l.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+
+	if got := fired.Load(); got != 0 {
+		t.Errorf("degraded should not fire within interval; fired=%d", got)
+	}
+}
+
+// TestDegradedIntervalRespectsFloor pins the rate-limit guard: a sub-floor
+// configured interval is clamped up to degradedFloor so a misconfigured
+// DegradedInterval cannot hammer the provider API past its rate limit.
+func TestDegradedIntervalRespectsFloor(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-degraded.txt"
+
+	// Last ran 10s ago; configured interval 1ns would fire, but the floor
+	// (>10s) must clamp it so the task is skipped.
+	last := time.Now().Add(-10 * time.Second).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(last), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired atomic.Int32
+	task := func(ctx context.Context) { fired.Add(1) }
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DegradedTracker = tracker
+	l.DegradedInterval = 1 * time.Nanosecond
+	l.Degraded = []WeeklyTask{task}
+	l.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+
+	if got := fired.Load(); got != 0 {
+		t.Errorf("sub-floor interval must clamp to degradedFloor and skip; fired=%d", got)
+	}
+}
+
+// TestDegradedHasNoHourGate asserts degraded pull runs all day — unlike the
+// brief, a freshness refresh has no quiet-hours guard (no operator-facing
+// push, just a cache update). Missing tracker -> fire regardless of hour.
+func TestDegradedHasNoHourGate(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-degraded.txt" // missing -> fire on first tick
+
+	done := make(chan struct{}, 1)
+	var fired atomic.Int32
+	task := func(ctx context.Context) {
+		fired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DegradedTracker = tracker
+	l.DegradedInterval = 5 * time.Minute
+	l.Degraded = []WeeklyTask{task}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("degraded task did not fire on first tick (no hour gate expected)")
+	}
+	if got := fired.Load(); got != 1 {
+		t.Errorf("fired = %d, want 1", got)
+	}
+}

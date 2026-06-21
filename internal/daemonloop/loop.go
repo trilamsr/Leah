@@ -37,6 +37,12 @@ const defaultWeeklyInterval = 7 * 24 * time.Hour
 // pattern as defaultWeeklyInterval — no package-level mutable state.
 const defaultDailyInterval = 24 * time.Hour
 
+// degradedFloor clamps DegradedInterval up so a misconfigured value cannot
+// poll a provider past its rate-limit floor.
+const degradedFloor = 1 * time.Minute
+
+const defaultDegradedInterval = 5 * time.Minute
+
 // RegattaClient is the subset of regattaclient.Client the loop needs;
 // abstracted so tests can stub state diffs without spawning the regatta binary.
 type RegattaClient interface {
@@ -86,10 +92,18 @@ type Loop struct {
 	// DailyInterval overrides the 24h cadence per Loop. Zero = defaultDailyInterval.
 	DailyInterval time.Duration
 
-	prevState map[string]string
-	cold      bool
-	weeklyMu  sync.Mutex
-	dailyMu   sync.Mutex
+	// Degraded is the O9 degraded-pull tier: re-pull a connected adapter at a
+	// short interval instead of a webhook (which needs a public endpoint the
+	// loopback invariant forbids). No hour gate — it never pushes.
+	Degraded         []WeeklyTask
+	DegradedTracker  string
+	DegradedInterval time.Duration
+
+	prevState  map[string]string
+	cold       bool
+	weeklyMu   sync.Mutex
+	dailyMu    sync.Mutex
+	degradedMu sync.Mutex
 	// regattaLastErr is the last Regatta.List error string; an identical
 	// error on subsequent ticks suppresses the ERROR log to silence the F3
 	// 30s spam when the regatta binary is absent. Empty = last tick succeeded
@@ -195,6 +209,7 @@ func (l *Loop) tick(ctx context.Context) {
 
 	l.maybeFireWeekly(ctx)
 	l.maybeFireDaily(ctx)
+	l.maybeFireDegraded(ctx)
 }
 
 // maybeFireWeekly checks the WeeklyTracker file and, if >= weeklyInterval has
@@ -294,6 +309,51 @@ func (l *Loop) maybeFireDaily(ctx context.Context) {
 				defer func() {
 					if r := recover(); r != nil {
 						_, _ = fmt.Fprintf(l.Out, "leah-daemon: daily task panic: %v\n", r)
+					}
+				}()
+				t(ctx)
+			}()
+		}
+	}()
+}
+
+// maybeFireDegraded mirrors maybeFireDaily minus the hour gate (degraded pull
+// never pushes, so it runs all day); the interval is floor-clamped.
+func (l *Loop) maybeFireDegraded(ctx context.Context) {
+	if len(l.Degraded) == 0 || l.DegradedTracker == "" {
+		return
+	}
+	if !l.degradedMu.TryLock() {
+		return // degraded already in flight
+	}
+
+	now := time.Now().UTC()
+	interval := l.DegradedInterval
+	if interval <= 0 {
+		interval = defaultDegradedInterval
+	}
+	if interval < degradedFloor {
+		interval = degradedFloor
+	}
+	last, ok := readWeeklyTracker(l.DegradedTracker)
+	if ok && now.Sub(last) < interval {
+		l.degradedMu.Unlock()
+		return
+	}
+
+	if err := writeWeeklyTracker(l.DegradedTracker, now); err != nil {
+		_, _ = fmt.Fprintf(l.Out, "leah-daemon: degraded tracker write error: %v\n", err)
+		l.degradedMu.Unlock()
+		return
+	}
+	tasks := l.Degraded
+	go func() {
+		defer l.degradedMu.Unlock()
+		for _, t := range tasks {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						_, _ = fmt.Fprintf(l.Out, "leah-daemon: degraded task panic: %v\n", r)
 					}
 				}()
 				t(ctx)

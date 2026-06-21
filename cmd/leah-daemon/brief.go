@@ -29,25 +29,37 @@ import (
 // the file write, file-write error never gates voice/desktop.
 func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
-		taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		now := time.Now()
-		data := brief.Gather(taskCtx, now, sd, rc, briefOpts(sd))
-		body := brief.Render(data)
-		if err := brief.WriteFile(sd, now, body); err != nil {
-			_, _ = fmt.Fprintf(out, "leah-daemon: brief write error: %v\n", err)
-		} else {
-			_, _ = fmt.Fprintf(out, "leah-daemon: brief written to %s/briefs/%s.md\n", sd, now.Format("2006-01-02"))
-		}
+		data := pullBriefSnapshot(ctx, sd, rc, out)
 		// Only push when proactive delivery is opted in — the daemon brief
 		// MUST stay silent for operators who run the CLI on demand instead.
 		if os.Getenv("LEAH_VOICE_ENABLED") == "1" {
+			taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
 			summary := brief.VoiceSummary(data)
 			if err := buildBriefNotifier().Notify(taskCtx, "Morning brief", summary); err != nil {
 				_, _ = fmt.Fprintf(out, "leah-daemon: brief push error: %v\n", err)
 			}
 		}
 	}
+}
+
+// pullBriefSnapshot is the pull-and-cache half shared by the morning brief and
+// the O9 degraded tier — no push, so degraded re-fires never banner/speak.
+func pullBriefSnapshot(ctx context.Context, sd string, rc daemonloop.RegattaClient, out *os.File) brief.Data {
+	taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	now := time.Now()
+	data := brief.Gather(taskCtx, now, sd, rc, briefOpts(sd))
+	if err := brief.WriteFile(sd, now, brief.Render(data)); err != nil {
+		_, _ = fmt.Fprintf(out, "leah-daemon: brief write error: %v\n", err)
+	} else {
+		_, _ = fmt.Fprintf(out, "leah-daemon: brief written to %s/briefs/%s.md\n", sd, now.Format("2006-01-02"))
+	}
+	return data
+}
+
+func buildDegradedPullTask(sd string, rc daemonloop.RegattaClient, out *os.File) daemonloop.WeeklyTask {
+	return func(ctx context.Context) { _ = pullBriefSnapshot(ctx, sd, rc, out) }
 }
 
 // buildBriefNotifier fans the brief summary across every configured push
@@ -170,4 +182,24 @@ func wireBriefSchedule(loop *daemonloop.Loop, sd string, briefTask daemonloop.We
 	}
 	loop.Daily = []daemonloop.WeeklyTask{briefTask}
 	_, _ = fmt.Fprintf(out, "leah-daemon: brief = daily @ hour %d\n", loop.DailyHour)
+}
+
+// wireDegradedPull arms the O9 degraded tier (LEAH_DEGRADED_PULL=1) only when
+// gmail/gcal — the sole adapters with a real lister — is connected, so the
+// degraded tick never polls a stub. Pull-only: no socket, no public endpoint.
+func wireDegradedPull(loop *daemonloop.Loop, sd string, rc daemonloop.RegattaClient, out *os.File) {
+	if os.Getenv("LEAH_DEGRADED_PULL") != "1" {
+		return
+	}
+	if !connected(connect.DefaultTokenPath("gmail")) && !connected(connect.DefaultTokenPath("gcal")) {
+		return
+	}
+	loop.DegradedTracker = filepath.Join(sd, "last-degraded.txt")
+	if v := os.Getenv("LEAH_DEGRADED_PULL_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			loop.DegradedInterval = time.Duration(n) * time.Second
+		}
+	}
+	loop.Degraded = []daemonloop.WeeklyTask{buildDegradedPullTask(sd, rc, out)}
+	_, _ = fmt.Fprintln(out, "leah-daemon: degraded pull armed (gmail/gcal, no socket)")
 }
