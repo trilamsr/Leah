@@ -32,7 +32,7 @@ func RegisterMetrics(reg *obs.Registry) {
 		return
 	}
 	h := reg.Histogram("leah_intent_classify_seconds", classifyBuckets)
-	for _, k := range []Kind{KindAsk, KindShip, KindReview, KindStatus} {
+	for k := KindAsk; k < kindMax; k++ {
 		h.Declare(map[string]string{"kind": k.String()})
 	}
 }
