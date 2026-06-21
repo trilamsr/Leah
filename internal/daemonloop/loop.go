@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
 )
@@ -48,18 +49,12 @@ type Heartbeat interface {
 	Ping(ctx context.Context) error
 }
 
-// Notifier sends a desktop / phone push on terminal-state transitions.
-// notify.Desktop + notify.Pushover both satisfy this.
-type Notifier interface {
-	Notify(ctx context.Context, title, body string) error
-}
-
 // Loop polls regatta state every PollEvery and notifies on terminal-state
 // transitions. Single-goroutine; in-memory diff; cold-start does not notify.
 type Loop struct {
 	Regatta   RegattaClient
 	Heartbeat Heartbeat
-	Notify    Notifier
+	Notify    contracts.Notifier
 	Audit     *audit.Logger
 	Out       io.Writer
 	PollEvery time.Duration
@@ -123,7 +118,7 @@ func (l *Loop) LastTick() time.Time {
 // New constructs a Loop with empty prevState + cold=true so the first tick
 // seeds state without emitting transitions. WeeklyTracker / WeeklyHour /
 // Weekly are set by the caller before Run.
-func New(rc RegattaClient, hb Heartbeat, nf Notifier, a *audit.Logger, out io.Writer, pollEvery time.Duration) *Loop {
+func New(rc RegattaClient, hb Heartbeat, nf contracts.Notifier, a *audit.Logger, out io.Writer, pollEvery time.Duration) *Loop {
 	return &Loop{
 		Regatta:   rc,
 		Heartbeat: hb,

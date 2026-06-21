@@ -17,6 +17,7 @@ import (
 	"github.com/trilam/leah/internal/attestation"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // SelfBuildRepo is the only repo SelfBuild ever targets. Hard-coded to prevent
@@ -87,7 +88,7 @@ type SelfBuild struct {
 	Watch     bool
 	Regatta   RegattaClient
 	Heartbeat HeartbeatPinger
-	Notify    Notifier
+	Notify    contracts.Notifier
 	PollEvery time.Duration
 	MaxPolls  int
 }

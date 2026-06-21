@@ -13,6 +13,7 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/ghclient"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
@@ -36,12 +37,6 @@ type RegattaClient interface {
 // so a missing LEAH_HEALTHCHECK_URL never blocks ship.
 type HeartbeatPinger interface {
 	Ping(ctx context.Context) error
-}
-
-// Notifier emits the terminal-state push on watcher exit (desktop + optional
-// Pushover). Failures are non-fatal — operator still sees the URL on stdout.
-type Notifier interface {
-	Notify(ctx context.Context, title, body string) error
 }
 
 // Ship is the BR=3 `leah ship` orchestration: Reasoner draft → gh issue
@@ -71,7 +66,7 @@ type Ship struct {
 	Watch     bool
 	Regatta   RegattaClient
 	Heartbeat HeartbeatPinger
-	Notify    Notifier
+	Notify    contracts.Notifier
 	PollEvery time.Duration
 	MaxPolls  int
 

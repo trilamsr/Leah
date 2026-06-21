@@ -3,22 +3,16 @@ package notify
 import (
 	"context"
 	"errors"
-)
 
-// Notifier mirrors daemonloop.Notifier locally so Fanout can hold a
-// slice without importing daemonloop (cycle: daemonloop → notify already
-// exists implicitly via composition root). Any *Desktop / *VoiceNotify /
-// *Pushover satisfies it structurally.
-type Notifier interface {
-	Notify(ctx context.Context, title, body string) error
-}
+	"github.com/trilam/leah/internal/contracts"
+)
 
 // Fanout dispatches one Notify call to every wrapped Notifier and joins
 // their errors via errors.Join. A nil or partial failure DOES NOT short-
 // circuit — every notifier still receives the call. Empty slice returns
 // nil so composition roots can conditionally append.
 type Fanout struct {
-	Notifiers []Notifier
+	Notifiers []contracts.Notifier
 }
 
 // Notify invokes each wrapped Notifier in order and joins any errors.
