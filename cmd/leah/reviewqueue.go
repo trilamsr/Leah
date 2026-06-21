@@ -13,9 +13,7 @@ import (
 	"github.com/trilam/leah/internal/ghclient"
 )
 
-// reviewRow is the projection we render. Repo + number + age is what the
-// operator scans; URL is kept because --json consumers (`leah brief`, etc.)
-// need a one-click handle back to the PR.
+// URL is carried for --json consumers (leah brief) — text render omits it.
 type reviewRow struct {
 	Number    int       `json:"number"`
 	Repo      string    `json:"repo"`
@@ -25,9 +23,6 @@ type reviewRow struct {
 	IsDraft   bool      `json:"isDraft"`
 }
 
-// reviewQueueGraphQL is the search query. `review-requested:@me` matches the
-// operator's pending-review inbox; sorting client-side because GH search
-// sort by updated-asc is unreliable across orgs.
 const reviewQueueGraphQL = `query($q: String!) {
   search(query: $q, type: ISSUE, first: 50) {
     nodes {
@@ -83,8 +78,7 @@ func runReviewQueueWith(ctx context.Context, exec ghclient.Executor, args []stri
 		_ = enc.Encode(rows)
 		return 0
 	}
-	// Empty result stays silent so the verb composes in pipelines
-	// (`leah review-queue | head` doesn't need a placeholder line).
+	// Silent on empty so the verb composes in pipelines.
 	if len(rows) == 0 {
 		return 0
 	}
@@ -121,10 +115,8 @@ func fetchReviewQueue(ctx context.Context, exec ghclient.Executor, org string) (
 	if err := json.Unmarshal([]byte(out), &resp); err != nil {
 		return nil, fmt.Errorf("parse graphql json: %w", err)
 	}
-	// GH returns HTTP 200 with {"errors":[...]} on rate-limit / auth / schema
-	// failure; without surfacing the message, the operator gets an empty queue
-	// and assumes a clean inbox while their token has expired. Empty-message
-	// fallback because "errors[]: empty string" leaves a useless naked prefix.
+	// GH returns HTTP 200 + {"errors":[...]} on rate-limit/auth/schema drift —
+	// surface or the operator reads "clean inbox" while their token has expired.
 	if len(resp.Errors) > 0 {
 		msg := resp.Errors[0].Message
 		if msg == "" {
@@ -137,10 +129,7 @@ func fetchReviewQueue(ctx context.Context, exec ghclient.Executor, org string) (
 		if len(n) == 0 {
 			continue
 		}
-		// Drop malformed nodes rather than render ghost rows (#0, epoch-zero
-		// "from 1970" ages). GH's search GraphQL union returns {} for non-PR
-		// matches even with is:pr, and field-presence drift across API
-		// versions is real.
+		// Drop malformed nodes so we never render #0 / "from 1970" ghost rows.
 		num, ok := n["number"].(float64)
 		if !ok || num <= 0 {
 			continue
@@ -165,8 +154,7 @@ func fetchReviewQueue(ctx context.Context, exec ghclient.Executor, org string) (
 	return rows, nil
 }
 
-// rankReviewQueue orders by oldest updatedAt first (FIFO inbox) with drafts
-// sunk regardless of age — operator's attention belongs on ready PRs first.
+// Drafts sink regardless of age — operator attention belongs on ready PRs.
 func rankReviewQueue(rows []reviewRow) {
 	sort.SliceStable(rows, func(i, j int) bool {
 		if rows[i].IsDraft != rows[j].IsDraft {
@@ -176,8 +164,6 @@ func rankReviewQueue(rows []reviewRow) {
 	})
 }
 
-// formatReviewRow renders one row. Title gets the lion's share because that's
-// what the operator reads to decide priority; repo + age are sidebar context.
 func formatReviewRow(r reviewRow, now time.Time) string {
 	repo := truncate(r.Repo, 24)
 	title := truncate(r.Title, 60)
