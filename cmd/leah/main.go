@@ -204,6 +204,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runWatch(rest, stdout, os.Stderr)
 	case "whoami":
 		return runWhoami(ctx, rest, stdout)
+	case "earnings":
+		return runEarnings(ctx, rest, stdout)
 	case "export":
 		return runExport(ctx, rest, os.Stderr)
 	case "import":
