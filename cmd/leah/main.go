@@ -72,6 +72,8 @@ func runCommand(ctx context.Context, args []string) int {
 		return runAsk(ctx, rest[0])
 	case "ship":
 		return runShipArgs(ctx, rest)
+	case "call":
+		return runCall(ctx, rest)
 	case "review":
 		if shouldShowHelp(rest) {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah review <repo> <pr#>")
@@ -252,6 +254,7 @@ func runShipArgs(ctx context.Context, args []string) int {
 	fromPR := fs.Int("from-pr", 0, "prepend gh pr view + diff for PR #N from the same repo")
 	fromIssue := fs.Int("from-issue", 0, "prepend gh issue view + comments for issue #N from the same repo")
 	fromThread := fs.String("from-thread", "", "prepend last-N shell-history entries (e.g. 100c or 30m)")
+	imsgTo := fs.String("imessage", "", "iMessage \"<body>\" to <to> (attestation-gated)")
 	toolFlags := []shipToolFlag{
 		{"slack", fs.String("slack", "", "post \"<title>\" to Slack (attestation-gated)")},
 		{"jira", fs.String("jira", "", "create a Jira issue titled \"<title>\" (attestation-gated)")},
@@ -263,10 +266,19 @@ func runShipArgs(ctx context.Context, args []string) int {
 	fs.Usage = func() {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"")
 		_, _ = fmt.Fprintln(os.Stderr, "       leah ship --<slack|jira|notion|linear|teams> \"<title>\"")
+		_, _ = fmt.Fprintln(os.Stderr, "       leah ship --imessage <to> \"<body>\"")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+
+	if *imsgTo != "" {
+		if fs.NArg() < 1 {
+			fs.Usage()
+			return 2
+		}
+		return runShipIMessageWith(ctx, newConnectAttestor(), nativeExec{}, *imsgTo, fs.Arg(0))
 	}
 
 	for _, tf := range toolFlags {
@@ -494,6 +506,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "commands:")
 	_, _ = fmt.Fprintln(os.Stderr, "  ask \"<query>\"             direct query to Reasoner")
 	_, _ = fmt.Fprintln(os.Stderr, "  ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"  file regatta issue + watch + narrate")
+	_, _ = fmt.Fprintln(os.Stderr, "  call <callee> [--audio]   place a FaceTime video (default) or audio call")
 	_, _ = fmt.Fprintln(os.Stderr, "  review <repo> <pr#>       independent reviewer subagent on PR")
 	_, _ = fmt.Fprintln(os.Stderr, "  status [--json]           recent activity from audit log")
 	_, _ = fmt.Fprintln(os.Stderr, "  contact <add|list|show>   manage contacts (memory)")
