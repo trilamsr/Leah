@@ -6,8 +6,7 @@ import (
 	"testing"
 )
 
-// TestRegexClassifier_FastPath exercises the spec §5 vocabulary table. The
-// regex tier must cover the one-word reply majority with zero LLM cost.
+// Exercises the spec §5 vocabulary table — zero-LLM-cost majority path.
 func TestRegexClassifier_FastPath(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -58,8 +57,7 @@ func TestRegexClassifier_FastPath(t *testing.T) {
 	}
 }
 
-// TestRegexClassifier_NoFallbackReturnsUnknown — without an LLM seam, gibberish
-// is IntentUnknown. The router treats Unknown as no-op (spec §5 fail-safe).
+// Gibberish collapses to IntentUnknown — spec §5 fail-safe.
 func TestRegexClassifier_NoFallbackReturnsUnknown(t *testing.T) {
 	c := NewRegexClassifier()
 	cases := []string{"hmm", "what?", "kjasdfh", "maybe", ""}
@@ -87,8 +85,7 @@ func (s *stubReasoner) Ask(_ context.Context, prompt string) (string, error) {
 	return s.reply, s.err
 }
 
-// TestFallbackClassifier_RegexShortCircuits — a regex hit must NEVER call the
-// LLM. The LLM tier is a cost surface; spec §5 mandates fast-path-first.
+// A regex hit must never call the LLM — spec §5 fast-path-first.
 func TestFallbackClassifier_RegexShortCircuits(t *testing.T) {
 	r := &stubReasoner{reply: "accept"}
 	c := NewFallbackClassifier(r)
@@ -104,8 +101,7 @@ func TestFallbackClassifier_RegexShortCircuits(t *testing.T) {
 	}
 }
 
-// TestFallbackClassifier_LLMResolvesAmbiguous — ambiguous text falls through
-// to the LLM seam, which returns one of the four labels.
+// Ambiguous text falls through to the LLM seam and parses the four labels.
 func TestFallbackClassifier_LLMResolvesAmbiguous(t *testing.T) {
 	cases := []struct {
 		reply string
@@ -133,8 +129,7 @@ func TestFallbackClassifier_LLMResolvesAmbiguous(t *testing.T) {
 	}
 }
 
-// TestFallbackClassifier_LLMGarbageIsUnknown — any label outside the four is
-// treated as IntentUnknown (spec §5: "default unknown on any ambiguity").
+// Out-of-vocabulary LLM reply is IntentUnknown — spec §5 default-unknown.
 func TestFallbackClassifier_LLMGarbageIsUnknown(t *testing.T) {
 	r := &stubReasoner{reply: "maybe later if you want"}
 	c := NewFallbackClassifier(r)
@@ -147,8 +142,7 @@ func TestFallbackClassifier_LLMGarbageIsUnknown(t *testing.T) {
 	}
 }
 
-// TestFallbackClassifier_LLMErrorIsUnknown — a reasoner transport failure
-// must NEVER escalate to an accept; fail-safe to Unknown so the router no-ops.
+// Reasoner transport error fails safe to IntentUnknown — never escalates.
 func TestFallbackClassifier_LLMErrorIsUnknown(t *testing.T) {
 	r := &stubReasoner{err: errors.New("transport down")}
 	c := NewFallbackClassifier(r)
@@ -161,9 +155,7 @@ func TestFallbackClassifier_LLMErrorIsUnknown(t *testing.T) {
 	}
 }
 
-// TestFallbackClassifier_NilReasonerFallsBackToRegex — a nil reasoner is the
-// daemon's "LLM not wired yet" state. Must degrade gracefully to regex-only
-// (no panic, ambiguous -> Unknown).
+// Nil reasoner degrades to regex-only — daemon's "LLM not wired" state.
 func TestFallbackClassifier_NilReasonerFallsBackToRegex(t *testing.T) {
 	c := NewFallbackClassifier(nil)
 	got, err := c.Classify(context.Background(), "yes")
@@ -179,10 +171,7 @@ func TestFallbackClassifier_NilReasonerFallsBackToRegex(t *testing.T) {
 	}
 }
 
-// TestClassifier_RejectAndDeferNeverAuthorize is the load-bearing safety
-// assertion: reject/defer intents emitted by the classifier never reach
-// ConsentGate.Authorize. This pins the gate-only-on-act invariant (spec §4.3)
-// at the classifier+router seam.
+// Reject/defer intents never reach ConsentGate.Authorize — spec §4.3 invariant.
 func TestClassifier_RejectAndDeferNeverAuthorize(t *testing.T) {
 	store := NewMemoryPendingStore()
 	_ = store.Put(Pending{RecID: "rec-1", Channel: "discord", ConvID: "c1", PeerID: "p1"})
