@@ -32,15 +32,28 @@ func TestRenderMapPreviewPanel_HappyPath(t *testing.T) {
 	}
 }
 
-// Empty Place still produces an explicit error tile, not silent em-dash —
-// matches the existing widget convention.
+// Partial-coordinate inputs share the empty-Place gate so a tile URL with
+// one missing coord (which would point at the wrong location) never ships.
 func TestRenderMapPreviewPanel_EmptyPlaceIsError(t *testing.T) {
-	html, err := RenderMapPreviewPanel(Place{})
-	if err == nil {
-		t.Fatalf("expected error for empty Place, got nil")
+	cases := []struct {
+		name  string
+		place Place
+	}{
+		{"zero value", Place{}},
+		{"missing name", Place{Lat: 1, Lng: 2}},
+		{"missing lng", Place{Name: "X", Lat: 1}},
+		{"missing lat", Place{Name: "X", Lng: 2}},
 	}
-	if html != "" {
-		t.Errorf("expected empty html on error, got %q", html)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			html, err := RenderMapPreviewPanel(tc.place)
+			if err == nil {
+				t.Fatalf("expected error for %s, got nil", tc.name)
+			}
+			if html != "" {
+				t.Errorf("expected empty html on error, got %q", html)
+			}
+		})
 	}
 }
 

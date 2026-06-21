@@ -29,7 +29,9 @@ var tripMapPreviewTmpl = template.Must(template.New("trip-mappreview").Parse(
 // payload. v1 = data binding only; the tile URL is a placeholder the HUD
 // can swap for a real tile source without a tripplanner change.
 func RenderMapPreviewPanel(p Place) (string, error) {
-	if p.Name == "" || (p.Lat == 0 && p.Lng == 0) {
+	// Either coord at zero is treated as missing — silently rendering a tile
+	// URL with one missing coordinate would point at the wrong location.
+	if p.Name == "" || p.Lat == 0 || p.Lng == 0 {
 		return "", fmt.Errorf("%w: name=%q lat=%v lng=%v", ErrEmptyPlace, p.Name, p.Lat, p.Lng)
 	}
 	tile := fmt.Sprintf("/api/widgets/trip-mappreview/tile?lat=%g&lng=%g", p.Lat, p.Lng)
