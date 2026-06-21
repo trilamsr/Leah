@@ -390,6 +390,96 @@ const rssBodyMissingPubDate = `<?xml version="1.0" encoding="UTF-8"?>
 </channel>
 </rss>`
 
+// arxivRSSBody is a minimal arXiv RSS doc the Paper-shaped adapter parses
+// into one item; SummarizeNews-via-bundle-research must surface its title.
+const arxivRSSBody = `<?xml version='1.0' encoding='UTF-8'?>
+<rss xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+<channel>
+<title>cs.AI updates on arXiv.org</title>
+<item>
+<title>Scaling laws for transformer attention</title>
+<link>https://arxiv.org/abs/2606.00001</link>
+<description>Abstract: We study scaling behavior.</description>
+<dc:creator>Alice Researcher</dc:creator>
+<dc:identifier>oai:arXiv.org:2606.00001v1</dc:identifier>
+<pubDate>Wed, 10 Jun 2026 00:00:00 +0000</pubDate>
+</item>
+</channel>
+</rss>`
+
+// atomReleaseBody is a minimal GitHub-releases Atom doc; the Releases adapter
+// produces []Article so SummarizeNews-via-bundle-dev surfaces the title
+// unchanged.
+const atomReleaseBody = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<title>Recent releases</title>
+<entry>
+<id>tag:github.com,2008:Repository/1/v1.2.3</id>
+<title>v1.2.3 - Bug fixes</title>
+<link rel="alternate" href="https://github.com/test/repo/releases/tag/v1.2.3"/>
+<updated>2026-06-10T12:00:00Z</updated>
+</entry>
+</feed>`
+
+// TestRunNews_BundleResearch wires the arxiv adapter through --bundle research.
+// The Paper-typed Fetch is bridged to the Article-typed digest pipeline.
+func TestRunNews_BundleResearch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(arxivRSSBody))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_FEEDS_AUTO_ATTEST", "1")
+	prev := bundleURLOverride
+	bundleURLOverride = srv.URL
+	t.Cleanup(func() { bundleURLOverride = prev })
+
+	var buf bytes.Buffer
+	if code := runNews(context.Background(), []string{"--bundle", "research"}, &buf); code != 0 {
+		t.Fatalf("exit %d, want 0; output=%q", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "Scaling laws") {
+		t.Errorf("research bundle missing arxiv title: %q", buf.String())
+	}
+}
+
+// TestRunNews_BundleDev wires the releases adapter through --bundle dev.
+func TestRunNews_BundleDev(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(atomReleaseBody))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_FEEDS_AUTO_ATTEST", "1")
+	prev := bundleURLOverride
+	bundleURLOverride = srv.URL
+	t.Cleanup(func() { bundleURLOverride = prev })
+
+	var buf bytes.Buffer
+	if code := runNews(context.Background(), []string{"--bundle", "dev"}, &buf); code != 0 {
+		t.Fatalf("exit %d, want 0; output=%q", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "v1.2.3") {
+		t.Errorf("dev bundle missing release title: %q", buf.String())
+	}
+}
+
+// TestKnownBundles_ListsResearchAndDev guards the help text from drifting away
+// from the registered bundle map — operator discoverability hinges on it.
+func TestKnownBundles_ListsResearchAndDev(t *testing.T) {
+	got := knownBundles()
+	if !strings.Contains(got, "research") {
+		t.Errorf("knownBundles missing 'research': %q", got)
+	}
+	if !strings.Contains(got, "dev") {
+		t.Errorf("knownBundles missing 'dev': %q", got)
+	}
+}
+
 // TestRunNews_SinceDropsZeroPubDate pins the policy that items with no parsable
 // pubDate are filtered out when --since is set.
 func TestRunNews_SinceDropsZeroPubDate(t *testing.T) {
