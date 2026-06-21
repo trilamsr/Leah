@@ -3,6 +3,9 @@ package voice
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
@@ -434,4 +437,150 @@ func TestChainTTS_Race(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// stubSynth is a Synthesizer-and-TTS backend returning canned bytes/err.
+type stubSynth struct {
+	audio []byte
+	mime  string
+	err   error
+	calls int
+}
+
+func (s *stubSynth) Speak(ctx context.Context, text string) error { return s.err }
+
+func (s *stubSynth) Synthesize(ctx context.Context, text string) ([]byte, string, error) {
+	s.calls++
+	return s.audio, s.mime, s.err
+}
+
+// TestKokoroSynthReturnsBytes asserts KokoroTTS.Synthesize returns the wav
+// bytes kokoro wrote to the -o path plus audio/wav, without invoking afplay.
+func TestKokoroSynthReturnsBytes(t *testing.T) {
+	want := []byte("RIFFkokoro-wav")
+	fe := newFakeExec()
+	fe.runHook = func(name string, args []string) {
+		if name == "kokoro" {
+			for i, a := range args {
+				if a == "-o" && i+1 < len(args) {
+					_ = os.WriteFile(args[i+1], want, 0o600)
+				}
+			}
+		}
+	}
+	k := &KokoroTTS{Exec: fe}
+	got, mime, err := k.Synthesize(context.Background(), "hello")
+	if err != nil {
+		t.Fatalf("synthesize: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("bytes = %q, want %q", got, want)
+	}
+	if mime != "audio/wav" {
+		t.Errorf("mime = %q, want audio/wav", mime)
+	}
+	for _, r := range fe.runs {
+		if r.name == "afplay" {
+			t.Errorf("Synthesize must not invoke afplay: %v", fe.runs)
+		}
+	}
+}
+
+// TestOpenAISynthReturnsBytes asserts OpenAITTS.Synthesize returns the HTTP
+// wav body plus audio/wav, without playing.
+func TestOpenAISynthReturnsBytes(t *testing.T) {
+	payload := []byte("openai-wav-body")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(payload)))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(payload)
+	}))
+	defer srv.Close()
+
+	fe := newFakeExec()
+	o := &OpenAITTS{APIKey: "sk-test", Exec: fe, Endpoint: srv.URL, HTTPClient: srv.Client()}
+	got, mime, err := o.Synthesize(context.Background(), "hello")
+	if err != nil {
+		t.Fatalf("synthesize: %v", err)
+	}
+	if string(got) != string(payload) {
+		t.Errorf("bytes = %q, want %q", got, payload)
+	}
+	if mime != "audio/wav" {
+		t.Errorf("mime = %q, want audio/wav", mime)
+	}
+	if len(fe.runs) != 0 {
+		t.Errorf("Synthesize must not play: %v", fe.runs)
+	}
+}
+
+// TestSaySynthUnsupported asserts SayTTS.Synthesize reports the sentinel.
+func TestSaySynthUnsupported(t *testing.T) {
+	s := &SayTTS{Exec: newFakeExec()}
+	_, _, err := s.Synthesize(context.Background(), "hi")
+	if !errors.Is(err, ErrSynthesizeUnsupported) {
+		t.Errorf("err = %v, want ErrSynthesizeUnsupported", err)
+	}
+}
+
+// TestChainSynthFirstSuccess asserts ChainTTS.Synthesize returns the first
+// backend's bytes and does not consult later backends.
+func TestChainSynthFirstSuccess(t *testing.T) {
+	first := &stubSynth{audio: []byte("a"), mime: "audio/wav"}
+	second := &stubSynth{audio: []byte("b"), mime: "audio/wav"}
+	c := NewChain(first, second)
+	got, mime, err := c.Synthesize(context.Background(), "x")
+	if err != nil {
+		t.Fatalf("synthesize: %v", err)
+	}
+	if string(got) != "a" || mime != "audio/wav" {
+		t.Errorf("got %q/%q, want a/audio/wav", got, mime)
+	}
+	if second.calls != 0 {
+		t.Errorf("second consulted after first success: %d", second.calls)
+	}
+}
+
+// TestChainSynthSkipsUnsupported asserts an ErrSynthesizeUnsupported backend
+// is skipped (not a hard failure) and the next backend serves.
+func TestChainSynthSkipsUnsupported(t *testing.T) {
+	first := &stubSynth{err: ErrSynthesizeUnsupported}
+	second := &stubSynth{audio: []byte("b"), mime: "audio/wav"}
+	c := NewChain(first, second)
+	got, _, err := c.Synthesize(context.Background(), "x")
+	if err != nil {
+		t.Fatalf("synthesize: %v", err)
+	}
+	if string(got) != "b" {
+		t.Errorf("got %q, want b", got)
+	}
+}
+
+// TestChainSynthAllUnsupported asserts an all-unsupported chain returns a
+// non-nil error and no panic.
+func TestChainSynthAllUnsupported(t *testing.T) {
+	c := NewChain(&stubSynth{err: ErrSynthesizeUnsupported}, &SayTTS{Exec: newFakeExec()})
+	if _, _, err := c.Synthesize(context.Background(), "x"); err == nil {
+		t.Fatal("expected error when all backends unsupported")
+	}
+}
+
+// TestChainSynthEmpty asserts an empty chain errors rather than panicking.
+func TestChainSynthEmpty(t *testing.T) {
+	if _, _, err := NewChain().Synthesize(context.Background(), "x"); err == nil {
+		t.Fatal("expected error on empty chain")
+	}
+}
+
+// TestChainSynthBackendWithoutSynthesizer asserts a plain TTS (no Synthesizer)
+// is treated as unsupported, not a panic.
+func TestChainSynthBackendWithoutSynthesizer(t *testing.T) {
+	c := NewChain(&stubTTS{}, &stubSynth{audio: []byte("b"), mime: "audio/wav"})
+	got, _, err := c.Synthesize(context.Background(), "x")
+	if err != nil {
+		t.Fatalf("synthesize: %v", err)
+	}
+	if string(got) != "b" {
+		t.Errorf("got %q, want b", got)
+	}
 }

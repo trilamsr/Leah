@@ -23,3 +23,8 @@ func (s *SayTTS) Speak(ctx context.Context, text string) error {
 		return nil
 	})
 }
+
+// Synthesize is unsupported: `say` plays directly with no file artifact.
+func (s *SayTTS) Synthesize(ctx context.Context, text string) ([]byte, string, error) {
+	return nil, "", ErrSynthesizeUnsupported
+}

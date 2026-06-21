@@ -21,6 +21,16 @@ type TTS interface {
 	Speak(ctx context.Context, text string) error
 }
 
+// Synthesizer returns synthesized audio as bytes plus its MIME type, for
+// callers that must transmit audio (remote comms) rather than play it locally.
+// Backends that cannot produce a file artifact return ErrSynthesizeUnsupported.
+type Synthesizer interface {
+	Synthesize(ctx context.Context, text string) (audio []byte, mime string, err error)
+}
+
+// ErrSynthesizeUnsupported marks a backend that can play but cannot return bytes.
+var ErrSynthesizeUnsupported = errors.New("voice: backend cannot return audio bytes")
+
 // Executor abstracts process spawn so tests can stub binary invocations
 // without requiring kokoro / say / afplay to be installed on the test host.
 type Executor interface {
@@ -100,6 +110,29 @@ func (c *ChainTTS) Speak(ctx context.Context, text string) error {
 		return nil
 	}
 	return fmt.Errorf("voice: all backends failed: %w", lastErr)
+}
+
+// Synthesize returns the first backend's audio bytes, skipping any that lack
+// Synthesizer or report ErrSynthesizeUnsupported. No device lock: no playback.
+func (c *ChainTTS) Synthesize(ctx context.Context, text string) ([]byte, string, error) {
+	if len(c.backends) == 0 {
+		return nil, "", errors.New("voice: chain has no backends")
+	}
+	var lastErr error
+	for _, b := range c.backends {
+		s, ok := b.(Synthesizer)
+		if !ok {
+			lastErr = ErrSynthesizeUnsupported
+			continue
+		}
+		audio, mime, err := s.Synthesize(ctx, text)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return audio, mime, nil
+	}
+	return nil, "", fmt.Errorf("voice: no backend could synthesize: %w", lastErr)
 }
 
 // Available reports whether the chain has any backends. Used by the
