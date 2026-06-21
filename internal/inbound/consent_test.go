@@ -153,6 +153,67 @@ func TestFileEnrollStore_PersistsAcrossOpens(t *testing.T) {
 	}
 }
 
+// Flush failure MUST NOT commit to the in-memory set — otherwise a process
+// that crashes after the failed write returns true from Enrolled() until
+// restart, while the disk says the pair was never enrolled.
+func TestFileEnrollStore_FlushFailureLeavesNoMemDiskSkew(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "enroll.json")
+	s, err := OpenFileEnrollStore(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	// Make the parent directory unwritable so the atomic rename fails.
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	if err := s.Enroll("discord", "peer-A"); err == nil {
+		t.Fatalf("Enroll succeeded despite RO parent dir")
+	}
+	ok, _ := s.Enrolled("discord", "peer-A")
+	if ok {
+		t.Fatalf("mem/disk skew: Enrolled=true after failed flush")
+	}
+}
+
+// Repeated flushes write pairs in stable sorted order so the on-disk byte
+// sequence doesn't churn with Go's randomized map iteration.
+func TestFileEnrollStore_FlushOrderStable(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "enroll.json")
+	s, err := OpenFileEnrollStore(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	for _, peer := range []string{"peer-C", "peer-A", "peer-B"} {
+		if err := s.Enroll("discord", peer); err != nil {
+			t.Fatalf("enroll %s: %v", peer, err)
+		}
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	got := string(b)
+	idxA := bytesIndex(got, "peer-A")
+	idxB := bytesIndex(got, "peer-B")
+	idxC := bytesIndex(got, "peer-C")
+	if idxA >= idxB || idxB >= idxC {
+		t.Fatalf("pairs not sorted: A=%d B=%d C=%d (file=%s)", idxA, idxB, idxC, got)
+	}
+}
+
+func bytesIndex(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
+}
+
 // FileEnrollStore mode bits — credentials-on-disk pattern: 0600.
 func TestFileEnrollStore_FileMode0600(t *testing.T) {
 	dir := t.TempDir()

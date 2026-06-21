@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/trilam/leah/internal/attestation"
@@ -141,18 +142,38 @@ func (s *FileEnrollStore) Enrolled(channel, peerID string) (bool, error) {
 	return ok, nil
 }
 
+// Enroll serializes to disk FIRST, then commits to the in-memory set. A flush
+// failure (disk full, perms) must not leave mem/disk skew where Enrolled
+// returns true now but false after restart — that would silently degrade the
+// gate (spec §4.2: enrollment is the load-bearing layer-1 trust grant).
 func (s *FileEnrollStore) Enroll(channel, peerID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.mem[enrollKey(channel, peerID)] = struct{}{}
-	return s.flushLocked()
+	k := enrollKey(channel, peerID)
+	if _, ok := s.mem[k]; ok {
+		return nil
+	}
+	if err := s.flushWithLocked(k); err != nil {
+		return err
+	}
+	s.mem[k] = struct{}{}
+	return nil
 }
 
-// flushLocked serializes the current in-memory set to disk. Atomic rename so
-// a partial write can never leave a corrupt file the next Open would refuse.
-func (s *FileEnrollStore) flushLocked() error {
-	var f enrollFile
+// flushWithLocked serializes (mem ∪ {newKey}) to disk via atomic rename.
+// Caller commits newKey to mem only on success. Pairs sorted so repeated
+// flushes don't churn the on-disk byte order.
+func (s *FileEnrollStore) flushWithLocked(newKey string) error {
+	keys := make([]string, 0, len(s.mem)+1)
 	for k := range s.mem {
+		keys = append(keys, k)
+	}
+	if _, exists := s.mem[newKey]; !exists {
+		keys = append(keys, newKey)
+	}
+	sort.Strings(keys)
+	var f enrollFile
+	for _, k := range keys {
 		ch, peer := splitEnrollKey(k)
 		f.Pairs = append(f.Pairs, enrollPair{Channel: ch, PeerID: peer})
 	}
