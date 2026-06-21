@@ -130,6 +130,7 @@ func main() {
 	}
 
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)
+	startLogRetention(ctx, lg, registry, sd)
 
 	if *dashboardAddr != "" {
 		closeDash, err := startDashboard(ctx, *dashboardAddr, sd, auditPath, snapPath, rc, loop, registry, health, store)
