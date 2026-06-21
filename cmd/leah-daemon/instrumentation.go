@@ -20,6 +20,7 @@ import (
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/intent"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/operatormodel"
@@ -67,6 +68,7 @@ func wireObs(
 	msteams.RegisterMetrics(registry)
 	connect.RegisterMetrics(registry)
 	feeds.RegisterMetrics(registry)
+	intent.RegisterMetrics(registry)
 	recommend.RegisterMetrics(registry)
 	selflearn.RegisterMetrics(registry)
 	operatormodel.RegisterMetrics(registry)

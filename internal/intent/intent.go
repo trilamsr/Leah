@@ -12,12 +12,14 @@ import (
 // fallback when no other regex matches.
 type Kind int
 
-// Canonical verbs the classifier resolves to.
+// Canonical verbs the classifier resolves to. kindMax bounds enumeration so
+// RegisterMetrics seeds every kind without drifting when new verbs land.
 const (
 	KindAsk Kind = iota
 	KindShip
 	KindReview
 	KindStatus
+	kindMax
 )
 
 // String returns the lowercase verb name (matches the CLI subcommand).
