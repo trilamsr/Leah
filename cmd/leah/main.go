@@ -208,6 +208,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runImport(ctx, rest, os.Stderr)
 	case "self-upgrade":
 		return runSelfUpgrade(ctx, rest, stdout, nil)
+	case "pr-state":
+		return runPRState(ctx, nil, rest, stdout)
 	default:
 		usage()
 		return 2
@@ -223,7 +225,7 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 func longRunningCLICommand(cmd string) bool {
 	switch cmd {
 	case "ask", "ship", "brief", "self-build", "review",
-		"suggest", "backlog", "recall", "news", "self-upgrade":
+		"suggest", "backlog", "recall", "news", "self-upgrade", "pr-state":
 		return true
 	}
 	return false
@@ -650,5 +652,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  export --all [--out PATH]  encrypted archive of ~/.leah-state (M3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  import <archive> [--overwrite]  restore encrypted archive (M3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  self-upgrade              attested rebuild + atomic symlink-swap of ~/bin/leah (BR=4)")
+	_, _ = fmt.Fprintln(os.Stderr, "  pr-state <N>|--open|--queue  one-line PR readiness (state, CI, review, mergeable)")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
