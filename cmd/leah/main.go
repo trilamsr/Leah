@@ -81,6 +81,12 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 	rest := args[1:]
 	fbt := dispatcher.NewFirstByteTimer(reg, cmd)
 	stdout := fbt.Wrap(os.Stdout)
+	// Progress fires once for commands users expect to take >100ms; emitted
+	// inline right before dispatch so the histogram captures argv-parse +
+	// flag-set overhead, which is the latency band A7 tracks.
+	if longRunningCLICommand(cmd) {
+		dispatcher.NewProgressTimer(reg, cmd).Emit()
+	}
 	switch cmd {
 	case "version", "-v", "--version":
 		_, _ = fmt.Fprintln(stdout, version)
@@ -201,6 +207,20 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return 2
 	}
 	return 0
+}
+
+// longRunningCLICommand is the gate for leah_cli_dispatch_to_first_progress_seconds.
+// Listed here are the subcommands a user expects to take long enough that the
+// shell prompt visibly stalls without an "I'm working" beat; short pure-local
+// commands (status, whoami, version, …) are excluded so the histogram isn't
+// diluted by latencies whose SLA is already tracked by first-byte.
+func longRunningCLICommand(cmd string) bool {
+	switch cmd {
+	case "ask", "ship", "brief", "self-build", "review",
+		"suggest", "backlog", "recall", "news", "self-upgrade":
+		return true
+	}
+	return false
 }
 
 // writeInterruptedAudit appends one Outcome="interrupted" row when ctx was

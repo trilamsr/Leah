@@ -90,7 +90,8 @@ func TestRunCommand_AskPathDoesNotTripHistogram(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	for k, v := range out.Histograms {
-		if strings.Contains(k, "command=ask") && v.Count != 0 {
+		if strings.HasPrefix(k, "leah_cli_dispatch_to_first_byte_seconds") &&
+			strings.Contains(k, "command=ask") && v.Count != 0 {
 			t.Fatalf("ask path tripped first-byte histogram (count=%d); LLM-emitting paths MUST stay unwrapped", v.Count)
 		}
 	}
