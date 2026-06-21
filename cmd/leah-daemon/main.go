@@ -71,6 +71,7 @@ func main() {
 	}
 	loop.Weekly = buildWeeklyTasks(sd, auditPath, a, os.Stdout)
 	wireBriefSchedule(loop, sd, buildBriefTask(sd, rc, os.Stdout), os.Stdout)
+	wireDegradedPull(loop, sd, rc, os.Stdout)
 
 	store, err := memory.NewStore(filepath.Join(sd, "memory.db"))
 	if err != nil {
