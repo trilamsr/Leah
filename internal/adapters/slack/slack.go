@@ -33,16 +33,16 @@ const (
 const postWindow = time.Second
 
 type Channel struct {
-	ID      string
-	Name    string
-	IsIM    bool
-	IsGroup bool
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	IsIM    bool   `json:"is_im"`
+	IsGroup bool   `json:"is_group"`
 }
 
 type Message struct {
-	User string
-	TS   string
-	Text string
+	User string `json:"user"`
+	TS   string `json:"ts"`
+	Text string `json:"text"`
 }
 
 type Thread struct {
