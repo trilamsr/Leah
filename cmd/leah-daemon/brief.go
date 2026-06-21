@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,6 +17,7 @@ import (
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/daemonloop"
+	"github.com/trilam/leah/internal/feeds"
 	"github.com/trilam/leah/internal/notify"
 )
 
@@ -97,7 +100,82 @@ func briefOpts(sd string) brief.GatherOpts {
 		}
 	}
 	wireWorkTools(&o)
+	if q := newWatchlistQuoter(sd); q != nil {
+		o.Watchlist = q
+	}
 	return o
+}
+
+// newWatchlistQuoter builds the AV-backed quoter when the operator has both
+// the API key file (provisioned by `leah connect alphavantage`) and a
+// watchlist.json with at least one symbol. Either absence → nil, so the brief
+// silently omits the section rather than rendering "(unavailable)".
+func newWatchlistQuoter(sd string) brief.WatchlistQuoter {
+	if len(brief.LoadWatchlistSymbols(filepath.Join(sd, "watchlist.json"))) == 0 {
+		return nil
+	}
+	key, err := loadAVKey(filepath.Join(sd, "secrets", "alphavantage-key.json"))
+	if err != nil {
+		return nil
+	}
+	m, err := feeds.NewMarket(feeds.MarketConfig{
+		Attestor:   noopFeedsAttestor{},
+		HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		APIKey:     key,
+		BaseURL:    os.Getenv("LEAH_ALPHAVANTAGE_BASE_URL"),
+	})
+	if err != nil {
+		return nil
+	}
+	return watchlistQuoter{m: m}
+}
+
+// watchlistQuoter projects feeds.Quote onto the brief-local shape so brief
+// stays free of any feeds import (mirrors the gcalLister projection above).
+type watchlistQuoter struct{ m *feeds.Market }
+
+func (w watchlistQuoter) FetchAll(ctx context.Context, symbols []string) ([]brief.WatchlistQuote, error) {
+	qs, err := w.m.FetchAll(ctx, symbols)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]brief.WatchlistQuote, 0, len(qs))
+	for _, q := range qs {
+		out = append(out, brief.WatchlistQuote{Symbol: q.Symbol, PercentChange: q.ChangePct, Price: q.Price})
+	}
+	return out, nil
+}
+
+// noopFeedsAttestor auto-approves market.fetch because the daemon brief is
+// a scheduled background job — a stdin prompt would block the daily tick.
+type noopFeedsAttestor struct{}
+
+func (noopFeedsAttestor) Attest(_ context.Context, _ string) error { return nil }
+
+// loadAVKey mirrors cmd/leah/quote.go's loader but is package-local — the CLI
+// version stays self-contained and the daemon can't reach into cmd/leah/.
+func loadAVKey(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode().Perm() != 0o600 {
+		return "", fmt.Errorf("api key %s has mode %o, want 0600", path, info.Mode().Perm())
+	}
+	raw, err := os.ReadFile(path) // #nosec G304 — operator-owned state dir
+	if err != nil {
+		return "", err
+	}
+	var doc struct {
+		APIKey string `json:"api_key"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return "", err
+	}
+	if doc.APIKey == "" {
+		return "", fmt.Errorf("missing api_key")
+	}
+	return doc.APIKey, nil
 }
 
 // connected reports whether an integration's OAuth token file is present.

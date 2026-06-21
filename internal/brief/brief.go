@@ -88,6 +88,7 @@ type GatherOpts struct {
 	Linear     WorkLister
 	Notion     WorkLister
 	Confluence WorkLister
+	Watchlist  WatchlistQuoter
 }
 
 // Data is the pure-data input to Render — all IO happens upstream so the
@@ -131,6 +132,11 @@ type Data struct {
 	NotionUnavailable     bool
 	ConfluenceItems       []WorkItem
 	ConfluenceUnavailable bool
+
+	// Watchlist — silent absence when ~/.leah-state/watchlist.json is missing
+	// or its symbol list is empty; Unavailable flips on quoter failure.
+	Watchlist            []WatchlistQuote
+	WatchlistUnavailable bool
 }
 
 // RegattaLister is the subset of regattaclient.Client Gather needs.
@@ -231,6 +237,23 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 	gatherWork(ctx, &g, o.Linear, &d.LinearItems, &d.LinearUnavailable)
 	gatherWork(ctx, &g, o.Notion, &d.NotionItems, &d.NotionUnavailable)
 	gatherWork(ctx, &g, o.Confluence, &d.ConfluenceItems, &d.ConfluenceUnavailable)
+
+	// Read watchlist.json synchronously — the spawn decision needs the symbol
+	// list. Missing file or empty list → no quoter fire (silent absence,
+	// matches the worktool paste-token gating).
+	if o.Watchlist != nil {
+		symbols := LoadWatchlistSymbols(filepath.Join(sd, "watchlist.json"))
+		if len(symbols) > 0 {
+			g.Go(func() error {
+				if qs, err := o.Watchlist.FetchAll(ctx, symbols); err != nil {
+					d.WatchlistUnavailable = true
+				} else {
+					d.Watchlist = qs
+				}
+				return nil
+			})
+		}
+	}
 
 	g.Go(func() error {
 		gatherFeeds(ctx, &d, o)
@@ -405,6 +428,7 @@ func Render(d Data) string {
 
 	renderNews(&b, d)
 	renderMarket(&b, d)
+	renderWatchlist(&b, d)
 
 	// 6. Cost outlook.
 	fmt.Fprintln(&b, "## Cost")
