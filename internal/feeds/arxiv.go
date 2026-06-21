@@ -213,7 +213,8 @@ func extractPaperID(identifier, link string) string {
 		if i := strings.LastIndex(identifier, ":"); i >= 0 && i+1 < len(identifier) {
 			return trimVersion(identifier[i+1:])
 		}
-		return trimVersion(identifier)
+		// Trailing-colon or colon-less identifier is malformed; fall through to
+		// link extraction so a salvageable abs URL still yields a real id.
 	}
 	if link != "" {
 		if i := strings.LastIndex(link, "/abs/"); i >= 0 {

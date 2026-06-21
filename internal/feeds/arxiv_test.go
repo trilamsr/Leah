@@ -259,6 +259,53 @@ func TestArxiv_FetchMalformedXML_ReturnsError(t *testing.T) {
 	}
 }
 
+// arxivMalformedIdentifierBody — dc:identifier ends mid-colon (corrupt
+// upstream). Adapter must fall through to the abs-URL fallback so dedup
+// still works instead of keying on the malformed prefix.
+const arxivMalformedIdentifierBody = `<?xml version='1.0' encoding='UTF-8'?>
+<rss xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+<channel>
+<title>cs.AI updates on arXiv.org</title>
+<item>
+<title>Malformed identifier paper</title>
+<link>https://arxiv.org/abs/2606.00099</link>
+<description>Abstract: A paper whose dc:identifier is corrupted upstream.</description>
+<dc:creator>Eve Edge</dc:creator>
+<dc:identifier>oai:arXiv.org:</dc:identifier>
+<pubDate>Wed, 10 Jun 2026 00:00:00 +0000</pubDate>
+</item>
+</channel>
+</rss>`
+
+// TestArxiv_Fetch_MalformedIdentifier_FallsBackToLink — corrupt dc:identifier
+// (trailing colon) must NOT poison the dedup key; adapter recovers the id
+// from the abs URL.
+func TestArxiv_Fetch_MalformedIdentifier_FallsBackToLink(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(arxivMalformedIdentifierBody))
+	}))
+	defer srv.Close()
+
+	a, err := feeds.NewArxiv(feeds.ArxivConfig{
+		Attestor:   &fakeAttestor{},
+		HTTPClient: srv.Client(),
+		Categories: []feeds.ArxivCategory{{Name: "cs.AI", URL: srv.URL}},
+	})
+	if err != nil {
+		t.Fatalf("NewArxiv: %v", err)
+	}
+	papers, err := a.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(papers) != 1 {
+		t.Fatalf("got %d papers, want 1", len(papers))
+	}
+	if papers[0].PaperID != "2606.00099" {
+		t.Errorf("PaperID = %q, want 2606.00099 (link fallback)", papers[0].PaperID)
+	}
+}
+
 // TestArxiv_Fetch_PartialFailure_OneCategoryDown — one 500 must not blank the
 // digest when the other category succeeds.
 func TestArxiv_Fetch_PartialFailure_OneCategoryDown(t *testing.T) {
