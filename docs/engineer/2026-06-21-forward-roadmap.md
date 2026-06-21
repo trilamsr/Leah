@@ -135,7 +135,10 @@ Felt-UX value is stated per wave (UX > performance > long-term per CLAUDE.md).
 - **Parallelism:** single-owner (cross-cuts daemon + adapters).
 - **Felt-UX:** approve a self-build from the couch. Highest leverage, deepest
   dependency — schedule last.
-- **Spec:** not yet written (see spec-gap list).
+- **Spec:** `docs/engineer/specs/2026-06-21-inbound-reply-consent.md` (MAY-267).
+  Discord-gateway inbound (loopback-safe) primary; whatsapp-webhook deferred
+  (needs tunnel). Load-bearing piece is the per-action consent gate: a remote
+  reply never clears a weaker attestation than the same action faces locally.
 
 ### Adapter-deepening (demand-gated, not on critical path)
 Per `roadmap-overview.md` Wave 4: each external write-path ships only on
@@ -148,9 +151,11 @@ deep specs now would be speculative far-future waste.
 
 ## Spec-gap list (ranked, highest-risk first)
 
-1. **F3 remote accept/reject round-trip** — no spec. Highest risk: an inbound
-   command path that *acts* (merge/dispatch) crosses the attestation boundary;
-   needs an explicit consent contract before any code. Spec next.
+1. **F3 remote accept/reject round-trip** — **spec'd**
+   (`docs/engineer/specs/2026-06-21-inbound-reply-consent.md`, MAY-267). The
+   inbound command path that *acts* now has an explicit per-action consent
+   contract closing the attestation-boundary hole. Ready to implement (router →
+   consent → classifier → discord wiring; whatsapp deferred).
 2. **W53/54/55 work-tools dispatch-write contracts** (jira/notion/slack write
    integration) — referenced in the original blocker list, no integration-
    contract spec. Demand-gated, but spec the *contract surface* before the first
