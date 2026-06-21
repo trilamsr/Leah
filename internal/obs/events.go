@@ -85,6 +85,10 @@ type SafariHistoryChangedEvent struct{}
 // consumers re-read state under macos:focus:query for the active mode.
 type FocusStateChangedEvent struct{}
 
+// PhotosLibraryChangedEvent — Photos.sqlite WAL mutation; consumers re-query
+// under macos:photos:query. UUIDs are not surfaced (PII).
+type PhotosLibraryChangedEvent struct{}
+
 // EventQuery is a Query filter. Mutually-additive fields AND together.
 type EventQuery struct {
 	Since    time.Time
@@ -546,6 +550,7 @@ var KnownEventKinds = []string{
 	"notes_changed",
 	"safari.history_changed",
 	"focus.state_changed",
+	"photos.library_changed",
 }
 
 // SafeDetail strips chars outside [\w\-\.:/], truncates 128r (spec §9 PII).
