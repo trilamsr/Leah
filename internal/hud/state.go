@@ -6,6 +6,7 @@ import (
 	"embed"
 	"io/fs"
 	"sync"
+	"time"
 )
 
 //go:embed static
@@ -41,8 +42,9 @@ func (s State) String() string {
 }
 
 type Machine struct {
-	mu sync.RWMutex
-	s  State
+	mu    sync.RWMutex
+	s     State
+	instr *StateInstrumentation
 }
 
 func NewMachine() *Machine { return &Machine{s: StateHidden} }
@@ -53,11 +55,18 @@ func (m *Machine) State() State {
 	return m.s
 }
 
+// transitionTo stamps the A5 instrumentation latch on the destination state so
+// the next widget render at that state observes elapsed. Caller holds m.mu.
+func (m *Machine) transitionTo(to State) {
+	m.s = to
+	m.instr.markChanged(to, time.Now())
+}
+
 func (m *Machine) Show() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.s == StateHidden {
-		m.s = StateAmbient
+		m.transitionTo(StateAmbient)
 	}
 }
 
@@ -65,7 +74,7 @@ func (m *Machine) Summon() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.s != StateFocus {
-		m.s = StateFocus
+		m.transitionTo(StateFocus)
 	}
 }
 
@@ -74,12 +83,14 @@ func (m *Machine) OnIdle() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.s == StateFocus {
-		m.s = StateAmbient
+		m.transitionTo(StateAmbient)
 	}
 }
 
 func (m *Machine) Dismiss() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.s = StateHidden
+	if m.s != StateHidden {
+		m.transitionTo(StateHidden)
+	}
 }
