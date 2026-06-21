@@ -23,10 +23,10 @@ const (
 	StatusRead    Status = "read"
 )
 
-// validStatus returns true for the three enum values the CLI exposes. A
-// surface-level guard at SetStatus stops a typo silently corrupting the
-// status field in the on-disk JSONL.
-func validStatus(s Status) bool {
+// ValidStatus returns true for the three enum values the CLI exposes. Used
+// at SetStatus to stop a typo corrupting the JSONL, and at the CLI list
+// surface so `--status garbage` errors instead of silently returning empty.
+func ValidStatus(s Status) bool {
 	switch s {
 	case StatusUnread, StatusReading, StatusRead:
 		return true
@@ -92,7 +92,7 @@ func (s *Store) List(filter Status) ([]Paper, error) {
 // SetStatus updates one paper's status. Unknown ID returns an error so the
 // CLI can surface a precise exit code rather than silently no-op.
 func (s *Store) SetStatus(id string, status Status) error {
-	if !validStatus(status) {
+	if !ValidStatus(status) {
 		return fmt.Errorf("invalid status %q (want unread|reading|read)", status)
 	}
 	all, err := s.load()

@@ -119,6 +119,18 @@ func TestRunPaper_SaveMissingID(t *testing.T) {
 	}
 }
 
+func TestRunPaper_ListInvalidStatusErrors(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	var buf bytes.Buffer
+	if code := runPaper(context.Background(), []string{"list", "--status", "garbage"}, &buf, &buf); code != 2 {
+		t.Fatalf("invalid --status exit %d, want 2; out=%q", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "invalid --status") {
+		t.Errorf("expected error message about invalid --status, got %q", buf.String())
+	}
+}
+
 func TestRunPaper_ReadUnknownID(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", dir)
