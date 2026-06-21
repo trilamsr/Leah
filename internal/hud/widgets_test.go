@@ -328,6 +328,71 @@ func TestWidget_Failure_ExplicitErrorClass(t *testing.T) {
 	}
 }
 
+// stubTripPanel is the test seam for TripPanel — returns whatever the test
+// pre-loads, so the hud surface can be exercised without dragging tripplanner
+// (or its adapters) into the test binary.
+type stubTripPanel struct {
+	html string
+	err  error
+}
+
+func (s *stubTripPanel) RenderMapPreview(_ context.Context) (string, error) {
+	return s.html, s.err
+}
+
+func TestWidget_TripMapPreview_RendersPanel(t *testing.T) {
+	wg := NewWidgets(NewClient("http://unused"))
+	wg.Trip = &stubTripPanel{html: `<div class="widget trip-mappreview" data-lat="1" data-lng="2"><span class="name">X</span></div>`}
+	html, err := wg.TripMapPreview(context.Background())
+	if err != nil {
+		t.Fatalf("TripMapPreview: %v", err)
+	}
+	for _, want := range []string{`class="widget trip-mappreview"`, `data-lat="1"`, `data-lng="2"`, "X"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("missing %q in %q", want, html)
+		}
+	}
+}
+
+func TestWidget_TripMapPreview_NilSeamErrorTile(t *testing.T) {
+	wg := NewWidgets(NewClient("http://unused")) // Trip left nil
+	html, err := wg.TripMapPreview(context.Background())
+	if err != nil {
+		t.Fatalf("TripMapPreview: %v", err)
+	}
+	if !strings.Contains(html, "widget trip-mappreview widget-error") {
+		t.Errorf("nil seam should emit error tile, got %q", html)
+	}
+}
+
+func TestWidget_TripMapPreview_UpstreamErrorTile(t *testing.T) {
+	wg := NewWidgets(NewClient("http://unused"))
+	wg.Trip = &stubTripPanel{err: fmt.Errorf("boom")}
+	html, err := wg.TripMapPreview(context.Background())
+	if err != nil {
+		t.Fatalf("TripMapPreview: %v", err)
+	}
+	if !strings.Contains(html, "widget-error") {
+		t.Errorf("upstream error should emit error tile, got %q", html)
+	}
+}
+
+func TestWidget_TripMapPreview_RouteRegistered(t *testing.T) {
+	wg := NewWidgets(NewClient("http://unused"))
+	wg.Trip = &stubTripPanel{html: `<div class="widget trip-mappreview">ok</div>`}
+	mux := http.NewServeMux()
+	wg.Routes(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/widgets/trip-mappreview", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "trip-mappreview") {
+		t.Errorf("body missing widget marker: %q", rec.Body.String())
+	}
+}
+
 // Smoke: large JSON body shouldn't break parsing; truncate-safe via io.LimitReader.
 func TestWidget_LargeBody_StillParses(t *testing.T) {
 	pad := strings.Repeat("x", 4096)
