@@ -15,6 +15,8 @@ var (
 	ErrAttestationDenied = errors.New("gmail: attestation denied")
 	ErrMessageNotFound   = errors.New("gmail: message not found")
 	ErrSendRejected      = errors.New("gmail: send rejected")
+	ErrAuthRequired      = errors.New("gmail: auth required (token missing or revoked)")
+	ErrNotImplemented    = errors.New("gmail: transport method not implemented")
 )
 
 // Scopes the Attestor sees. Distinct per RPC so the operator-attestation log

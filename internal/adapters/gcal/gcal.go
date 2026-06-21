@@ -80,17 +80,26 @@ type Config struct {
 	// construction because a nil gate would silently bypass attestation.
 	Attestor Attestor
 
+	// TokenSource yields the (auto-refreshing) bearer. When set, New builds
+	// the production HTTP calendarService; when nil the adapter stays a
+	// gate-only stub (tests inject svc directly).
+	TokenSource TokenSource
+
+	// BaseURL overrides the Google Calendar host for tests (httptest). Empty
+	// → the production v3 endpoint.
+	BaseURL string
+
 	// Metrics is optional — nil is a no-op (connectadapter contract), so
 	// existing callers keep working without a registry.
 	Metrics *connectadapter.Metrics
 }
 
-// calendarService is the seam the adapter talks through so tests can
-// inject a fake without dragging in the google-api transport. The real
-// implementation lives in a later wiring wave (see spec §4).
+// calendarService is the seam the adapter talks through so tests can inject a
+// fake without dragging in the google-api SDK. token is passed per-call so the
+// service stays stateless (mirrors gmail.Transport).
 type calendarService interface {
-	ListToday(ctx context.Context, now time.Time) ([]Event, error)
-	Create(ctx context.Context, ev Event) (*Event, error)
+	ListToday(ctx context.Context, token string, now time.Time) ([]Event, error)
+	Create(ctx context.Context, token string, ev Event) (*Event, error)
 }
 
 // Adapter is the gcal facade Leah's morning-brief + meeting-create flows
@@ -118,21 +127,26 @@ func New(cfg Config) (*Adapter, error) {
 	if cfg.CalendarID == "" {
 		cfg.CalendarID = "primary"
 	}
-	return &Adapter{cfg: cfg, att: cfg.Attestor, now: time.Now, m: cfg.Metrics}, nil
+	a := &Adapter{cfg: cfg, att: cfg.Attestor, ts: cfg.TokenSource, now: time.Now, m: cfg.Metrics}
+	if cfg.TokenSource != nil {
+		a.svc = newHTTPService(nil, cfg.BaseURL, cfg.CalendarID)
+	}
+	return a, nil
 }
 
 // ListToday returns events whose start falls in the operator's local
 // "today" window. Attestation runs BEFORE any token load — a denied
 // action must not materialize the bearer.
 func (a *Adapter) ListToday(ctx context.Context) ([]Event, error) {
-	if _, err := a.gateAndToken(ctx, ScopeListToday); err != nil {
+	tok, err := a.gateAndToken(ctx, ScopeListToday)
+	if err != nil {
 		return nil, err
 	}
 	if a.svc == nil {
 		return nil, ErrAuthRequired
 	}
 	start := time.Now()
-	evs, err := a.svc.ListToday(ctx, a.now())
+	evs, err := a.svc.ListToday(ctx, tok, a.now())
 	a.m.ObserveAPI("list_today", time.Since(start).Seconds())
 	return evs, err
 }
@@ -142,14 +156,15 @@ func (a *Adapter) ListToday(ctx context.Context) ([]Event, error) {
 // surfaces as ErrInvalidEvent so the caller can show the message instead
 // of looping on the same payload.
 func (a *Adapter) CreateEvent(ctx context.Context, ev Event) (*Event, error) {
-	if _, err := a.gateAndToken(ctx, ScopeCreateEvent); err != nil {
+	tok, err := a.gateAndToken(ctx, ScopeCreateEvent)
+	if err != nil {
 		return nil, err
 	}
 	if a.svc == nil {
 		return nil, ErrAuthRequired
 	}
 	start := time.Now()
-	out, err := a.svc.Create(ctx, ev)
+	out, err := a.svc.Create(ctx, tok, ev)
 	a.m.ObserveAPI("create_event", time.Since(start).Seconds())
 	return out, err
 }
