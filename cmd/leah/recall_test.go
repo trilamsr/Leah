@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeRecallStreamReasoner emits scripted deltas on AskStream; satisfies the
@@ -78,5 +79,66 @@ func TestStreamRecallSynthesis_ManyResultsOneStreamOneNewline(t *testing.T) {
 		if !strings.Contains(sr.gotUser, hit.Text) {
 			t.Errorf("combined prompt missing hit %q; got %q", hit.Text, sr.gotUser)
 		}
+	}
+}
+
+// filterResultsSince drops rows whose Timestamp parses to before the cutoff.
+// Rows with empty/unparseable Timestamp are KEPT — they are mostly semantic
+// hits that have no semantic-timestamp by design (see semanticRecall doc).
+func TestFilterResultsSince_KeepsAtAndAfterCutoff(t *testing.T) {
+	since, _ := time.Parse(time.RFC3339, "2026-06-20T00:00:00Z")
+	in := []recallResult{
+		{Source: "audit", Timestamp: "2026-06-21T10:00:00Z", Text: "after"},
+		{Source: "audit", Timestamp: "2026-06-20T00:00:00Z", Text: "at"},
+		{Source: "audit", Timestamp: "2026-06-19T23:59:59Z", Text: "before"},
+		{Source: "contact", Timestamp: "2026-06-18T00:00:00Z", Text: "older"},
+		{Source: "semantic", Timestamp: "", Text: "no-ts kept"},
+		{Source: "audit", Timestamp: "not-rfc3339", Text: "garbled kept"},
+	}
+	out := filterResultsSince(in, since)
+	got := make([]string, 0, len(out))
+	for _, r := range out {
+		got = append(got, r.Text)
+	}
+	want := []string{"after", "at", "no-ts kept", "garbled kept"}
+	if len(got) != len(want) {
+		t.Fatalf("len mismatch: got %v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("row %d: got %q want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestFilterResultsSince_EmptyInputReturnsEmpty(t *testing.T) {
+	since, _ := time.Parse(time.RFC3339, "2026-06-20T00:00:00Z")
+	if out := filterResultsSince(nil, since); len(out) != 0 {
+		t.Errorf("want empty, got %v", out)
+	}
+}
+
+func TestParseSinceFlag_Forms(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+		rest []string
+	}{
+		{"equals form", []string{"--since=2026-06-20T00:00:00Z", "ship"}, "2026-06-20T00:00:00Z", []string{"ship"}},
+		{"space form", []string{"--since", "2026-06-20T00:00:00Z", "ship"}, "2026-06-20T00:00:00Z", []string{"ship"}},
+		{"absent", []string{"ship"}, "", []string{"ship"}},
+		{"mixed with --llm", []string{"--llm", "--since=2026-06-20T00:00:00Z", "ship"}, "2026-06-20T00:00:00Z", []string{"--llm", "ship"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotSince, gotRest := parseSinceFlag(c.args)
+			if gotSince != c.want {
+				t.Errorf("since: got %q want %q", gotSince, c.want)
+			}
+			if strings.Join(gotRest, " ") != strings.Join(c.rest, " ") {
+				t.Errorf("rest: got %v want %v", gotRest, c.rest)
+			}
+		})
 	}
 }

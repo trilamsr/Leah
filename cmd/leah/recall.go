@@ -39,8 +39,18 @@ type recallResult struct {
 // (budget-gated). --semantic and --llm compose: semantic feeds the LLM.
 func runRecall(ctx context.Context, args []string) int {
 	if shouldShowHelp(args) {
-		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] <query>")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] [--since=<RFC3339>] <query>")
 		return 0
+	}
+	since, args := parseSinceFlag(args)
+	var sinceT time.Time
+	if since != "" {
+		t, err := time.Parse(time.RFC3339, since)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah recall: invalid --since %q: %v\n", since, err)
+			return 2
+		}
+		sinceT = t
 	}
 	useLLM := false
 	useSemantic := false
@@ -58,7 +68,7 @@ func runRecall(ctx context.Context, args []string) int {
 	}
 	query := strings.TrimSpace(strings.Join(rest, " "))
 	if query == "" {
-		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] <query>")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah recall [--llm] [--semantic] [--since=<RFC3339>] <query>")
 		return 2
 	}
 
@@ -94,6 +104,10 @@ func runRecall(ctx context.Context, args []string) int {
 		sort.SliceStable(results, func(i, j int) bool {
 			return results[i].Timestamp > results[j].Timestamp
 		})
+	}
+
+	if since != "" {
+		results = filterResultsSince(results, sinceT)
 	}
 
 	if len(results) == 0 {
@@ -360,4 +374,49 @@ func semanticRecall(ctx context.Context, db *sql.DB, query string) ([]recallResu
 		})
 	}
 	return out, nil
+}
+
+// parseSinceFlag strips `--since=<v>` and `--since <v>` out of args, returning
+// the value (empty if absent) and the remaining args. Mirrors the shape used by
+// `leah suggest replay` so operators see one cursor syntax across surfaces.
+func parseSinceFlag(args []string) (string, []string) {
+	var since string
+	rest := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case strings.HasPrefix(a, "--since="):
+			since = a[len("--since="):]
+		case a == "--since" && i+1 < len(args):
+			since = args[i+1]
+			i++
+		default:
+			rest = append(rest, a)
+		}
+	}
+	return since, rest
+}
+
+// filterResultsSince keeps rows whose RFC3339 Timestamp is at or after the
+// cutoff. Empty or unparseable timestamps pass through — semantic hits have no
+// semantic ts (see semanticRecall) and dropping them would silently void the
+// --semantic + --since combo.
+func filterResultsSince(in []recallResult, cutoff time.Time) []recallResult {
+	out := make([]recallResult, 0, len(in))
+	for _, r := range in {
+		if r.Timestamp == "" {
+			out = append(out, r)
+			continue
+		}
+		ts, err := time.Parse(time.RFC3339, r.Timestamp)
+		if err != nil {
+			out = append(out, r)
+			continue
+		}
+		if ts.Before(cutoff) {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
 }
