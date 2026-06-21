@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/trilam/leah/internal/adapters/gcal"
+	"github.com/trilam/leah/internal/adapters/gmail"
 	"github.com/trilam/leah/internal/brief"
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/contracts"
@@ -87,14 +89,67 @@ func connected(tokenPath string) bool {
 	return err == nil
 }
 
-// newGmailLister returns a connected gmail lister, or nil while the adapter
-// lacks a production gmail.Transport (it ships only a test seam) — a nil
-// keeps the brief silent rather than branding the inbox "(unavailable)".
-func newGmailLister() brief.GmailLister { return nil }
+// newGmailLister builds the live gmail lister from the stored OAuth token.
+// Returns nil — keeping the brief silent — when the Google client creds are
+// unset or the token cannot be loaded, so a misconfigured host degrades to
+// silent absence rather than an "(unavailable)" banner.
+func newGmailLister() brief.GmailLister {
+	id, secret := os.Getenv("LEAH_GMAIL_CLIENT_ID"), os.Getenv("LEAH_GMAIL_CLIENT_SECRET")
+	if id == "" || secret == "" {
+		return nil
+	}
+	ts, err := connect.LoadRefreshingSource(context.Background(), id, secret, connect.DefaultTokenPath("gmail"))
+	if err != nil {
+		return nil
+	}
+	c, err := gmail.New(gmail.Config{
+		Attestor:    noopAttestor{},
+		TokenSource: ts,
+		Transport:   gmail.NewHTTPTransport(nil, ""),
+	})
+	if err != nil {
+		return nil
+	}
+	return c
+}
 
-// newGcalLister mirrors newGmailLister: nil until the adapter ships a
-// production calendarService.
-func newGcalLister() brief.GcalLister { return nil }
+// newGcalLister mirrors newGmailLister and maps gcal.Event → brief.Event at
+// the wire site so the brief package stays free of any adapter import.
+func newGcalLister() brief.GcalLister {
+	id, secret := os.Getenv("LEAH_GCAL_CLIENT_ID"), os.Getenv("LEAH_GCAL_CLIENT_SECRET")
+	if id == "" || secret == "" {
+		return nil
+	}
+	ts, err := connect.LoadRefreshingSource(context.Background(), id, secret, connect.DefaultTokenPath("gcal"))
+	if err != nil {
+		return nil
+	}
+	a, err := gcal.New(gcal.Config{
+		TokenPath:   connect.DefaultTokenPath("gcal"),
+		Attestor:    noopAttestor{},
+		TokenSource: ts,
+	})
+	if err != nil {
+		return nil
+	}
+	return gcalLister{a}
+}
+
+// gcalLister adapts gcal.Adapter to brief.GcalLister, projecting each
+// gcal.Event onto the two fields Render reads.
+type gcalLister struct{ a *gcal.Adapter }
+
+func (g gcalLister) ListToday(ctx context.Context) ([]brief.Event, error) {
+	evs, err := g.a.ListToday(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]brief.Event, 0, len(evs))
+	for _, e := range evs {
+		out = append(out, brief.Event{Start: e.Start, Summary: e.Summary})
+	}
+	return out, nil
+}
 
 // wireBriefSchedule attaches briefTask to either the daily or weekly slot on
 // loop based on LEAH_BRIEF_DAILY. LEAH_BRIEF_DAILY=1 promotes the brief to

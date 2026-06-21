@@ -19,11 +19,11 @@ type fakeService struct {
 	created    *Event
 }
 
-func (f *fakeService) ListToday(_ context.Context, _ time.Time) ([]Event, error) {
+func (f *fakeService) ListToday(_ context.Context, _ string, _ time.Time) ([]Event, error) {
 	return f.listEvents, f.listErr
 }
 
-func (f *fakeService) Create(_ context.Context, ev Event) (*Event, error) {
+func (f *fakeService) Create(_ context.Context, _ string, ev Event) (*Event, error) {
 	if f.createErr != nil {
 		return nil, f.createErr
 	}
