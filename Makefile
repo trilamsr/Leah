@@ -1,4 +1,7 @@
-.PHONY: dev verify-pr baseline check smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation help
+.PHONY: dev verify-pr baseline check lint ensure-lint smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation help
+
+# Pinned to match .github/workflows/check.yml. Bump both together.
+GOLANGCI_LINT_VERSION := v2.12.2
 
 # Run leah-daemon against ~/.leah-state-dev/ sandbox.
 # Opens browser to dashboard. Tails audit log in foreground.
@@ -28,8 +31,21 @@ verify-pr:
 baseline:
 	@./scripts/baseline.sh
 
-check:
+check: ensure-lint
 	@./scripts/check.sh
+
+# Mirrors the CI lint step. Standalone shortcut; `make check` runs the
+# same binary in parallel inside scripts/check.sh.
+lint: ensure-lint
+	@golangci-lint run --timeout=5m ./...
+
+# Auto-install the pinned version so `make check` cannot pass locally
+# while CI fails on lint — the silent-skip path shipped #278.
+ensure-lint:
+	@command -v golangci-lint >/dev/null 2>&1 || { \
+	    echo "installing golangci-lint $(GOLANGCI_LINT_VERSION)"; \
+	    go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+	  }
 
 # Run all per-adapter smoke tests (mock mode by default; LEAH_SMOKE_LIVE=1 for live)
 smoke:
@@ -120,4 +136,4 @@ verify-attestation:
 	        "$$DEST"/leah-*-* "$$DEST"/leah-daemon-*-* "$$DEST"/leah-hud-*-*
 
 help:
-	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>"
+	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, lint, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>"

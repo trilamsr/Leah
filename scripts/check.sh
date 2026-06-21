@@ -16,11 +16,13 @@ trap 'rm -rf "$LOG"' EXIT
 PIDS=()
 NAMES=()
 go vet ./...                           >"$LOG/vet"      2>&1 & PIDS+=($!); NAMES+=(vet)
-if command -v golangci-lint >/dev/null 2>&1; then
-  golangci-lint run ./...              >"$LOG/lint"     2>&1 & PIDS+=($!); NAMES+=(lint)
-else
-  echo "=== skipped: golangci-lint not installed (brew install golangci-lint) ==="
+# Hard-fail on missing golangci-lint — silent-skip shipped PR #278 CI-red.
+# `make check`/`make lint` auto-install via the ensure-lint target.
+if ! command -v golangci-lint >/dev/null 2>&1; then
+  echo "golangci-lint not installed; run \`make lint\` or \`go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2\`"
+  exit 1
 fi
+golangci-lint run --timeout=5m ./...    >"$LOG/lint"     2>&1 & PIDS+=($!); NAMES+=(lint)
 "$SCRIPT_DIR/check-comment-density.sh" >"$LOG/density"  2>&1 & PIDS+=($!); NAMES+=(density)
 "$SCRIPT_DIR/check-no-bare-sleep.sh"   >"$LOG/sleep"    2>&1 & PIDS+=($!); NAMES+=(sleep)
 "$SCRIPT_DIR/check-doc-links.sh"       >"$LOG/doclinks" 2>&1 & PIDS+=($!); NAMES+=(doclinks)
