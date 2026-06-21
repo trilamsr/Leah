@@ -73,6 +73,9 @@ type Profile struct {
 	TZ *time.Location
 	// SwitchSource feeds ObserveContextTransitions; nil keeps the class silent.
 	SwitchSource SwitchSource
+	// Feedback drains ship-outcome observations from the selflearn edge into
+	// the rebuild; nil keeps the ship_outcome class silent.
+	Feedback *FeedbackObserver
 }
 
 func (p *Profile) now() time.Time {
@@ -122,6 +125,9 @@ func (p *Profile) Update(ctx context.Context, store *memory.Store, auditPath str
 	all := ObserveTimeOfDay(rows, tz)
 	all = append(all, ObserveContextTransitions(rows, switches)...)
 	all = append(all, ObserveCadence(rows, tz)...)
+	if p.Feedback != nil {
+		all = append(all, p.Feedback.Drain()...)
+	}
 
 	halflife := halflifeDays()
 	out := make([]ProfileRow, 0, len(all))
@@ -218,7 +224,7 @@ func persist(
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM operator_profile WHERE class IN ('time_of_day','context_transition','cadence')`); err != nil {
+		`DELETE FROM operator_profile WHERE class IN ('time_of_day','context_transition','cadence','ship_outcome')`); err != nil {
 		return fmt.Errorf("wipe operator_profile: %w", err)
 	}
 	stmt, err := tx.PrepareContext(ctx, `
@@ -327,9 +333,10 @@ func Load(ctx context.Context, db *sql.DB) (Profile, error) {
 
 // UpdateProfile is the daemon-task entrypoint. switches may be nil — the
 // daemon caller is expected to pass a *ctxmgr.Manager so context_transition
-// observations land in operator_profile (closes #10).
-func UpdateProfile(ctx context.Context, store *memory.Store, auditPath string, switches SwitchSource) error {
+// observations land in operator_profile (closes #10). feedback may be nil;
+// when set, drained ship-outcome observations join the rebuild.
+func UpdateProfile(ctx context.Context, store *memory.Store, auditPath string, switches SwitchSource, feedback *FeedbackObserver) error {
 	since := time.Now().UTC().Add(-time.Duration(windowDays()) * 24 * time.Hour)
-	p := &Profile{SwitchSource: switches}
+	p := &Profile{SwitchSource: switches, Feedback: feedback}
 	return p.Update(ctx, store, auditPath, since)
 }
