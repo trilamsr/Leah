@@ -146,10 +146,9 @@ func streamLLMPhrasing(ctx context.Context, sr streamReasoner, w io.Writer, recs
 }
 
 // newSuggestReasoner builds the production Reasoner the --llm path streams
-// through. Mirrors runAsk's wiring (RoutedClient + cost breaker + budget)
-// minus the system prompt: the phrasing prompt is the entire instruction,
-// so an empty system prompt avoids dragging the full Leah persona into a
-// single-sentence rewrite.
+// through. SystemPrompt + PersonaPrefix are both left empty on purpose: the
+// phrasing prompt itself tells the model "no caveats or hedging," and any
+// workspace persona prefix would re-introduce the very tone we're stripping.
 func newSuggestReasoner() (*reasoner.Reasoner, error) {
 	b := budget.New()
 	br := openCostBreaker()
@@ -157,7 +156,7 @@ func newSuggestReasoner() (*reasoner.Reasoner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &reasoner.Reasoner{Client: client, Budget: b, PersonaPrefix: personaPrefixForActive()}, nil
+	return &reasoner.Reasoner{Client: client, Budget: b}, nil
 }
 
 // runSuggestReplay implements `leah suggest replay --since=<RFC3339>

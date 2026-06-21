@@ -13,11 +13,11 @@ import (
 // streamReasoner interface used by suggest's --llm path.
 type fakeStreamReasoner struct {
 	deltas []string
-	gotSys string // last user prompt seen (for prompt-shape assertions)
+	gotUser string // last user prompt seen (for prompt-shape assertions)
 }
 
 func (f *fakeStreamReasoner) AskStream(ctx context.Context, user string) (<-chan string, error) {
-	f.gotSys = user
+	f.gotUser = user
 	out := make(chan string, len(f.deltas))
 	go func() {
 		defer close(out)
@@ -49,8 +49,8 @@ func TestStreamLLMPhrasing_WritesDeltasInOrderWithSingleTrailingNewline(t *testi
 	if strings.Count(got, "\n") != 1 {
 		t.Errorf("want exactly one trailing newline, got %d", strings.Count(got, "\n"))
 	}
-	if !strings.Contains(sr.gotSys, "ship") || !strings.Contains(sr.gotSys, "you usually ship around now") {
-		t.Errorf("prompt missing template context: %q", sr.gotSys)
+	if !strings.Contains(sr.gotUser, "ship") || !strings.Contains(sr.gotUser, "you usually ship around now") {
+		t.Errorf("prompt missing template context: %q", sr.gotUser)
 	}
 }
 
