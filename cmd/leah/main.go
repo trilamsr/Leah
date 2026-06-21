@@ -224,6 +224,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runReviewQueue(ctx, rest, stdout)
 	case "threads":
 		return runThreads(ctx, rest, stdout)
+	case "trip":
+		return runTrip(ctx, rest, stdout)
 	default:
 		usage()
 		return 2
