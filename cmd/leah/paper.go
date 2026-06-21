@@ -85,6 +85,12 @@ func runPaperList(args []string, store *papers.Store, out, errOut io.Writer) int
 		_, _ = fmt.Fprintf(errOut, "leah paper list: unexpected arg %q\n", rest[0])
 		return 2
 	}
+	// Reject typo'd filter values up-front — silently returning an empty list
+	// would hide the bug and look identical to a genuinely empty queue.
+	if status != "" && !papers.ValidStatus(papers.Status(status)) {
+		_, _ = fmt.Fprintf(errOut, "leah paper list: invalid --status %q (want unread|reading|read)\n", status)
+		return 2
+	}
 	list, err := store.List(papers.Status(status))
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "leah paper list: %v\n", err)
