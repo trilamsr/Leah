@@ -50,6 +50,44 @@ func TestWindowPerKeyIsolation(t *testing.T) {
 	}
 }
 
+func TestStatsCountsSendsAndDenialsAcrossKeys(t *testing.T) {
+	now := time.Unix(0, 0)
+	w := ratelimit.NewWindow(time.Minute, 1, func() time.Time { return now })
+	w.Allow("a") // allowed
+	w.Allow("a") // denied (budget 1)
+	w.Allow("b") // allowed
+	s := w.Stats()
+	if s.Sends != 2 {
+		t.Errorf("Sends: got %d, want 2 (one retained per key)", s.Sends)
+	}
+	if s.Denied != 1 {
+		t.Errorf("Denied: got %d, want 1", s.Denied)
+	}
+}
+
+func TestStatsSendsDecayWithWindow(t *testing.T) {
+	now := time.Unix(0, 0)
+	w := ratelimit.NewWindow(time.Minute, 5, func() time.Time { return now })
+	w.Allow("k")
+	now = now.Add(time.Minute + time.Nanosecond)
+	if s := w.Stats(); s.Sends != 0 {
+		t.Errorf("Sends after window: got %d, want 0 (decayed)", s.Sends)
+	}
+}
+
+func TestStatsDeniedIsCumulative(t *testing.T) {
+	now := time.Unix(0, 0)
+	w := ratelimit.NewWindow(time.Minute, 1, func() time.Time { return now })
+	w.Allow("k")
+	w.Allow("k") // denied
+	now = now.Add(2 * time.Minute)
+	w.Allow("k")
+	w.Allow("k") // denied
+	if s := w.Stats(); s.Denied != 2 {
+		t.Errorf("Denied: got %d, want 2 (cumulative across windows)", s.Denied)
+	}
+}
+
 func TestWindowConcurrent(t *testing.T) {
 	now := time.Unix(0, 0)
 	w := ratelimit.NewWindow(time.Minute, 100, func() time.Time { return now })
