@@ -350,6 +350,7 @@ func TestEventKinds_FrozenList(t *testing.T) {
 		"safari.history_changed",
 		"focus.state_changed",
 		"photos.library_changed",
+		"reminders.store_changed",
 	}
 	if !reflect.DeepEqual(obs.KnownEventKinds, want) {
 		t.Fatalf("KnownEventKinds drifted from frozen list:\n got: %v\nwant: %v",
