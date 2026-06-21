@@ -418,6 +418,63 @@ func TestGatherGcalErrorMarksUnavailable(t *testing.T) {
 	}
 }
 
+// slowGmail blocks for d so a concurrent Gather is distinguishable by time.
+type slowGmail struct {
+	d        time.Duration
+	subjects []string
+}
+
+func (s *slowGmail) ListUnread(ctx context.Context) ([]string, error) {
+	time.Sleep(s.d)
+	return s.subjects, nil
+}
+
+// slowGcal mirrors slowGmail for the calendar lister.
+type slowGcal struct {
+	d      time.Duration
+	events []Event
+}
+
+func (s *slowGcal) ListToday(ctx context.Context) ([]Event, error) {
+	time.Sleep(s.d)
+	return s.events, nil
+}
+
+// TestGatherFetchesConcurrently asserts two 80ms fetches finish under the 160ms serial floor.
+func TestGatherFetchesConcurrently(t *testing.T) {
+	dir := t.TempDir()
+	const fetch = 80 * time.Millisecond
+	opts := GatherOpts{
+		Gmail: &slowGmail{d: fetch, subjects: []string{"a"}},
+		Gcal:  &slowGcal{d: fetch, events: []Event{{Summary: "x", Start: time.Now()}}},
+	}
+	start := time.Now()
+	d := Gather(context.Background(), time.Now(), dir, nil, opts)
+	elapsed := time.Since(start)
+	if elapsed >= 2*fetch {
+		t.Errorf("Gather serial: elapsed %v >= serial floor %v", elapsed, 2*fetch)
+	}
+	if len(d.UnreadMail) != 1 || len(d.TodayEvents) != 1 {
+		t.Errorf("concurrent fetch dropped data: mail=%v events=%v", d.UnreadMail, d.TodayEvents)
+	}
+}
+
+// TestGatherConcurrentErrorIsolation asserts one lister's error marks only its own flag.
+func TestGatherConcurrentErrorIsolation(t *testing.T) {
+	dir := t.TempDir()
+	opts := GatherOpts{
+		Gmail: &fakeGmail{err: errors.New("boom")},
+		Gcal:  &fakeGcal{events: []Event{{Summary: "ok", Start: time.Now()}}},
+	}
+	d := Gather(context.Background(), time.Now(), dir, nil, opts)
+	if !d.MailUnavailable {
+		t.Errorf("gmail error should mark MailUnavailable")
+	}
+	if d.CalendarUnavailable || len(d.TodayEvents) != 1 {
+		t.Errorf("gcal sibling poisoned by gmail error: unavail=%v events=%v", d.CalendarUnavailable, d.TodayEvents)
+	}
+}
+
 // TestVoiceSummary1Sentence asserts the spoken summary is a single
 // sentence with the four key facts (yesterday count, agents, bugs, $).
 func TestVoiceSummary1Sentence(t *testing.T) {

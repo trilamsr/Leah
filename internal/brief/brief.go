@@ -20,6 +20,7 @@ import (
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/regattaclient"
+	"golang.org/x/sync/errgroup"
 )
 
 // gmailCap bounds the unread-subject list so the brief stays scannable
@@ -122,16 +123,26 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 		YesterdaySpend:   ySpend,
 	}
 
-	// Active regatta agents (soft-fail).
+	// Each section writes a disjoint set of Data fields, so the fan-out needs
+	// no lock — only its own error is captured into its own Unavailable flag.
+	// Sequential network fetches would otherwise stack latency on the brief.
+	var g errgroup.Group
+
 	if rc != nil {
-		if agents, err := rc.List(ctx); err == nil {
-			d.ActiveAgents = FilterActiveAgents(agents)
-		}
+		g.Go(func() error {
+			if agents, err := rc.List(ctx); err == nil {
+				d.ActiveAgents = FilterActiveAgents(agents)
+			}
+			return nil
+		})
 	}
 
-	// Operator-model recommendations (soft-fail; cold start common).
-	memPath := filepath.Join(sd, "memory.db")
-	if store, err := memory.NewStore(memPath); err == nil {
+	g.Go(func() error {
+		memPath := filepath.Join(sd, "memory.db")
+		store, err := memory.NewStore(memPath)
+		if err != nil {
+			return nil // cold start common — degrade silently
+		}
 		defer func() { _ = store.Close() }()
 		if profile, err := operatormodel.Load(ctx, store.DB()); err == nil {
 			d.ModelReady = profile.Ready
@@ -139,41 +150,54 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 				d.Recommendations = recs
 			}
 		}
-	}
+		return nil
+	})
 
-	// Bug-fix-candidates count (read tail section if present).
-	d.BugFixCount = CountBugFixCandidates(filepath.Join(sd, "bug-fix-candidates.md"))
+	g.Go(func() error {
+		d.BugFixCount = CountBugFixCandidates(filepath.Join(sd, "bug-fix-candidates.md"))
+		return nil
+	})
 
-	// Cost outlook.
-	weekStart := now.AddDate(0, 0, -7)
-	if summary, err := costview.Aggregate(auditPath, weekStart); err == nil {
-		d.WeekToDateUSD = summary.TotalUSD
-		// Projected monthly = week × (30 / 7). Coarse — operator-use only.
-		d.ProjectedMonthly = summary.TotalUSD * (30.0 / 7.0)
-	}
+	g.Go(func() error {
+		weekStart := now.AddDate(0, 0, -7)
+		if summary, err := costview.Aggregate(auditPath, weekStart); err == nil {
+			d.WeekToDateUSD = summary.TotalUSD
+			// Projected monthly = week × (30 / 7). Coarse — operator-use only.
+			d.ProjectedMonthly = summary.TotalUSD * (30.0 / 7.0)
+		}
+		return nil
+	})
 
-	// Gmail unread (soft-fail; nil err with empty list means inbox-zero).
 	if o.Gmail != nil {
-		if subs, err := o.Gmail.ListUnread(ctx); err != nil {
-			d.MailUnavailable = true
-		} else {
-			d.UnreadMailTotal = len(subs)
-			d.UnreadMail = truncateSubjects(subs, gmailCap, subjectMaxLen)
-		}
+		g.Go(func() error {
+			// nil err with empty list means inbox-zero, not unavailable.
+			if subs, err := o.Gmail.ListUnread(ctx); err != nil {
+				d.MailUnavailable = true
+			} else {
+				d.UnreadMailTotal = len(subs)
+				d.UnreadMail = truncateSubjects(subs, gmailCap, subjectMaxLen)
+			}
+			return nil
+		})
 	}
 
-	// Gcal today (soft-fail mirrors gmail).
 	if o.Gcal != nil {
-		if evs, err := o.Gcal.ListToday(ctx); err != nil {
-			d.CalendarUnavailable = true
-		} else {
-			d.TodayEvents = evs
-		}
+		g.Go(func() error {
+			if evs, err := o.Gcal.ListToday(ctx); err != nil {
+				d.CalendarUnavailable = true
+			} else {
+				d.TodayEvents = evs
+			}
+			return nil
+		})
 	}
 
-	// Weather / News / Market — same soft-fail pattern, in feeds.go.
-	gatherFeeds(ctx, &d, o)
+	g.Go(func() error {
+		gatherFeeds(ctx, &d, o)
+		return nil
+	})
 
+	_ = g.Wait()
 	return d
 }
 
