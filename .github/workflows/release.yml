@@ -72,10 +72,18 @@ jobs:
           tar czf "leah-${GITHUB_REF_NAME}-darwin-arm64.tar.gz" leah leah-daemon leah-hud
           shasum -a 256 "leah-${GITHUB_REF_NAME}-darwin-arm64.tar.gz" > SHA256SUMS
 
+      # Source tarball the brew formula's `url` stanza references. Without
+      # this step `brew install leah` 404s on the formula URL (MAY-268).
+      - name: Source tarball + sidecar SHA256
+        env:
+          TAG: ${{ github.ref_name }}
+        run: TAG="$TAG" OUT_DIR=dist scripts/release/publish-tarball.sh
+
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.tar.gz
+            dist/*.tar.gz.sha256
             dist/SHA256SUMS
             dist/SHA256SUMS.unsigned
