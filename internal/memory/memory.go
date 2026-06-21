@@ -8,7 +8,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,22 +16,14 @@ import (
 
 	"github.com/oklog/ulid/v2"
 	_ "modernc.org/sqlite"
+
+	"github.com/trilam/leah/internal/sqlstore"
 )
 
 //go:embed schema.sql
 var schemaSQL string
 
 const embeddedSchemaVersion = "7"
-
-// schemaMetaBootstrapSQL creates the version-tracking table only.
-// Kept separate from schemaSQL so we can read the on-disk version BEFORE
-// applying the full DDL — otherwise a stamp-on-every-open inside schema.sql
-// would clobber an operator-bumped value before the newer-than-binary guard
-// fires (Wave3-P regression).
-const schemaMetaBootstrapSQL = `CREATE TABLE IF NOT EXISTS schema_meta (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);`
 
 // Store is the memory KB handle. Wrap *sql.DB; one per process.
 type Store struct {
@@ -80,17 +71,9 @@ func NewStore(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("mkdir state dir: %w", err)
 	}
-	// WAL = better concurrency between leah CLI and leah-daemon both holding the DB.
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", url.PathEscape(path))
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sqlstore.OpenWAL(path)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	// Single writer keeps modernc + WAL out of contention storms; reads still parallel via WAL.
-	db.SetMaxOpenConns(1)
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ping: %w", err)
+		return nil, err
 	}
 	s := &Store{db: db, now: func() time.Time { return time.Now().UTC() }}
 	if err := s.migrate(); err != nil {
@@ -109,40 +92,17 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) DB() *sql.DB { return s.db }
 
 func (s *Store) migrate() error {
-	// Bootstrap schema_meta first so we can read the on-disk version BEFORE
-	// applying the full DDL. Order matters: reading after exec(schemaSQL)
-	// would be racing a stamp that no longer exists, but ordering also
-	// guarantees we never run DDL against a DB whose schema is newer than
-	// this binary understands.
-	if _, err := s.db.Exec(schemaMetaBootstrapSQL); err != nil {
-		return fmt.Errorf("bootstrap schema_meta: %w", err)
+	embedded, err := parseSchemaVersion(embeddedSchemaVersion)
+	if err != nil {
+		return fmt.Errorf("parse embedded schema version %q: %w", embeddedSchemaVersion, err)
 	}
-	var v string
-	err := s.db.QueryRow(`SELECT value FROM schema_meta WHERE key='version'`).Scan(&v)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("read schema version: %w", err)
+	if err := sqlstore.EnsureSchemaVersion(s.db, "memory.db", embedded); err != nil {
+		return err
 	}
-	// Lex compare ranks "10" < "9"; parse to int so v10+ orders correctly (#24).
-	// On parse failure surface the corruption — silent lex fallback would mask it.
-	if v != "" {
-		onDisk, perr := parseSchemaVersion(v)
-		if perr != nil {
-			return fmt.Errorf("parse on-disk schema version %q: %w", v, perr)
-		}
-		embedded, perr := parseSchemaVersion(embeddedSchemaVersion)
-		if perr != nil {
-			return fmt.Errorf("parse embedded schema version %q: %w", embeddedSchemaVersion, perr)
-		}
-		if onDisk > embedded {
-			return fmt.Errorf("memory.db schema version %s newer than binary %s; upgrade leah", v, embeddedSchemaVersion)
-		}
-	}
-	// Safe to apply DDL: on-disk version is absent or ≤ embedded.
 	if _, err := s.db.Exec(schemaSQL); err != nil {
 		return fmt.Errorf("exec schema: %w", err)
 	}
-	// Stamp to embedded version. INSERT OR REPLACE is safe now that we've
-	// already proven on-disk ≤ embedded (no downgrade-overwrite risk).
+	// REPLACE is safe: EnsureSchemaVersion proved on-disk ≤ embedded (no downgrade clobber).
 	if _, err := s.db.Exec(
 		`INSERT OR REPLACE INTO schema_meta(key, value) VALUES('version', ?)`,
 		embeddedSchemaVersion,

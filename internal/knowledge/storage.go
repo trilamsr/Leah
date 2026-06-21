@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/trilam/leah/internal/sqlstore"
 )
 
 // int-parse per PR #58 — lex "10" < "9" is the trap.
@@ -62,15 +63,9 @@ func openStorage(path string) (*storage, error) {
 	if err := os.Chmod(path, 0o600); err != nil {
 		return nil, fmt.Errorf("chmod db file: %w", err)
 	}
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", url.PathEscape(path))
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sqlstore.OpenWAL(path)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	db.SetMaxOpenConns(1)
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ping: %w", err)
+		return nil, err
 	}
 	s := &storage{db: db}
 	if err := s.migrate(); err != nil {
@@ -83,23 +78,9 @@ func openStorage(path string) (*storage, error) {
 func (s *storage) Close() error { return s.db.Close() }
 
 func (s *storage) migrate() error {
-	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`); err != nil {
-		return fmt.Errorf("bootstrap schema_meta: %w", err)
-	}
-	var v string
-	err := s.db.QueryRow(`SELECT value FROM schema_meta WHERE key='version'`).Scan(&v)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("read schema version: %w", err)
-	}
-	if v != "" {
-		onDisk, perr := strconv.Atoi(strings.TrimSpace(v))
-		if perr != nil {
-			return fmt.Errorf("parse on-disk schema version %q: %w", v, perr)
-		}
-		embedded, _ := strconv.Atoi(schemaVersion)
-		if onDisk > embedded {
-			return fmt.Errorf("knowledge.db schema version %s newer than binary %s; upgrade leah", v, schemaVersion)
-		}
+	embedded, _ := strconv.Atoi(schemaVersion)
+	if err := sqlstore.EnsureSchemaVersion(s.db, "knowledge.db", embedded); err != nil {
+		return err
 	}
 	if _, err := s.db.Exec(ddl); err != nil {
 		return fmt.Errorf("exec ddl: %w", err)
