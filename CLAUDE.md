@@ -30,10 +30,10 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 ## TDD + review
 
 - Failing test FIRST; capture failing output in PR body; then impl; then green.
-- Independent reviewer subagent for EVERY PR — default behavior, no exceptions, no waiting to be told. Adversarial framing.
-- Reviewer subagent posts verdict text via `gh pr comment <N> -b "REVIEWER APPROVE/REVISE: <agent-id>: <11-dim summary>"` BEFORE main thread arms merge. The comment is the audit artifact — operator scans PR comments to verify a real adversarial review ran.
+- Independent reviewer subagent for EVERY PR — verdict captured either via `gh pr comment <N>` (audit-trail visible) OR in the subagent transcript (audit-trail recoverable). Main thread arms merge only after a verdict exists in ONE of those channels. Author posting under own gh identity = self-approval regardless of channel.
+- Spawn reviewer with canonical agent-id shape `^(a[0-9a-f]{16}|cavecrew-reviewer-[a-z0-9-]+)$` immediately after `gh pr create` returns, BEFORE handing back to operator. Adversarial framing.
 - Review dimensions every PR (ALL must clear before APPROVE): correctness/bugs, unintended side effects, conciseness, refactor, simplification, doc updates, comment trimming, test coverage, deletion-default, no AI signatures, no ceremony.
-- Never self-approve: author posting own `REVIEWER APPROVE:` comment = zero adversarial pass.
+- Never self-approve: author writing own APPROVE token = zero adversarial pass.
 
 ## Worktree discipline
 
