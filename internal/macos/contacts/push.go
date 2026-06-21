@@ -28,6 +28,10 @@ func (p *PushSource) Run(ctx context.Context) error {
 	if now == nil {
 		now = time.Now
 	}
+	debounce := p.Debounce
+	if debounce < 0 {
+		debounce = 0
+	}
 	ch, err := p.Source.Subscribe(ctx, osevent.ContactStoreChanged)
 	if err != nil {
 		return err
@@ -45,16 +49,18 @@ func (p *PushSource) Run(ctx context.Context) error {
 				continue
 			}
 			t := now()
-			if p.Debounce > 0 && !lastEmit.IsZero() && t.Sub(lastEmit) < p.Debounce {
+			if debounce > 0 && !lastEmit.IsZero() && t.Sub(lastEmit) < debounce {
 				continue
 			}
-			lastEmit = t
 			p.ObsEmit(obs.Event{
 				Kind:    "contact_store_changed",
 				Actor:   "contacts",
 				Outcome: "ok",
 				Payload: obs.ContactStoreChangedEvent{},
 			})
+			// Stamp AFTER emit so a panicking ObsEmit cannot poison the next
+			// window with a half-applied timestamp.
+			lastEmit = t
 		}
 	}
 }
