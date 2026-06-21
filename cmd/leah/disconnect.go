@@ -48,6 +48,13 @@ func runDisconnect(ctx context.Context, args []string, w io.Writer) int {
 	att := newConnectAttestor()
 
 	if err := connect.Disconnect(ctx, p, att); err != nil {
+		// No token on disk = already disconnected. Re-running disconnect must be
+		// a clean no-op, not an error, or operators can't trust idempotency.
+		if errors.Is(err, connect.ErrTokenFileNotFound) {
+			_ = a.Append(audit.Entry{Kind: "disconnect_" + name, BlastRadius: 2, Outcome: "noop", Detail: "not_connected"})
+			_, _ = fmt.Fprintf(w, "%s not connected (nothing to remove)\n", name)
+			return 0
+		}
 		_ = a.Append(audit.Entry{
 			Kind:        "disconnect_" + name,
 			BlastRadius: 2,
@@ -63,19 +70,16 @@ func runDisconnect(ctx context.Context, args []string, w io.Writer) int {
 }
 
 func summarizeDisconnectErr(err error) string {
-	switch {
-	case errors.Is(err, connect.ErrAttestationDenied):
+	if errors.Is(err, connect.ErrAttestationDenied) {
 		return "attestation_denied"
-	case errors.Is(err, connect.ErrTokenFileNotFound):
-		return "token_file_not_found"
-	default:
-		return "error"
 	}
+	return "error"
 }
 
 func printDisconnectUsage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "usage: leah disconnect <integration>")
 	_, _ = fmt.Fprintln(w, "       leah disconnect --list")
 	_, _ = fmt.Fprintln(w, "")
-	_, _ = fmt.Fprintln(w, "Revoke + remove the on-disk token for a shipped integration (gmail, gcal).")
+	_, _ = fmt.Fprintln(w, "Revoke + remove the on-disk token for a connected integration.")
+	_, _ = fmt.Fprintln(w, "Run --list to see installed integrations and their status.")
 }
