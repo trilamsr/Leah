@@ -3,16 +3,26 @@ package activeapp
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/osevent"
 )
 
+// DefaultDebounce: rapid cmd-tab through multiple apps fires NSWorkspace events
+// faster than the recommender can act on. 250ms drops the storm without
+// noticeably delaying a real intentional switch.
+const DefaultDebounce = 250 * time.Millisecond
+
 // PushSource emits its own kind (never hud.state — that contract is owned
-// by the HUD state machine).
+// by the HUD state machine). Coalesce (same bundle twice in a row) + debounce
+// (rapid distinct switches) are applied here, not in the osevent pump, so the
+// pump stays a faithful mirror of NSWorkspace for other consumers.
 type PushSource struct {
-	Source  osevent.Source
-	ObsEmit func(obs.Event)
+	Source   osevent.Source
+	ObsEmit  func(obs.Event)
+	Debounce time.Duration   // 0 disables; <0 treated as 0
+	NowFn    func() time.Time // injectable for hermetic tests
 }
 
 func (p *PushSource) Run(ctx context.Context) error {
@@ -23,6 +33,17 @@ func (p *PushSource) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	now := p.NowFn
+	if now == nil {
+		now = time.Now
+	}
+	debounce := p.Debounce
+	if debounce < 0 {
+		debounce = 0
+	}
+
+	var lastBundle string
+	var lastEmit time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -38,6 +59,13 @@ func (p *PushSource) Run(ctx context.Context) error {
 			if bid == "" {
 				continue
 			}
+			if bid == lastBundle {
+				continue
+			}
+			t := now()
+			if debounce > 0 && !lastEmit.IsZero() && t.Sub(lastEmit) < debounce {
+				continue
+			}
 			name, _ := ev.Detail["name"].(string)
 			p.ObsEmit(obs.Event{
 				Kind:    "workspace.active_app_changed",
@@ -45,6 +73,8 @@ func (p *PushSource) Run(ctx context.Context) error {
 				Outcome: "ok",
 				Payload: obs.WorkspaceActiveAppEvent{BundleID: bid, Name: name},
 			})
+			lastBundle = bid
+			lastEmit = t
 		}
 	}
 }
