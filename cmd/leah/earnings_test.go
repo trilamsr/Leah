@@ -36,12 +36,28 @@ func TestRunEarnings_Symbol_Happy(t *testing.T) {
 	}
 }
 
-func TestRunEarnings_NoKey_SilentZero(t *testing.T) {
+func TestRunEarnings_Symbol_NoKey_LoudError(t *testing.T) {
+	// Operator typed `leah earnings AAPL` with no AV key wired — match
+	// quote.go's loud-error hint pattern; silent here would hide a fixable
+	// config bug behind a "no upcoming earnings" UX.
 	dir := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", dir)
-	// No key file written — operator hasn't connected Alpha Vantage yet.
 	var buf bytes.Buffer
-	if code := runEarnings(context.Background(), []string{"AAPL"}, &buf); code != 0 {
+	if code := runEarnings(context.Background(), []string{"AAPL"}, &buf); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("stdout=%q, want empty (error on stderr)", buf.String())
+	}
+}
+
+func TestRunEarnings_Next_NoKey_SilentZero(t *testing.T) {
+	// --next is the cron-fed brief path; a missing key there means the
+	// integration is dormant, not an error.
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	var buf bytes.Buffer
+	if code := runEarnings(context.Background(), []string{"--next", "7d"}, &buf); code != 0 {
 		t.Fatalf("exit %d, want 0 (silent no-op)", code)
 	}
 	if buf.Len() != 0 {

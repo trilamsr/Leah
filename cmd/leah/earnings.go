@@ -21,9 +21,10 @@ import (
 //	leah earnings <symbol>           — next report for symbol
 //	leah earnings --next <window>    — watchlist symbols reporting within window (e.g. 7d)
 //
-// No working AV key OR empty watchlist OR no upcoming hits → silent exit 0
-// (matches `leah news` shape: a feature gated on an absent integration should
-// degrade quietly, not nag the operator on every cron tick).
+// Missing-key policy diverges by mode: the symbol path errors loudly (operator
+// typed a command + expects feedback, same as `leah quote`); the --next path
+// stays silent (cron-fed brief shouldn't nag every tick when the integration
+// is dormant). Empty watchlist + no-hits-in-window also stay silent.
 func runEarnings(parent context.Context, args []string, w io.Writer) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(w, "usage: leah earnings <symbol>")
@@ -38,11 +39,15 @@ func runEarnings(parent context.Context, args []string, w io.Writer) int {
 		return 2
 	}
 
+	nextMode := args[0] == "--next"
 	key, err := loadAlphaVantageKey(stateDir())
 	if err != nil {
-		// Silent no-op: no Alpha Vantage key wired = feature dormant. Matches the
-		// "absent integration is not an error" rule the prompt called out.
-		return 0
+		if nextMode {
+			return 0
+		}
+		_, _ = fmt.Fprintf(os.Stderr, "leah earnings: %v\n", err)
+		_, _ = fmt.Fprintln(os.Stderr, "  hint: place api_key in $LEAH_STATE_DIR/secrets/alphavantage-key.json (0600)")
+		return 1
 	}
 
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
@@ -59,7 +64,7 @@ func runEarnings(parent context.Context, args []string, w io.Writer) int {
 		return 1
 	}
 
-	if args[0] == "--next" {
+	if nextMode {
 		if len(args) < 2 {
 			_, _ = fmt.Fprintln(os.Stderr, "usage: leah earnings --next <window> (e.g. 7d)")
 			return 2
@@ -72,7 +77,7 @@ func runEarnings(parent context.Context, args []string, w io.Writer) int {
 		return runEarningsNext(ctx, e, window, w)
 	}
 
-	return runEarningsSymbol(ctx, e, strings.ToUpper(strings.TrimSpace(args[0])), w)
+	return runEarningsSymbol(ctx, e, args[0], w)
 }
 
 func runEarningsSymbol(ctx context.Context, e *feeds.Earnings, symbol string, w io.Writer) int {

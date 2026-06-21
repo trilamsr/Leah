@@ -166,6 +166,48 @@ func TestNewEarnings_RejectsHalfWiredConfig(t *testing.T) {
 	}
 }
 
+func TestParseAlphaVantageEarningsCSV_SkipsMalformedRows(t *testing.T) {
+	// Mix of: valid row, short row (4 fields), bad-date row, and another valid
+	// row. Parser must drop the broken two and keep the two clean ones.
+	body := []byte("symbol,name,reportDate,fiscalDateEnding,estimate,currency,timeOfTheDay\n" +
+		"AAPL,APPLE INC,2026-07-31,2026-06-28,1.42,USD,post-market\n" +
+		"SHORT,ROW,2026-07-01\n" +
+		"BAD,DATE,TBA,2026-06-30,,USD,\n" +
+		"MSFT,MICROSOFT CORP,2026-07-29,2026-06-30,3.10,USD,post-market\n")
+	rows, err := parseAlphaVantageEarningsCSV(body)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len=%d, want 2 (kept AAPL+MSFT only); got=%+v", len(rows), rows)
+	}
+	if rows[0].Symbol != "AAPL" || rows[1].Symbol != "MSFT" {
+		t.Errorf("symbols=%q,%q; want AAPL,MSFT", rows[0].Symbol, rows[1].Symbol)
+	}
+}
+
+func TestEarnings_FetchSymbol_LowercaseInputNormalized(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(avEarningsCSV))
+	}))
+	defer srv.Close()
+
+	e, _ := NewEarnings(EarningsConfig{
+		Attestor:   fakeEarningsAttestor{},
+		HTTPClient: &http.Client{Timeout: 5 * time.Second},
+		APIKey:     "k",
+		BaseURL:    srv.URL,
+	})
+	// Lowercase "aapl" must still match AAPL — the CLI no longer pre-uppercases.
+	got, err := e.FetchSymbol(context.Background(), "aapl")
+	if err != nil {
+		t.Fatalf("FetchSymbol: %v", err)
+	}
+	if got.Symbol != "AAPL" {
+		t.Errorf("Symbol=%q, want AAPL (case-insensitive match)", got.Symbol)
+	}
+}
+
 func TestEarnings_FetchSymbol_ProviderError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "rate limited", http.StatusTooManyRequests)
