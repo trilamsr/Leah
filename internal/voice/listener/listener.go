@@ -36,6 +36,16 @@ type Fake struct {
 	mu     sync.RWMutex
 	out    chan Segment
 	closed bool
+	instr  *Instrumentation
+}
+
+// WithInstrumentation wires the A2 utterance→transcript histogram so Emit
+// records on Final segments. Safe to call before Start.
+func (f *Fake) WithInstrumentation(i *Instrumentation) *Fake {
+	f.mu.Lock()
+	f.instr = i
+	f.mu.Unlock()
+	return f
 }
 
 // NewFake returns a Fake ready for Start. Reusing a Fake across Start calls
@@ -72,7 +82,7 @@ func (f *Fake) Start(ctx context.Context) (<-chan Segment, error) {
 // or the channel is closed — a post-cancel Emit is a no-op, not a panic.
 func (f *Fake) Emit(s Segment) {
 	f.mu.RLock()
-	out, closed := f.out, f.closed
+	out, closed, instr := f.out, f.closed, f.instr
 	f.mu.RUnlock()
 	if out == nil || closed {
 		return
@@ -83,6 +93,9 @@ func (f *Fake) Emit(s Segment) {
 		_ = recover()
 	}()
 	out <- s
+	// Record AFTER send so the observation reflects the seam the consumer
+	// observes — the final transcript handed off, not merely produced.
+	instr.RecordFinal(s)
 }
 
 // Real is the production Listener — W11 ships only the shell. W12 replaces
