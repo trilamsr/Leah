@@ -129,6 +129,26 @@ function renderSpam(rows) {
     </li>`).join('');
 }
 
+function fmtMs(s) {
+  // SLA quantiles are seconds. Render ms when sub-second so p50=120ms reads
+  // more naturally than 0.12s next to a p95=2.4s on the same row.
+  const v = Number(s || 0);
+  if (v === 0) return '--';
+  return v < 1 ? Math.round(v * 1000) + 'ms' : v.toFixed(2) + 's';
+}
+
+function renderSLA(rows) {
+  const el = $('sla-list');
+  if (!el) return;
+  if (!rows || !rows.length) { el.innerHTML = emptyLi('SLA histograms not wired'); return; }
+  el.innerHTML = rows.map(r => `
+    <li title="${esc(r.histogram)}">
+      <span class="kind">${esc(r.label)}</span>
+      <span class="detail ${r.count ? 'outcome-ok' : ''}">p50 ${esc(fmtMs(r.p50_seconds))} · p95 ${esc(fmtMs(r.p95_seconds))}</span>
+      <span class="ts">n=${esc(String(r.count))}</span>
+    </li>`).join('');
+}
+
 function renderMetrics(m) {
   const el = $('ops-metrics');
   if (!el) return;
@@ -176,6 +196,7 @@ async function tick() {
     renderOps(data.ops);
     renderCosts(data.costs);
     renderSpam(data.spam);
+    renderSLA(data.sla);
     renderMetrics(data.metrics);
     if (!booted) { booted = true; document.body.classList.remove('boot'); }
   } catch (e) {
