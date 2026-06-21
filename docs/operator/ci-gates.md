@@ -1,35 +1,26 @@
 # CI gates (operator reference)
 
-Three machine-enforced rules ride on every `./scripts/check.sh` invocation. Audit-session 2026-06-10 found 7 self-approve token leaks + 3 TDD-evidence misses across the Wave-8 closeout window; the rules below close those leaks at the gate layer instead of relying on operator vigilance.
+PR #287 dropped the reviewer-token + TDD-evidence CI gates in favor of a reviewer-comment audit channel. The remaining machine-enforced rules are listed below; reviewer audit covers what the dropped scripts previously enforced.
 
-## Gate 1 — Reviewer verdict (anti self-approve)
+## Gate 1 — Reviewer-verdict PR comment (audit channel, replaces former token gate)
 
-Script: `scripts/check-reviewer-verdict.sh` (regatta-ported, leah PR #232).
+Channel: `gh pr comment <N> -b "REVIEWER APPROVE/REVISE: <agent-id>: <11-dim summary>"` posted by the independent reviewer subagent against the PR's current head SHA. See `CLAUDE.md` § TDD + review and `docs/engineer/dispatch-templates/reviewer.md` § OUTPUT FORMAT for the binding rules.
 
-Fails closed when:
+The comment is the audit artifact — operator scans PR comments to verify a real adversarial review ran before arming merge. The former regatta-ported `check-reviewer-verdict.sh` body-footer gate was removed because:
 
-- A load-bearing PR body carries `Reviewer-recommendation: APPROVE` without a paired `Reviewer-agent-id:` from the canonical allowlist.
-- The `Reviewer-agent-id:` value equals the PR author login (self-tag).
-- The PR has `autoMergeRequest != null` AND the `Reviewer-agent-id:` is the implementer's own ID (zero adversarial window).
+- Footer tokens produced false-pass on operator-pasted text.
+- Body edits forced empty-commit refreshes to re-run the gate.
+- The audit signal we care about is "did a fresh adversarial review run", which a reviewer-authored PR comment captures more durably than a regex-matched body footer.
 
-Operator escape: `<!-- reviewer-skip-justified: <reason ≥4 chars> -->` (trivial doc/typo/dep-bump only) or `<!-- operator-opened: <reason ≥4 chars> -->`. The CLI `--skip` flag now requires a ≥32-char reason AND emits an audit row to `~/.leah-state/audit.jsonl` (kind `ci_gate_skipped`).
+Self-tag rejection rule: an operator-posted `REVIEWER APPROVE: ...` comment OR a comment whose `<agent-id>` matches the PR author login → zero adversarial pass. Reviewer subagents enforce this inline per `docs/engineer/dispatch-templates/reviewer.md` § Recurring-failure traps.
 
-Motivating misses: token leaks on #144 / #168 / #184 / #186 / #187 / #189 / #206; self-approve-after-amend on the same set.
+Historical motivation (preserved for context): token leaks on #144 / #168 / #184 / #186 / #187 / #189 / #206 motivated the original 2026-06-10 token gate; #287 found the token mechanism itself fragile and moved enforcement to the comment channel.
 
-## Gate 2 — TDD evidence (feat/* only)
+## Gate 2 — TDD evidence (now reviewer-enforced inline)
 
-Script: `scripts/check-tdd-evidence.sh`.
+The former `scripts/check-tdd-evidence.sh` script + `pr-gates` CI job were removed in #287. Reviewer subagents now enforce the rule inline per `docs/engineer/dispatch-templates/reviewer.md` Definition-of-done: `feat/*` PR bodies must carry a `## TDD evidence` heading paired with a `FAIL` / `panic` / `RED→GREEN` token, OR an explicit `<!-- tdd-skip-justified: <reason ≥32 chars> -->` marker.
 
-Fails closed when the current branch is `feat/*` AND the PR body lacks BOTH:
-
-- A `## TDD evidence` heading (case-insensitive, full phrase — bare `## TDD` is rejected).
-- A failing-output token nearby: `--- FAIL`, `^FAIL`, `panic:`, `panic(`, `RED→GREEN`, `red-first`, or `test-first`.
-
-A standalone `RED→GREEN` / `red-first` / `test-first` token also satisfies the gate even without the heading. Operator escape: `<!-- tdd-skip-justified: <reason ≥32 chars> -->` (4-char v1 floor let `noop`/`wip!`/`skip` pass — raised to 32 + audit row mandatory).
-
-Wired into `scripts/check.sh` AND into `.github/workflows/check.yml` as the `pr-gates` job, so the gate cannot be bypassed by an operator who skips local check. Branch protection on `main` should mark `pr-gates` required after this PR merges.
-
-Motivating misses: PR #162 / #199 / #219 landed as `feat(*)` with no pre-impl failing-test capture.
+Historical motivation (preserved for context): PR #162 / #199 / #219 landed as `feat(*)` with no pre-impl failing-test capture; the original script enforced this until #287.
 
 ## Gate 3 — Worktree janitor (launchd)
 
@@ -39,8 +30,8 @@ V4 (current): cached `git ls-remote` + `git branch -r --merged` once per sweep (
 
 Uninstall: `make uninstall-janitor`.
 
-## Emergency override
+## Emergency override (scoped)
 
-Set `LEAH_CI_GATES=skip` in the environment for a single `./scripts/check.sh` invocation. Bypasses Gate 1 and Gate 2; an audit row appears on stdout (`=== LEAH_CI_GATES=skip — pr-body + tdd-evidence gates bypassed ===`) so the skip is traceable in `/tmp/cicheck.log`. Reserved for breakglass — every use leaves a footprint the next audit-session sees.
+`LEAH_CI_GATES=skip` still bypasses the remaining `./scripts/check.sh` PR-body gates (currently `check-pr-body-close-keywords.sh`); an audit row (`=== LEAH_CI_GATES=skip — pr-body gate bypassed ===`) appears in `/tmp/cicheck.log`. Reserved for breakglass — every use leaves a footprint the next audit-session sees.
 
 Gate 3 is local-host state and not affected by the env var; uninstall via `make uninstall-janitor` if you need it gone.

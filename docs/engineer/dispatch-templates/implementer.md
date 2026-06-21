@@ -57,7 +57,7 @@ NO AUTOMERGE FROM IMPLEMENTER
 - Author-enabled automerge = zero adversarial window between APPROVE-token landing and merge.
 
 NO SELF-TAGGED APPROVE
-- The implementer NEVER writes its own `Reviewer-recommendation: APPROVE` token. That is the reviewer subagent's job. Author writing own APPROVE = zero adversarial pass; the gate passes mechanically while no review happened.
+- The implementer NEVER posts its own `REVIEWER APPROVE: ...` PR comment. That is the reviewer subagent's job (verdict channel is `gh pr comment <N> -b "REVIEWER APPROVE/REVISE: <agent-id>: <11-dim summary>"`). Author writing own APPROVE comment = zero adversarial pass; the audit signal disappears while no review happened.
 
 PR BODY HYGIENE
 - `gh pr create` / `gh pr edit` MUST use `--body-file <path>`. HEREDOC bodies escape backticks and silently break the release-notes fence detector. Write body to `/tmp/pr-<branch>.md` first.
@@ -124,7 +124,7 @@ WINDOWS PATH TESTS
 - [ ] release-notes fence present in PR body
 - [ ] PR body uses `--body-file`, not HEREDOC
 - [ ] no AI signatures
-- [ ] no implementer-written APPROVE token
+- [ ] no implementer-posted `REVIEWER APPROVE:` PR comment
 - [ ] no implementer-enabled automerge
 - [ ] worktree removed after merge
 
