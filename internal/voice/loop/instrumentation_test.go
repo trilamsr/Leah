@@ -1,11 +1,14 @@
 package loop_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/obs/obstest"
+	"github.com/trilam/leah/internal/testutil"
+	"github.com/trilam/leah/internal/voice/listener"
 	"github.com/trilam/leah/internal/voice/loop"
 )
 
@@ -69,4 +72,44 @@ func TestTracker_ResetsAfterObservation(t *testing.T) {
 	if !obstest.ContainsExact(keys, "leah_voice_intent_to_first_audio_seconds|outcome=ok") {
 		t.Fatalf("series missing after second turn")
 	}
+}
+
+// TestLoop_IntentToFirstAudio_RecordsOnReasonerPath pins the wiring through
+// Loop.Run: a real tracker handed to Config observes outcome=ok when the
+// reasoner branch reaches TTS.Speak.
+func TestLoop_IntentToFirstAudio_RecordsOnReasonerPath(t *testing.T) {
+	r := obs.NewRegistry()
+	tr := loop.NewIntentToFirstAudioTracker(r)
+	fl := newStartedListener()
+	tts := &fakeTTS{auto: true}
+	rs := &fakeReasoner{reply: "ok"}
+	ic := &fakeIntent{handle: false}
+	wake := armed()
+
+	l := loop.New(loop.Config{
+		Listener:           fl,
+		Reasoner:           rs,
+		TTS:                tts,
+		Wake:               wake,
+		IntentRouter:       ic,
+		IntentToFirstAudio: tr,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- l.Run(ctx) }()
+	fl.waitReady(t)
+
+	testutil.Eventually(t, 2*time.Second, 5*time.Millisecond, func() bool {
+		fl.Emit(listener.Segment{Text: "anything", Final: true})
+		return tts.count() >= 1
+	})
+	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
+		keys := obstest.SnapshotKeys(t, r)
+		return obstest.ContainsExact(keys, "leah_voice_intent_to_first_audio_seconds|outcome=ok")
+	})
+
+	cancel()
+	<-done
 }

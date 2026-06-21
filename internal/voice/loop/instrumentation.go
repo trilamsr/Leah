@@ -9,6 +9,7 @@ import (
 // intentToFirstAudioBuckets — A4 SLA 700ms; edges straddle so p50/p95 resolves.
 var intentToFirstAudioBuckets = []float64{0.1, 0.3, 0.5, 0.7, 1.0, 2.0}
 
+// IntentToFirstAudioTracker is not goroutine-safe — single-writer per turn.
 type IntentToFirstAudioTracker struct {
 	hist     *obs.Histogram
 	intentAt time.Time

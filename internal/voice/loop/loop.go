@@ -109,14 +109,15 @@ func (l *Loop) Run(ctx context.Context) error {
 		turnDone = done
 		go func() {
 			defer close(done)
+			// MarkIntentDone fires only when an IntentRouter exists — the A4
+			// SLA measures intent-classifier-return → first audio, and the
+			// no-router path has no classifier-return event to anchor to.
 			if l.cfg.IntentRouter != nil {
 				handled, ierr := l.cfg.IntentRouter.Recognize(tctx, text)
 				l.cfg.IntentToFirstAudio.MarkIntentDone(time.Now())
 				if ierr == nil && handled {
 					return
 				}
-			} else {
-				l.cfg.IntentToFirstAudio.MarkIntentDone(time.Now())
 			}
 			reply, rerr := l.cfg.Reasoner.Ask(tctx, text)
 			if rerr != nil {
