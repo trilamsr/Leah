@@ -379,6 +379,9 @@ func semanticRecall(ctx context.Context, db *sql.DB, query string) ([]recallResu
 // parseSinceFlag strips `--since=<v>` and `--since <v>` out of args, returning
 // the value (empty if absent) and the remaining args. Mirrors the shape used by
 // `leah suggest replay` so operators see one cursor syntax across surfaces.
+// Bare trailing `--since` is consumed (not leaked into query) and returns the
+// sentinel "<missing>" so the caller's RFC3339 parse rejects it with the usage
+// line — same exit-2 surface as a malformed timestamp.
 func parseSinceFlag(args []string) (string, []string) {
 	var since string
 	rest := make([]string, 0, len(args))
@@ -387,9 +390,13 @@ func parseSinceFlag(args []string) (string, []string) {
 		switch {
 		case strings.HasPrefix(a, "--since="):
 			since = a[len("--since="):]
-		case a == "--since" && i+1 < len(args):
-			since = args[i+1]
-			i++
+		case a == "--since":
+			if i+1 < len(args) {
+				since = args[i+1]
+				i++
+			} else {
+				since = "<missing>"
+			}
 		default:
 			rest = append(rest, a)
 		}

@@ -129,6 +129,8 @@ func TestParseSinceFlag_Forms(t *testing.T) {
 		{"space form", []string{"--since", "2026-06-20T00:00:00Z", "ship"}, "2026-06-20T00:00:00Z", []string{"ship"}},
 		{"absent", []string{"ship"}, "", []string{"ship"}},
 		{"mixed with --llm", []string{"--llm", "--since=2026-06-20T00:00:00Z", "ship"}, "2026-06-20T00:00:00Z", []string{"--llm", "ship"}},
+		{"bare trailing --since does not leak into query", []string{"ship", "--since"}, "<missing>", []string{"ship"}},
+		{"bare only --since", []string{"--since"}, "<missing>", []string{}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
