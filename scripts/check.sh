@@ -55,4 +55,10 @@ fi
 # W90 base-staleness gate: serial — needs git fetch + ancestry walks.
 "$SCRIPT_DIR/check-base-fresh.sh" || FAILED=1
 
+# MAY-V6: warn-only on first ship — flip to FAILED=1 once 7 consecutive
+# days of feat/* PRs land with zero new-placeholder hits.
+if ! "$SCRIPT_DIR/check-placeholders.sh"; then
+  echo "::warning::check-placeholders introduced new markers (warn-only)"
+fi
+
 exit "$FAILED"
