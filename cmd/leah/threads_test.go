@@ -169,6 +169,17 @@ func TestThreadsInvalidSince(t *testing.T) {
 	}
 }
 
+func TestThreadsInvalidWithin(t *testing.T) {
+	var buf, ebuf bytes.Buffer
+	code := runThreadsWith(context.Background(), threadsOpts{now: time.Now(), seams: map[string]sources.WorkItemSeam{}, stderr: &ebuf}, []string{"--within", "not-a-dur"}, &buf)
+	if code != 2 {
+		t.Fatalf("exit=%d, want 2", code)
+	}
+	if !strings.Contains(ebuf.String(), "--within") {
+		t.Fatalf("want --within err on stderr: %q", ebuf.String())
+	}
+}
+
 func TestThreadsJSONEmptyArray(t *testing.T) {
 	var buf bytes.Buffer
 	code := runThreadsWith(context.Background(), threadsOpts{now: time.Now(), seams: map[string]sources.WorkItemSeam{}}, []string{"--json"}, &buf)
