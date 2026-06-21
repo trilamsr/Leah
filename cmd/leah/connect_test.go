@@ -50,7 +50,7 @@ func TestRunConnect_UnknownProvider(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", dir)
 	var buf bytes.Buffer
-	if code := runConnect(context.Background(), []string{"slack"}, &buf); code != 2 {
+	if code := runConnect(context.Background(), []string{"nope"}, &buf); code != 2 {
 		t.Fatalf("exit %d, want 2", code)
 	}
 }
