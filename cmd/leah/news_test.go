@@ -73,6 +73,9 @@ func TestRunNews_Help(t *testing.T) {
 	if !strings.Contains(buf.String(), "usage: leah news") {
 		t.Errorf("help output missing usage line: %q", buf.String())
 	}
+	if !strings.Contains(buf.String(), "--bundle") {
+		t.Errorf("help output missing --bundle flag doc: %q", buf.String())
+	}
 }
 
 // TestLoadNewsSources_Fallback returns defaults when file is missing.
@@ -93,5 +96,99 @@ func TestLoadNewsSources_CorruptJSON_FallsBackToDefault(t *testing.T) {
 	got := loadNewsSources(dir)
 	if len(got) == 0 {
 		t.Fatalf("expected default sources on corrupt config, got 0")
+	}
+}
+
+// TestBundleSources_AI returns the curated AI/ML feed list.
+func TestBundleSources_AI(t *testing.T) {
+	got, ok := bundleSources("ai")
+	if !ok {
+		t.Fatalf("bundle 'ai' not registered")
+	}
+	if len(got) < 5 {
+		t.Fatalf("ai bundle has %d sources, want at least 5", len(got))
+	}
+	wantNames := map[string]bool{
+		"arxiv-cs.ai":   false,
+		"arxiv-cs.lg":   false,
+		"anthropic":     false,
+		"openai":        false,
+		"deepmind":      false,
+		"huggingface":   false,
+		"simonwillison": false,
+	}
+	for _, s := range got {
+		if _, ok := wantNames[s.Name]; ok {
+			wantNames[s.Name] = true
+		}
+		if s.URL == "" {
+			t.Errorf("source %q has empty URL", s.Name)
+		}
+	}
+	for name, seen := range wantNames {
+		if !seen {
+			t.Errorf("ai bundle missing source %q", name)
+		}
+	}
+}
+
+// TestBundleSources_Tech returns the curated tech feed list.
+func TestBundleSources_Tech(t *testing.T) {
+	got, ok := bundleSources("tech")
+	if !ok {
+		t.Fatalf("bundle 'tech' not registered")
+	}
+	if len(got) < 2 {
+		t.Fatalf("tech bundle has %d sources, want at least 2", len(got))
+	}
+}
+
+// TestBundleSources_Unknown returns ok=false for unregistered bundle.
+func TestBundleSources_Unknown(t *testing.T) {
+	if _, ok := bundleSources("nope"); ok {
+		t.Fatalf("bundle 'nope' should not be registered")
+	}
+}
+
+// TestRunNews_BundleAI swaps the bundle URLs to a hermetic httptest server via
+// the test-only override env, then asserts the bundle short-circuits the
+// feeds-news.json path.
+func TestRunNews_BundleAI(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(rssBody))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("LEAH_FEEDS_AUTO_ATTEST", "1")
+	t.Setenv("LEAH_NEWS_BUNDLE_URL_OVERRIDE", srv.URL)
+
+	var buf bytes.Buffer
+	if code := runNews(context.Background(), []string{"--bundle", "ai"}, &buf); code != 0 {
+		t.Fatalf("exit %d, want 0; output=%q", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "Newest item") {
+		t.Errorf("output missing 'Newest item': %q", buf.String())
+	}
+}
+
+// TestRunNews_BundleUnknown errors on an unknown bundle name.
+func TestRunNews_BundleUnknown(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	var buf bytes.Buffer
+	if code := runNews(context.Background(), []string{"--bundle", "nope"}, &buf); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+}
+
+// TestRunNews_BundleMissingValue errors when --bundle has no argument.
+func TestRunNews_BundleMissingValue(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	var buf bytes.Buffer
+	if code := runNews(context.Background(), []string{"--bundle"}, &buf); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
 	}
 }

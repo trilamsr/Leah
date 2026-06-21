@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/trilam/leah/internal/feeds"
@@ -22,26 +24,80 @@ var defaultNewsSources = []feeds.NewsSource{
 	{Name: "google-news", URL: "https://news.google.com/rss"},
 }
 
-// runNews prints a synthesized DailyDigest. No flags in MVP — `leah news`
-// just runs. Operator-config (--source filter, --json) defers to W37.
+// newsBundles maps a curated bundle name to a verified RSS source list.
+// Every URL probed live (HEAD + content-type) before commit; see PR body for
+// the verification matrix. Operators who want bundle behavior plus a personal
+// override can copy the chosen bundle into $LEAH_STATE_DIR/feeds-news.json.
+var newsBundles = map[string][]feeds.NewsSource{
+	"ai": {
+		{Name: "arxiv-cs.ai", URL: "https://export.arxiv.org/rss/cs.AI"},
+		{Name: "arxiv-cs.lg", URL: "https://export.arxiv.org/rss/cs.LG"},
+		{Name: "anthropic", URL: "https://feeds.feedburner.com/anthropic"},
+		{Name: "openai", URL: "https://openai.com/news/rss.xml"},
+		{Name: "deepmind", URL: "https://deepmind.google/blog/rss.xml"},
+		{Name: "huggingface", URL: "https://huggingface.co/blog/feed.xml"},
+		{Name: "simonwillison", URL: "https://simonwillison.net/atom/everything/"},
+	},
+	"tech": {
+		{Name: "hn", URL: "https://hnrss.org/frontpage"},
+		{Name: "lobsters", URL: "https://lobste.rs/rss"},
+		{Name: "pragmatic-engineer", URL: "https://newsletter.pragmaticengineer.com/feed"},
+	},
+}
+
+// bundleSources returns the curated source list for the named bundle. The
+// second return is false when the name is unregistered; callers translate
+// that into an exit-2 usage error rather than a soft-fail since a typo
+// shouldn't silently swap to defaults.
+func bundleSources(name string) ([]feeds.NewsSource, bool) {
+	src, ok := newsBundles[name]
+	if !ok {
+		return nil, false
+	}
+	// Test hook: rewrite every URL to the override target so a single httptest
+	// server can stand in for the whole bundle. Never set in production.
+	if override := os.Getenv("LEAH_NEWS_BUNDLE_URL_OVERRIDE"); override != "" {
+		out := make([]feeds.NewsSource, len(src))
+		for i, s := range src {
+			out[i] = feeds.NewsSource{Name: s.Name, URL: override}
+		}
+		return out, true
+	}
+	return src, true
+}
+
+// runNews prints a synthesized DailyDigest. Flags: --bundle <name> picks a
+// curated source list; otherwise operator config + defaults apply.
 func runNews(parent context.Context, args []string, w io.Writer) int {
 	if shouldShowHelp(args) {
-		_, _ = fmt.Fprintln(w, "usage: leah news")
-		_, _ = fmt.Fprintln(w, "")
-		_, _ = fmt.Fprintln(w, "Fetch + synthesize a top-3 news digest from RSS sources.")
-		_, _ = fmt.Fprintln(w, "Sources default to HN + Google News; override by writing")
-		_, _ = fmt.Fprintln(w, "$LEAH_STATE_DIR/feeds-news.json.")
+		printNewsHelp(w)
 		return 0
 	}
-	if len(args) > 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "leah news: unexpected argument %q\n", args[0])
+	bundle, rest, err := parseBundleFlag(args)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah news: %v\n", err)
 		return 2
+	}
+	if len(rest) > 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "leah news: unexpected argument %q\n", rest[0])
+		return 2
+	}
+
+	var sources []feeds.NewsSource
+	if bundle != "" {
+		src, ok := bundleSources(bundle)
+		if !ok {
+			_, _ = fmt.Fprintf(os.Stderr, "leah news: unknown bundle %q (known: %s)\n", bundle, knownBundles())
+			return 2
+		}
+		sources = src
+	} else {
+		sources = loadNewsSources(stateDir())
 	}
 
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
 
-	sources := loadNewsSources(stateDir())
 	n, err := feeds.NewNews(feeds.NewsConfig{
 		Attestor:   newFeedsAttestor(),
 		HTTPClient: &http.Client{Timeout: 10 * time.Second},
@@ -69,6 +125,51 @@ func runNews(parent context.Context, args []string, w io.Writer) int {
 		_, _ = fmt.Fprintf(w, "%d. %s  (%s)\n   %s\n", i+1, h.Title, h.Source, h.URL)
 	}
 	return 0
+}
+
+func printNewsHelp(w io.Writer) {
+	_, _ = fmt.Fprintln(w, "usage: leah news [--bundle <name>]")
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "Fetch + synthesize a top-3 news digest from RSS sources.")
+	_, _ = fmt.Fprintln(w, "Sources default to HN + Google News; override by writing")
+	_, _ = fmt.Fprintln(w, "$LEAH_STATE_DIR/feeds-news.json.")
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintf(w, "Curated bundles (--bundle): %s\n", knownBundles())
+}
+
+// parseBundleFlag consumes a single --bundle <name> pair from args. Supports
+// `--bundle ai` and `--bundle=ai`. Returns the remaining args so the caller
+// can still reject unexpected positionals.
+func parseBundleFlag(args []string) (bundle string, rest []string, err error) {
+	rest = make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--bundle":
+			if i+1 >= len(args) {
+				return "", nil, errors.New("--bundle requires a value")
+			}
+			bundle = args[i+1]
+			i++
+		case strings.HasPrefix(a, "--bundle="):
+			bundle = strings.TrimPrefix(a, "--bundle=")
+			if bundle == "" {
+				return "", nil, errors.New("--bundle requires a value")
+			}
+		default:
+			rest = append(rest, a)
+		}
+	}
+	return bundle, rest, nil
+}
+
+func knownBundles() string {
+	names := make([]string, 0, len(newsBundles))
+	for k := range newsBundles {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return strings.Join(names, "|")
 }
 
 // loadNewsSources returns the operator's configured RSS sources, falling back
