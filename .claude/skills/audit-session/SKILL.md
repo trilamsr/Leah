@@ -27,6 +27,31 @@ End-of-session validator + handoff. Catches what slipped, codifies what was lear
 - After phase 9: ONE consolidated hand-back (≤30 lines).
 - Auto-file ONLY mechanically-derivable trackers. Never auto-close, auto-merge, auto-edit CLAUDE.md.
 
+## Phase-completion ledger (init)
+
+Failure mode addressed: skill caller has been printing the consolidated hand-back after running ~40% of phases. The summary is a deliverable, so a free-form "audit complete" claim is a falsifiable overclaim. Fix: ledger file, scored at hand-off boundary, blocks the summary until every phase is marked `done` or `skipped:<reason>`.
+
+```bash
+mkdir -p "$HANDOFF_DIR"
+ledger="$HANDOFF_DIR/phase-ledger.txt"
+: > "$ledger"
+for p in 0 1 2 3 4 5 6 7 8 9 A1 A2; do
+  printf 'phase%s=pending\n' "$p" >> "$ledger"
+done
+```
+
+Each phase block ends with a portable `mark_done <N>` invocation (defined below). A deliberately skipped phase MUST be marked `phase<N>=skipped:<reason>` instead of `=done`.
+
+```bash
+# Portable: avoid sed -i differences across BSD/GNU. Rewrites the line in place.
+mark_done() {
+  local n="$1" ledger="$HANDOFF_DIR/phase-ledger.txt" tmp
+  tmp=$(mktemp)
+  awk -v n="$n" '$0 ~ "^phase" n "=pending$" { print "phase" n "=done"; next } { print }' \
+    "$ledger" > "$tmp" && mv "$tmp" "$ledger"
+}
+```
+
 ## Phase 0: cross-session continuity
 
 Per session retrospective 2026-06-10: the prior session wrote `2026-06-10T21-skill-test-handoff.md` but the current session never opened it. Handoff written ≠ handoff read; the audit-session contract was satisfied while the actual continuity goal slipped.
@@ -46,6 +71,8 @@ echo "unread_prior_handoff=$last_handoff" >> "$HANDOFF_DIR/phase0-flags.txt"
 ```
 
 Silent pass when no prior handoff exists OR transcript shows it was referenced. Surface in hand-back ONLY when prior handoff exists and was NOT referenced. Never auto-file an issue (per Hard Nos `NO auto-file on uncertain detection`).
+
+`mark_done 0`
 
 ## Phase 1: PR audit
 
@@ -106,6 +133,8 @@ Rules:
 
   Exit 1 → file `[SESSION-AUDIT][self-approve-after-amend] PR#<N>`. "transcript_unavailable" sentinel → main thread surfaces gap in hand-back, never auto-files (per Hard Nos `NO auto-file on uncertain detection`). (Does NOT detect `re-spawn-design` slips — those rebuild the change wholesale and bypass the simple later-clear-to-merge heuristic; flag as future-lever in Phase A2.)
 
+`mark_done 1`
+
 ## Phase 2: Reviewer-comment audit
 
 ONE cached `gh pr view N --json comments,reviews` per PR (cache to avoid re-fetching).
@@ -119,6 +148,8 @@ done
 - Grep `HIGH|CRITICAL|MED|🔴|🟡` in review bodies. Cross-ref open `[REVIEWER #<N>]` issues. Missing → file.
 - Merged PR with `Reviewer-recommendation: REVISE` token unaddressed → `[BYPASS-AUDIT]` issue.
 
+`mark_done 2`
+
 ## Phase 3: Issue audit
 
 ```bash
@@ -131,21 +162,37 @@ Decision:
 - Duplicate titles → flag.
 - `depends on #N` for OPEN N → orphan log.
 
+`mark_done 3`
+
 ## Phase 4: Doc audit
 
 ```bash
 git log --since "$SESSION_START" --author "$GIT_AUTHOR" -- CLAUDE.md \
   | grep -oE 'feedback_[a-z_]+' | sort -u > "$HANDOFF_DIR/new-rules.txt"
 
+# Gate-boundary propagation. A rule that lives only in CLAUDE.md / MEMORY.md
+# never reaches the subagent prompt — so the dispatch-template fan-out is the
+# load-bearing surface. Surface every missing rule as a [GATE-BOUNDARY-GAP]
+# line; the hand-back lists them so the operator can patch the templates
+# (skill cannot auto-edit dispatch-templates per Hard Nos).
+: > "$HANDOFF_DIR/gate-boundary-gaps.txt"
 while read rule; do
-  grep -l "$rule" docs/engineer/dispatch-templates/*.md > /dev/null \
-    || echo "rule $rule missing from dispatch templates"
+  [ -z "$rule" ] && continue
+  if ! grep -l "$rule" docs/engineer/dispatch-templates/*.md > /dev/null 2>&1; then
+    # Enumerate the templates so the hand-back line names every target file.
+    for tmpl in docs/engineer/dispatch-templates/*.md; do
+      echo "[GATE-BOUNDARY-GAP] feedback_${rule#feedback_} missing from $tmpl" \
+        >> "$HANDOFF_DIR/gate-boundary-gaps.txt"
+    done
+  fi
 done < "$HANDOFF_DIR/new-rules.txt"
 ```
 
 MEMORY.md sync: diff new `feedback_*` slugs vs MEMORY.md index → write missing index lines via Edit. Memory dir is operator-personal; do NOT `cat` slug files (read-on-demand only).
 
 Pointers freshness: `git diff --stat origin/main -- docs/engineer/`; ≥3 doc moves → flag stale-pointer audit.
+
+`mark_done 4`
 
 ## Phase 5: Code audit (signal mining)
 
@@ -189,6 +236,8 @@ git log --since "$SESSION_START" --author "$GIT_AUTHOR" \
 ```
 ≥3 pure-add commits on origin/main → `[DELETION-DEBT]` audit issue.
 
+`mark_done 5`
+
 ## Phase 6: Worktree + branch cleanup
 
 ```bash
@@ -204,6 +253,8 @@ git branch --merged main | grep -v '^\* main' | grep -v 'main$' | head -20
 
 Decision: hand back commands; NO auto-remove. Per CLAUDE.md `Worktree discipline`: primary checkout stays on main; flag if not.
 
+`mark_done 6`
+
 ## Phase 7: Learning + memory
 
 **Scope:** universal patterns + operator-personal `feedback_*` rules. Phase 7 writes memory + CLAUDE.md candidates; never auto-edits CLAUDE.md.
@@ -217,6 +268,8 @@ Decision: hand back commands; NO auto-remove. Per CLAUDE.md `Worktree discipline
 
 Write: `feedback_*.md` stubs under `~/.claude/projects/<hash>/memory/`; MEMORY.md index lines via Edit; CLAUDE.md candidate list into handoff file (NOT auto-edit).
 
+`mark_done 7`
+
 ## Phase 8: Cost + budget audit
 
 ```bash
@@ -224,6 +277,8 @@ gh api rate_limit --jq '.resources.core | {remaining,reset}'
 ```
 
 Log-only unless rate-remaining <500 OR explicit budget cap hit. One-line summary into handoff: `N PRs merged, M issues, K subagents, GH remaining Y`.
+
+`mark_done 8`
 
 ## Phase 9: Next-session handoff
 
@@ -279,6 +334,8 @@ cat .claude/session-handoffs/<this-file>
 1. <lesson> — <prevention>
 ```
 
+`mark_done 9`
+
 ## Phase A1: roadmap audit (MANDATORY when session touched UX-audit blockers or wave brief)
 
 Re-read `docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md` (binding ship-gate) + current wave brief. Compare against session evidence. Find:
@@ -286,6 +343,8 @@ Re-read `docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md` (binding shi
 - **Blockers marked CLEARED that the session saw drift back open.** File `[ROADMAP-DRIFT]` issue + propose status flip.
 - **Blockers marked IN-FLIGHT that didn't move this session.** Log only.
 - **Operator priority reorder** signals in user turns ("do X first now", "skip Y") → write reorder candidate.
+
+`mark_done A1`
 
 ## Phase A2: more-autonomy lever scan (MANDATORY when session hit any operator-bottleneck)
 
@@ -319,7 +378,21 @@ Surface in hand-back as one line. ≥5 redirects/hour signals a recurring bottle
 
 For each finding write an `[AUTONOMY-LEVER]` issue with: surface, smallest implementer brief (file:line + 1-line fix), estimated operator-touch reduction.
 
+`mark_done A2`
+
 ## Hand-off summary (consolidated operator output)
+
+**Completion gate.** Before emitting the hand-back, count `=pending` rows in the ledger. If non-zero, the skill refuses to finalize — names every pending phase so the operator sees exactly which steps were skipped instead of a free-form "audit complete" claim.
+
+```bash
+pending=$(grep -c '=pending$' "$HANDOFF_DIR/phase-ledger.txt")
+if [ "$pending" -ne 0 ]; then
+  echo "audit-session: phase-ledger has $pending pending entries; cannot finalize hand-back."
+  echo "still pending:"
+  grep '=pending$' "$HANDOFF_DIR/phase-ledger.txt" | sed 's/=pending$//' | sed 's/^/  - /'
+  exit 1
+fi
+```
 
 After all 9 phases + A1/A2 run, emit ONE consolidated hand-back block:
 
@@ -335,6 +408,7 @@ FILED (auto):
 - [REVIEWER #PR] x N
 - [SELF-APPROVE-AFTER-AMEND] x N
 - [AUTONOMY-LEVER] x N
+- [GATE-BOUNDARY-GAP] x N (from Phase 4 — feedback_* rules missing from dispatch-templates; surfaced for manual patch, not auto-edited)
 
 CANDIDATES (next-session promote):
 - CLAUDE.md: <slug>
@@ -355,3 +429,4 @@ NEXT-SESSION FIRST ACTION: <from frontmatter>
 - NO auto-invoke other skills (including learn-from-mistakes — only surface gaps).
 - NO unbounded CI poll.
 - NO auto-file on uncertain detection (e.g. Phase 1 transcript-unavailable sentinel → surface gap in hand-back, never auto-file).
+- NO "audit-session complete" claim unless `phase-ledger.txt` has 0 `=pending` entries. Free-form completion language is the failure mode this ledger exists to block.
