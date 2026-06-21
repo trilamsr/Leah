@@ -113,6 +113,26 @@ func TestRecordFirstReplyIfNotYetRecorded_NoMarker_NoOp(t *testing.T) {
 	}
 }
 
+// TestRecordFirstReplyIfNotYetRecorded_NegativeElapsed_DoesNotBurnSeal — clock skew must not consume the once-per-install slot.
+func TestRecordFirstReplyIfNotYetRecorded_NegativeElapsed_DoesNotBurnSeal(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	t0 := time.Unix(1_700_000_000, 0).UTC()
+	if err := onboarding.MarkInstalled(dir, t0); err != nil {
+		t.Fatalf("MarkInstalled: %v", err)
+	}
+	r := obs.NewRegistry()
+	onboarding.RegisterMetrics(r)
+
+	if onboarding.RecordFirstReplyIfNotYetRecorded(dir, r, t0.Add(-1*time.Second)) {
+		t.Fatalf("negative elapsed returned true, want false")
+	}
+	// Subsequent valid reply must still land — seal was not burned.
+	if !onboarding.RecordFirstReplyIfNotYetRecorded(dir, r, t0.Add(5*time.Second)) {
+		t.Fatalf("post-skew valid reply returned false, want true (seal must not have been burned)")
+	}
+}
+
 // TestRecordFirstReplyIfNotYetRecorded_SealAcrossProcesses — seal file blocks observation even from a fresh registry+observer.
 func TestRecordFirstReplyIfNotYetRecorded_SealAcrossProcesses(t *testing.T) {
 	t.Parallel()

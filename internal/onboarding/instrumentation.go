@@ -1,7 +1,6 @@
 package onboarding
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -77,22 +76,21 @@ func RecordFirstReplyIfNotYetRecorded(stateDir string, registry *obs.Registry, n
 	if err != nil || !ok {
 		return false
 	}
+	// Reject negative elapsed BEFORE writing the seal — a clock that briefly
+	// jumped backwards must not burn the once-per-install slot with no sample.
+	elapsed := now.Sub(installedAt)
+	if elapsed < 0 {
+		return false
+	}
 	sealPath := filepath.Join(stateDir, firstReplySealRel)
 	if err := os.MkdirAll(filepath.Dir(sealPath), 0o755); err != nil {
 		return false
 	}
 	f, err := os.OpenFile(sealPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		// Already-exists is the steady-state no-op path; any other error
-		// means we cannot prove single-write semantics so refuse to observe.
-		_ = errors.Is(err, os.ErrExist)
 		return false
 	}
 	_ = f.Close()
-	elapsed := now.Sub(installedAt)
-	if elapsed < 0 {
-		return false
-	}
 	registry.Histogram("leah_onboarding_install_to_first_reply_seconds", FirstReplyBuckets).Observe(nil, elapsed.Seconds())
 	return true
 }
