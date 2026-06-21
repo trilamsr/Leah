@@ -123,9 +123,14 @@ func fetchReviewQueue(ctx context.Context, exec ghclient.Executor, org string) (
 	}
 	// GH returns HTTP 200 with {"errors":[...]} on rate-limit / auth / schema
 	// failure; without surfacing the message, the operator gets an empty queue
-	// and assumes a clean inbox while their token has expired.
+	// and assumes a clean inbox while their token has expired. Empty-message
+	// fallback because "errors[]: empty string" leaves a useless naked prefix.
 	if len(resp.Errors) > 0 {
-		return nil, fmt.Errorf("gh api graphql: %s", resp.Errors[0].Message)
+		msg := resp.Errors[0].Message
+		if msg == "" {
+			msg = "(unknown error)"
+		}
+		return nil, fmt.Errorf("gh api graphql: %s", msg)
 	}
 	rows := make([]reviewRow, 0, len(resp.Data.Search.Nodes))
 	for _, n := range resp.Data.Search.Nodes {

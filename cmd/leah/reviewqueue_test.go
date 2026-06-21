@@ -303,6 +303,20 @@ func TestFetchReviewQueue_GraphQLErrors(t *testing.T) {
 	}
 }
 
+// TestFetchReviewQueue_GraphQLErrorEmptyMessage guards the empty-string edge:
+// "gh api graphql: " with a naked suffix is a useless signal for the operator.
+func TestFetchReviewQueue_GraphQLErrorEmptyMessage(t *testing.T) {
+	body := `{"data":{"search":{"nodes":null}},"errors":[{"message":""}]}`
+	fx := &fakeExec{responses: map[string]string{"gh api graphql": body}}
+	_, err := fetchReviewQueue(context.Background(), fx, "")
+	if err == nil {
+		t.Fatalf("expected error even with empty message")
+	}
+	if !strings.Contains(err.Error(), "unknown error") {
+		t.Errorf("empty message should fall back to placeholder; got %v", err)
+	}
+}
+
 // captureExec records the gh args it was called with so we can assert on
 // query content (e.g. org: qualifier) without depending on response shape.
 type captureExec struct {
