@@ -70,16 +70,24 @@ func backendName(t TTS) string {
 // wake→first-audio 1.5s target falls mid-distribution.
 var voiceLatencyBuckets = []float64{0.05, 0.1, 0.2, 0.5, 1, 2, 5}
 
+// BargeInCancelBuckets — A8 SLO: barge-in detected → TTS halted ≤200ms p95.
+// Buckets straddle the 200ms threshold so the p95 line lands inside a bucket,
+// not at +Inf. Sub-100ms band is dense because a healthy cancel completes in
+// tens of milliseconds — a fat lower band would hide regressions inside one
+// big bucket.
+var BargeInCancelBuckets = []float64{0.01, 0.025, 0.05, 0.1, 0.2, 0.5, 1}
+
 // TurnInstrumentation is the voice-turn metric facade. Path is the model-locality
 // label ("local" | "cloud") on every turn + stage observation — V10 streaming
 // changes cloud latency, not local, so baselines must be partitioned.
 type TurnInstrumentation struct {
-	turnSeconds  *obs.Histogram
-	stageSeconds *obs.Histogram
-	turnTotal    *obs.Counter
-	bargeInTotal *obs.Counter
-	wakeEvent    *obs.Counter
-	path         string
+	turnSeconds       *obs.Histogram
+	stageSeconds      *obs.Histogram
+	bargeInCancelSecs *obs.Histogram
+	turnTotal         *obs.Counter
+	bargeInTotal      *obs.Counter
+	wakeEvent         *obs.Counter
+	path              string
 }
 
 // NewTurnInstrumentation registers the V1 voice-path series. nil-safe: a nil
@@ -93,13 +101,29 @@ func NewTurnInstrumentation(reg *obs.Registry, path string) *TurnInstrumentation
 		path = "local"
 	}
 	return &TurnInstrumentation{
-		turnSeconds:  reg.Histogram("leah_voice_turn_seconds", voiceLatencyBuckets),
-		stageSeconds: reg.Histogram("leah_voice_stage_seconds", voiceLatencyBuckets),
-		turnTotal:    reg.Counter("leah_voice_turn_total"),
-		bargeInTotal: reg.Counter("leah_voice_barge_in_total"),
-		wakeEvent:    reg.Counter("leah_voice_wake_event_total"),
-		path:         path,
+		turnSeconds:       reg.Histogram("leah_voice_turn_seconds", voiceLatencyBuckets),
+		stageSeconds:      reg.Histogram("leah_voice_stage_seconds", voiceLatencyBuckets),
+		bargeInCancelSecs: reg.Histogram("leah_voice_barge_in_cancel_seconds", BargeInCancelBuckets),
+		turnTotal:         reg.Counter("leah_voice_turn_total"),
+		bargeInTotal:      reg.Counter("leah_voice_barge_in_total"),
+		wakeEvent:         reg.Counter("leah_voice_wake_event_total"),
+		path:              path,
 	}
+}
+
+// RecordBargeInCancel observes the span from cancel-signal fired → in-flight
+// TTS Speak fully unwound. Outcome ∈ {"completed", "timeout"} — "completed"
+// is the healthy path (Speak returned within the cancel grace window),
+// "timeout" is for future wiring when the session enforces a hard cap.
+// Negative durations are dropped (clock skew, out-of-order timestamps).
+func (t *TurnInstrumentation) RecordBargeInCancel(outcome string, dur time.Duration) {
+	if t == nil {
+		return
+	}
+	if dur < 0 {
+		return
+	}
+	t.bargeInCancelSecs.Observe(map[string]string{"outcome": outcome}, dur.Seconds())
 }
 
 // RecordTurn emits one turn-level observation. outcome ∈ {"completed",

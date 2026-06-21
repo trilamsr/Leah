@@ -184,6 +184,7 @@ Target: **wake → first-TTS-audio in under 1.5s 95p.**
 | Reasoner.Ask → text returned | 600ms | depends on model; tracked, not gated |
 | Text → TTS first audio byte | 140ms | Kokoro warm |
 | **Total** | **1.5s** | |
+| Barge-in detected → TTS halted | 200ms | A8: cancel-signal → Speak unwound; `leah_voice_barge_in_cancel_seconds` |
 
 If `Reasoner.Ask` exceeds 600ms (likely with a 70B local model), we file
 **tracking issue: streaming-reasoner-into-tts (W15+)** rather than relaxing
