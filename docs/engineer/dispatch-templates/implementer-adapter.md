@@ -1,6 +1,34 @@
+<!-- propagated from operator-personal feedback_*.md 2026-06-21 — do not re-state in prompts, this is canonical -->
+
 # Implementer dispatch template — adapter wiring fan-out
 
 Canonical prompt for fan-out work that wires a cross-cutting concern (metrics, audit, attestation, etc.) into each adapter under `internal/adapters/<name>/`.
+
+## Codified rules
+
+These rules reach subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding. Implementer base rules in `implementer.md` apply in full; adapter-fan-out-specific additions below.
+
+### CI/check gates (← feedback_check_gates)
+
+- **Local `make check` ≠ CI lint.** Run BOTH `./scripts/check.sh` AND `golangci-lint run --timeout=5m` before push. Adapter packages using `database/sql` are recurring errcheck offenders (`(*sql.Rows).Close()` returns error — wrap as `defer func() { _ = X.Close() }()`).
+- **Capture the REAL exit code.** `bash scripts/check.sh > /tmp/cicheck.log 2>&1; echo EXIT=$?` with NOTHING between script and `echo EXIT=$?`.
+- **Comment-density gate.** Adapter packages are small + many exported symbols. Either inline package comment on `package` line (NEVER a `doc.go`), trim WHAT-narration godocs, OR use `<!-- comment-density-justified: <reason> -->` PR-body marker as the standard exit.
+
+### Merge discipline (← feedback_merge_discipline)
+
+- **Rule 1 — Branch-guard before merge in its OWN call** (see `implementer.md` for full text).
+- **Rule 2 — Rebase stale-base before merge.** Adapter fan-out PRs branch in parallel waves; the 2nd+ wave member is reliably stale-based vs main. `git merge-base --is-ancestor <main-sha> HEAD` first; rebase if exit 1. Phantom-deletion diffs from sibling merges WILL appear without this.
+- **Rule 5 — NO `gh pr merge --auto` from implementer.** End with `gh pr ready <N>` + hand back to main thread (see MERGE STEP HARD GATE below).
+- **Rule 5b — NO PR-body footer tokens from implementer.** The dispatcher adds them post-review, citing the real reviewer subagent agent-id.
+
+### Adapter-specific cross-collision (← feedback_autonomous_loop "Same-helper collision")
+
+- **Cross-verb shared helpers — land the shared piece FIRST, then fan-out.** When 2+ parallel adapter PRs would each invent a private helper with the same name + different signatures (e.g. `parseSinceFlag` independently re-invented in 3 cmd/leah verbs → CI redeclaration error post-merge), STOP the fan-out and land the shared helper as a solo PR first. Same applies for shared seam types (Metrics, Audit) — pilot ONE adapter, merge, then fan-out off it.
+
+### Work conventions (← feedback_work_conventions)
+
+- **No overclaim** — "shipped" requires merged sha + green CI on main, not "PR opened". Enumerate every deliverable as an explicit checklist.
+- **"Done" = verified + tidy + next-step.** After PR merge: remove worktree, prune branch, name next adapter in the fan-out.
 
 Distilled from the 2026-06-10 W81 fan-out — 14 adapters wired in two waves of 6+1. Each agent received a ~70-line ad-hoc prompt; the deltas across the 14 were small enough that re-typing the prompt was a forgetting hazard. Several PRs landed with: skipped TDD step, agent self-merge, missing reviewer footer, inline review treated as independent. This template makes the steps literal so the next fan-out cannot lose them.
 

@@ -1,6 +1,25 @@
+<!-- propagated from operator-personal feedback_*.md 2026-06-21 — do not re-state in prompts, this is canonical -->
+
 # Designer dispatch template
 
 Design-doc subagent for leah. Output: spec under `docs/engineer/specs/YYYY-MM-DD-<slug>.md`. Extends `CLAUDE.md`.
+
+## Codified rules
+
+These rules reach designer subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding.
+
+### Verify before designing (← feedback_dispatch_verification)
+
+- **Verify git history before specifying new work.** Linear status is NOT authoritative for what's in the code — tickets ship under different wave numbers or before the tracker updates. Before specifying ANY backlog ticket as new work: `git log --oneline --all | grep -iE '<wave#|keyword>'` + check the target package/RPCs. Exists+compiles+tests pass → it's shipped; close, do NOT design. (W65/MAY-211 was already merged while Backlog; 41 shipped-but-Backlog at session start.)
+- **Verify a real producer exists before specifying a consumer.** Before specifying X-consumer wiring (event kind, lister, service), grep for a PRODUCTION producer/constructor of X. Assumed-producer = dead-path trap: HUD-107 subscribed to never-emitted event kinds; MAY-209 wired a Handler no running process invoked. Producer-only code with no consumer is acceptable when it matches an established pattern (macOS signal adapters land before their daemon consumer) — but never invent a consumer for a producer with no host.
+- **Verify on-path before specifying a "slow/broken" fix.** Before ranking an "X is slow / X is broken" claim above the lowest-effort tier, probe that X is on an active call path AND reachable from a real user surface. Orphaned/stub code has zero felt-UX impact and does not earn spec effort.
+- **Verify numeric claims in the spec.** Every numeric claim in the spec (file count, LoC, rule count) MUST pair with the exact command that produced it, against `git ls-tree origin/main` — NEVER worktree-local Read.
+
+### Autonomy patterns (← feedback_autonomous_loop)
+
+- **No pause on backlog drain.** When the roadmap/backlog drains, the next action is to spawn the next planner/spec — NOT to stop. Pause only on an irreversible-action gate (outward/destructive) or an explicit operator stop.
+- **End every turn on a dispatched action, not narration.** A "next I'll X" sentence with no pending dispatch = dead loop. If you catch yourself writing "next I'll X" — do X in the same turn.
+- **Don't block on the operator.** Reversible choices → sensible default. Ambiguous-consequential → spawn a decision-agent. Ask the operator ONLY for irreversible / values calls. Never park the spec waiting for input.
 
 ## Variables
 - `<TOPIC>` — one-line problem statement.

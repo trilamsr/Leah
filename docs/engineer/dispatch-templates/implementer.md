@@ -1,6 +1,34 @@
+<!-- propagated from operator-personal feedback_*.md 2026-06-21 — do not re-state in prompts, this is canonical -->
+
 # Implementer dispatch template
 
 Code-writing subagent for leah. Extends `CLAUDE.md` — does NOT restate it. Substitute the Variables below then paste into Task dispatch.
+
+## Codified rules
+
+These rules reach subagents via this template; the operator-personal `feedback_*.md` files do NOT auto-load into the subagent context. Treat as binding.
+
+### CI/check gates (← feedback_check_gates)
+
+- **Local `make check` ≠ CI lint.** `make check` skips `golangci-lint run`. Run BOTH before push: `./scripts/check.sh` AND `golangci-lint run --timeout=5m`. Skipping the lint = CI red on the first downstream PR (recurrence: PRs #272/#273/#274).
+- **Capture the REAL check.sh exit code.** False-report happens when a trailing `echo`/pipe's exit is captured. Run as `bash scripts/check.sh > /tmp/cicheck.log 2>&1; echo EXIT=$?` — `echo EXIT=$?` MUST immediately follow the script with nothing between.
+- **Comment-density gate exits.** New prod files >5% comment lines fail. Tiny files cannot win arithmetically. Exits in order: (a) inline package comment on the `package` line — `doc.go` can NEVER clear 5%; (b) trim WHAT-narration godocs to load-bearing WHY only; (c) for ≤100-LOC new packages, the `<!-- comment-density-justified: <reason> -->` PR-body marker IS the standard exit, not an exception.
+- **Parallel-load timing flakes — re-run isolated.** check.sh timing tests flake when many agents saturate CPU (known: `internal/adapters/maps TestOSM_Throttle_Spaces1ReqPerSec`). Re-run isolated (`GOMAXPROCS=1`, no concurrent agents) before treating as broken; EXIT=0 isolated = pass, not regression.
+
+### Merge discipline (← feedback_merge_discipline)
+
+- **Rule 1 — Branch-guard in its OWN call before any merge.** The Bash tool's cwd persists; chained `guard && merge` shows guard output AFTER the merge ran on the wrong branch. HARD RULE: call 1 = `git -C /Users/treedesk/Desktop/Projects/leah branch --show-current` → READ → if not `main`, `git checkout main` (separate call) → THEN merge alone with explicit `cd /Users/treedesk/Desktop/Projects/leah` inside the merge command. Never rely on inherited cwd. (Hit 3× before holding.)
+- **Rule 2 — Rebase stale-base BEFORE merging.** `git merge-base --is-ancestor <current-main-sha> <branch>`; exit 1 → stale-based → `git rebase <current-main-sha>` in worktree FIRST, then re-verify the diff. Why: `git diff A..B` is symmetric about the merge-base; B branched off OLDER main shows every A commit as phantom DELETION (one session: −4961 phantom-deleted lines). Merging raw reverts main's newer work.
+- **Rule 3 — No destructive global git from a worktree.** Never run repo-global destructive git (stash clear/drop, gc, prune, reflog expire, force-push) from a worktree — shared `.git` blast radius hits primary + all worktrees. Use a throwaway commit, never stash.
+- **Rule 4 — Never self-approve; re-spawn reviewer after edits.** Author writing own APPROVE = zero adversarial pass. When the reviewer returns `block-on-findings`, applying your own edits then merging IS self-approval — equivalent to skipping the adversarial gate. After amending, hand back to the main-thread dispatcher to RE-SPAWN a fresh reviewer subagent against the amended head with the original findings list; that reviewer verifies each finding cleared + scans for regressions the edits introduced. Only merge when the re-review returns `clear-to-merge`. Exception: a comment-only fix on an already-passed logic review may merge after verifying the delta is comment-only (the logic verdict carries).
+- **Rule 5 — NO `gh pr merge --auto` from implementer.** Implementer ends with `gh pr ready <N>` + handoff to main-thread dispatcher. Main thread (not this subagent) arms `--auto --squash` AFTER independent reviewer subagent APPROVE on current head SHA.
+- **Rule 5b — NO PR-body footer tokens (`Reviewer-agent-id:` / `Reviewer-recommendation:`) from implementer.** These are added AFTER an independent reviewer subagent APPROVE, by the dispatcher — not by the author. Adding pre-review or fabricating an agent-id is the actual bypass pattern the gate exists to catch.
+
+### Work conventions (← feedback_work_conventions)
+
+- **No overclaim — scan ≠ action, dispatched ≠ shipped, saved ≠ enforced.** Before stating "X complete" / "X done", grep your own session: did the followthrough the diagnostic surfaced actually get done? Distinguish word-precisely: "scan ran" ≠ "audit complete"; "PR opened" ≠ "merged"; "rule saved to memory" ≠ "rule enforced via gate-boundary edit". Every status statement carries an explicit `still-pending:` line surfacing negative space.
+- **"Done" = verified + tidy + next-step, stated unprompted.** Before reporting any unit complete: (1) VERIFY — prove it (tickets Done, `git rev-list` confirms merge, check.sh EXIT=0), don't assert; (2) TIDY — prune merged worktrees/branches, stale memory, dead scratch in the same turn; (3) NEXT — name the next action so operator never asks "what now?". Reporting "done" without these three is the failure mode this rule fixes.
+- **Commit EARLY — failing test then impl, so a mid-run timeout/limit doesn't lose everything.** Multi-deliverable tickets enumerate EACH deliverable as an explicit checklist; the implementer that shipped the limiter but skipped the dashboard widget (MAY-169 trap) slipped a "Done" close until git-verified.
 
 ## Variables
 - `<TASK-ID>` — wave/task tag (e.g. `W9-G5`, `gcal-T2`).
