@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 type fakeNotifier struct {
@@ -22,7 +24,7 @@ func TestFanoutCallsAllNotifiers(t *testing.T) {
 	a := &fakeNotifier{}
 	b := &fakeNotifier{}
 	c := &fakeNotifier{}
-	f := &Fanout{Notifiers: []Notifier{a, b, c}}
+	f := &Fanout{Notifiers: []contracts.Notifier{a, b, c}}
 	if err := f.Notify(context.Background(), "T", "B"); err != nil {
 		t.Fatalf("notify: %v", err)
 	}
@@ -41,7 +43,7 @@ func TestFanoutReturnsJoinedErrors(t *testing.T) {
 	a := &fakeNotifier{err: e1}
 	b := &fakeNotifier{}
 	c := &fakeNotifier{err: e2}
-	f := &Fanout{Notifiers: []Notifier{a, b, c}}
+	f := &Fanout{Notifiers: []contracts.Notifier{a, b, c}}
 	err := f.Notify(context.Background(), "T", "B")
 	if err == nil {
 		t.Fatal("want joined error, got nil")
@@ -74,7 +76,7 @@ func TestFanoutEmptyReturnsNil(t *testing.T) {
 func TestFanoutSkipsNilEntries(t *testing.T) {
 	a := &fakeNotifier{}
 	b := &fakeNotifier{}
-	f := &Fanout{Notifiers: []Notifier{a, nil, b}}
+	f := &Fanout{Notifiers: []contracts.Notifier{a, nil, b}}
 	if err := f.Notify(context.Background(), "T", "B"); err != nil {
 		t.Fatalf("notify: %v", err)
 	}
@@ -88,13 +90,13 @@ func TestFanoutSkipsNilEntries(t *testing.T) {
 // proof.
 func TestFanoutPreservesOrder(t *testing.T) {
 	var calls []int
-	mk := func(id int) Notifier {
+	mk := func(id int) contracts.Notifier {
 		return notifierFunc(func(_ context.Context, _, _ string) error {
 			calls = append(calls, id)
 			return nil
 		})
 	}
-	f := &Fanout{Notifiers: []Notifier{mk(1), mk(2), mk(3)}}
+	f := &Fanout{Notifiers: []contracts.Notifier{mk(1), mk(2), mk(3)}}
 	if err := f.Notify(context.Background(), "T", "B"); err != nil {
 		t.Fatalf("notify: %v", err)
 	}

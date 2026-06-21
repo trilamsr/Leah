@@ -1,6 +1,6 @@
 // Package notify pushes terminal-state alerts. Desktop = macOS osascript
 // banner; Pushover = phone push via the Pushover HTTP API. Both satisfy the
-// daemonloop.Notifier interface so callers can swap or fan-out.
+// contracts.Notifier interface so callers can swap or fan-out.
 package notify
 
 import (
@@ -34,7 +34,7 @@ func (ShellExec) Run(ctx context.Context, args []string) (string, error) {
 }
 
 // Desktop is the macOS-native banner notifier (osascript). Other platforms
-// will need an alternate Notifier; the daemonloop interface keeps the wiring
+// will need an alternate Notifier; the contracts interface keeps the wiring
 // pluggable.
 type Desktop struct {
 	Exec Executor

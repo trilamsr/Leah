@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/trilam/leah/internal/daemonloop"
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/notify"
 )
 
@@ -12,12 +12,12 @@ import (
 // Always includes Desktop; appends VoiceNotify when LEAH_VOICE_ENABLED=1.
 // Fanout dispatches to every wrapped notifier and joins errors so a TTS
 // chain failure cannot suppress the desktop banner.
-func buildNotifier() daemonloop.Notifier {
+func buildNotifier() contracts.Notifier {
 	desktop := notify.NewDesktop()
 	if os.Getenv("LEAH_VOICE_ENABLED") != "1" {
 		return desktop
 	}
-	return &notify.Fanout{Notifiers: []notify.Notifier{desktop, notify.NewVoice()}}
+	return &notify.Fanout{Notifiers: []contracts.Notifier{desktop, notify.NewVoice()}}
 }
 
 // logVoiceState emits the operator-visible line announcing whether voice

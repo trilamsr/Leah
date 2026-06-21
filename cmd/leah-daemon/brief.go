@@ -10,6 +10,7 @@ import (
 
 	"github.com/trilam/leah/internal/brief"
 	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/notify"
 )
@@ -50,10 +51,10 @@ func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File) daemon
 // buildBriefNotifier fans the brief summary across every configured push
 // channel. Desktop + voice are the opt-in pair; pushover joins only when its
 // creds are set so an unconfigured phone push stays silent rather than
-// erroring on every fire. Slack/discord/whatsapp have no notify.Notifier
+// erroring on every fire. Slack/discord/whatsapp have no contracts.Notifier
 // yet — wiring one is the next-wave adapter work, not this push path.
 func buildBriefNotifier() *notify.Fanout {
-	ns := []notify.Notifier{notify.NewDesktop(), notify.NewVoice()}
+	ns := []contracts.Notifier{notify.NewDesktop(), notify.NewVoice()}
 	if os.Getenv("LEAH_PUSHOVER_USER") != "" && os.Getenv("LEAH_PUSHOVER_TOKEN") != "" {
 		ns = append(ns, notify.NewPushover())
 	}
