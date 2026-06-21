@@ -213,3 +213,24 @@ func TestRunPRStateBadArg(t *testing.T) {
 		t.Errorf("bad arg exit = %d, want 2", rc)
 	}
 }
+
+func TestRunPRStateMultipleNumbersRejected(t *testing.T) {
+	var buf strings.Builder
+	rc := runPRState(context.Background(), nil, []string{"1", "2"}, &buf)
+	if rc != 2 {
+		t.Errorf("two PR numbers exit = %d, want 2 (silent-overwrite bug)", rc)
+	}
+}
+
+func TestRunPRStateNumberWithModeRejected(t *testing.T) {
+	var buf strings.Builder
+	rc := runPRState(context.Background(), nil, []string{"1", "--open"}, &buf)
+	if rc != 2 {
+		t.Errorf("<N> + --open exit = %d, want 2 (silent-drop bug)", rc)
+	}
+	var buf2 strings.Builder
+	rc2 := runPRState(context.Background(), nil, []string{"--queue", "7"}, &buf2)
+	if rc2 != 2 {
+		t.Errorf("--queue + <N> exit = %d, want 2", rc2)
+	}
+}

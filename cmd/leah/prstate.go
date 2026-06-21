@@ -55,7 +55,8 @@ func runPRState(parent context.Context, exec ghclient.Executor, args []string, w
 	}
 	repo := defaultPRStateRepo
 	mode := "" // "", "open", "queue"
-	var prNum int
+	prNum := 0
+	prNumSeen := false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -79,8 +80,21 @@ func runPRState(parent context.Context, exec ghclient.Executor, args []string, w
 				_, _ = fmt.Fprintf(os.Stderr, "leah pr-state: %q is not a PR number\n", a)
 				return 2
 			}
+			// Silently overwriting the prior number would let
+			// `leah pr-state 1 2` look like it queried #1.
+			if prNumSeen {
+				_, _ = fmt.Fprintln(os.Stderr, "leah pr-state: only one PR number accepted")
+				return 2
+			}
 			prNum = n
+			prNumSeen = true
 		}
+	}
+	// Positional PR + mode flag are mutually exclusive — the silent-drop
+	// shape `leah pr-state 1 --open` would hide the operator's intent.
+	if mode != "" && prNumSeen {
+		_, _ = fmt.Fprintln(os.Stderr, "leah pr-state: <N> and --open/--queue are mutually exclusive")
+		return 2
 	}
 
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
