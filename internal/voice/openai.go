@@ -64,13 +64,11 @@ func (o *OpenAITTS) resolveHTTPClient() *http.Client {
 	return defaultHTTPClient()
 }
 
-// Speak synthesizes via OpenAI and plays the resulting audio via afplay.
-func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
-	if text == "" {
-		return nil
-	}
+// synth POSTs to OpenAI, writes the wav to a temp file, and returns its path;
+// the caller removes it.
+func (o *OpenAITTS) synth(ctx context.Context, text string) (string, error) {
 	if o.APIKey == "" {
-		return fmt.Errorf("openai tts: missing api key")
+		return "", fmt.Errorf("openai tts: missing api key")
 	}
 	endpoint := o.Endpoint
 	if endpoint == "" {
@@ -92,48 +90,78 @@ func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
 		"response_format": "wav",
 	})
 	if err != nil {
-		return fmt.Errorf("openai tts: marshal: %w", err)
+		return "", fmt.Errorf("openai tts: marshal: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("openai tts: new request: %w", err)
+		return "", fmt.Errorf("openai tts: new request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+o.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := o.resolveHTTPClient().Do(req)
 	if err != nil {
-		return fmt.Errorf("openai tts: post: %w", err)
+		return "", fmt.Errorf("openai tts: post: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("openai tts: status %d: %s", resp.StatusCode, string(b))
+		return "", fmt.Errorf("openai tts: status %d: %s", resp.StatusCode, string(b))
 	}
 
 	tmp, err := os.CreateTemp("", "leah-voice-openai-*.wav")
 	if err != nil {
-		return fmt.Errorf("openai tts: temp: %w", err)
+		return "", fmt.Errorf("openai tts: temp: %w", err)
 	}
 	path := tmp.Name()
-	defer func() { _ = os.Remove(path) }()
 	// Tee the first 512 bytes so a mid-stream copy failure still surfaces
 	// the OpenAI error frame (often JSON) in the wrapped error.
 	var head bytes.Buffer
 	src := io.TeeReader(resp.Body, &writerCap{w: &head, cap: 512})
 	if _, err := io.Copy(tmp, src); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("openai tts: copy: %w; body_prefix=%s", err, strconv.Quote(head.String()))
+		_ = os.Remove(path)
+		return "", fmt.Errorf("openai tts: copy: %w; body_prefix=%s", err, strconv.Quote(head.String()))
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("openai tts: close: %w", err)
+		_ = os.Remove(path)
+		return "", fmt.Errorf("openai tts: close: %w", err)
 	}
+	return path, nil
+}
 
+// Speak synthesizes via OpenAI and plays the resulting audio via afplay.
+func (o *OpenAITTS) Speak(ctx context.Context, text string) error {
+	if text == "" {
+		return nil
+	}
+	path, err := o.synth(ctx, text)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(path) }()
 	return withAudioDevice(func() error {
 		if _, err := o.Exec.Run(ctx, "afplay", path); err != nil {
 			return fmt.Errorf("openai tts afplay: %w", err)
 		}
 		return nil
 	})
+}
+
+// Synthesize returns the wav bytes OpenAI produces, without playing them.
+func (o *OpenAITTS) Synthesize(ctx context.Context, text string) ([]byte, string, error) {
+	if text == "" {
+		return nil, "", nil
+	}
+	path, err := o.synth(ctx, text)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = os.Remove(path) }()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", fmt.Errorf("openai tts: read wav: %w", err)
+	}
+	return b, "audio/wav", nil
 }
