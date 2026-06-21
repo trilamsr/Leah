@@ -137,6 +137,15 @@ func (p *RegattaProvider) Connect(ctx context.Context, att Attestor) (retErr err
 	return nil
 }
 
+// Revoke is the Disconnect-side inverse of Connect's `docker run`: it tears
+// down the pinned container. Errors are swallowed so an already-stopped or
+// already-removed container disconnects cleanly (idempotent).
+func (p *RegattaProvider) Revoke(ctx context.Context) error {
+	_, _, _ = p.Exec.Run(ctx, "docker", "stop", regattaContainer)
+	_, _, _ = p.Exec.Run(ctx, "docker", "rm", regattaContainer)
+	return nil
+}
+
 func (p *RegattaProvider) waitHealthy(ctx context.Context) error {
 	poll := p.HealthzPoll
 	if poll <= 0 {

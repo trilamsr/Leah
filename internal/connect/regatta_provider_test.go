@@ -362,6 +362,68 @@ func TestRegattaProvider_NameAndTokenPath(t *testing.T) {
 	}
 }
 
+// TestRegattaRevoke_StopsAndRemovesContainer pins MAY-188: Revoke is the hook
+// the generic Disconnect calls — it must `docker stop` then `docker rm` the
+// pinned container, in that argv order.
+func TestRegattaRevoke_StopsAndRemovesContainer(t *testing.T) {
+	fx := &fakeExec{script: []fakeExecResp{{}, {}}}
+	p := &RegattaProvider{Exec: fx}
+
+	if err := p.Revoke(context.Background()); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	if got := fx.argvAt(0); len(got) != 3 || got[0] != "docker" || got[1] != "stop" || got[2] != regattaContainer {
+		t.Fatalf("call 0 not `docker stop leah-regatta`: %v", got)
+	}
+	if got := fx.argvAt(1); len(got) != 3 || got[0] != "docker" || got[1] != "rm" || got[2] != regattaContainer {
+		t.Fatalf("call 1 not `docker rm leah-regatta`: %v", got)
+	}
+}
+
+// TestRegattaRevoke_AlreadyGone_Idempotent proves a stopped/removed container
+// (docker errors "No such container") yields a clean exit, not an error.
+func TestRegattaRevoke_AlreadyGone_Idempotent(t *testing.T) {
+	fx := &fakeExec{script: []fakeExecResp{
+		{err: errors.New("Error response from daemon: No such container: leah-regatta")},
+		{err: errors.New("Error: No such container: leah-regatta")},
+	}}
+	p := &RegattaProvider{Exec: fx}
+
+	if err := p.Revoke(context.Background()); err != nil {
+		t.Fatalf("Revoke not idempotent: %v", err)
+	}
+}
+
+// TestDisconnectRegatta_TearsDownAndRemovesMode wires the regatta provider
+// through the generic Disconnect: container teardown (Revoker hook) + mode-file
+// removal, no parallel disconnect path.
+func TestDisconnectRegatta_TearsDownAndRemovesMode(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	modePath := regattaModePath()
+	if err := os.MkdirAll(filepath.Dir(modePath), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(modePath, []byte(`{"mode":"docker"}`), 0o600); err != nil {
+		t.Fatalf("seed mode: %v", err)
+	}
+	fx := &fakeExec{script: []fakeExecResp{{}, {}}}
+	p := &RegattaProvider{Exec: fx}
+
+	if err := Disconnect(context.Background(), p, regattaFakeAttestor{allow: true}); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	if got := fx.argvAt(0); len(got) != 3 || got[1] != "stop" {
+		t.Fatalf("missing docker stop: %v", got)
+	}
+	if got := fx.argvAt(1); len(got) != 3 || got[1] != "rm" {
+		t.Fatalf("missing docker rm: %v", got)
+	}
+	if _, err := os.Stat(modePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("mode file still present: %v", err)
+	}
+}
+
 func contains(ss []string, want string) bool {
 	for _, s := range ss {
 		if strings.Contains(s, want) {
