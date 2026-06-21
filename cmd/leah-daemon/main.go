@@ -119,6 +119,16 @@ func main() {
 	engine.RegisterMatcher(identitySignalMatcher{})
 	stopRec, _ := startRecommendDispatcher(ctx, lg, registry, bus, engine)
 	defer stopRec()
+	if br, err := recommend.StartSignalBridge(ctx, bus, engine, recommend.SignalBridgeOptions{
+		Kinds: []string{
+			"safari.history_changed", "messages_changed", "mail_changed", "notes_changed",
+			"contact_store_changed", "workspace.active_app_changed", "focus.state_changed",
+		},
+	}); err == nil {
+		defer br.Stop()
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: signal bridge non-fatal: %v\n", err)
+	}
 
 	// W94: spec §6.3 mandates a daemon-side 1-minute rollover timer so a
 	// daemon-idle midnight rolls the month within ≤60 s. Cap defaults to
