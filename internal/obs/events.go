@@ -80,6 +80,11 @@ type NotesChangedEvent struct{}
 // are intentionally not surfaced (PII; downstream re-reads the db).
 type SafariHistoryChangedEvent struct{}
 
+// FocusStateChangedEvent is the Payload schema for `focus.state_changed`. Empty
+// struct — pmset / DND-Assertions FSEvents only signal that focus toggled;
+// consumers re-read state under macos:focus:query for the active mode.
+type FocusStateChangedEvent struct{}
+
 // EventQuery is a Query filter. Mutually-additive fields AND together.
 type EventQuery struct {
 	Since    time.Time
@@ -540,6 +545,7 @@ var KnownEventKinds = []string{
 	"mail_changed",
 	"notes_changed",
 	"safari.history_changed",
+	"focus.state_changed",
 }
 
 // SafeDetail strips chars outside [\w\-\.:/], truncates 128r (spec §9 PII).
