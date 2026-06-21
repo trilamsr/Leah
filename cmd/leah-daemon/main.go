@@ -119,6 +119,8 @@ func main() {
 	engine.RegisterMatcher(identitySignalMatcher{})
 	stopRec, _ := startRecommendDispatcher(ctx, lg, registry, bus, engine)
 	defer stopRec()
+	stopInbound, _ := startInboundDiscord(ctx, inboundOpts{StateDir: sd, Engine: engine, Audit: a})
+	defer stopInbound()
 	if br, err := recommend.StartSignalBridge(ctx, bus, engine, recommend.SignalBridgeOptions{
 		Kinds: []string{
 			"safari.history_changed", "messages_changed", "mail_changed", "notes_changed",
