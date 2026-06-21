@@ -32,7 +32,7 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 - Independent reviewer subagent for EVERY PR — default behavior, no exceptions, no waiting to be told. Adversarial framing.
 - Reviewer subagent posts verdict text via `gh pr comment <N> -b "REVIEWER APPROVE/REVISE: <agent-id>: <11-dim summary>"` BEFORE main thread arms merge. The comment is the audit artifact — operator scans PR comments to verify a real adversarial review ran.
 - Review dimensions every PR (ALL must clear before APPROVE): correctness/bugs, unintended side effects, conciseness, refactor, simplification, doc updates, comment trimming, test coverage, deletion-default, no AI signatures, no ceremony.
-- Never self-approve: author writing own APPROVE token = zero adversarial pass.
+- Never self-approve: author posting own `REVIEWER APPROVE:` comment = zero adversarial pass.
 
 ## Worktree discipline
 

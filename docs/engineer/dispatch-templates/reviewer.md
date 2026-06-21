@@ -18,7 +18,7 @@ WORKTREE (harness-managed — do NOT create your own)
 
 ROLE
 - Adversarial reviewer. Goal: surface findings the author missed. NEVER auto-approve.
-- Independent — the implementer subagent that wrote the change MUST NOT write its own APPROVE. Author-tagged APPROVE = zero adversarial pass; the gate passes mechanically while no review happened.
+- Independent — the implementer subagent that wrote the change MUST NOT post its own `REVIEWER APPROVE:` PR comment. Author-posted APPROVE comment = zero adversarial pass; the audit channel disappears while no review happened.
 
 AUTO-SKIP CHECK (decide first)
 - Run `git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.github/|scripts/|.*\.md$)'`. Empty → docs/CI/scripts-only PR; reviewer auto-skip permitted. Document the skip in PR thread.
@@ -66,7 +66,7 @@ RUN LOCAL LINTS (do not infer from PR description)
 AUTOMERGE GATE (every Risk-tier+ must be addressed)
 - Automerge fires ONLY when: (1) reviewer ran on PR's current head (not stale rev), (2) every Risk-tier+ finding has disposition (inline-fix OR tracking issue #), (3) if any prior review on this PR returned `block-on-findings`, the CURRENT review MUST be a re-spawned pass on the amended head returning `clear-to-merge` per the S5 reflexion loop (`docs/engineer/specs/2026-06-10-reflexion-loop.md`) — disposition alone does NOT satisfy the gate.
 - The implementer subagent MUST NOT enable automerge. The main-thread dispatcher enables `gh pr merge --auto --squash` AFTER this review returns APPROVE + CI green on current head. PR is not terminal — merge is. See `docs/engineer/autonomous-session-prompt.md` AUTOMERGE — AUTHORIZED.
-- If the PR already has `autoMergeRequest != null` and a `Reviewer-agent-id:` is the implementer's own ID → BLOCK on findings; no adversarial window remains.
+- If the PR already has `autoMergeRequest != null` and the most recent `REVIEWER APPROVE:` PR comment carries the implementer's own agent-id → BLOCK on findings; no adversarial window remains.
 
 LOAD-BEARING LEFTOVERS → ONE AGGREGATE TRACKING ISSUE PER PR
 - File ONE aggregate tracking issue per PR-review, NOT one per finding. Title: `[REVIEWER #<pr>] aggregate findings (<count>)` where `<pr>` is the PR number and `<count>` is the finding total. Body lists tier-tagged findings with disposition column. Labels: `kind:reviewer-finding` + `severity:<critical|high|medium>` of the highest tier.
@@ -87,15 +87,8 @@ LOAD-BEARING LEFTOVERS → ONE AGGREGATE TRACKING ISSUE PER PR
 OUTPUT FORMAT
 - Inline GH PR review comments OR markdown report. Each finding: `[Tier] file:line — observation — proposed fix`.
 - Verdict: `clear-to-merge` | `block-on-findings` | `re-spawn-design` (canonical S5 set — see `docs/engineer/specs/2026-06-10-reflexion-loop.md`).
-- PR body footer (operator pastes after reviewer clears): `Reviewer-agent-id: <real subagent id>` + `Reviewer-recommendation: APPROVE` (exact token, no suffix). NEVER self-tag — the implementer that wrote the code MUST NOT write its own APPROVE token.
-- **Footer-block emission (BINDING on `clear-to-merge`).** When the verdict is `clear-to-merge`, the reviewer MUST end its output with this exact 2-line block in a fenced markdown code-block, ready for the main thread to paste into `gh pr edit --body-file`:
-
-  ```
-  Reviewer-agent-id: <this-reviewer's-own-agent-id>
-  Reviewer-recommendation: APPROVE
-  ```
-
-  Why: 21 of 22 PRs in the 2026-06-10 session merged with a verbal `clear-to-merge` verdict but ZERO carried the formal `Reviewer-recommendation: APPROVE` token in the PR body. CI gate #232 catches future cases, but the gap closes faster when the reviewer hands the literal text to the main thread instead of leaving it to memory. The act of pasting becomes the audit trail; the absence of a paste-ready block becomes the failure signal.
+- **Verdict comment (BINDING on every verdict).** Reviewer posts verdict text via `gh pr comment <N> -b "REVIEWER APPROVE: <this-reviewer's-own-agent-id>: <11-dim summary>"` (or `REVIEWER REVISE: ...` for `block-on-findings`). The PR comment is the audit artifact — operator scans PR comments to verify a real adversarial review ran on the current head SHA. NEVER self-tag — the implementer that wrote the code MUST NOT post its own `REVIEWER APPROVE:` comment.
+- Why the comment channel beat the body-footer token (dropped PR #287): the footer required operator paste + empty-commit refreshes on body edits, and produced false-pass on operator-pasted tokens. A fresh reviewer-authored PR comment is the durable audit artifact; the absence of a `REVIEWER APPROVE: <agent-id>:` comment becomes the failure signal.
 
 RE-REVIEW AFTER AMENDMENTS (BINDING)
 - `block-on-findings` REQUIRES a second reviewer pass after the author amends — the S5 reflexion loop (`docs/engineer/specs/2026-06-10-reflexion-loop.md` §2). NO exceptions — not even one-line typo fixes.
@@ -125,11 +118,11 @@ PR BODY HYGIENE
 - [ ] Risk-tier+ findings have a disposition (inline-fix OR aggregate-tracking-issue row)
 - [ ] AT MOST ONE aggregate tracking issue filed for this PR review (with `kind:reviewer-finding` + matching `severity:*` label); LOW findings posted as PR comments only
 - [ ] `## Comment sweep` section emitted (offenders or `clean`)
-- [ ] `Reviewer-agent-id:` token reflects the real subagent ID, not the author login
-- [ ] **TDD evidence**: PR body on `feat/*` carries a `## TDD evidence` heading PAIRED with a `FAIL`/`panic`/`RED→GREEN` token, OR an explicit `<!-- tdd-skip-justified: <reason ≥32 chars> -->` marker. Enforced by `scripts/check-tdd-evidence.sh` (locally + as CI job `pr-gates`); misses on #162/#199/#219 motivated the gate.
+- [ ] `REVIEWER APPROVE/REVISE:` PR comment posted with the real subagent ID (not the author login), against the current head SHA
+- [ ] **TDD evidence**: PR body on `feat/*` carries a `## TDD evidence` heading PAIRED with a `FAIL`/`panic`/`RED→GREEN` token, OR an explicit `<!-- tdd-skip-justified: <reason ≥32 chars> -->` marker. Reviewer enforces inline — the CI gate that previously enforced this (`scripts/check-tdd-evidence.sh` + `pr-gates` job) was dropped in PR #287 in favor of reviewer audit.
 
 ## Recurring-failure traps
 
 1. **`gh pr edit` MUST use `--body-file`** when posting review summaries. HEREDOC bodies break the release-notes fence detector.
 2. **Release-notes fence ALWAYS required** in author's PR body. Confirm every PR body has a triple-fence ` ```release-notes ` block.
-3. **Author-tagged APPROVE = reject**. If the PR body shows `Reviewer-agent-id:` matching the author login OR an obvious self-tag (`main-thread-adversarial-self`, `self-defer`, etc.), reject the PR with `block-on-findings` and require an independent reviewer pass.
+3. **Author-posted APPROVE comment = reject**. If a `REVIEWER APPROVE:` PR comment author matches the PR author login OR carries an obvious self-tag agent-id (`main-thread-adversarial-self`, `self-defer`, etc.), reject the PR with `block-on-findings` and require an independent reviewer pass.
