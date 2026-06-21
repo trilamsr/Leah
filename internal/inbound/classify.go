@@ -13,14 +13,17 @@ type ReasonerSeam interface {
 	Ask(ctx context.Context, prompt string) (string, error)
 }
 
-// Anchored at start-of-string with a trailing word/space/punct boundary so
-// "yes please" hits accept but "yesterday" doesn't, and so "no thanks"
-// rejects without colliding with "nope". Order matters: defer's "not now"
-// and rejection's "don't" are checked before bare-word fallbacks.
+// Spec §5 mandates `\b` (word boundary) on the ASCII tokens — "yes please"
+// hits accept but "yesterday" doesn't. Emoji tokens are split out because
+// Go's `\b` is ASCII-only and a non-word→non-word transition (emoji-end →
+// EOS) never satisfies it; they match on their own with a whitespace-or-EOS
+// tail instead.
 var (
-	reAccept = regexp.MustCompile(`^(?i)(y|yes|ok|okay|approve|do it|go|ship it|👍|✅)([[:space:][:punct:]]|$)`)
-	reReject = regexp.MustCompile(`^(?i)(n|no|nope|reject|stop|don'?t|skip|👎|❌)([[:space:][:punct:]]|$)`)
-	reDefer  = regexp.MustCompile(`^(?i)(later|snooze|not now|defer|tomorrow)([[:space:][:punct:]]|$)`)
+	reAccept      = regexp.MustCompile(`(?i)^(y|yes|ok|okay|approve|do it|go|ship it)\b`)
+	reReject      = regexp.MustCompile(`(?i)^(n|no|nope|reject|stop|don'?t|skip)\b`)
+	reDefer       = regexp.MustCompile(`(?i)^(later|snooze|not now|defer|tomorrow)\b`)
+	reAcceptEmoji = regexp.MustCompile(`^(👍|✅)(\s|$)`)
+	reRejectEmoji = regexp.MustCompile(`^(👎|❌)(\s|$)`)
 )
 
 // RegexClassifier is the zero-cost fast path (spec §5). Unknown is returned
@@ -64,10 +67,10 @@ func classifyRegex(text string) Intent {
 	if t == "" {
 		return IntentUnknown
 	}
-	if reAccept.MatchString(t) {
+	if reAccept.MatchString(t) || reAcceptEmoji.MatchString(t) {
 		return IntentAccept
 	}
-	if reReject.MatchString(t) {
+	if reReject.MatchString(t) || reRejectEmoji.MatchString(t) {
 		return IntentReject
 	}
 	if reDefer.MatchString(t) {
