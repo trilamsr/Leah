@@ -11,6 +11,47 @@ brew install leah
 
 Updates: `brew upgrade leah`.
 
+The tap repo (`trilamsr/homebrew-leah`) is out of band — it is a separate GitHub
+repo, not this one. `Formula/leah.rb` here is the source of truth; copy it to that
+tap repo's `Formula/leah.rb` at release time. Creating the tap repo is a one-time
+operator step (`gh repo create trilamsr/homebrew-leah --public`).
+
+## Rollback a bad upgrade
+
+### A. Homebrew install
+
+`brew switch` is removed — pin a specific version instead. From the tap, the
+current formula is the only pinned point unless older formula revisions are kept,
+so the reliable path is reinstall-from-source at a known tag:
+
+```sh
+brew uninstall leah
+git clone --branch v0.0.1-mvp5 --depth 1 https://github.com/trilamsr/Leah ~/leah-rollback
+cd ~/leah-rollback && make install
+```
+
+To stay on a known-good release and block surprise upgrades:
+
+```sh
+brew pin leah        # brew upgrade now skips leah until `brew unpin leah`
+```
+
+### B. Source / self-upgrade install
+
+`scripts/upgrade.sh` keeps the previous build via a `leah-current` ↔ `leah-previous`
+symlink pair. Roll back without rebuilding:
+
+```sh
+scripts/upgrade.sh rollback-symlink \
+  ~/.leah-state/bin/leah-current ~/.leah-state/bin/leah-previous
+scripts/upgrade.sh rollback-symlink \
+  ~/.leah-state/bin/leah-daemon-current ~/.leah-state/bin/leah-daemon-previous
+```
+
+This swaps current ↔ previous atomically (two-step rename). Confirm with
+`leah version`, then restart the daemon. Only one prior build is retained — a
+second rollback returns you to the build you just left.
+
 ## 2. Direct download
 
 Pick the latest `vX.Y.Z` from [GitHub Releases](https://github.com/trilamsr/Leah/releases):
