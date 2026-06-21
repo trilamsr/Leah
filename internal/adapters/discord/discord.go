@@ -9,12 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
+	"github.com/trilam/leah/internal/ratelimit"
 )
 
 const (
@@ -87,13 +87,11 @@ type Adapter struct {
 	baseURL        string
 	guildAllowlist []string
 	audit          AuditSink
-	now            func() time.Time
 	dialer         WebSocketDialer
 	gatewayURL     string
 	m              *connectadapter.Metrics
 
-	mu    sync.Mutex
-	sends map[string][]time.Time
+	limiter *ratelimit.Window
 }
 
 func New(cfg Config) (*Adapter, error) {
@@ -122,11 +120,10 @@ func New(cfg Config) (*Adapter, error) {
 		baseURL:        base,
 		guildAllowlist: cfg.GuildAllowlist,
 		audit:          cfg.Audit,
-		now:            now,
 		dialer:         cfg.WebSocketDialer,
 		gatewayURL:     cfg.GatewayURL,
 		m:              cfg.Metrics,
-		sends:          map[string][]time.Time{},
+		limiter:        ratelimit.NewWindow(rateWindow, maxOutboundPerWindow, now),
 	}, nil
 }
 
@@ -142,7 +139,7 @@ func (a *Adapter) PostMessage(ctx context.Context, channelID, body string) error
 	if body == "" {
 		return ErrEmptyBody
 	}
-	if !a.allow(channelID) {
+	if !a.limiter.Allow(channelID) {
 		a.record(AuditRow{Kind: "discord_post", ChannelHash: hash, BodyLen: bodyLen, Reason: "rate_limited"})
 		return ErrRateLimited
 	}
@@ -246,24 +243,6 @@ func (a *Adapter) guildAllowed(guildID string) bool {
 		}
 	}
 	return false
-}
-
-func (a *Adapter) allow(channelID string) bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	cutoff := a.now().Add(-rateWindow)
-	kept := a.sends[channelID][:0]
-	for _, t := range a.sends[channelID] {
-		if t.After(cutoff) {
-			kept = append(kept, t)
-		}
-	}
-	a.sends[channelID] = kept
-	if len(a.sends[channelID]) >= maxOutboundPerWindow {
-		return false
-	}
-	a.sends[channelID] = append(a.sends[channelID], a.now())
-	return true
 }
 
 func (a *Adapter) record(r AuditRow) {

@@ -7,10 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sync"
 	"time"
 
 	"github.com/trilam/leah/internal/obs/connectadapter"
+	"github.com/trilam/leah/internal/ratelimit"
 )
 
 var (
@@ -68,14 +68,12 @@ type Config struct {
 }
 
 type Adapter struct {
-	att  Attestor
-	ex   OSExec
-	sink Sink
-	now  func() time.Time
-	m    *connectadapter.Metrics
-
-	mu     sync.Mutex
-	bucket []time.Time
+	att     Attestor
+	ex      OSExec
+	sink    Sink
+	now     func() time.Time
+	m       *connectadapter.Metrics
+	limiter *ratelimit.Window
 }
 
 func New(cfg Config) (*Adapter, error) {
@@ -93,7 +91,7 @@ func New(cfg Config) (*Adapter, error) {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &Adapter{att: cfg.Attestor, ex: cfg.OSExec, sink: sink, now: now, m: cfg.Metrics}, nil
+	return &Adapter{att: cfg.Attestor, ex: cfg.OSExec, sink: sink, now: now, m: cfg.Metrics, limiter: ratelimit.NewWindow(rateWindow, rateMax, now)}, nil
 }
 
 func (a *Adapter) InitiateVideo(ctx context.Context, callee string) error {
@@ -112,7 +110,8 @@ func (a *Adapter) initiate(ctx context.Context, callee, mode, scope, scheme, end
 	if !calleeRE.MatchString(callee) {
 		return fmt.Errorf("%w: %q", ErrInvalidCallee, callee)
 	}
-	if !a.allow() {
+	// One key for video + audio so alternating modes cannot evade the cap.
+	if !a.limiter.Allow("") {
 		a.audit(mode, false, callee, "rate limited")
 		return ErrRateLimited
 	}
@@ -129,27 +128,6 @@ func (a *Adapter) initiate(ctx context.Context, callee, mode, scope, scheme, end
 	}
 	a.audit(mode, true, callee, "")
 	return nil
-}
-
-// allow shares its bucket across video + audio so alternating modes cannot
-// evade the cap.
-func (a *Adapter) allow() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	now := a.now()
-	cutoff := now.Add(-rateWindow)
-	kept := a.bucket[:0]
-	for _, t := range a.bucket {
-		if t.After(cutoff) {
-			kept = append(kept, t)
-		}
-	}
-	a.bucket = kept
-	if len(a.bucket) >= rateMax {
-		return false
-	}
-	a.bucket = append(a.bucket, now)
-	return true
 }
 
 func (a *Adapter) audit(mode string, success bool, callee, reason string) {

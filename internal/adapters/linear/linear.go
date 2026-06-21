@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/trilam/leah/internal/obs/connectadapter"
+	"github.com/trilam/leah/internal/ratelimit"
 )
 
 // Endpoint is Linear's GraphQL endpoint. Linear is GraphQL-only — no REST.
@@ -83,14 +83,11 @@ type Config struct {
 }
 
 type Client struct {
-	att Attestor
-	ts  TokenSource
-	tr  Transport
-	now func() time.Time
-	m   *connectadapter.Metrics
-
-	mu     sync.Mutex
-	writes []time.Time // sliding-window timestamps for create+comment
+	att     Attestor
+	ts      TokenSource
+	tr      Transport
+	m       *connectadapter.Metrics
+	limiter *ratelimit.Window
 }
 
 func New(cfg Config) (*Client, error) {
@@ -107,7 +104,7 @@ func New(cfg Config) (*Client, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, now: now, m: cfg.Metrics}, nil
+	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, m: cfg.Metrics, limiter: ratelimit.NewWindow(writeWindow, writeBudget, now)}, nil
 }
 
 func (c *Client) ListMyIssues(ctx context.Context) ([]Issue, error) {
@@ -142,8 +139,8 @@ func (c *Client) CreateIssue(ctx context.Context, req IssueReq) (Issue, error) {
 	if req.Title == "" {
 		return Issue{}, fmt.Errorf("%w: missing Title", ErrInvalidIssue)
 	}
-	if err := c.reserveWrite(); err != nil {
-		return Issue{}, err
+	if !c.limiter.Allow("") {
+		return Issue{}, ErrRateLimited
 	}
 	tok, err := c.gateAndToken(ctx, ScopeCreate)
 	if err != nil {
@@ -162,8 +159,10 @@ func (c *Client) Comment(ctx context.Context, id, body string) error {
 	if body == "" {
 		return fmt.Errorf("%w: empty body", ErrInvalidIssue)
 	}
-	if err := c.reserveWrite(); err != nil {
-		return err
+	// One key so create + comment share the budget; gate before attestation so
+	// a burst-rejected write never consumes an operator consent prompt.
+	if !c.limiter.Allow("") {
+		return ErrRateLimited
 	}
 	tok, err := c.gateAndToken(ctx, ScopeComment)
 	if err != nil {
@@ -186,27 +185,6 @@ func (c *Client) gateAndToken(ctx context.Context, scope string) (string, error)
 		return "", fmt.Errorf("linear: token load (%s): %w", scope, err)
 	}
 	return tok, nil
-}
-
-// reserveWrite enforces the shared create+comment budget before attestation
-// so a burst-rejected call never consumes an operator consent prompt.
-func (c *Client) reserveWrite() error {
-	now := c.now()
-	cutoff := now.Add(-writeWindow)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	kept := c.writes[:0]
-	for _, t := range c.writes {
-		if t.After(cutoff) {
-			kept = append(kept, t)
-		}
-	}
-	c.writes = kept
-	if len(c.writes) >= writeBudget {
-		return ErrRateLimited
-	}
-	c.writes = append(c.writes, now)
-	return nil
 }
 
 // HTTPTransport is the default Transport implementation: direct GraphQL POSTs

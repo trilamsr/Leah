@@ -50,7 +50,7 @@ func (a *Adapter) PostVoice(ctx context.Context, channelID string, audio []byte)
 		a.record(AuditRow{Kind: "discord_post_voice", ChannelHash: hash, VoiceSHA: voiceHash, Reason: "attachment_too_large"})
 		return ErrAttachmentTooLarge
 	}
-	if !a.allow(channelID) {
+	if !a.limiter.Allow(channelID) {
 		a.record(AuditRow{Kind: "discord_post_voice", ChannelHash: hash, VoiceSHA: voiceHash, Reason: "rate_limited"})
 		return ErrRateLimited
 	}

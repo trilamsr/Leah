@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/obs/connectadapter"
+	"github.com/trilam/leah/internal/ratelimit"
 )
 
 const ScopeSend = "imessage:send"
@@ -72,14 +72,11 @@ type Config struct {
 }
 
 type Adapter struct {
-	att   Attestor
-	exec  OSExec
-	audit AuditSink
-	now   func() time.Time
-	m     *connectadapter.Metrics
-
-	mu    sync.Mutex
-	sends []time.Time
+	att     Attestor
+	exec    OSExec
+	audit   AuditSink
+	m       *connectadapter.Metrics
+	limiter *ratelimit.Window
 }
 
 func New(cfg Config) (*Adapter, error) {
@@ -93,7 +90,7 @@ func New(cfg Config) (*Adapter, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return &Adapter{att: cfg.Attestor, exec: cfg.OSExec, audit: cfg.Audit, now: now, m: cfg.Metrics}, nil
+	return &Adapter{att: cfg.Attestor, exec: cfg.OSExec, audit: cfg.Audit, m: cfg.Metrics, limiter: ratelimit.NewWindow(rateWindow, maxSendsPerWindow, now)}, nil
 }
 
 // Send order is load-bearing: validate -> rate-limit -> attest -> exec.
@@ -105,7 +102,7 @@ func (a *Adapter) Send(ctx context.Context, msg Message) error {
 		a.record(AuditRow{Kind: "imessage_send", RecipientHash: hash, BodyLen: bodyLen, Reason: "invalid_recipient"})
 		return ErrInvalidRecipient
 	}
-	if !a.allow() {
+	if !a.limiter.Allow("") {
 		a.record(AuditRow{Kind: "imessage_send", RecipientHash: hash, BodyLen: bodyLen, Reason: "rate_limited"})
 		return ErrRateLimited
 	}
@@ -134,24 +131,6 @@ func (a *Adapter) record(r AuditRow) {
 		return
 	}
 	a.audit.Record(r)
-}
-
-func (a *Adapter) allow() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	cutoff := a.now().Add(-rateWindow)
-	kept := a.sends[:0]
-	for _, t := range a.sends {
-		if t.After(cutoff) {
-			kept = append(kept, t)
-		}
-	}
-	a.sends = kept
-	if len(a.sends) >= maxSendsPerWindow {
-		return false
-	}
-	a.sends = append(a.sends, a.now())
-	return true
 }
 
 func recipientHash(to string) string {
