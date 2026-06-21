@@ -126,6 +126,8 @@ func main() {
 		},
 	}); err == nil {
 		defer br.Stop()
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: signal bridge non-fatal: %v\n", err)
 	}
 
 	// W94: spec §6.3 mandates a daemon-side 1-minute rollover timer so a

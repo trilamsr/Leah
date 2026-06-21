@@ -2,6 +2,7 @@ package recommend_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -72,7 +73,8 @@ func TestSignalBridge_AllowlistKindsReachEngine(t *testing.T) {
 	}
 	defer br.Stop()
 
-	bus.Emit(obs.Event{Kind: "safari.history_changed", Actor: "macos.safari", Detail: "hist"})
+	fixedTS := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	bus.Emit(obs.Event{Kind: "safari.history_changed", Actor: "macos.safari", Detail: "hist", TS: fixedTS})
 	bus.Emit(obs.Event{Kind: "focus.state_changed", Actor: "macos.focus", Detail: "dnd"})
 
 	waitN(t, m, 2, 2*time.Second)
@@ -83,8 +85,47 @@ func TestSignalBridge_AllowlistKindsReachEngine(t *testing.T) {
 	if got[0].Detail != "hist" || got[1].Detail != "dnd" {
 		t.Fatalf("detail not preserved: %+v", got)
 	}
-	if got[0].At.IsZero() {
-		t.Fatalf("At zero — bridge must stamp time from event")
+	if !got[0].At.Equal(fixedTS) {
+		t.Fatalf("At not preserved: want %v got %v", fixedTS, got[0].At)
+	}
+	if got[1].At.IsZero() {
+		t.Fatalf("At zero — bridge must fallback-stamp when event TS is zero")
+	}
+}
+
+// errMatcher returns err on every Match — exercises bridge OnError path.
+type errMatcher struct{ err error }
+
+func (m errMatcher) Match(context.Context, recommend.Signal) ([]recommend.Recommendation, error) {
+	return nil, m.err
+}
+
+func TestSignalBridge_OnErrorReceivesEngineError(t *testing.T) {
+	bus := obs.NewBroadcaster()
+	engine := recommend.NewMemoryEngine(nil)
+	boom := errors.New("boom")
+	engine.RegisterMatcher(errMatcher{err: boom})
+
+	errs := make(chan error, 4)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	br, err := recommend.StartSignalBridge(ctx, bus, engine, recommend.SignalBridgeOptions{
+		Kinds:   []string{"safari.history_changed"},
+		OnError: func(e error) { errs <- e },
+	})
+	if err != nil {
+		t.Fatalf("StartSignalBridge: %v", err)
+	}
+	defer br.Stop()
+
+	bus.Emit(obs.Event{Kind: "safari.history_changed"})
+	select {
+	case got := <-errs:
+		if !errors.Is(got, boom) {
+			t.Fatalf("OnError got %v, want %v", got, boom)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("OnError never fired")
 	}
 }
 
