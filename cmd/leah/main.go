@@ -252,13 +252,29 @@ func runShipArgs(ctx context.Context, args []string) int {
 	fromPR := fs.Int("from-pr", 0, "prepend gh pr view + diff for PR #N from the same repo")
 	fromIssue := fs.Int("from-issue", 0, "prepend gh issue view + comments for issue #N from the same repo")
 	fromThread := fs.String("from-thread", "", "prepend last-N shell-history entries (e.g. 100c or 30m)")
+	toolFlags := []shipToolFlag{
+		{"slack", fs.String("slack", "", "post \"<title>\" to Slack (attestation-gated)")},
+		{"jira", fs.String("jira", "", "create a Jira issue titled \"<title>\" (attestation-gated)")},
+		{"notion", fs.String("notion", "", "create a Notion page titled \"<title>\" (attestation-gated)")},
+		{"linear", fs.String("linear", "", "create a Linear issue titled \"<title>\" (attestation-gated)")},
+		{"teams", fs.String("teams", "", "post \"<title>\" to Teams (attestation-gated)")},
+		{"confluence", fs.String("confluence", "", "(no write surface in MVP — errors)")},
+	}
 	fs.Usage = func() {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"")
+		_, _ = fmt.Fprintln(os.Stderr, "       leah ship --<slack|jira|notion|linear|teams> \"<title>\"")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+
+	for _, tf := range toolFlags {
+		if *tf.val != "" {
+			return runShipTool(ctx, tf.tool, *tf.val)
+		}
+	}
+
 	if fs.NArg() < 2 {
 		fs.Usage()
 		return 2
