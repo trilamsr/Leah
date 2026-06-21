@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"testing"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 // fakeAttestor matches the facetime/imessage adapter pattern: scope-grain
@@ -176,8 +177,7 @@ func TestContacts_Query_ReadOnly(t *testing.T) {
 	// (the adapter could open RW and tests would pass). Instead, attempt the
 	// write through a separate read-only handle opened with the exact DSN the
 	// adapter uses; if that handle can mutate, the adapter's DSN is wrong.
-	dsn := fmt.Sprintf("file:%s?mode=ro&immutable=1&_pragma=query_only(1)", path)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", sqliteopen.RODSN(path))
 	if err != nil {
 		t.Fatalf("ro open: %v", err)
 	}

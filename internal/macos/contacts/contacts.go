@@ -13,6 +13,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 var (
@@ -80,10 +82,7 @@ func (a *Adapter) Query(ctx context.Context, q Query) ([]Item, error) {
 		limit = 100
 	}
 
-	// immutable=1 avoids the WAL-recovery dance against iCloud writes
-	// (spec §4); query_only is the second belt against accidental mutation.
-	dsn := fmt.Sprintf("file:%s?mode=ro&immutable=1&_pragma=query_only(1)", a.dbPath)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", sqliteopen.RODSN(a.dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("%w: open: %v", ErrSourceUnavailable, err)
 	}

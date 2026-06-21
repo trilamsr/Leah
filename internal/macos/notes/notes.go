@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 const Scope = "macos:notes:query"
@@ -102,20 +102,12 @@ func (n *Notes) Query(ctx context.Context, q Query) ([]Item, error) {
 	if _, err := os.Stat(n.path); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
-	db, err := n.open("sqlite", roDSN(n.path))
+	db, err := n.open("sqlite", sqliteopen.RODSN(n.path))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
 	defer func() { _ = db.Close() }()
 	return queryItems(ctx, db, q)
-}
-
-// immutable=1 sidesteps WAL-recovery contention with live iCloud-sync writes.
-func roDSN(path string) string {
-	return fmt.Sprintf(
-		"file:%s?mode=ro&immutable=1&_journal_mode=OFF&_query_only=1",
-		url.PathEscape(path),
-	)
 }
 
 var macEpoch = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)

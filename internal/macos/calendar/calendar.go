@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 // Scope for operator attestation on every Query call.
@@ -111,22 +111,12 @@ func (c *Calendar) Query(ctx context.Context, q Query) ([]Item, error) {
 	if _, err := os.Stat(c.path); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
-	db, err := c.open("sqlite", roDSN(c.path))
+	db, err := c.open("sqlite", sqliteopen.RODSN(c.path))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
 	defer func() { _ = db.Close() }()
 	return queryItems(ctx, db, q)
-}
-
-// roDSN — immutable=1 avoids the WAL-recovery dance fighting iCloud-sync
-// writes (spec §4, §7 risk row 1). PathEscape handles the literal space in
-// "Calendar Cache".
-func roDSN(path string) string {
-	return fmt.Sprintf(
-		"file:%s?mode=ro&immutable=1&_journal_mode=OFF&_query_only=1",
-		url.PathEscape(path),
-	)
 }
 
 // macEpoch — Calendar.app stores ZSTARTDATE/ZENDDATE as seconds since

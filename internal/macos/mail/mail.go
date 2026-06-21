@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -17,6 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 const Scope = "macos:mail:query"
@@ -105,20 +105,12 @@ func (m *Mail) Query(ctx context.Context, q Query) ([]Item, error) {
 	if _, err := os.Stat(m.path); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
-	db, err := m.open("sqlite", roDSN(m.path))
+	db, err := m.open("sqlite", sqliteopen.RODSN(m.path))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
 	defer func() { _ = db.Close() }()
 	return queryItems(ctx, db, q)
-}
-
-// immutable=1 sidesteps WAL-recovery contention with live Mail.app writes.
-func roDSN(path string) string {
-	return fmt.Sprintf(
-		"file:%s?mode=ro&immutable=1&_journal_mode=OFF&_query_only=1",
-		url.PathEscape(path),
-	)
 }
 
 const snippetMax = 200

@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 const Scope = "macos:safari:history"
@@ -101,20 +101,12 @@ func (s *Safari) Query(ctx context.Context, q Query) ([]Item, error) {
 	if _, err := os.Stat(s.path); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
-	db, err := s.open("sqlite", roDSN(s.path))
+	db, err := s.open("sqlite", sqliteopen.RODSN(s.path))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
 	defer func() { _ = db.Close() }()
 	return queryItems(ctx, db, q)
-}
-
-// immutable=1 sidesteps WAL-recovery contention with live Safari writes.
-func roDSN(path string) string {
-	return fmt.Sprintf(
-		"file:%s?mode=ro&immutable=1&_journal_mode=OFF&_query_only=1",
-		url.PathEscape(path),
-	)
 }
 
 // cocoaEpoch is 2001-01-01 UTC; Safari stores visit_time as REAL seconds
@@ -153,9 +145,9 @@ func queryItems(ctx context.Context, db *sql.DB, q Query) ([]Item, error) {
 	var out []Item
 	for rows.Next() {
 		var (
-			u, title    string
-			visitCocoa  float64
-			visitCount  int
+			u, title   string
+			visitCocoa float64
+			visitCount int
 		)
 		if err := rows.Scan(&u, &title, &visitCocoa, &visitCount); err != nil {
 			return nil, fmt.Errorf("%w: scan: %v", ErrSourceUnavailable, err)

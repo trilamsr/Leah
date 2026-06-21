@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
 const Scope = "macos:photos:query"
@@ -110,7 +110,7 @@ func (p *Photos) Query(ctx context.Context, q Query) ([]Item, error) {
 	if _, err := os.Stat(p.path); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
-	db, err := p.open("sqlite", roDSN(p.path))
+	db, err := p.open("sqlite", sqliteopen.RODSN(p.path))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, err)
 	}
@@ -137,13 +137,6 @@ func (p *Photos) Query(ctx context.Context, q Query) ([]Item, error) {
 func hashUUID(u string) string {
 	sum := sha256.Sum256([]byte(u))
 	return hex.EncodeToString(sum[:])[:8]
-}
-
-func roDSN(path string) string {
-	return fmt.Sprintf(
-		"file:%s?mode=ro&immutable=1&_journal_mode=OFF&_query_only=1",
-		url.PathEscape(path),
-	)
 }
 
 var macEpoch = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -184,9 +177,9 @@ func queryItems(ctx context.Context, db *sql.DB, q Query) ([]Item, error) {
 	var out []Item
 	for rows.Next() {
 		var (
-			uuid, fn    string
-			dateSec     float64
-			lat, lng    sql.NullFloat64
+			uuid, fn string
+			dateSec  float64
+			lat, lng sql.NullFloat64
 		)
 		if err := rows.Scan(&uuid, &dateSec, &lat, &lng, &fn); err != nil {
 			return nil, fmt.Errorf("%w: scan: %v", ErrSourceUnavailable, err)
