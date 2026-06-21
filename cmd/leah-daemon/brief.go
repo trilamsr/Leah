@@ -62,15 +62,18 @@ func buildDegradedPullTask(sd string, rc daemonloop.RegattaClient, out *os.File)
 	return func(ctx context.Context) { _ = pullBriefSnapshot(ctx, sd, rc, out) }
 }
 
-// buildBriefNotifier fans the brief summary across every configured push
-// channel. Desktop + voice are the opt-in pair; pushover joins only when its
-// creds are set so an unconfigured phone push stays silent rather than
-// erroring on every fire. Slack/discord/whatsapp have no contracts.Notifier
-// yet — wiring one is the next-wave adapter work, not this push path.
+// buildBriefNotifier fans the brief across every configured push channel;
+// each remote joins only when configured so an unset channel stays silent.
 func buildBriefNotifier() *notify.Fanout {
 	ns := []contracts.Notifier{notify.NewDesktop(), notify.NewVoice()}
 	if os.Getenv("LEAH_PUSHOVER_USER") != "" && os.Getenv("LEAH_PUSHOVER_TOKEN") != "" {
 		ns = append(ns, notify.NewPushover())
+	}
+	if d := newDiscordNotifier(); d != nil {
+		ns = append(ns, d)
+	}
+	if w := newWhatsAppNotifier(); w != nil {
+		ns = append(ns, w)
 	}
 	return &notify.Fanout{Notifiers: ns}
 }
