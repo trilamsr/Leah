@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -134,14 +135,7 @@ func runRecall(ctx context.Context, args []string) int {
 		"Be terse. No preamble."
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: sys}
 
-	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "Query: %s\n\nMatches:\n", query)
-	for _, hit := range results {
-		_, _ = fmt.Fprintf(&sb, "- [%s %s] %s\n", hit.Source, hit.Timestamp, hit.Text)
-	}
-
-	text, err := r.Ask(ctx, sb.String())
-	if err != nil {
+	if err := streamRecallSynthesis(ctx, r, os.Stdout, query, results); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah recall: %v\n", err)
 		_ = a.Append(audit.Entry{
 			Kind:        "recall",
@@ -153,7 +147,6 @@ func runRecall(ctx context.Context, args []string) int {
 		})
 		return 1
 	}
-	_, _ = fmt.Println(text)
 	_ = a.Append(audit.Entry{
 		Kind:        "recall",
 		ArgsHash:    query,
@@ -163,6 +156,34 @@ func runRecall(ctx context.Context, args []string) int {
 		Detail:      fmt.Sprintf("matches=%d llm=1", len(results)),
 	})
 	return 0
+}
+
+// recallStreamReasoner is the AskStream-only slice of *reasoner.Reasoner the
+// --llm path needs. Narrow surface lets the test drive a scripted fake.
+type recallStreamReasoner interface {
+	AskStream(ctx context.Context, user string) (<-chan string, error)
+}
+
+// streamRecallSynthesis builds the Tier-2 synthesis prompt and streams the
+// reasoner reply straight to w. WHY: mirrors `suggest --llm` so operators see
+// first-token latency on recall too, instead of staring at a blocked Ask.
+func streamRecallSynthesis(ctx context.Context, sr recallStreamReasoner, w io.Writer, query string, results []recallResult) error {
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "Query: %s\n\nMatches:\n", query)
+	for _, hit := range results {
+		_, _ = fmt.Fprintf(&sb, "- [%s %s] %s\n", hit.Source, hit.Timestamp, hit.Text)
+	}
+	ch, err := sr.AskStream(ctx, sb.String())
+	if err != nil {
+		return err
+	}
+	for delta := range ch {
+		if _, werr := io.WriteString(w, delta); werr != nil {
+			return werr
+		}
+	}
+	_, werr := io.WriteString(w, "\n")
+	return werr
 }
 
 // grepAudit scans the audit JSONL for case-insensitive substring matches
