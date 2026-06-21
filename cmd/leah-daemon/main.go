@@ -24,6 +24,7 @@ import (
 	"github.com/trilam/leah/internal/macos/activeapp"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/onboarding"
 	"github.com/trilam/leah/internal/recommend"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/voice"
@@ -42,6 +43,8 @@ func main() {
 	}
 
 	sd := stateDir()
+	// A9 SLA anchor: idempotent — relaunch / crash recovery cannot reset.
+	_ = onboarding.MarkInstalled(sd, time.Now())
 	auditPath := filepath.Join(sd, "audit.jsonl")
 	a := &audit.Logger{Path: auditPath}
 	rc := regattaclient.New()
