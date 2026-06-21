@@ -216,6 +216,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runSelfUpgrade(ctx, rest, stdout, nil)
 	case "pr-state":
 		return runPRState(ctx, nil, rest, stdout)
+	case "review-queue":
+		return runReviewQueue(ctx, rest, stdout)
 	case "threads":
 		return runThreads(ctx, rest, stdout)
 	default:
@@ -663,5 +665,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  inbound enroll <channel> <peerID>  one-time loopback authorization for remote replies (F3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  self-upgrade              attested rebuild + atomic symlink-swap of ~/bin/leah (BR=4)")
 	_, _ = fmt.Fprintln(os.Stderr, "  pr-state <N>|--open|--queue  one-line PR readiness (state, CI, review, mergeable)")
+	_, _ = fmt.Fprintln(os.Stderr, "  review-queue [--org X] [--json]  PRs awaiting your review, oldest-first")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
