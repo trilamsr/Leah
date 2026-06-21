@@ -85,6 +85,11 @@ func runNews(parent context.Context, args []string, w io.Writer) int {
 		_, _ = fmt.Fprintf(os.Stderr, "leah news: %v\n", err)
 		return 2
 	}
+	since, rest, err := parseSinceFlag(rest)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah news: %v\nusage: leah news [--bundle <name>] [--since <RFC3339>]\n", err)
+		return 2
+	}
 	if len(rest) > 0 {
 		_, _ = fmt.Fprintf(os.Stderr, "leah news: unexpected argument %q\n", rest[0])
 		return 2
@@ -123,6 +128,17 @@ func runNews(parent context.Context, args []string, w io.Writer) int {
 		_, _ = fmt.Fprintf(os.Stderr, "leah news: fetch: %v\n", err)
 		return 1
 	}
+	if !since.IsZero() {
+		filtered := articles[:0]
+		for _, a := range articles {
+			// Items with no parsable pubDate are dropped under a cursor —
+			// caller asked for "since X" and we can't prove the item meets it.
+			if !a.Published.IsZero() && !a.Published.Before(since) {
+				filtered = append(filtered, a)
+			}
+		}
+		articles = filtered
+	}
 	digest := feeds.SummarizeNews(articles)
 	if len(digest.Headlines) == 0 {
 		_, _ = fmt.Fprintln(w, "(no headlines)")
@@ -135,11 +151,14 @@ func runNews(parent context.Context, args []string, w io.Writer) int {
 }
 
 func printNewsHelp(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "usage: leah news [--bundle <name>]")
+	_, _ = fmt.Fprintln(w, "usage: leah news [--bundle <name>] [--since <RFC3339>]")
 	_, _ = fmt.Fprintln(w, "")
 	_, _ = fmt.Fprintln(w, "Fetch + synthesize a top-3 news digest from RSS sources.")
 	_, _ = fmt.Fprintln(w, "Sources default to HN + Google News; override by writing")
 	_, _ = fmt.Fprintln(w, "$LEAH_STATE_DIR/feeds-news.json.")
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "--since <RFC3339> drops items published before the cursor")
+	_, _ = fmt.Fprintln(w, "(e.g. --since=2026-06-21T00:00:00Z for today only).")
 	_, _ = fmt.Fprintln(w, "")
 	_, _ = fmt.Fprintf(w, "Curated bundles (--bundle): %s\n", knownBundles())
 }
@@ -179,6 +198,49 @@ func parseBundleFlag(args []string) (bundle string, rest []string, err error) {
 		}
 	}
 	return bundle, rest, nil
+}
+
+// parseSinceFlag consumes a single --since <RFC3339> pair. Mirrors parseBundleFlag
+// shape so duplicate detection and = vs space forms work identically — operator
+// muscle-memory from --bundle transfers.
+func parseSinceFlag(args []string) (since time.Time, rest []string, err error) {
+	rest = make([]string, 0, len(args))
+	seen := false
+	var raw string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--since":
+			if seen {
+				return time.Time{}, nil, errors.New("--since may only be specified once")
+			}
+			if i+1 >= len(args) {
+				return time.Time{}, nil, errors.New("--since requires a value")
+			}
+			raw = args[i+1]
+			seen = true
+			i++
+		case strings.HasPrefix(a, "--since="):
+			if seen {
+				return time.Time{}, nil, errors.New("--since may only be specified once")
+			}
+			raw = strings.TrimPrefix(a, "--since=")
+			if raw == "" {
+				return time.Time{}, nil, errors.New("--since requires a value")
+			}
+			seen = true
+		default:
+			rest = append(rest, a)
+		}
+	}
+	if !seen {
+		return time.Time{}, rest, nil
+	}
+	t, perr := time.Parse(time.RFC3339, raw)
+	if perr != nil {
+		return time.Time{}, nil, fmt.Errorf("--since: invalid RFC3339 %q: %w", raw, perr)
+	}
+	return t, rest, nil
 }
 
 func knownBundles() string {
