@@ -151,7 +151,7 @@ func TestBundleSources_Unknown(t *testing.T) {
 }
 
 // TestRunNews_BundleAI swaps the bundle URLs to a hermetic httptest server via
-// the test-only override env, then asserts the bundle short-circuits the
+// the test-only package hook, then asserts the bundle short-circuits the
 // feeds-news.json path.
 func TestRunNews_BundleAI(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -162,7 +162,9 @@ func TestRunNews_BundleAI(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", dir)
 	t.Setenv("LEAH_FEEDS_AUTO_ATTEST", "1")
-	t.Setenv("LEAH_NEWS_BUNDLE_URL_OVERRIDE", srv.URL)
+	prev := bundleURLOverride
+	bundleURLOverride = srv.URL
+	t.Cleanup(func() { bundleURLOverride = prev })
 
 	var buf bytes.Buffer
 	if code := runNews(context.Background(), []string{"--bundle", "ai"}, &buf); code != 0 {
@@ -170,6 +172,17 @@ func TestRunNews_BundleAI(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "Newest item") {
 		t.Errorf("output missing 'Newest item': %q", buf.String())
+	}
+}
+
+// TestRunNews_BundleDuplicate rejects repeat --bundle flags — last-wins would
+// silently swap the source list.
+func TestRunNews_BundleDuplicate(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	var buf bytes.Buffer
+	if code := runNews(context.Background(), []string{"--bundle", "ai", "--bundle", "tech"}, &buf); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
 	}
 }
 

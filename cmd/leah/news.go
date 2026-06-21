@@ -28,6 +28,10 @@ var defaultNewsSources = []feeds.NewsSource{
 // Every URL probed live (HEAD + content-type) before commit; see PR body for
 // the verification matrix. Operators who want bundle behavior plus a personal
 // override can copy the chosen bundle into $LEAH_STATE_DIR/feeds-news.json.
+//
+// TODO(MAY): anthropic via feeds.feedburner.com/anthropic — FeedBurner is
+// deprecated Google infrastructure; swap to native Anthropic RSS once they
+// publish one. Tracker: pending Linear issue.
 var newsBundles = map[string][]feeds.NewsSource{
 	"ai": {
 		{Name: "arxiv-cs.ai", URL: "https://export.arxiv.org/rss/cs.AI"},
@@ -45,6 +49,11 @@ var newsBundles = map[string][]feeds.NewsSource{
 	},
 }
 
+// bundleURLOverride is a test-only hook patched from news_test.go. Package
+// variable — not env-readable — so a stray production ENV cannot redirect
+// bundle fetches at runtime. Empty in every shipped binary.
+var bundleURLOverride string
+
 // bundleSources returns the curated source list for the named bundle. The
 // second return is false when the name is unregistered; callers translate
 // that into an exit-2 usage error rather than a soft-fail since a typo
@@ -54,12 +63,10 @@ func bundleSources(name string) ([]feeds.NewsSource, bool) {
 	if !ok {
 		return nil, false
 	}
-	// Test hook: rewrite every URL to the override target so a single httptest
-	// server can stand in for the whole bundle. Never set in production.
-	if override := os.Getenv("LEAH_NEWS_BUNDLE_URL_OVERRIDE"); override != "" {
+	if bundleURLOverride != "" {
 		out := make([]feeds.NewsSource, len(src))
 		for i, s := range src {
-			out[i] = feeds.NewsSource{Name: s.Name, URL: override}
+			out[i] = feeds.NewsSource{Name: s.Name, URL: bundleURLOverride}
 		}
 		return out, true
 	}
@@ -138,24 +145,35 @@ func printNewsHelp(w io.Writer) {
 }
 
 // parseBundleFlag consumes a single --bundle <name> pair from args. Supports
-// `--bundle ai` and `--bundle=ai`. Returns the remaining args so the caller
-// can still reject unexpected positionals.
+// `--bundle ai` and `--bundle=ai`. Rejects repeats so a silent last-wins
+// merge of conflicting bundles can't ship a digest the operator didn't ask
+// for. Returns the remaining args so the caller can still reject unexpected
+// positionals.
 func parseBundleFlag(args []string) (bundle string, rest []string, err error) {
 	rest = make([]string, 0, len(args))
+	seen := false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--bundle":
+			if seen {
+				return "", nil, errors.New("--bundle may only be specified once")
+			}
 			if i+1 >= len(args) {
 				return "", nil, errors.New("--bundle requires a value")
 			}
 			bundle = args[i+1]
+			seen = true
 			i++
 		case strings.HasPrefix(a, "--bundle="):
+			if seen {
+				return "", nil, errors.New("--bundle may only be specified once")
+			}
 			bundle = strings.TrimPrefix(a, "--bundle=")
 			if bundle == "" {
 				return "", nil, errors.New("--bundle requires a value")
 			}
+			seen = true
 		default:
 			rest = append(rest, a)
 		}
