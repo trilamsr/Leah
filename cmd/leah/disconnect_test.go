@@ -83,13 +83,55 @@ func TestRunDisconnect_HappyPath(t *testing.T) {
 	}
 }
 
-// TestRunDisconnect_NoTokenFile_ReturnsOne reports the sentinel error path.
-func TestRunDisconnect_NoTokenFile_ReturnsOne(t *testing.T) {
+// TestRunDisconnect_NotConnected_CleanExit pins idempotency: disconnecting a
+// tool with no token on disk is a clean no-op, not an error — re-running
+// disconnect must not fail.
+func TestRunDisconnect_NotConnected_CleanExit(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", dir)
 	t.Setenv("LEAH_CONNECT_AUTO_ATTEST", "1")
 	var buf bytes.Buffer
-	if code := runDisconnect(context.Background(), []string{"gmail"}, &buf); code != 1 {
-		t.Fatalf("exit %d, want 1", code)
+	if code := runDisconnect(context.Background(), []string{"gmail"}, &buf); code != 0 {
+		t.Fatalf("exit %d, want 0 (not-connected is a clean no-op)", code)
+	}
+	if !strings.Contains(buf.String(), "not connected") {
+		t.Fatalf("output %q, want a (not connected) message", buf.String())
+	}
+}
+
+// TestRunDisconnect_WorkTools_RemoveTokenAndAudit proves each of the 6 work
+// tools registered by MAY-197 is disconnectable through the generic path: a
+// token-paste provider has no remote revoke, so disconnect is a clean local
+// delete plus a success audit row.
+func TestRunDisconnect_WorkTools_RemoveTokenAndAudit(t *testing.T) {
+	for _, name := range []string{"confluence", "jira", "slack", "notion", "linear", "msteams"} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("LEAH_STATE_DIR", dir)
+			t.Setenv("LEAH_CONNECT_AUTO_ATTEST", "1")
+			secrets := filepath.Join(dir, "secrets")
+			if err := os.MkdirAll(secrets, 0o700); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			tokenPath := filepath.Join(secrets, name+"-token.json")
+			if err := os.WriteFile(tokenPath, []byte(`{"access_token":"x"}`), 0o600); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			var buf bytes.Buffer
+			if code := runDisconnect(context.Background(), []string{name}, &buf); code != 0 {
+				t.Fatalf("exit %d, out=%s", code, buf.String())
+			}
+			if _, err := os.Stat(tokenPath); !os.IsNotExist(err) {
+				t.Fatalf("token file still present: %v", err)
+			}
+			row, err := os.ReadFile(filepath.Join(dir, "audit.jsonl"))
+			if err != nil {
+				t.Fatalf("read audit: %v", err)
+			}
+			if !strings.Contains(string(row), `"disconnect_`+name+`"`) || !strings.Contains(string(row), `"success"`) {
+				t.Fatalf("audit row missing success for %s: %s", name, row)
+			}
+		})
 	}
 }
