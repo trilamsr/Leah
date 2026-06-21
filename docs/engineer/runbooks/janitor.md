@@ -10,8 +10,9 @@ locks accumulate before this gate landed.
 ## Install / uninstall
 
 ```
-make install-janitor    # idempotent — re-runs bootout before bootstrap
-make uninstall-janitor
+make install-janitor    # bootout unloads the prior version, bootstrap
+make uninstall-janitor  # loads from the .plist — plist edits take effect
+                        # on every re-install, and double-install is safe
 ```
 
 Paths:

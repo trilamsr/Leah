@@ -26,6 +26,10 @@ golangci-lint run --timeout=5m ./...    >"$LOG/lint"     2>&1 & PIDS+=($!); NAME
 "$SCRIPT_DIR/check-comment-density.sh" >"$LOG/density"  2>&1 & PIDS+=($!); NAMES+=(density)
 "$SCRIPT_DIR/check-no-bare-sleep.sh"   >"$LOG/sleep"    2>&1 & PIDS+=($!); NAMES+=(sleep)
 "$SCRIPT_DIR/check-doc-links.sh"       >"$LOG/doclinks" 2>&1 & PIDS+=($!); NAMES+=(doclinks)
+# MAY-16: guard the destructive-regression class on the worktree janitor.
+# Mutation tests confirm both the prefix-check and the merged/deleted
+# guard are load-bearing — dropping either prunes live agent work.
+"$SCRIPT_DIR/leah-worktree-janitor_test.sh" >"$LOG/janitor"  2>&1 & PIDS+=($!); NAMES+=(janitor)
 
 FAILED=0
 for i in "${!PIDS[@]}"; do
@@ -54,11 +58,6 @@ fi
 
 # W90 base-staleness gate: serial — needs git fetch + ancestry walks.
 "$SCRIPT_DIR/check-base-fresh.sh" || FAILED=1
-
-# MAY-16: guard the destructive-regression class on the worktree janitor.
-# Mutation tests confirm both the prefix-check and the merged/deleted
-# guard are load-bearing — dropping either prunes live agent work.
-"$SCRIPT_DIR/leah-worktree-janitor_test.sh" >/dev/null 2>&1 || { echo "leah-worktree-janitor_test.sh failed"; FAILED=1; }
 
 # MAY-V6: warn-only on first ship — flip to FAILED=1 once 7 consecutive
 # days of feat/* PRs land with zero new-placeholder hits.
