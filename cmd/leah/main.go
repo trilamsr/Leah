@@ -140,6 +140,8 @@ func runCommand(ctx context.Context, args []string) int {
 			return 2
 		}
 		return runSelfBuild(ctx, rest[0])
+	case "self-build-status":
+		return runSelfBuildStatus(rest, os.Stdout)
 	case "cost":
 		return runCost(rest)
 	case "brief":
