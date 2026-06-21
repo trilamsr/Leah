@@ -194,6 +194,10 @@ func TestRunAskWith_TrailingNewlineWriteErrorReturnsOne(t *testing.T) {
 	if code := runAskWith(context.Background(), s, w, a, b, "q"); code != 1 {
 		t.Fatalf("runAskWith on trailing-newline error = %d; want 1 (consistent with delta-write errors)", code)
 	}
+	entries := readAuditEntries(t, a)
+	if len(entries) != 1 || entries[0].Outcome != "failed" {
+		t.Fatalf("audit on trailing-newline error = %+v; want one failed entry", entries)
+	}
 }
 
 func TestRunAskWith_SuccessWritesAuditRow(t *testing.T) {
