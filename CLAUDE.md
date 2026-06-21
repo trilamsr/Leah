@@ -11,6 +11,7 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 - File-disjoint code PRs (each touching its own `internal/<pkg>/`) parallelize up to 6.
 - Spec PRs (`docs/engineer/specs/` + `docs/engineer/briefs/`) SERIALIZE — 1 in flight at a time.
 - Shared roots (`Makefile`, `go.mod`, `CLAUDE.md`, autonomous-session-prompt.md, dispatch-templates) — single-owner per dispatch.
+- `internal/obs/events.go` (frozen-enum) — single-owner per dispatch. Every push-source PR appends here; parallel PRs predictably produce mergeStateStatus=DIRTY after the first lands (recurrence: Safari+O4 2026-06-20; Focus→Calendar 2026-06-21 #282). Serialize push-source PRs OR rebase the queue inside the same dispatch cycle.
 - Why: parallel spec PRs branched off the same main produce stale-base regressions (PR-B's diff-vs-new-main appears to delete PR-A's just-merged files even when content is disjoint).
 
 ## Identity / output
