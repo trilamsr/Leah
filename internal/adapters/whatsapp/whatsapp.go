@@ -22,9 +22,9 @@ import (
 const graphAPIVersion = "v22.0"
 
 const (
-	ScopeSendText       = "whatsapp:send_text"
-	ScopeWebhookVerify  = "whatsapp:webhook_verify"
-	ScopeWebhookHandle  = "whatsapp:webhook_handle"
+	ScopeSendText      = "whatsapp:send_text"
+	ScopeWebhookVerify = "whatsapp:webhook_verify"
+	ScopeWebhookHandle = "whatsapp:webhook_handle"
 )
 
 var (
@@ -38,6 +38,7 @@ type Message struct {
 	From      string
 	Body      string
 	Type      string
+	MediaID   string
 	Timestamp time.Time
 }
 
@@ -88,6 +89,7 @@ type Adapter struct {
 	audit AuditSink
 	allow map[string]struct{}
 	m     *connectadapter.Metrics
+	audio AudioExec
 }
 
 func New(cfg Config) (*Adapter, error) {
@@ -225,6 +227,9 @@ type webhookEnvelope struct {
 					Text      struct {
 						Body string `json:"body"`
 					} `json:"text"`
+					Audio struct {
+						ID string `json:"id"`
+					} `json:"audio"`
 				} `json:"messages"`
 			} `json:"value"`
 		} `json:"changes"`
@@ -248,6 +253,7 @@ func parseInbound(payload []byte) ([]Message, error) {
 					From:      m.From,
 					Body:      m.Text.Body,
 					Type:      m.Type,
+					MediaID:   m.Audio.ID,
 					Timestamp: ts,
 				})
 			}

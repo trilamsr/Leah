@@ -65,7 +65,7 @@ type recordingSink struct{ rows []AuditRow }
 
 func (r *recordingSink) Record(row AuditRow) { r.rows = append(r.rows, row) }
 
-func newTestAdapter(t *testing.T, att *fakeAttestor, ts *fakeTokenSource, h *fakeHTTP, sink *recordingSink, allow []string) *Adapter {
+func newTestAdapter(t *testing.T, att *fakeAttestor, ts *fakeTokenSource, h HTTPClient, sink *recordingSink, allow []string) *Adapter {
 	t.Helper()
 	a, err := New(Config{
 		Attestor:           att,
