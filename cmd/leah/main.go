@@ -214,6 +214,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runSelfUpgrade(ctx, rest, stdout, nil)
 	case "pr-state":
 		return runPRState(ctx, nil, rest, stdout)
+	case "threads":
+		return runThreads(ctx, rest, stdout)
 	default:
 		usage()
 		return 2
