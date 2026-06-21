@@ -14,10 +14,13 @@ const (
 
 	// CostOverrideScope guards the `leah cost override` flow (llm-ops spec §7.3).
 	CostOverrideScope = "cost_override"
+
+	// ScopeSelfUpgrade gates `leah self-upgrade`; distinct from ScopeSelfBuild so PR-merge habituation can't authorize a silent binary swap.
+	ScopeSelfUpgrade = "self-upgrade"
 )
 
 // AllScopes lists every registered attestation scope. Wire one Pool with this
 // slice and every authorised callsite picks from the same questions file.
 func AllScopes() []string {
-	return []string{ScopeSelfBuild, ScopeSelfBuildA2A, CostOverrideScope}
+	return []string{ScopeSelfBuild, ScopeSelfBuildA2A, CostOverrideScope, ScopeSelfUpgrade}
 }

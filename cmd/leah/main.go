@@ -166,6 +166,8 @@ func runCommand(ctx context.Context, args []string) int {
 		return runExport(ctx, rest, os.Stderr)
 	case "import":
 		return runImport(ctx, rest, os.Stderr)
+	case "self-upgrade":
+		return runSelfUpgrade(ctx, rest, os.Stdout, nil)
 	default:
 		usage()
 		return 2
@@ -502,5 +504,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  whoami [--full]           print workspace + integrations, or enumerate persisted state (M1)")
 	_, _ = fmt.Fprintln(os.Stderr, "  export --all [--out PATH]  encrypted archive of ~/.leah-state (M3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  import <archive> [--overwrite]  restore encrypted archive (M3)")
+	_, _ = fmt.Fprintln(os.Stderr, "  self-upgrade              attested rebuild + atomic symlink-swap of ~/bin/leah (BR=4)")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
