@@ -111,8 +111,18 @@ func (s *Session) Run(ctx context.Context) error {
 			if bargedIn {
 				loadTimer().BargeIn()
 			}
+			// A8: clock starts at the cancel signal, stops when the reply
+			// goroutine returns — i.e. TTS Speak has actually unwound.
+			// Sampling only for bargedIn isolates the user-felt span from
+			// outer-ctx shutdown spans which aren't barge-in.
+			cancelStart := s.Now()
 			replyCancel()
 			replyCancel = nil
+			replyWG.Wait()
+			if bargedIn {
+				s.Metrics.RecordBargeInCancel("completed", s.Now().Sub(cancelStart))
+			}
+			return
 		}
 		replyWG.Wait()
 	}

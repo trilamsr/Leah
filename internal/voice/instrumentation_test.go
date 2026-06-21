@@ -338,6 +338,141 @@ func TestVoiceTurn_BargeIn_CountsAndStops(t *testing.T) {
 	<-done
 }
 
+// TestBargeInCancel_HistogramObserves: a Final segment mid-TTS records exactly
+// one observation in leah_voice_barge_in_cancel_seconds{outcome="completed"} —
+// the span from cancel-signal fired → TTS Speak unwound.
+func TestBargeInCancel_HistogramObserves(t *testing.T) {
+	t.Parallel()
+	reg := obs.NewRegistry()
+	instr := voice.NewTurnInstrumentation(reg, "local")
+
+	fl := listener.NewFake()
+	tts := &fakeTTS{gate: make(chan struct{})}
+	rs := &fakeReasoner{reply: "long reply"}
+	s := &session.Session{
+		Listen:    fl,
+		Speak:     tts,
+		Reason:    rs,
+		Attest:    &fakeAttestor{},
+		IdleAfter: 5 * time.Second,
+		Metrics:   instr,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- s.Run(ctx) }()
+
+	waitForSpoken(t, tts, 1)
+	tts.mu.Lock()
+	close(tts.gate)
+	tts.gate = make(chan struct{})
+	tts.mu.Unlock()
+	fl.Emit(listener.Segment{Text: "yes leah", Final: true})
+
+	fl.Emit(listener.Segment{Text: "tell me a story", Final: true})
+	waitForSpoken(t, tts, 2)
+
+	// Barge-in mid-TTS — Speak is blocked on the gate; ctx-cancel unblocks it.
+	fl.Emit(listener.Segment{Text: "stop", Final: true})
+
+	waitForHistogram(t, reg, "leah_voice_barge_in_cancel_seconds", map[string]string{"outcome": "completed"}, 1)
+
+	cancel()
+	<-done
+}
+
+// TestBargeInCancel_NoObservation_OnNormalShutdown: a non-barge-in cancelReply
+// (outer ctx done, listener channel closed) must NOT record a sample —
+// otherwise normal shutdown poisons the p95 with multi-second observations.
+func TestBargeInCancel_NoObservation_OnNormalShutdown(t *testing.T) {
+	t.Parallel()
+	reg := obs.NewRegistry()
+	instr := voice.NewTurnInstrumentation(reg, "local")
+
+	fl := listener.NewFake()
+	tts := &fakeTTS{autoDone: true}
+	rs := &fakeReasoner{reply: "ok"}
+	s := &session.Session{
+		Listen:    fl,
+		Speak:     tts,
+		Reason:    rs,
+		Attest:    &fakeAttestor{},
+		IdleAfter: 5 * time.Second,
+		Metrics:   instr,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Run(ctx) }()
+
+	waitForSpoken(t, tts, 1)
+	fl.Emit(listener.Segment{Text: "yes leah", Final: true})
+	fl.Emit(listener.Segment{Text: "what time is it", Final: true})
+	waitForSpoken(t, tts, 2)
+	waitForCounter(t, reg, "leah_voice_turn_total", map[string]string{"outcome": "completed"}, 1)
+
+	cancel()
+	<-done
+
+	if got := histogramCount(t, reg, "leah_voice_barge_in_cancel_seconds", map[string]string{"outcome": "completed"}); got != 0 {
+		t.Fatalf("non-barge-in shutdown recorded %d cancel samples, want 0", got)
+	}
+}
+
+// TestBargeInCancelBuckets_Sized_For_200ms_Target asserts the histogram can
+// resolve the MAY-A8 SLO: the 200ms boundary is present (so p95 reports a
+// tight upper bound, not the next slot up), buckets are strictly increasing,
+// and 50ms vs 500ms samples land in distinct cumulative buckets — otherwise
+// on-target vs regressed is indistinguishable.
+func TestBargeInCancelBuckets_Sized_For_200ms_Target(t *testing.T) {
+	t.Parallel()
+	if len(voice.BargeInCancelBuckets) < 2 {
+		t.Fatalf("BargeInCancelBuckets must have ≥2 boundaries, got %v", voice.BargeInCancelBuckets)
+	}
+	last := voice.BargeInCancelBuckets[len(voice.BargeInCancelBuckets)-1]
+	if 0.2 > last {
+		t.Fatalf("200ms target lands at +Inf: max bucket=%v", last)
+	}
+	hasTarget := false
+	for _, b := range voice.BargeInCancelBuckets {
+		if b == 0.2 {
+			hasTarget = true
+			break
+		}
+	}
+	if !hasTarget {
+		t.Fatalf("0.2 missing from BargeInCancelBuckets=%v; p95 widens to next boundary", voice.BargeInCancelBuckets)
+	}
+	for i := 1; i < len(voice.BargeInCancelBuckets); i++ {
+		if voice.BargeInCancelBuckets[i] <= voice.BargeInCancelBuckets[i-1] {
+			t.Fatalf("BargeInCancelBuckets not strictly increasing at %d: %v", i, voice.BargeInCancelBuckets)
+		}
+	}
+}
+
+// TestRecordBargeInCancel_NilSafe: production wiring may omit the registry;
+// the receiver method must no-op.
+func TestRecordBargeInCancel_NilSafe(t *testing.T) {
+	t.Parallel()
+	var instr *voice.TurnInstrumentation
+	instr.RecordBargeInCancel("completed", 50*time.Millisecond)
+}
+
+// TestRecordBargeInCancel_DropsNegative: clock skew / out-of-order timestamps
+// must NOT record a sample — a negative duration in a Prometheus histogram is
+// undefined and the upstream chooses to drop rather than clamp so dashboards
+// don't lie about a "0s cancel".
+func TestRecordBargeInCancel_DropsNegative(t *testing.T) {
+	t.Parallel()
+	reg := obs.NewRegistry()
+	instr := voice.NewTurnInstrumentation(reg, "local")
+	instr.RecordBargeInCancel("completed", -50*time.Millisecond)
+	if got := histogramCount(t, reg, "leah_voice_barge_in_cancel_seconds", map[string]string{"outcome": "completed"}); got != 0 {
+		t.Fatalf("negative duration recorded: got %d samples, want 0", got)
+	}
+}
+
 // TestVoiceTurn_WakeOutcome_TripleCount: three discrete wake_event_total
 // emissions — one armed, one cancelled_silence, one cancelled_phrase — show
 // up under their respective result label.
