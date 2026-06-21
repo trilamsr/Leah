@@ -72,14 +72,10 @@ int leahWALWatchStart(uintptr_t handle, const char *path) {
     CFRelease(dir);
     if (s == NULL) return -1;
 
-    dispatch_queue_t q = dispatch_queue_create("com.leah.walwatch", DISPATCH_QUEUE_SERIAL);
-    FSEventStreamSetDispatchQueue(s, q);
-    if (!FSEventStreamStart(s)) {
-        FSEventStreamInvalidate(s);
-        FSEventStreamRelease(s);
-        return -1;
-    }
-
+    // Reserve the slot BEFORE creating the dispatch_queue / starting the
+    // stream — failure paths after queue creation would otherwise leak the
+    // queue under ARC (FSEventStreamSetDispatchQueue takes a retain we cannot
+    // drop via dispatch_release).
     dispatch_semaphore_wait(gLock, DISPATCH_TIME_FOREVER);
     int slot = -1;
     for (int i = 0; i < LEAH_WAL_MAX; i++) {
@@ -88,7 +84,15 @@ int leahWALWatchStart(uintptr_t handle, const char *path) {
     }
     if (slot < 0) {
         dispatch_semaphore_signal(gLock);
-        FSEventStreamStop(s);
+        FSEventStreamInvalidate(s);
+        FSEventStreamRelease(s);
+        return -1;
+    }
+
+    dispatch_queue_t q = dispatch_queue_create("com.leah.walwatch", DISPATCH_QUEUE_SERIAL);
+    FSEventStreamSetDispatchQueue(s, q);
+    if (!FSEventStreamStart(s)) {
+        dispatch_semaphore_signal(gLock);
         FSEventStreamInvalidate(s);
         FSEventStreamRelease(s);
         return -1;
