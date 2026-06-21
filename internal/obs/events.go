@@ -85,6 +85,11 @@ type SafariHistoryChangedEvent struct{}
 // consumers re-read state under macos:focus:query for the active mode.
 type FocusStateChangedEvent struct{}
 
+// CalendarStoreChangedEvent is the Payload for `calendar.store_changed`.
+// Empty struct — the FSEvent fires once Calendar.sqlitedb WAL has flushed;
+// event ids stay implicit so consumers re-query under macos:calendar:query.
+type CalendarStoreChangedEvent struct{}
+
 // PhotosLibraryChangedEvent — Photos.sqlite WAL mutation; consumers re-query
 // under macos:photos:query. UUIDs are not surfaced (PII).
 type PhotosLibraryChangedEvent struct{}
@@ -553,6 +558,7 @@ var KnownEventKinds = []string{
 	"mail_changed",
 	"notes_changed",
 	"safari.history_changed",
+	"calendar.store_changed",
 	"focus.state_changed",
 	"photos.library_changed",
 	"reminders.store_changed",
