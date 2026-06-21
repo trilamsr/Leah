@@ -26,6 +26,7 @@ type State struct {
 	Ops     OpsView     `json:"ops"`
 	Costs   CostsView   `json:"costs"`
 	Spam    []SpamStat  `json:"spam"`
+	SLA     []SLARow    `json:"sla"`
 	Metrics interface{} `json:"metrics,omitempty"` // raw obs.Registry snapshot when latest.json exists
 }
 
@@ -158,6 +159,7 @@ func (s *Server) computeSnapshot(ctx context.Context) State {
 		Ops:     s.readOps(),
 		Costs:   readCosts(s.AuditPath),
 		Spam:    s.readSpam(),
+		SLA:     readSLA(s.MetricsPath),
 		Metrics: readMetrics(s.MetricsPath),
 	}
 	obs.Publish(computeHUDStateEvent("ambient", false, false))
