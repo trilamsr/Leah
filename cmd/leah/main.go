@@ -185,6 +185,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runListen(ctx, rest)
 	case "backup":
 		return runBackup(ctx, rest)
+	case "init":
+		return runInit(ctx, rest, stdout, os.Stdin)
 	case "connect":
 		return runConnect(ctx, rest, stdout)
 	case "disconnect":
@@ -608,6 +610,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "usage: leah <command> [args...]")
 	_, _ = fmt.Fprintln(os.Stderr, "")
 	_, _ = fmt.Fprintln(os.Stderr, "commands:")
+	_, _ = fmt.Fprintln(os.Stderr, "  init [--force]            first-launch wizard (plist + adapters)")
 	_, _ = fmt.Fprintln(os.Stderr, "  ask \"<query>\"             direct query to Reasoner")
 	_, _ = fmt.Fprintln(os.Stderr, "  ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"  file regatta issue + watch + narrate")
 	_, _ = fmt.Fprintln(os.Stderr, "  call <callee> [--audio]   place a FaceTime video (default) or audio call")
