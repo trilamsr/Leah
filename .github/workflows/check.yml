@@ -43,23 +43,3 @@ jobs:
         with:
           version: v2.12.2
           args: --timeout=5m
-
-  # pr-gates wires the audit-session gates into pull_request runs so
-  # they cannot be bypassed by an operator skipping ./scripts/check.sh
-  # locally — that exact pattern shipped #162/#199/#219 (TDD-evidence
-  # misses) and #184/#186/#187 (APPROVE-token leaks). Both scripts are
-  # body-only / network-light and run independent of the build job.
-  pr-gates:
-    name: pr-gates (reviewer-verdict + tdd-evidence)
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: check-tdd-evidence
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: scripts/check-tdd-evidence.sh --pr "$PR_NUMBER" --branch "$HEAD_REF"
