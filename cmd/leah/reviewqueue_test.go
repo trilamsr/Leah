@@ -288,6 +288,21 @@ func TestRunReviewQueueFetchError(t *testing.T) {
 	}
 }
 
+// TestFetchReviewQueue_GraphQLErrors pins the HTTP-200-with-errors[] path
+// (rate limit / auth / schema drift). Without surfacing, the operator sees
+// an empty inbox and assumes nothing is pending while their token has expired.
+func TestFetchReviewQueue_GraphQLErrors(t *testing.T) {
+	body := `{"data":{"search":{"nodes":null}},"errors":[{"message":"API rate limit exceeded"}]}`
+	fx := &fakeExec{responses: map[string]string{"gh api graphql": body}}
+	_, err := fetchReviewQueue(context.Background(), fx, "")
+	if err == nil {
+		t.Fatalf("expected error from graphql errors[] body")
+	}
+	if !strings.Contains(err.Error(), "rate limit") {
+		t.Errorf("error should surface GH message; got %v", err)
+	}
+}
+
 // captureExec records the gh args it was called with so we can assert on
 // query content (e.g. org: qualifier) without depending on response shape.
 type captureExec struct {

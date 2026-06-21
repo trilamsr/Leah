@@ -114,9 +114,18 @@ func fetchReviewQueue(ctx context.Context, exec ghclient.Executor, org string) (
 				Nodes []map[string]any `json:"nodes"`
 			} `json:"search"`
 		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
 	}
 	if err := json.Unmarshal([]byte(out), &resp); err != nil {
 		return nil, fmt.Errorf("parse graphql json: %w", err)
+	}
+	// GH returns HTTP 200 with {"errors":[...]} on rate-limit / auth / schema
+	// failure; without surfacing the message, the operator gets an empty queue
+	// and assumes a clean inbox while their token has expired.
+	if len(resp.Errors) > 0 {
+		return nil, fmt.Errorf("gh api graphql: %s", resp.Errors[0].Message)
 	}
 	rows := make([]reviewRow, 0, len(resp.Data.Search.Nodes))
 	for _, n := range resp.Data.Search.Nodes {
