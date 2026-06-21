@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/sqlstore"
 )
 
 // sqliteSchemaVersion is the embedded DDL version. Parsed-int compare per PR #58
@@ -89,15 +89,9 @@ func NewSQLiteEngine(path string, logger *audit.Logger) (*SQLiteEngine, error) {
 		return nil, fmt.Errorf("chmod db file: %w", err)
 	}
 
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", url.PathEscape(path))
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sqlstore.OpenWAL(path)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	db.SetMaxOpenConns(1) // single-writer keeps WAL contention bounded.
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ping: %w", err)
+		return nil, err
 	}
 	e := &SQLiteEngine{
 		audit:       logger,
@@ -118,29 +112,12 @@ func NewSQLiteEngine(path string, logger *audit.Logger) (*SQLiteEngine, error) {
 func (e *SQLiteEngine) Close() error { return e.db.Close() }
 
 func (e *SQLiteEngine) migrate() error {
-	// Read on-disk version BEFORE applying DDL — per PR #58, a stamp-on-every-open
-	// inside the DDL would clobber an operator-bumped value before the newer-than-
-	// binary guard can fire.
-	if _, err := e.db.Exec(`CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`); err != nil {
-		return fmt.Errorf("bootstrap schema_meta: %w", err)
+	embedded, err := parseRecommendSchemaVersion(sqliteSchemaVersion)
+	if err != nil {
+		return fmt.Errorf("parse embedded schema version %q: %w", sqliteSchemaVersion, err)
 	}
-	var v string
-	err := e.db.QueryRow(`SELECT value FROM schema_meta WHERE key='version'`).Scan(&v)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("read schema version: %w", err)
-	}
-	if v != "" {
-		onDisk, perr := parseRecommendSchemaVersion(v)
-		if perr != nil {
-			return fmt.Errorf("parse on-disk schema version %q: %w", v, perr)
-		}
-		embedded, perr := parseRecommendSchemaVersion(sqliteSchemaVersion)
-		if perr != nil {
-			return fmt.Errorf("parse embedded schema version %q: %w", sqliteSchemaVersion, perr)
-		}
-		if onDisk > embedded {
-			return fmt.Errorf("recommend.db schema version %s newer than binary %s; upgrade leah", v, sqliteSchemaVersion)
-		}
+	if err := sqlstore.EnsureSchemaVersion(e.db, "recommend.db", embedded); err != nil {
+		return err
 	}
 	if _, err := e.db.Exec(sqliteDDL); err != nil {
 		return fmt.Errorf("exec schema: %w", err)

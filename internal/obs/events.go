@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,6 +17,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/trilam/leah/internal/sqlstore"
 )
 
 // Event is one row in the causal timeline — internal sibling to audit.jsonl;
@@ -77,11 +78,6 @@ type EventStore interface {
 // Integer-parsed — lex compare ranks "10" < "9" (PR #58 lesson).
 const embeddedEventSchemaVersion = "1"
 
-const eventSchemaMetaSQL = `CREATE TABLE IF NOT EXISTS schema_meta (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);`
-
 const eventSchemaSQL = `CREATE TABLE IF NOT EXISTS events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   ts         INTEGER NOT NULL,
@@ -132,18 +128,9 @@ func OpenEventStore(path string, opts EventStoreOptions) (*SQLiteEventStore, err
 		return nil, fmt.Errorf("mkdir state dir: %w", err)
 	}
 	// synchronous=NORMAL trades last-few-ms-on-crash for throughput (spec §2.2).
-	dsn := fmt.Sprintf(
-		"file:%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)",
-		url.PathEscape(path),
-	)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sqlstore.OpenWAL(path, "synchronous(NORMAL)")
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	db.SetMaxOpenConns(1) // WAL + modernc contention storm avoidance.
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ping: %w", err)
+		return nil, err
 	}
 	if err := os.Chmod(path, 0o600); err != nil {
 		_ = db.Close()
@@ -181,26 +168,12 @@ func OpenEventStore(path string, opts EventStoreOptions) (*SQLiteEventStore, err
 }
 
 func migrateEvents(db *sql.DB) error {
-	if _, err := db.Exec(eventSchemaMetaSQL); err != nil {
-		return fmt.Errorf("bootstrap schema_meta: %w", err)
+	embedded, err := parseEventSchemaVersion(embeddedEventSchemaVersion)
+	if err != nil {
+		return fmt.Errorf("parse embedded schema version %q: %w", embeddedEventSchemaVersion, err)
 	}
-	var v string
-	err := db.QueryRow(`SELECT value FROM schema_meta WHERE key='version'`).Scan(&v)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("read schema version: %w", err)
-	}
-	if v != "" {
-		onDisk, perr := parseEventSchemaVersion(v)
-		if perr != nil {
-			return fmt.Errorf("parse on-disk schema version %q: %w", v, perr)
-		}
-		embedded, perr := parseEventSchemaVersion(embeddedEventSchemaVersion)
-		if perr != nil {
-			return fmt.Errorf("parse embedded schema version %q: %w", embeddedEventSchemaVersion, perr)
-		}
-		if onDisk > embedded {
-			return fmt.Errorf("events.db schema version %s newer than binary %s; upgrade leah", v, embeddedEventSchemaVersion)
-		}
+	if err := sqlstore.EnsureSchemaVersion(db, "events.db", embedded); err != nil {
+		return err
 	}
 	if _, err := db.Exec(eventSchemaSQL); err != nil {
 		return fmt.Errorf("exec schema: %w", err)
