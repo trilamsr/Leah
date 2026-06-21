@@ -63,10 +63,14 @@ func snapshotCLIMetrics(reg *obs.Registry) {
 // Extracted from main() so tests can drive the dispatcher with an arbitrary
 // (possibly canceled) ctx without spawning a subprocess.
 //
-// The reg argument owns the per-invocation metric registry; each subcommand
-// wraps os.Stdout via dispatcher.FirstByteTimer.Wrap so the
-// leah_cli_dispatch_to_first_byte_seconds histogram fires on the first
-// non-LLM stdout byte. A nil reg disables instrumentation (test paths).
+// The reg argument owns the per-invocation metric registry. The wrapped
+// `stdout` below is threaded only into subcommands whose Out writer carries
+// pre-LLM bytes (status, connect, whoami, version, …). LLM-emitting paths
+// (ask, ship) deliberately receive raw os.Stdout — wrapping them would let
+// the first model token trip the leah_cli_dispatch_to_first_byte_seconds
+// histogram and violate the "excl. LLM" contract. Result: ask/ship contribute
+// zero observations, which is the correct null for paths with no non-LLM
+// first byte to measure. A nil reg disables instrumentation (test paths).
 func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 	if len(args) < 1 {
 		usage()
