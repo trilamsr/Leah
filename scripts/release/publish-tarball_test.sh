@@ -27,12 +27,14 @@ make_fixture() {
     git init -q
     git config user.email t@t
     git config user.name t
-    mkdir -p cmd/leah internal/foo .claude/worktrees node_modules/x dist
-    echo "package main" > cmd/leah/main.go
-    echo "package foo"  > internal/foo/foo.go
-    echo "noise"        > .claude/worktrees/x
-    echo "noise"        > node_modules/x/pkg.json
-    echo "noise"        > dist/leah
+    mkdir -p cmd/leah internal/foo .claude/worktrees node_modules/x dist Formula .github/workflows
+    echo "package main"  > cmd/leah/main.go
+    echo "package foo"   > internal/foo/foo.go
+    echo "noise"         > .claude/worktrees/x
+    echo "noise"         > node_modules/x/pkg.json
+    echo "noise"         > dist/leah
+    echo "class Leah"    > Formula/leah.rb
+    echo "name: release" > .github/workflows/release.yml
     echo "module example.com/leah" > go.mod
     git add -A
     git commit -q -m init
@@ -102,14 +104,17 @@ run_case_excludes_noise() {
   ( cd "$work" && TAG=v0.0.1-test OUT_DIR="$out" "$PUB" >/dev/null 2>&1 )
   ( cd "$extracted" && tar xzf "$out/leah-v0.0.1-test-src.tar.gz" )
   local bad=0
-  for noise in .claude node_modules dist; do
+  # Mirror the scrub set in publish-tarball.sh — if it grows, this list must
+  # grow too. Formula/ and .github/ are tracked-but-excluded; the others come
+  # from .gitignore but are scrubbed defensively.
+  for noise in .claude node_modules dist Formula .github; do
     if find "$extracted" -name "$noise" -type d 2>/dev/null | grep -q .; then
       fail "tarball must not contain $noise/"
       bad=1
     fi
   done
   if [ "$bad" -eq 0 ]; then
-    pass "tarball excludes .claude/ node_modules/ dist/"
+    pass "tarball excludes .claude/ node_modules/ dist/ Formula/ .github/"
   fi
   # Sanity: real source IS present.
   if find "$extracted" -name "main.go" 2>/dev/null | grep -q .; then

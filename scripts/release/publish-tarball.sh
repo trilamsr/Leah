@@ -7,9 +7,10 @@
 # generated `archive/refs/tags/<tag>.tar.gz`: Formula/leah.rb pins
 # `leah-<tag>-src.tar.gz` so the published artifact is reproducible from a
 # pre-release prepare step, can carry a sidecar SHA256 the formula references,
-# and excludes worktree/build noise (.claude/, node_modules/, dist/) that
-# would otherwise bloat the auto-archive and shift its hash whenever someone
-# adds an agent worktree.
+# and excludes worktree/build noise (.claude/, node_modules/, dist/) plus
+# the in-repo tap files (Formula/, .github/) that operators don't need —
+# their presence would bloat the auto-archive and shift its hash whenever
+# a new agent worktree or CI file landed.
 
 set -euo pipefail
 
