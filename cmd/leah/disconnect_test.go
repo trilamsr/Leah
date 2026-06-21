@@ -22,7 +22,7 @@ func TestRunDisconnect_UnknownIntegration_ReturnsTwo(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", dir)
 	var buf bytes.Buffer
-	if code := runDisconnect(context.Background(), []string{"slack"}, &buf); code != 2 {
+	if code := runDisconnect(context.Background(), []string{"nope"}, &buf); code != 2 {
 		t.Fatalf("exit %d, want 2", code)
 	}
 }
