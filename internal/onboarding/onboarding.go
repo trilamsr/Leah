@@ -38,7 +38,7 @@ func MarkInstalled(stateDir string, now time.Time) error {
 		}
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = f.WriteString(strconv.FormatInt(now.Unix(), 10))
 	return err
 }
