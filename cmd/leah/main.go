@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -263,28 +265,65 @@ func runAsk(ctx context.Context, query string) int {
 	}
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt), PersonaPrefix: personaPrefixForActive()}
 
-	return runAskWith(ctx, r, os.Stdout, query)
+	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	return runAskWith(ctx, r, os.Stdout, a, b, query)
 }
 
 // runAskWith drains AskStream's delta channel straight into out — each
 // delta becomes its own Write so the firstByteWriter wrapping os.Stdout
 // (A6) sees the first model token at first-delta time, not full-reply
-// time. The trailing newline preserves the legacy `leah ask` UX where
-// the response always ends with one \n.
-func runAskWith(ctx context.Context, s askStreamer, out io.Writer, query string) int {
+// time. Audit row is written on every exit path (success + any write or
+// stream error) to preserve the charged-Reasoner-call invariant the old
+// dispatcher.Ask.Run held.
+func runAskWith(ctx context.Context, s askStreamer, out io.Writer, a *audit.Logger, b *budget.Budget, query string) int {
+	entry := audit.Entry{Kind: "ask", ArgsHash: askArgsHash(query), BlastRadius: 0}
+	finish := func(code int, detail string) int {
+		entry.CostDollars = b.Spent()
+		if rich, ok := any(s).(dispatcher.LLMDimReporter); ok {
+			info := rich.LastCallInfo()
+			entry.Model = info.Model
+			entry.PromptSHA = info.PromptSHA
+			entry.InputTokens = info.InputTokens
+			entry.OutputTokens = info.OutputTokens
+			entry.LatencyMS = info.LatencyMS
+			entry.EgressBytes = info.EgressBytes
+			entry.CacheHit = info.CacheHit
+		}
+		if code == 0 {
+			entry.Outcome = "success"
+		} else {
+			entry.Outcome = "failed"
+			entry.Detail = detail
+		}
+		_ = a.Append(entry)
+		return code
+	}
+	write := func(p string) error {
+		_, werr := io.WriteString(out, p)
+		return werr
+	}
+
 	ch, err := s.AskStream(ctx, query)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", err)
-		return 1
+		return finish(1, err.Error())
 	}
 	for delta := range ch {
-		if _, werr := io.WriteString(out, delta); werr != nil {
+		if werr := write(delta); werr != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", werr)
-			return 1
+			return finish(1, werr.Error())
 		}
 	}
-	_, _ = io.WriteString(out, "\n")
-	return 0
+	if werr := write("\n"); werr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", werr)
+		return finish(1, werr.Error())
+	}
+	return finish(0, "")
+}
+
+func askArgsHash(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:8])
 }
 
 // runShipArgs parses the `leah ship` flag set + dispatches. Supports:
