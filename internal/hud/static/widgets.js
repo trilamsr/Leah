@@ -1,43 +1,46 @@
 (() => {
-  // TTLs mirror internal/hud.TTLs(); keep in sync with spec §6.
-  const tiles = [
-    { id: "weather",     url: "/api/widgets/weather",            ttl: 600000, kind: "weather"  },
-    { id: "market-AAPL", url: "/api/widgets/market?symbol=AAPL", ttl: 60000,  kind: "market"   },
-    { id: "news",        url: "/api/widgets/news",               ttl: 900000, kind: "news"     },
-    { id: "calendar",    url: "/api/widgets/calendar-next",      ttl: 30000,  kind: "calendar" },
-  ];
+  // Server pushes tile HTML over SSE so the page never polls. See B1 in the
+  // 2026-06-10 cross-surface UX audit — the previous setInterval(refresh, ttl)
+  // hid daemon errors as silent em-dashes and ate battery.
 
-  function errorNode(tile) {
-    const div = document.createElement("div");
-    div.id = tile.id;
-    div.className = `widget ${tile.kind} widget-error`;
-    div.textContent = "couldn't load — retry";
-    return div;
+  function swap(id, html) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = (html || "").trim();
+    const next = wrap.firstElementChild;
+    if (!next) return;
+    next.id = id;
+    const cur = document.getElementById(id);
+    if (cur && cur.parentNode) cur.parentNode.replaceChild(next, cur);
   }
 
-  function swap(tile, node) {
-    node.id = tile.id;
-    const old = document.getElementById(tile.id);
-    if (old && old.parentNode) old.parentNode.replaceChild(node, old);
+  function offlineNode(id) {
+    const cur = document.getElementById(id);
+    if (!cur) return;
+    cur.className = `${cur.className.split(" ").filter((c) => !c.startsWith("widget-")).join(" ")} widget-error`.trim();
+    cur.textContent = "couldn't load — retry";
   }
 
-  async function refresh(tile) {
+  function openStream() {
+    let backoff = 2000;
     try {
-      const r = await fetch(tile.url, { cache: "no-store" });
-      if (!r.ok) { swap(tile, errorNode(tile)); return; }
-      const txt = await r.text();
-      const wrap = document.createElement("div");
-      wrap.innerHTML = txt.trim();
-      const node = wrap.firstElementChild;
-      if (!node) { swap(tile, errorNode(tile)); return; }
-      swap(tile, node);
+      const es = new EventSource("/api/widgets/stream");
+      es.addEventListener("widget.refresh", (e) => {
+        backoff = 2000;
+        let f;
+        try { f = JSON.parse(e.data); } catch { return; }
+        if (f && f.id) swap(f.id, f.html);
+      });
+      es.onerror = () => {
+        es.close();
+        ["weather", "market-AAPL", "news", "calendar"].forEach(offlineNode);
+        setTimeout(openStream, backoff);
+        backoff = Math.min(backoff * 2, 30000);
+      };
     } catch {
-      swap(tile, errorNode(tile));
+      // EventSource unavailable: leave placeholders in place rather than
+      // silently looping a polyfill the user didn't ask for.
     }
   }
 
-  tiles.forEach((t) => {
-    refresh(t);
-    setInterval(() => refresh(t), t.ttl);
-  });
+  openStream();
 })();

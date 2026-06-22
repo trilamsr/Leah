@@ -14,22 +14,25 @@ import (
 )
 
 type App struct {
-	State   *hud.Machine
-	Client  *hud.Client
-	Widgets *hud.Widgets
-	Focus   *hud.Focus
-	Recs    *hud.Recommendations
+	State         *hud.Machine
+	Client        *hud.Client
+	Widgets       *hud.Widgets
+	WidgetsStream *hud.Stream
+	Focus         *hud.Focus
+	Recs          *hud.Recommendations
 }
 
 func NewApp(daemonURL string) *App {
 	state := hud.NewMachine()
 	c := hud.NewClient(daemonURL)
+	wg := hud.NewWidgets(c)
 	return &App{
-		State:   state,
-		Client:  c,
-		Widgets: hud.NewWidgets(c),
-		Focus:   hud.NewFocus(state, daemonURL),
-		Recs:    hud.NewRecommendations(hud.NewDaemonRecommendSeam(c)),
+		State:         state,
+		Client:        c,
+		Widgets:       wg,
+		WidgetsStream: hud.StreamFromWidgets(wg),
+		Focus:         hud.NewFocus(state, daemonURL),
+		Recs:          hud.NewRecommendations(hud.NewDaemonRecommendSeam(c)),
 	}
 }
 
@@ -42,6 +45,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/hud/focus", a.handleFocus)
 	mux.HandleFunc("/api/state", a.handleState)
 	mux.HandleFunc("/api/events", a.handleEvents)
+	mux.HandleFunc("/api/widgets/stream", a.WidgetsStream.HandleSSE)
 	mux.HandleFunc("/api/focus/summon", a.handleFocusSummon)
 	mux.HandleFunc("/api/focus/query", a.handleFocusQuery)
 	a.Widgets.Routes(mux)
@@ -209,6 +213,11 @@ func (a *App) Run(ctx context.Context, addr string) error {
 		Addr:              addr,
 		Handler:           a.routes(),
 		ReadHeaderTimeout: 5 * time.Second,
+	}
+	// Server-side tile cadence runs alongside the HTTP server so client-side
+	// polling (the B1 ship-blocker) goes away entirely.
+	if a.WidgetsStream != nil {
+		go a.WidgetsStream.Run(ctx)
 	}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
