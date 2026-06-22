@@ -38,8 +38,16 @@ func main() {
 	logLevel := flag.String("log-level", "info", "log verbosity: debug|info|warn|error")
 	flag.Parse()
 
-	// Flag wins over env; env wins over default. Set before NewLoggerWithRing reads it.
-	if *logLevel != "info" || os.Getenv("LEAH_LOG_LEVEL") == "" {
+	// Priority: explicit -log-level flag > LEAH_LOG_LEVEL env > default "info".
+	// flag.Visit walks only flags that were actually set on the command line,
+	// so passing -log-level=info (the default value) still overrides env.
+	var flagSet bool
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "log-level" {
+			flagSet = true
+		}
+	})
+	if flagSet || os.Getenv("LEAH_LOG_LEVEL") == "" {
 		_ = os.Setenv("LEAH_LOG_LEVEL", *logLevel)
 	}
 
