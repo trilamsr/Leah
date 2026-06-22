@@ -36,7 +36,7 @@ SPECS_DIR="$ROOT/docs/engineer/specs"
 # row. The body scan still rescues specs whose package name diverges
 # from the filename (knowledge-graph.md → internal/knowledge).
 resolve_pkg() {
-  local spec="$1" stem="$2" base guess hits hit top
+  local spec="$1" stem="$2" base guess hits hit
   base="${stem%-adapter}"
   if [ "$base" != "$stem" ] && [ -d "$ROOT/internal/adapters/$base" ]; then
     echo "internal/adapters/$base"; return
