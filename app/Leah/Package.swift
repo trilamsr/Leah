@@ -50,5 +50,14 @@ let package = Package(
       dependencies: ["LeahUpdate"],
       path: "Tests/LeahUpdateTests"
     ),
+    .target(
+      name: "LeahIPC",
+      path: "Sources/LeahIPC"
+    ),
+    .testTarget(
+      name: "LeahIPCTests",
+      dependencies: ["LeahIPC"],
+      path: "Tests/LeahIPCTests"
+    ),
   ]
 )
