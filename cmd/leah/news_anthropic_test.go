@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -21,9 +23,16 @@ func TestNewsBundles_AnthropicURL_StableOrTracked(t *testing.T) {
 		t.Fatalf("anthropic URL = %q, want %q", got, wantURL)
 	}
 
-	src, err := os.ReadFile("news.go")
+	// Resolve news.go relative to this test file so assertions hold regardless
+	// of which directory `go test` was invoked from.
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatalf("runtime.Caller failed")
+	}
+	newsPath := filepath.Join(filepath.Dir(thisFile), "news.go")
+	src, err := os.ReadFile(newsPath)
 	if err != nil {
-		t.Fatalf("read news.go: %v", err)
+		t.Fatalf("read %s: %v", newsPath, err)
 	}
 	body := string(src)
 	if strings.Contains(body, "pending Linear issue") {
