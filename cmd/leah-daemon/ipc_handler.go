@@ -77,7 +77,6 @@ func handleAsk(ctx context.Context, req ipc.Frame, db *sql.DB, s streamFn) (<-ch
 	go func() {
 		defer close(out)
 		var assembled string
-		var seq uint64
 		for f := range raw {
 			if f.Kind == "prose.delta" {
 				var pp struct {
@@ -86,8 +85,11 @@ func handleAsk(ctx context.Context, req ipc.Frame, db *sql.DB, s streamFn) (<-ch
 				_ = json.Unmarshal(f.Payload, &pp)
 				assembled += pp.Text
 			}
-			seq++
-			out <- f
+			select {
+			case <-ctx.Done():
+				return
+			case out <- f:
+			}
 			if f.Kind == "turn.end" {
 				if err := memory.RecordTurn(db, req.TurnID, p.Text, assembled); err != nil {
 					_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: RecordTurn: %v\n", err)

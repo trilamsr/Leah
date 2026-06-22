@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/trilam/leah/internal/ipc"
 	"github.com/trilam/leah/internal/sqlstore"
@@ -131,5 +133,101 @@ func TestIPCHandlerVerifyKeyFailure(t *testing.T) {
 	_ = json.Unmarshal(frames[0].Payload, &p)
 	if p.OK {
 		t.Fatal("verify-key: expected ok=false on bad key")
+	}
+}
+
+// streamFn error must surface as a handler error so the ipc server can
+// emit an error frame; partial frames must not be delivered.
+func TestIPCHandlerStreamError(t *testing.T) {
+	db := newTestTurnDB(t)
+	failStream := func(_ context.Context, _, _ string) (<-chan ipc.Frame, error) {
+		return nil, errors.New("upstream down")
+	}
+	h := newIPCHandlerForTest(db, failStream)
+	in := ipc.Frame{Kind: "ask", TurnID: "te", Payload: json.RawMessage(`{"text":"x"}`)}
+	out, err := h(context.Background(), in)
+	if err == nil {
+		t.Fatal("want error from streamFn failure")
+	}
+	if out != nil {
+		t.Fatalf("want nil channel on error, got %v", out)
+	}
+}
+
+// RecordTurn failure (broken schema) must be logged but not crash the
+// handler goroutine or block frame delivery to the consumer.
+func TestIPCHandlerRecordTurnFailureIsNonFatal(t *testing.T) {
+	db, err := sqlstore.OpenWAL(filepath.Join(t.TempDir(), "broken.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	// Intentionally do NOT create conversation_turn — RecordTurn must fail.
+	fakeStream := func(_ context.Context, turnID, _ string) (<-chan ipc.Frame, error) {
+		out := make(chan ipc.Frame, 2)
+		out <- ipc.Frame{Kind: "prose.delta", TurnID: turnID, Seq: 1, Payload: json.RawMessage(`{"text":"hi"}`)}
+		out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: 2, Payload: json.RawMessage(`{}`)}
+		close(out)
+		return out, nil
+	}
+	h := newIPCHandlerForTest(db, fakeStream)
+	in := ipc.Frame{Kind: "ask", TurnID: "nofs", Payload: json.RawMessage(`{"text":"hi"}`)}
+	out, err := h(context.Background(), in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	var frames []ipc.Frame
+	done := make(chan struct{})
+	go func() {
+		for f := range out {
+			frames = append(frames, f)
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler goroutine deadlocked after RecordTurn failure")
+	}
+	if frames[len(frames)-1].Kind != "turn.end" {
+		t.Fatalf("turn.end must still surface despite RecordTurn failure; got %q", frames[len(frames)-1].Kind)
+	}
+}
+
+// Context cancellation mid-stream must close the output channel without
+// goroutine leak.
+func TestIPCHandlerContextCancelClosesChannel(t *testing.T) {
+	db := newTestTurnDB(t)
+	block := make(chan struct{})
+	blockingStream := func(ctx context.Context, turnID, _ string) (<-chan ipc.Frame, error) {
+		out := make(chan ipc.Frame)
+		go func() {
+			defer close(out)
+			select {
+			case <-ctx.Done():
+				return
+			case <-block:
+				return
+			}
+		}()
+		return out, nil
+	}
+	h := newIPCHandlerForTest(db, blockingStream)
+	ctx, cancel := context.WithCancel(context.Background())
+	in := ipc.Frame{Kind: "ask", TurnID: "cx", Payload: json.RawMessage(`{"text":"x"}`)}
+	out, err := h(ctx, in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	cancel()
+	close(block)
+	select {
+	case _, ok := <-out:
+		if ok {
+			for range out {
+			}
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("output channel did not close after ctx cancel")
 	}
 }
