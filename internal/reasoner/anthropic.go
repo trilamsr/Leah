@@ -140,6 +140,78 @@ func (c *AnthropicClient) OneShot(ctx context.Context, system, user string) (str
 	return "", nil
 }
 
+// StreamChunks issues a streaming call with optional cache_control on the
+// system block + last history message, and returns text chunks plus a final
+// summary carrying SDK-reported InputTokens/OutputTokens (so cost accounting
+// does not int-truncate small bursts). This is the production binding for
+// the streamer interface consumed by StreamToIPC. When cache is true and the
+// system prompt exceeds the cacheable threshold, cache_control: { type:
+// "ephemeral" } is applied to the system block and to the last message in
+// history (if present) so the stable prefix is cached.
+func (c *AnthropicClient) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, error) {
+	sysBlock := anthropic.TextBlockParam{Text: system}
+	if cache {
+		sysBlock.CacheControl = anthropic.NewCacheControlEphemeralParam()
+	}
+	msgs := make([]anthropic.MessageParam, len(history))
+	copy(msgs, history)
+	if cache && len(msgs) > 0 {
+		// Mark the last history message for ephemeral caching. copy() above
+		// duplicated MessageParam values but their Content slices still
+		// alias the caller's backing array — deep-copy Content before
+		// rewriting an element so we never leak mutations to history[i].
+		last := msgs[len(msgs)-1]
+		dup := make([]anthropic.ContentBlockParamUnion, len(last.Content))
+		copy(dup, last.Content)
+		for i, blk := range dup {
+			if blk.OfText != nil && blk.OfText.Text != "" {
+				cp := *blk.OfText
+				cp.CacheControl = anthropic.NewCacheControlEphemeralParam()
+				dup[i] = anthropic.ContentBlockParamUnion{OfText: &cp}
+				break
+			}
+		}
+		last.Content = dup
+		msgs[len(msgs)-1] = last
+	}
+	msgs = append(msgs, anthropic.NewUserMessage(anthropic.NewTextBlock(userText)))
+	params := anthropic.MessageNewParams{
+		Model:     anthropic.Model(c.model),
+		MaxTokens: 4096,
+		System:    []anthropic.TextBlockParam{sysBlock},
+		Messages:  msgs,
+	}
+	stream := c.sdk.Messages.NewStreaming(ctx, params)
+	out := make(chan StreamChunk, 16)
+	go func() {
+		defer func() { _ = stream.Close() }()
+		defer close(out)
+		var inTok, outTok int
+		for stream.Next() {
+			ev := stream.Current()
+			switch v := ev.AsAny().(type) {
+			case anthropic.ContentBlockDeltaEvent:
+				if td := v.Delta.AsTextDelta(); td.Text != "" {
+					select {
+					case <-ctx.Done():
+						return
+					case out <- StreamChunk{Text: td.Text}:
+					}
+				}
+			case anthropic.MessageStartEvent:
+				inTok = int(v.Message.Usage.InputTokens)
+			case anthropic.MessageDeltaEvent:
+				outTok = int(v.Usage.OutputTokens)
+			}
+		}
+		select {
+		case <-ctx.Done():
+		case out <- StreamChunk{Final: true, InputTokens: inTok, OutputTokens: outTok}:
+		}
+	}()
+	return out, nil
+}
+
 // Stream issues a streaming messages call and translates SDK events into
 // reasoner.Delta. Text deltas pass through; tool-use blocks surface as
 // ToolUseEvent (suppressed by AskStream callers today). Token counts fire on
