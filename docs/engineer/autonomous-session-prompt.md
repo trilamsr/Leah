@@ -155,7 +155,7 @@ Surfaces landed since this prompt's last edit. Listed so next session's agent do
 - **`leah slack`** — Slack CLI integration (send / search). OAuth flow per `leah connect slack`.
 - **`leah specs` + `scripts/audit-stale-specs.sh`** — spec discovery + staleness audit; the runbook docs the operator-side cadence. Specs older than a wave that lack a tracking issue surface as findings.
 - **macOS native UI slice** — AF_UNIX IPC daemon socket + NSStatusItem menu-bar app + widget primitives (clock, weather, calendar peek). Surfaces are wired but the widget catalog is still small; treat new widget proposals as additive, not net-new architecture.
-- **5 agent-internal lessons in `.claude/notes/`** — scoping-verify-tree, agent-done-means-pushed, decider-scope-creep, subagent-force-push-forbidden, worktree-exceeds-janitor. Each is cited from the dispatch templates' `### Friction rules` section; do not restate the lesson body inline.
+- **6 agent-internal lessons in `.claude/notes/`** — scoping-verify-tree, agent-done-means-pushed, decider-scope-creep, subagent-force-push-forbidden, worktree-exceeds-janitor, agent-rebase-races-merge. Each is cited from the dispatch templates' `### Friction rules` section; do not restate the lesson body inline.
 
 ## When to update this prompt
 
