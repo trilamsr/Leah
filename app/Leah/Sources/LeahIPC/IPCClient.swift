@@ -22,6 +22,11 @@ public actor IPCClient {
     }
 
     public func connect() throws {
+        // Close any prior fd so a second connect() doesn't leak the old socket.
+        if fd >= 0 {
+            _ = Darwin.close(fd)
+            fd = -1
+        }
         let newFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard newFD >= 0 else { throw POSIXError(.EIO) }
         var addr = sockaddr_un()

@@ -126,4 +126,13 @@ final class IPCClientTests: XCTestCase {
             // expected: ECONNREFUSED / ENOENT
         }
     }
+
+    func testRepeatedConnectFailuresDoNotExhaustFDs() async {
+        // Each failed connect() must close any fd it opened; otherwise this
+        // loop would exhaust the per-process file-descriptor limit (~256).
+        let client = IPCClient(socketPath: "/tmp/leah-ipc-nonexistent-\(UUID().uuidString).sock")
+        for _ in 0..<500 {
+            do { try await client.connect() } catch { /* expected */ }
+        }
+    }
 }
