@@ -16,6 +16,8 @@ type Turn struct {
 
 // RecordTurn inserts (or replaces) a conversation_turn row. turnID is caller-assigned;
 // INSERT OR REPLACE means re-recording the same turn ID is idempotent.
+// RFC3339Nano (not RFC3339) so two turns recorded within the same wall-clock
+// second still sort deterministically by created_at DESC.
 func RecordTurn(db *sql.DB, turnID, userText, assistantText string) error {
 	_, err := db.Exec(
 		`INSERT OR REPLACE INTO conversation_turn(id, user_text, assistant_text, created_at) VALUES(?,?,?,?)`,
@@ -47,11 +49,12 @@ func RecentTurns(db *sql.DB, limit int) ([]Turn, error) {
 		if err := rows.Scan(&t.ID, &t.UserText, &t.AssistantText, &created); err != nil {
 			return nil, fmt.Errorf("scan turn: %w", err)
 		}
-		if parsed, err2 := time.Parse(time.RFC3339Nano, created); err2 == nil {
-			t.CreatedAt = parsed
-		} else {
-			t.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		// RFC3339Nano parses RFC3339 too (Nano is a superset — fractional seconds optional).
+		parsed, perr := time.Parse(time.RFC3339Nano, created)
+		if perr != nil {
+			return nil, fmt.Errorf("parse created_at %q: %w", created, perr)
 		}
+		t.CreatedAt = parsed
 		out = append(out, t)
 	}
 	return out, rows.Err()

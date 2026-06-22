@@ -1,19 +1,24 @@
 package memory
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 
 	"github.com/trilam/leah/internal/sqlstore"
 )
 
-func TestRecordAndRecentTurns(t *testing.T) {
+// newTurnDB opens a fresh WAL DB with just the conversation_turn schema —
+// avoids dragging in the full memory.NewStore migration for tests that only
+// exercise this single table.
+func newTurnDB(t *testing.T) *sql.DB {
+	t.Helper()
 	dir := t.TempDir()
 	db, err := sqlstore.OpenWAL(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	defer db.Close()
+	t.Cleanup(func() { _ = db.Close() })
 	if _, err := db.Exec(`CREATE TABLE conversation_turn(
 		id              TEXT PRIMARY KEY,
 		user_text       TEXT NOT NULL,
@@ -22,6 +27,11 @@ func TestRecordAndRecentTurns(t *testing.T) {
 	);`); err != nil {
 		t.Fatalf("schema: %v", err)
 	}
+	return db
+}
+
+func TestRecordAndRecentTurns(t *testing.T) {
+	db := newTurnDB(t)
 	if err := RecordTurn(db, "t1", "hello", "hi there"); err != nil {
 		t.Fatalf("record t1: %v", err)
 	}
@@ -35,9 +45,8 @@ func TestRecordAndRecentTurns(t *testing.T) {
 	if len(turns) != 2 {
 		t.Fatalf("want 2 turns, got %d", len(turns))
 	}
-	// Most recent first.
 	if turns[0].ID != "t2" {
-		t.Fatalf("expected t2 first, got %s", turns[0].ID)
+		t.Fatalf("expected t2 first (newest), got %s", turns[0].ID)
 	}
 	if turns[0].UserText != "what's up" {
 		t.Errorf("UserText mismatch: %q", turns[0].UserText)
@@ -51,20 +60,7 @@ func TestRecordAndRecentTurns(t *testing.T) {
 }
 
 func TestRecordTurn_Idempotent(t *testing.T) {
-	dir := t.TempDir()
-	db, err := sqlstore.OpenWAL(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	defer db.Close()
-	if _, err := db.Exec(`CREATE TABLE conversation_turn(
-		id              TEXT PRIMARY KEY,
-		user_text       TEXT NOT NULL,
-		assistant_text  TEXT NOT NULL,
-		created_at      TEXT NOT NULL
-	);`); err != nil {
-		t.Fatalf("schema: %v", err)
-	}
+	db := newTurnDB(t)
 	if err := RecordTurn(db, "dup", "first", "resp1"); err != nil {
 		t.Fatalf("record first: %v", err)
 	}
@@ -81,20 +77,7 @@ func TestRecordTurn_Idempotent(t *testing.T) {
 }
 
 func TestRecentTurns_Limit(t *testing.T) {
-	dir := t.TempDir()
-	db, err := sqlstore.OpenWAL(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	defer db.Close()
-	if _, err := db.Exec(`CREATE TABLE conversation_turn(
-		id              TEXT PRIMARY KEY,
-		user_text       TEXT NOT NULL,
-		assistant_text  TEXT NOT NULL,
-		created_at      TEXT NOT NULL
-	);`); err != nil {
-		t.Fatalf("schema: %v", err)
-	}
+	db := newTurnDB(t)
 	for i := 0; i < 5; i++ {
 		id := string(rune('a' + i))
 		if err := RecordTurn(db, id, "q"+id, "a"+id); err != nil {
@@ -107,6 +90,18 @@ func TestRecentTurns_Limit(t *testing.T) {
 	}
 	if len(turns) != 2 {
 		t.Fatalf("want 2 (limit), got %d", len(turns))
+	}
+}
+
+func TestRecentTurns_BadTimestampSurfaceError(t *testing.T) {
+	db := newTurnDB(t)
+	if _, err := db.Exec(
+		`INSERT INTO conversation_turn(id, user_text, assistant_text, created_at) VALUES('x','q','a','not-a-timestamp')`,
+	); err != nil {
+		t.Fatalf("insert raw: %v", err)
+	}
+	if _, err := RecentTurns(db, 10); err == nil {
+		t.Fatal("expected parse error for malformed created_at, got nil")
 	}
 }
 
