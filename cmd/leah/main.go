@@ -226,6 +226,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runThreads(ctx, rest, stdout)
 	case "trip":
 		return runTrip(ctx, rest, stdout)
+	case "slack":
+		return runSlack(ctx, rest, stdout)
 	default:
 		usage()
 		return 2
@@ -674,5 +676,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  self-upgrade              attested rebuild + atomic symlink-swap of ~/bin/leah (BR=4)")
 	_, _ = fmt.Fprintln(os.Stderr, "  pr-state <N>|--open|--queue  one-line PR readiness (state, CI, review, mergeable)")
 	_, _ = fmt.Fprintln(os.Stderr, "  review-queue [--org X] [--json]  PRs awaiting your review, oldest-first")
+	_, _ = fmt.Fprintln(os.Stderr, "  slack <send|list|thread|search>  wraps the slack adapter for CLI use")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
