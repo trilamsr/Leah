@@ -16,6 +16,7 @@ struct LeahApp: App {
   private let summonObserver: NSObjectProtocol
   private let settingsObserver: NSObjectProtocol
   private let wizard = WizardController()
+  private let hud = AmbientHUDWindow()
 
   @MainActor
   init() {
@@ -40,13 +41,10 @@ struct LeahApp: App {
       object: nil,
       queue: .main
     ) { _ in Task { @MainActor in sw.show() } }
+    hud.mount()
   }
 
   var body: some Scene {
-    WindowGroup {
-      // NSPanel-hosted FocusPanelView is the primary UI surface.
-      // This placeholder satisfies the SwiftUI App protocol.
-      Color.clear.frame(width: 1, height: 1)
-    }
+    Settings { EmptyView() }
   }
 }
