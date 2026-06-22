@@ -90,6 +90,83 @@ final class WidgetTests: XCTestCase {
         XCTAssertNotNil(list.size as Any)
     }
 
+    // Error-path coverage — malformed JSON must surface as DecodingError; missing
+    // required fields must NOT silently produce a partial envelope.
+
+    func testEnvelopeDecodeMalformedJSONReturnsErr() {
+        let json = #"{"id":"x","widget":"stat","size":"small""#  // truncated, no closing brace
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!))
+    }
+
+    func testEnvelopeDecodeNotJSONReturnsErr() {
+        let json = "not json at all"
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!))
+    }
+
+    func testEnvelopeDecodeMissingIDReturnsErr() {
+        let json = #"{"widget":"stat","size":"small","props":{},"data":{}}"#
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)) { err in
+            guard case DecodingError.keyNotFound(let key, _) = err else { return XCTFail("expected keyNotFound, got \(err)") }
+            XCTAssertEqual(key.stringValue, "id")
+        }
+    }
+
+    func testEnvelopeDecodeMissingWidgetReturnsErr() {
+        let json = #"{"id":"x","size":"small","props":{},"data":{}}"#
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)) { err in
+            guard case DecodingError.keyNotFound(let key, _) = err else { return XCTFail("expected keyNotFound, got \(err)") }
+            XCTAssertEqual(key.stringValue, "widget")
+        }
+    }
+
+    func testEnvelopeDecodeMissingSizeReturnsErr() {
+        let json = #"{"id":"x","widget":"stat","props":{},"data":{}}"#
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)) { err in
+            guard case DecodingError.keyNotFound(let key, _) = err else { return XCTFail("expected keyNotFound, got \(err)") }
+            XCTAssertEqual(key.stringValue, "size")
+        }
+    }
+
+    func testEnvelopeDecodeMissingPropsReturnsErr() {
+        let json = #"{"id":"x","widget":"stat","size":"small","data":{}}"#
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)) { err in
+            guard case DecodingError.keyNotFound(let key, _) = err else { return XCTFail("expected keyNotFound, got \(err)") }
+            XCTAssertEqual(key.stringValue, "props")
+        }
+    }
+
+    func testEnvelopeDecodeMissingDataReturnsErr() {
+        let json = #"{"id":"x","widget":"stat","size":"small","props":{}}"#
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)) { err in
+            guard case DecodingError.keyNotFound(let key, _) = err else { return XCTFail("expected keyNotFound, got \(err)") }
+            XCTAssertEqual(key.stringValue, "data")
+        }
+    }
+
+    func testEnvelopeDecodeWrongTypeForIDReturnsErr() {
+        let json = #"{"id":123,"widget":"stat","size":"small","props":{},"data":{}}"#
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)) { err in
+            guard case DecodingError.typeMismatch = err else { return XCTFail("expected typeMismatch, got \(err)") }
+        }
+    }
+
+    // Forward-compat: unknown widget names decode (renderer logs and skips) — Widget.swift comment.
+    func testEnvelopeDecodeUnknownWidgetTypeDecodesForForwardCompat() throws {
+        let json = #"{"id":"x","widget":"newgizmo","size":"small","props":{},"data":{}}"#
+        let env = try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)
+        XCTAssertEqual(env.widget, "newgizmo")
+    }
+
+    func testEnvelopeDecodeNestedNullFieldHandledGracefully() throws {
+        let json = #"{"id":"x","widget":"stat","size":"small","props":{"trend":null},"data":{}}"#
+        let env = try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)
+        XCTAssertTrue(env.props["trend"]?.value is NSNull)
+    }
+
+    func testEnvelopeDecodeEmptyDataReturnsErr() {
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetEnvelope.self, from: Data()))
+    }
+
     func testEnvelopeRoundtripPreservesScalarsAndCollections() throws {
         let json = #"{"id":"r1","widget":"stat","size":"small","props":{"label":"PRs","value":"12","count":7,"ratio":0.5,"open":true},"data":{"rows":[["a","b"]]}}"#
         let env = try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)
