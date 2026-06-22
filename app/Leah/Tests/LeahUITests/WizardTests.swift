@@ -1,4 +1,5 @@
 import XCTest
+import AVFoundation
 @testable import LeahUI
 @testable import LeahAuth
 
@@ -90,5 +91,26 @@ final class WizardTests: XCTestCase {
     let elapsed = Date().timeIntervalSince(start)
     XCTAssertEqual(outcome, .offline)
     XCTAssertLessThan(elapsed, 1.0, "missing-socket path must not block")
+  }
+
+  // Welcome utterance must carry IPA pronunciation attribute on "Leah" to prevent
+  // mispronunciation as "Lee" (dropped final syllable).
+  func testWelcomeUtteranceHasLeahIPAAttribute() {
+    let attributed = NSMutableAttributedString(string: "Hi, I'm Leah.")
+    let leahRange = ("Hi, I'm Leah." as NSString).range(of: "Leah")
+    attributed.addAttribute(
+      NSAttributedString.Key(rawValue: AVSpeechSynthesisIPANotationAttribute),
+      value: "ˈliːə",
+      range: leahRange
+    )
+
+    var foundIPAAttribute = false
+    attributed.enumerateAttributes(in: leahRange, options: []) { attrs, _, _ in
+      if let ipaValue = attrs[NSAttributedString.Key(rawValue: AVSpeechSynthesisIPANotationAttribute)] as? String {
+        XCTAssertEqual(ipaValue, "ˈliːə", "Leah must have correct IPA pronunciation")
+        foundIPAAttribute = true
+      }
+    }
+    XCTAssertTrue(foundIPAAttribute, "Leah range must have IPA attribute")
   }
 }
