@@ -1,4 +1,4 @@
-.PHONY: dev verify-pr baseline check lint ensure-lint smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation handoff-test help
+.PHONY: dev verify-pr baseline check lint ensure-lint smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation handoff-test check-amend-guard help
 
 # Pinned to match .github/workflows/check.yml. Bump both together.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -30,6 +30,12 @@ verify-pr:
 # Snapshot test + bench baseline. Append to ~/.leah-state/baseline-history.jsonl
 baseline:
 	@./scripts/baseline.sh
+
+# Block merging a PR whose REVIEWER APPROVE pre-dates the current head commit (post-amend self-approve).
+# Use: make check-amend-guard PR=<num>
+check-amend-guard:
+	@test -n "$(PR)" || (echo "set PR=<num>" && exit 1)
+	@./scripts/check-amend-after-approve.sh $(PR)
 
 check: ensure-lint
 	@./scripts/check.sh
