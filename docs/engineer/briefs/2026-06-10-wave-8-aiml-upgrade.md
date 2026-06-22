@@ -38,7 +38,7 @@ Spec: `2026-06-10-llm-ops.md`
 - Cost circuit breaker w/ graceful degrade (80% cap → Sonnet→Haiku for non-merge work).
 
 ### S3 — Memory-as-dispatch-input
-Spec: `2026-06-10-memory-dispatch-injection.md`
+Spec: CARVED (S3 deferred — see stale-specs.md)
 - Dispatcher greps `memory/` at dispatch time, prepends N most-relevant entries to subagent prompt by topic-match (keyword + cheap embedding).
 - Promotes memory rules from operator-readable markdown → live dispatch enforcement.
 - Companion: pre-Write hook rejects absolute-paths-outside-worktree (mechanically enforces trap #1a from implementer.md).

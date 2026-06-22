@@ -5,10 +5,9 @@ Rerun: TODO `scripts/audit-stale-specs.sh` when owner wants automation.
 
 Method: for each spec, derive expected package from filename + first `internal/`|`cmd/` mention inside spec; mark SHIPPED (>100 LOC non-test), PARTIAL (<100 LOC or stub only), STALE (zero matching surface).
 
-## STALE (5)
+## STALE (4)
 
 - `2026-06-10-bandit-recommender.md` — Wave-8 S4 Thompson-sampling + change-point — `internal/recommend/bandit.go` exists BUT no `changepoint` symbol anywhere; change-point detection half is unimplemented. (Bandit half shipped — split spec or close as carved.)
-- `2026-06-10-memory-dispatch-injection.md` — Memory-as-dispatch-input (wave-8 S3) — spec references `internal/foo` (placeholder); zero `MemoryDispatch`/`memoryInject` matches in `internal/dispatcher` or `internal/memory`.
 - `2026-06-10-reflexion-loop.md` — Reflexion + tournament review — zero `reflexion`/`tournament` matches in `internal/selflearn` or `internal/dispatcher`.
 - `2026-06-10-trust-moats.md` — Wave-8 S10 operator-trust moat artifacts — zero `trustmoat`/`trust.moat`/`S10` symbol matches. `internal/connect` + `internal/knowledge` exist but neither references the moat artifact contract from the spec.
 - `2026-06-10-voice-frontier.md` — Cascaded-pipeline → 2026-frontier upgrade — `internal/voice/listener/openai_realtime_decoder.go` exists (one decoder file) but no cascaded-pipeline migration; frontier upgrade contract from spec not realised.
@@ -59,7 +58,7 @@ Method: for each spec, derive expected package from filename + first `internal/`
 ## Decision matrix
 
 - **STALE** → either delete the spec (if abandoned) or open a Linear ticket to ship.
-  - Highest-confidence delete candidates: `memory-dispatch-injection.md` (placeholder `internal/foo`), `trust-moats.md` (no S10 surface anywhere), `reflexion-loop.md` (no reflexion/tournament code).
+  - Highest-confidence delete candidates: `trust-moats.md` (no S10 surface anywhere), `reflexion-loop.md` (no reflexion/tournament code).
   - Ship-or-cut decisions: `voice-frontier.md` (cascaded pipeline started but stalled), `bandit-recommender.md` (change-point half unshipped — split or close as carved).
 - **PARTIAL** → file follow-up tickets or accept as carved-out.
   - `signed-distribution.md` + `local-self-update.md` both gated on `internal/selfupgrade` pkg — consolidate or carve.
