@@ -67,15 +67,63 @@ final class FrameCodecTests: XCTestCase {
     }
 
     func testTurnIdCodingKeyMapping() throws {
-        // Verify the JSON wire format uses "turn_id" not "turnId"
-        let payload = Data()
+        // Verify the JSON wire format uses "turn_id" not "turnId".
+        // Use non-empty payload so the payload key check on the next test isn't
+        // confused with omitempty behavior.
+        let payload = #"{"x":1}"#.data(using: .utf8)!
         let f = Frame(kind: "turn.end", turnId: "xyz", seq: 0, payload: payload)
         let encoded = try FrameCodec.encode(f)
-        // Skip the 4-byte header to get JSON body
         let jsonBody = encoded.dropFirst(4)
         let jsonObj = try JSONSerialization.jsonObject(with: jsonBody) as! [String: Any]
         XCTAssertNotNil(jsonObj["turn_id"], "wire key must be turn_id")
         XCTAssertNil(jsonObj["turnId"], "camelCase key must not appear on wire")
         XCTAssertEqual(jsonObj["turn_id"] as? String, "xyz")
+    }
+
+    func testEmptyPayloadOmittedOnWire() throws {
+        // Mirrors Go's `omitempty`: empty payload must not produce a "payload" key.
+        let f = Frame(kind: "turn.end", turnId: "t1", seq: 1, payload: Data())
+        let encoded = try FrameCodec.encode(f)
+        let jsonBody = encoded.dropFirst(4)
+        let jsonObj = try JSONSerialization.jsonObject(with: jsonBody) as! [String: Any]
+        XCTAssertNil(jsonObj["payload"], "empty payload must be omitted on wire (parity with Go omitempty)")
+    }
+
+    func testMissingPayloadDecodesAsEmpty() throws {
+        // Frames from Go with omitempty payload arrive with no "payload" key.
+        let body = #"{"kind":"turn.end","turn_id":"t1","seq":1}"#.data(using: .utf8)!
+        var encoded = Data(count: 4)
+        let n = UInt32(body.count).bigEndian
+        withUnsafeBytes(of: n) { ptr in encoded.replaceSubrange(0..<4, with: ptr) }
+        encoded.append(body)
+        let (frame, _) = try FrameCodec.decode(encoded)
+        XCTAssertEqual(frame.payload, Data())
+    }
+}
+
+final class IPCClientTests: XCTestCase {
+    func testConnectThrowsOnOverlongPath() async {
+        // sockaddr_un.sun_path is 104 bytes on Darwin; 200 chars must throw,
+        // not leak the fd opened before the length check.
+        let longPath = "/tmp/" + String(repeating: "x", count: 200) + ".sock"
+        let client = IPCClient(socketPath: longPath)
+        do {
+            try await client.connect()
+            XCTFail("expected pathTooLong error")
+        } catch IPCClient.IPCError.pathTooLong {
+            // expected
+        } catch {
+            XCTFail("expected pathTooLong, got \(error)")
+        }
+    }
+
+    func testConnectThrowsOnMissingSocket() async {
+        let client = IPCClient(socketPath: "/tmp/leah-ipc-nonexistent-\(UUID().uuidString).sock")
+        do {
+            try await client.connect()
+            XCTFail("expected connect to fail with no daemon")
+        } catch {
+            // expected: ECONNREFUSED / ENOENT
+        }
     }
 }

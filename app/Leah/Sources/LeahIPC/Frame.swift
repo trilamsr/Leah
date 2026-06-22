@@ -1,11 +1,20 @@
 import Foundation
 
-public struct Frame: Codable, Sendable {
+public struct Frame: Sendable {
     public let kind: String
     public let turnId: String
     public let seq: UInt64
     public let payload: Data
 
+    public init(kind: String, turnId: String, seq: UInt64, payload: Data) {
+        self.kind = kind
+        self.turnId = turnId
+        self.seq = seq
+        self.payload = payload
+    }
+}
+
+extension Frame: Codable {
     enum CodingKeys: String, CodingKey {
         case kind
         case turnId = "turn_id"
@@ -13,11 +22,23 @@ public struct Frame: Codable, Sendable {
         case payload
     }
 
-    public init(kind: String, turnId: String, seq: UInt64, payload: Data) {
-        self.kind = kind
-        self.turnId = turnId
-        self.seq = seq
-        self.payload = payload
+    // Mirrors Go's `json.RawMessage` with omitempty: empty payload → no field on wire.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(turnId, forKey: .turnId)
+        try c.encode(seq, forKey: .seq)
+        if !payload.isEmpty {
+            try c.encode(payload, forKey: .payload)
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.kind = try c.decode(String.self, forKey: .kind)
+        self.turnId = try c.decode(String.self, forKey: .turnId)
+        self.seq = try c.decode(UInt64.self, forKey: .seq)
+        self.payload = try c.decodeIfPresent(Data.self, forKey: .payload) ?? Data()
     }
 }
 
@@ -31,8 +52,6 @@ public enum FrameCodec {
         case decodeFailed
     }
 
-    // encode returns 4-byte big-endian length prefix + JSON body.
-    // Rejects frames whose JSON encoding exceeds maxFrameBytes.
     public static func encode(_ f: Frame) throws -> Data {
         let body = try JSONEncoder().encode(f)
         guard body.count <= maxFrameBytes else { throw CodecError.oversize }
@@ -43,9 +62,6 @@ public enum FrameCodec {
         return out
     }
 
-    // decode reads one length-prefixed frame from data, returning the frame
-    // and total bytes consumed (header + body). Returns shortRead if data is
-    // too small, oversize if the declared length exceeds maxFrameBytes.
     public static func decode(_ data: Data) throws -> (Frame, Int) {
         guard data.count >= 4 else { throw CodecError.shortRead }
         let n = data.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
