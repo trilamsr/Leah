@@ -25,9 +25,11 @@ type bootRegattaOpts struct {
 	Registry *obs.Registry
 }
 
-// bootRegatta: Detect → on ErrNoMode log-once + gauge=1 + (nil,nil) graceful
-// skip; on other error log-once + gauge=1 + (nil,err); on success wrap inner
-// in NewGated + gauge=0 with mode label. Nil gated means "no regatta".
+// bootRegatta: Detect → on ErrNoMode gauge=1 + (nil,nil) graceful skip
+// (not configured is normal for personal-use; no log to avoid polluting
+// diag.state.last_error); on other error log-once + gauge=1 + (nil,err);
+// on success wrap inner in NewGated + gauge=0 with mode label. Nil gated
+// means "no regatta".
 func bootRegatta(ctx context.Context, o bootRegattaOpts) (*regattaclient.GatedClient, error) {
 	if o.Detect == nil {
 		o.Detect = regattaclient.Detect
@@ -35,7 +37,6 @@ func bootRegatta(ctx context.Context, o bootRegattaOpts) (*regattaclient.GatedCl
 	mode, cfg, err := o.Detect(ctx, regattaclient.DetectOpts{})
 	gauge := o.Registry.Gauge("leah_regatta_unavailable")
 	if errors.Is(err, regattaclient.ErrNoMode) {
-		logRegattaUnavailableOnce(o.Logger, "leah-daemon: regatta not configured — skipping; run `leah connect regatta`\n")
 		gauge.Set(nil, 1)
 		return nil, nil
 	}
