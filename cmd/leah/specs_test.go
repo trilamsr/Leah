@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -53,6 +54,66 @@ func TestRunSpecs_StaleOnlyFilters(t *testing.T) {
 		if !strings.HasPrefix(line, "STALE\t") {
 			t.Fatalf("--stale-only leaked non-STALE row: %q", line)
 		}
+	}
+}
+
+func TestRunSpecs_JSONFlagEmitsJSONL(t *testing.T) {
+	t.Setenv("LEAH_REPO_ROOT", repoRootFromTest(t))
+	var buf bytes.Buffer
+	code := runSpecs([]string{"--json"}, &buf)
+	if code != 0 {
+		t.Fatalf("runSpecs exit=%d, want 0; out=%q", code, buf.String())
+	}
+	var sawShippedGcal bool
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var row struct {
+			Status string `json:"status"`
+			Spec   string `json:"spec"`
+			Detail string `json:"detail"`
+		}
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			t.Fatalf("non-JSON line %q: %v", line, err)
+		}
+		if row.Status == "SHIPPED" && row.Spec == "2026-06-09-gcal-adapter.md" {
+			sawShippedGcal = true
+		}
+	}
+	if !sawShippedGcal {
+		t.Fatalf("expected SHIPPED row for gcal-adapter spec; got %q", buf.String())
+	}
+}
+
+func TestRunSpecs_JSONStaleOnlyComposes(t *testing.T) {
+	for _, args := range [][]string{
+		{"--json", "--stale-only"},
+		{"--stale-only", "--json"},
+	} {
+		t.Run(strings.Join(args, "_"), func(t *testing.T) {
+			t.Setenv("LEAH_REPO_ROOT", repoRootFromTest(t))
+			var buf bytes.Buffer
+			code := runSpecs(args, &buf)
+			if code != 0 {
+				t.Fatalf("runSpecs exit=%d, want 0; out=%q", code, buf.String())
+			}
+			out := strings.TrimSpace(buf.String())
+			if out == "" {
+				return
+			}
+			for _, line := range strings.Split(out, "\n") {
+				var row struct {
+					Status string `json:"status"`
+				}
+				if err := json.Unmarshal([]byte(line), &row); err != nil {
+					t.Fatalf("non-JSON line %q: %v", line, err)
+				}
+				if row.Status != "STALE" {
+					t.Fatalf("--stale-only --json leaked non-STALE row: %q", line)
+				}
+			}
+		})
 	}
 }
 
