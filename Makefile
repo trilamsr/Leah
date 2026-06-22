@@ -1,4 +1,4 @@
-.PHONY: dev verify-pr baseline check lint ensure-lint smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation help
+.PHONY: dev verify-pr baseline check lint ensure-lint smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation handoff-test help
 
 # Pinned to match .github/workflows/check.yml. Bump both together.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -73,6 +73,11 @@ uninstall-janitor:
 	@launchctl bootout gui/$$(id -u)/com.leah.worktree-janitor 2>/dev/null || true
 	@rm -f ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
 	@echo "janitor uninstalled"
+
+# Guards against the audit-session Phase 0 regression — a session that
+# never opens the prior handoff before doing new work.
+handoff-test:
+	@./scripts/check-handoff-continuity_test.sh
 
 # Run feature eval. FEATURE=<name> picks one evals/<name>.jsonl file.
 # BASE=<ref> sets the comparison ref (default origin/main; phase-1 stub).

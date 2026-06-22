@@ -30,6 +30,7 @@ golangci-lint run --timeout=5m ./...    >"$LOG/lint"     2>&1 & PIDS+=($!); NAME
 # Mutation tests confirm both the prefix-check and the merged/deleted
 # guard are load-bearing — dropping either prunes live agent work.
 "$SCRIPT_DIR/leah-worktree-janitor_test.sh" >"$LOG/janitor"  2>&1 & PIDS+=($!); NAMES+=(janitor)
+"$SCRIPT_DIR/check-handoff-continuity_test.sh" >"$LOG/handoff" 2>&1 & PIDS+=($!); NAMES+=(handoff)
 
 FAILED=0
 for i in "${!PIDS[@]}"; do
