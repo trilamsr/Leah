@@ -21,7 +21,7 @@ let package = Package(
       name: "LeahAppTests",
       dependencies: ["LeahApp"],
       path: "Tests/LeahAppTests",
-      resources: [.process("Fixtures")]
+      resources: [.copy("Fixtures")]
     ),
     .target(
       name: "LeahAuth",
