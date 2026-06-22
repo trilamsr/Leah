@@ -41,7 +41,7 @@ func RecentTurns(db *sql.DB, limit int) ([]Turn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("recent turns: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Turn
 	for rows.Next() {
 		var t Turn
