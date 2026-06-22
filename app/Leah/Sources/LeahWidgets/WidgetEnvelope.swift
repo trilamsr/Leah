@@ -30,6 +30,8 @@ public struct AnyCodable: Codable {
     }
 }
 
+// Strings (not enums) so the renderer can log "unknown widget"/"unknown size"
+// for forward-compat payloads instead of failing the whole decode.
 public struct WidgetEnvelope: Codable {
     public let id: String
     public let widget: String

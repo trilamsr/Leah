@@ -89,4 +89,20 @@ final class WidgetTests: XCTestCase {
         XCTAssertNotNil(table.size as Any)
         XCTAssertNotNil(list.size as Any)
     }
+
+    func testEnvelopeRoundtripPreservesScalarsAndCollections() throws {
+        let json = #"{"id":"r1","widget":"stat","size":"small","props":{"label":"PRs","value":"12","count":7,"ratio":0.5,"open":true},"data":{"rows":[["a","b"]]}}"#
+        let env = try JSONDecoder().decode(WidgetEnvelope.self, from: json.data(using: .utf8)!)
+        let encoded = try JSONEncoder().encode(env)
+        let env2 = try JSONDecoder().decode(WidgetEnvelope.self, from: encoded)
+        XCTAssertEqual(env.id, env2.id)
+        XCTAssertEqual(env.widget, env2.widget)
+        XCTAssertEqual(env.size, env2.size)
+        XCTAssertEqual(env2.props["label"]?.value as? String, "PRs")
+        XCTAssertEqual(env2.props["count"]?.value as? Int, 7)
+        XCTAssertEqual(env2.props["ratio"]?.value as? Double, 0.5)
+        XCTAssertEqual(env2.props["open"]?.value as? Bool, true)
+        let rows = env2.data["rows"]?.value as? [AnyCodable]
+        XCTAssertEqual(rows?.count, 1)
+    }
 }
