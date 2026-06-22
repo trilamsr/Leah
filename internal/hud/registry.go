@@ -6,14 +6,12 @@ import (
 	"os"
 )
 
-// RegistryEntry is one row in widget-registry.json — kind → metadata.
 type RegistryEntry struct {
 	Refresh int `json:"refresh"`
 }
 
-// ReadRegistry loads widget-registry.json. Missing file is a non-error
-// (empty map) so first-launch HUD doesn't surface fsnotify ENOENT noise.
-// The same Watcher (NewWatcher in pinned.go) covers writes to this file.
+// ReadRegistry treats missing file as empty map so first-launch HUD doesn't
+// surface fsnotify ENOENT noise. The § 10.2 Watcher covers this file too.
 func ReadRegistry(path string) (map[string]RegistryEntry, error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {

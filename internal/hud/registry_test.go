@@ -1,7 +1,6 @@
 package hud_test
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,5 +48,3 @@ func TestRegistry_RejectsMalformed(t *testing.T) {
 	}
 }
 
-// guard against accidentally importing encoding/json in test side only.
-var _ = json.RawMessage(nil)

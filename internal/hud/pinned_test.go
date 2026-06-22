@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
-	"sync"
 	"testing"
 	"time"
 
@@ -112,16 +110,14 @@ func TestPinCapTwo(t *testing.T) {
 	}
 }
 
-// TestSingleWatcherForBothFiles asserts that Run starts ONE consumer goroutine
-// covering both pinned-widgets.json AND widget-registry.json — not two (one per
-// file). Measures runtime.NumGoroutine delta around Run start, after NewWatcher
-// has already initialized fsnotify's internal goroutines (which are unrelated
-// to the "one watcher across both files" invariant).
+// TestSingleWatcherForBothFiles asserts the spec § 10.2 invariant structurally:
+// exactly ONE fsnotify.Watcher backs both pinned-widgets.json AND
+// widget-registry.json. A two-watcher implementation (NewWatcher called twice)
+// would expose NumFSWatchers() == 2.
 func TestSingleWatcherForBothFiles(t *testing.T) {
 	dir := t.TempDir()
 	pinPath := filepath.Join(dir, "pinned-widgets.json")
 	regPath := filepath.Join(dir, "widget-registry.json")
-
 	_ = os.WriteFile(pinPath, []byte("[]"), 0o644)
 	_ = os.WriteFile(regPath, []byte("{}"), 0o644)
 
@@ -131,28 +127,9 @@ func TestSingleWatcherForBothFiles(t *testing.T) {
 	}
 	defer func() { _ = w.Close() }()
 
-	// Measure baseline AFTER NewWatcher so fsnotify internals are excluded.
-	runtime.GC()
-	time.Sleep(50 * time.Millisecond)
-	before := runtime.NumGoroutine()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() { defer wg.Done(); _ = w.Run(ctx, func(hud.PinnedChanged) {}) }()
-
-	time.Sleep(100 * time.Millisecond)
-	after := runtime.NumGoroutine()
-	delta := after - before
-	// Exactly 1 = the single Run goroutine across both files.
-	if delta != 1 {
-		cancel()
-		wg.Wait()
-		t.Fatalf("expected single Run goroutine (delta=1), got delta=%d (before=%d after=%d)", delta, before, after)
+	if got := w.NumFSWatchers(); got != 1 {
+		t.Fatalf("NumFSWatchers = %d, want 1 (spec § 10.2 single-watcher invariant)", got)
 	}
-
-	cancel()
-	wg.Wait()
 }
 
 // TestPinThreeFiresToastFrame asserts the toast emitted by Pin #3 carries the

@@ -18,10 +18,20 @@ final class PinBadgeViewTests: XCTestCase {
     XCTAssertFalse(unpinned.isPinned)
   }
 
+  // Closure reads view.isPinned (instead of a hardcoded bool) so a regression
+  // where tap() forgets to surface state is actually caught.
   func testToggleCallbackCarriesState() {
-    var lastSeen: Bool?
-    let view = PinBadgeView(isPinned: true, onToggle: { lastSeen = true })
-    view.tap()
-    XCTAssertEqual(lastSeen, true)
+    final class Box { var seen: Bool? }
+    let pinnedBox = Box()
+    var pinnedRef: PinBadgeView!
+    pinnedRef = PinBadgeView(isPinned: true, onToggle: { pinnedBox.seen = pinnedRef.isPinned })
+    pinnedRef.tap()
+    XCTAssertEqual(pinnedBox.seen, true)
+
+    let unpinnedBox = Box()
+    var unpinnedRef: PinBadgeView!
+    unpinnedRef = PinBadgeView(isPinned: false, onToggle: { unpinnedBox.seen = unpinnedRef.isPinned })
+    unpinnedRef.tap()
+    XCTAssertEqual(unpinnedBox.seen, false)
   }
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -33,25 +34,33 @@ const (
 )
 
 // Watcher wraps a SINGLE fsnotify.Watcher across pinned-widgets.json and
-// widget-registry.json, coalescing event bursts (atomic-rename fires 2-3
-// events on macOS APFS) into one PinnedChanged per debounceInterval.
-// Spec § 10.2 — "single watcher across both pinned-widgets.json + widget-registry.json".
+// widget-registry.json. Spec § 10.2 mandates this single-watcher invariant
+// — debounceInterval coalesces APFS atomic-rename's 2-3 events per write
+// into one PinnedChanged, so subscribers don't redraw the HUD three times
+// per pin/unpin.
 type Watcher struct {
 	pinPath string
 	regPath string
 
 	mu sync.Mutex
 	fs *fsnotify.Watcher
+	// fsWatchers makes the §10.2 single-watcher invariant structurally
+	// testable — timing-based goroutine counts proved tautological.
+	fsWatchers int
 }
 
-// NewWatcher creates the fsnotify watcher and registers the parent directories
-// of both files (fsnotify watches dirs, not files, so atomic-rename writes
-// land as Create events on the target name).
+// NumFSWatchers returns the count of underlying fsnotify.Watcher instances.
+// Spec § 10.2 requires exactly 1 across both files.
+func (w *Watcher) NumFSWatchers() int { return w.fsWatchers }
+
+// NewWatcher registers the parent directories of both files. fsnotify watches
+// dirs (not files) so atomic-rename writes land as Create on the target name.
 func NewWatcher(pinPath, regPath string) (*Watcher, error) {
 	f, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("hud.Watcher: fsnotify: %w", err)
 	}
+	w := &Watcher{pinPath: pinPath, regPath: regPath, fs: f, fsWatchers: 1}
 	for _, p := range []string{pinPath, regPath} {
 		dir := filepath.Dir(p)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -63,19 +72,30 @@ func NewWatcher(pinPath, regPath string) (*Watcher, error) {
 			return nil, fmt.Errorf("hud.Watcher: watch %s: %w", dir, err)
 		}
 	}
-	return &Watcher{pinPath: pinPath, regPath: regPath, fs: f}, nil
+	return w, nil
 }
 
-// Close releases the underlying fsnotify watcher.
 func (w *Watcher) Close() error { return w.fs.Close() }
 
-// Run blocks until ctx is cancelled, dispatching PinnedChanged to onChange
-// after a 200 ms debounce window settles past the last relevant write event.
+// Run blocks until ctx is cancelled. Source of truth for onChange is the
+// file content read after debounce — fsnotify self-fires on local save() so
+// Pin/Unpin do not need to call onChange directly. List() takes w.mu, so
+// a Pin holding the lock briefly delays fire(); the emitted snapshot then
+// reflects the post-Pin file (which is what the operator wants anyway).
 func (w *Watcher) Run(ctx context.Context, onChange func(PinnedChanged)) error {
 	var debounce *time.Timer
+	stopDebounce := func() {
+		if debounce != nil {
+			debounce.Stop()
+			debounce = nil
+		}
+	}
+	defer stopDebounce()
+
 	fire := func() {
 		entries, err := w.List()
 		if err != nil {
+			log.Printf("hud.Watcher: list after change: %v", err)
 			return
 		}
 		onChange(PinnedChanged{Entries: entries})
@@ -83,9 +103,6 @@ func (w *Watcher) Run(ctx context.Context, onChange func(PinnedChanged)) error {
 	for {
 		select {
 		case <-ctx.Done():
-			if debounce != nil {
-				debounce.Stop()
-			}
 			return nil
 		case ev, ok := <-w.fs.Events:
 			if !ok {
@@ -95,22 +112,22 @@ func (w *Watcher) Run(ctx context.Context, onChange func(PinnedChanged)) error {
 			if name != filepath.Clean(w.pinPath) && name != filepath.Clean(w.regPath) {
 				continue
 			}
-			if debounce != nil {
-				debounce.Stop()
-			}
+			stopDebounce()
 			debounce = time.AfterFunc(debounceInterval, fire)
-		case _, ok := <-w.fs.Errors:
+		case err, ok := <-w.fs.Errors:
 			if !ok {
 				return nil
+			}
+			if err != nil {
+				log.Printf("hud.Watcher: fsnotify error: %v", err)
 			}
 		}
 	}
 }
 
-// Pin appends e, enforcing the spec § 10.3 2-slot cap. Idempotent on same ID.
-// Returns a non-nil toast frame when the 2-cap is hit (spec § 13.7); the
-// caller forwards it across IPC. The pin file is NOT mutated on cap-hit
-// (no-op per briefing).
+// Pin appends e, enforcing the § 10.3 2-slot cap. Idempotent on same ID.
+// Returns a non-nil § 13.7 toast frame when the cap is hit and leaves the
+// pin file untouched — never silently evict (§ 10.3 explicit).
 func (w *Watcher) Pin(e PinnedEntry) (*ipc.Frame, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -130,14 +147,13 @@ func (w *Watcher) Pin(e PinnedEntry) (*ipc.Frame, error) {
 			Text  string `json:"text"`
 		}{
 			Level: "info",
-			Text:  "Pin limit reached. Unpin one to add another.",
+			Text:  "Ambient is full · unpin one to add this one.",
 		})
 		return &ipc.Frame{Kind: ipc.KindNotificationToast, Payload: payload}, nil
 	}
 	return nil, w.save(append(entries, e))
 }
 
-// Unpin removes the entry with the given id. No-op if not found.
 func (w *Watcher) Unpin(id string) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -154,7 +170,6 @@ func (w *Watcher) Unpin(id string) error {
 	return w.save(out)
 }
 
-// List returns the current pinned entries.
 func (w *Watcher) List() ([]PinnedEntry, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
