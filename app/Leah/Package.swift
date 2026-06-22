@@ -10,6 +10,7 @@ let package = Package(
   targets: [
     .executableTarget(
       name: "LeahApp",
+      dependencies: ["LeahUI"],
       path: "Sources/LeahApp",
       resources: [.process("Leah.entitlements")]
     ),
@@ -17,6 +18,15 @@ let package = Package(
       name: "LeahAppTests",
       dependencies: ["LeahApp"],
       path: "Tests/LeahAppTests"
+    ),
+    .target(
+      name: "LeahUI",
+      path: "Sources/LeahUI"
+    ),
+    .testTarget(
+      name: "LeahUITests",
+      dependencies: ["LeahUI"],
+      path: "Tests/LeahUITests"
     ),
   ]
 )
