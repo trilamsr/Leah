@@ -32,6 +32,7 @@ golangci-lint run --timeout=5m ./...    >"$LOG/lint"     2>&1 & PIDS+=($!); NAME
 "$SCRIPT_DIR/leah-worktree-janitor_test.sh" >"$LOG/janitor"  2>&1 & PIDS+=($!); NAMES+=(janitor)
 "$SCRIPT_DIR/check-handoff-continuity_test.sh" >"$LOG/handoff" 2>&1 & PIDS+=($!); NAMES+=(handoff)
 "$SCRIPT_DIR/audit-stale-specs_test.sh" >"$LOG/stalespecs" 2>&1 & PIDS+=($!); NAMES+=(stalespecs)
+"$SCRIPT_DIR/check-stale-specs-drift.sh" >"$LOG/stalespecsdrift" 2>&1 & PIDS+=($!); NAMES+=(stalespecsdrift)
 # MAY-13: stale-APPROVE guard tests pin the timestamp comparison + fixture routing.
 "$SCRIPT_DIR/check-amend-after-approve_test.sh" >"$LOG/amend"  2>&1 & PIDS+=($!); NAMES+=(amend)
 
