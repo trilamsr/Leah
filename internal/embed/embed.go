@@ -79,15 +79,32 @@ type Hit struct {
 // SelectGenerator picks a Generator based on LEAH_EMBED_BACKEND. Default
 // is "hash" (offline, deterministic, dim 256). "openai" requires
 // OPENAI_API_KEY and produces 1536-dim text-embedding-3-small vectors.
+// "bge" loads BGE-small-en-v1.5 via ONNX Runtime from LEAH_EMBED_MODEL_PATH
+// (cgo build only — see internal/embed/bge.go).
 func SelectGenerator() (Generator, error) {
 	switch strings.ToLower(os.Getenv("LEAH_EMBED_BACKEND")) {
 	case "", "hash":
 		return NewHashGenerator(256), nil
 	case "openai":
 		return NewOpenAIGenerator()
+	case "bge":
+		return NewBGEGenerator(bgeModelPathFromEnv())
 	default:
-		return nil, fmt.Errorf("embed: unknown LEAH_EMBED_BACKEND=%q (want hash|openai)", os.Getenv("LEAH_EMBED_BACKEND"))
+		return nil, fmt.Errorf("embed: unknown LEAH_EMBED_BACKEND=%q (want hash|openai|bge)", os.Getenv("LEAH_EMBED_BACKEND"))
 	}
+}
+
+// bgeModelPathFromEnv picks the ONNX model path: explicit LEAH_EMBED_MODEL_PATH
+// overrides LEAH_MODEL_DIR/<name>.onnx. Empty result lets NewBGEGenerator
+// surface the missing-path error rather than the daemon silently degrading.
+func bgeModelPathFromEnv() string {
+	if p := os.Getenv("LEAH_EMBED_MODEL_PATH"); p != "" {
+		return p
+	}
+	if dir := os.Getenv("LEAH_MODEL_DIR"); dir != "" {
+		return dir + "/bge-small-en-v1.5.onnx"
+	}
+	return ""
 }
 
 // Cosine is dot(a,b) / (|a||b|). When both inputs are L2-normalized
