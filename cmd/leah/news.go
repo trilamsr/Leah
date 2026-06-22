@@ -49,6 +49,15 @@ var newsBundles = map[string][]feeds.NewsSource{
 	},
 }
 
+// arxivResearchCategories lists the arXiv RSS endpoints the `research` bundle
+// pulls. Kept to the two cs.* categories that already appeared in `ai`
+// so the operator-facing surface is recognizable; downstream dedup collapses
+// cross-listings on PaperID.
+var arxivResearchCategories = []feeds.ArxivCategory{
+	{Name: "cs.AI", URL: "https://export.arxiv.org/rss/cs.AI"},
+	{Name: "cs.LG", URL: "https://export.arxiv.org/rss/cs.LG"},
+}
+
 // bundleURLOverride is a test-only hook patched from news_test.go. Package
 // variable — not env-readable — so a stray production ENV cannot redirect
 // bundle fetches at runtime. Empty in every shipped binary.
@@ -73,6 +82,93 @@ func bundleSources(name string) ([]feeds.NewsSource, bool) {
 	return src, true
 }
 
+// bundleNames returns every registered bundle — RSS, arxiv, and releases
+// alike — so help text and unknown-bundle errors enumerate them all from one
+// source. New bundles register themselves here once; knownBundles() reads from
+// the same set.
+func bundleNames() []string {
+	names := make([]string, 0, len(newsBundles)+2)
+	for k := range newsBundles {
+		names = append(names, k)
+	}
+	names = append(names, "research", "dev")
+	return names
+}
+
+// bundleArticles fetches the digest input for the named bundle. RSS bundles
+// route through feeds.News; `research` swaps in feeds.Arxiv (Paper→Article
+// adapter); `dev` swaps in feeds.Releases (Article-native). Centralizing the
+// adapter pick here keeps runNews() flat — no per-kind branching downstream.
+func bundleArticles(ctx context.Context, name string, client *http.Client, att feeds.Attestor) ([]feeds.Article, bool, error) {
+	switch name {
+	case "research":
+		cats := arxivResearchCategories
+		if bundleURLOverride != "" {
+			cats = make([]feeds.ArxivCategory, len(arxivResearchCategories))
+			for i, c := range arxivResearchCategories {
+				cats[i] = feeds.ArxivCategory{Name: c.Name, URL: bundleURLOverride}
+			}
+		}
+		a, err := feeds.NewArxiv(feeds.ArxivConfig{Attestor: att, HTTPClient: client, Categories: cats})
+		if err != nil {
+			return nil, true, err
+		}
+		papers, err := a.Fetch(ctx)
+		if err != nil {
+			return nil, true, err
+		}
+		return papersAsArticles(papers), true, nil
+	case "dev":
+		srcs := feeds.DefaultReleaseSources()
+		if bundleURLOverride != "" {
+			for i := range srcs {
+				srcs[i].URL = bundleURLOverride
+			}
+		}
+		r, err := feeds.NewReleases(feeds.ReleasesConfig{Attestor: att, HTTPClient: client, Sources: srcs})
+		if err != nil {
+			return nil, true, err
+		}
+		arts, err := r.Fetch(ctx)
+		return arts, true, err
+	default:
+		src, ok := bundleSources(name)
+		if !ok {
+			return nil, false, nil
+		}
+		return fetchNews(ctx, client, att, src)
+	}
+}
+
+// fetchNews runs the RSS adapter for the news/tech/ai bundles + the
+// operator-config default path.
+func fetchNews(ctx context.Context, client *http.Client, att feeds.Attestor, sources []feeds.NewsSource) ([]feeds.Article, bool, error) {
+	n, err := feeds.NewNews(feeds.NewsConfig{Attestor: att, HTTPClient: client, Sources: sources})
+	if err != nil {
+		return nil, true, err
+	}
+	arts, err := n.Fetch(ctx)
+	return arts, true, err
+}
+
+// papersAsArticles lossily converts arXiv papers to the Article shape the
+// digest pipeline expects. Authors + abstract drop here — the digest only
+// renders Title+URL+Source, so the conversion is faithful at the operator
+// surface. PaperID-based dedup already happened upstream in Arxiv.Fetch.
+func papersAsArticles(papers []feeds.Paper) []feeds.Article {
+	out := make([]feeds.Article, len(papers))
+	for i, p := range papers {
+		out[i] = feeds.Article{
+			Title:     p.Title,
+			URL:       p.URL,
+			Summary:   p.Abstract,
+			Source:    "arxiv-" + p.Category,
+			Published: p.Published,
+		}
+	}
+	return out
+}
+
 // runNews prints a synthesized DailyDigest. Flags: --bundle <name> picks a
 // curated source list; otherwise operator config + defaults apply.
 func runNews(parent context.Context, args []string, w io.Writer) int {
@@ -95,31 +191,23 @@ func runNews(parent context.Context, args []string, w io.Writer) int {
 		return 2
 	}
 
-	var sources []feeds.NewsSource
+	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	defer cancel()
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	att := newFeedsAttestor()
+
+	var articles []feeds.Article
 	if bundle != "" {
-		src, ok := bundleSources(bundle)
+		var ok bool
+		articles, ok, err = bundleArticles(ctx, bundle, client, att)
 		if !ok {
 			_, _ = fmt.Fprintf(os.Stderr, "leah news: unknown bundle %q (known: %s)\n", bundle, knownBundles())
 			return 2
 		}
-		sources = src
 	} else {
-		sources = loadNewsSources(stateDir())
+		articles, _, err = fetchNews(ctx, client, att, loadNewsSources(stateDir()))
 	}
-
-	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
-	defer cancel()
-
-	n, err := feeds.NewNews(feeds.NewsConfig{
-		Attestor:   newFeedsAttestor(),
-		HTTPClient: &http.Client{Timeout: 10 * time.Second},
-		Sources:    sources,
-	})
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah news: %v\n", err)
-		return 1
-	}
-	articles, err := n.Fetch(ctx)
 	if err != nil {
 		if errors.Is(err, feeds.ErrAttestationDenied) {
 			_, _ = fmt.Fprintln(os.Stderr, "leah news: attestation denied")
@@ -202,10 +290,7 @@ func parseBundleFlag(args []string) (bundle string, rest []string, err error) {
 
 
 func knownBundles() string {
-	names := make([]string, 0, len(newsBundles))
-	for k := range newsBundles {
-		names = append(names, k)
-	}
+	names := bundleNames()
 	sort.Strings(names)
 	return strings.Join(names, "|")
 }
