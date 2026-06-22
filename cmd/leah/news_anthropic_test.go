@@ -8,9 +8,7 @@ import (
 	"testing"
 )
 
-// TestNewsBundles_AnthropicURL_StableOrTracked locks the FeedBurner URL until a
-// concrete revisit signal lands. The source comment must carry a verification
-// date so a future agent can mechanically decide whether to re-probe native RSS.
+// TestNewsBundles_AnthropicURL_StableOrTracked locks the FeedBurner URL + comment revisit signal.
 func TestNewsBundles_AnthropicURL_StableOrTracked(t *testing.T) {
 	const wantURL = "https://feeds.feedburner.com/anthropic"
 	var got string
