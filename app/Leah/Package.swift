@@ -28,5 +28,14 @@ let package = Package(
       dependencies: ["LeahUI"],
       path: "Tests/LeahUITests"
     ),
+    .target(
+      name: "LeahWidgets",
+      path: "Sources/LeahWidgets"
+    ),
+    .testTarget(
+      name: "LeahWidgetsTests",
+      dependencies: ["LeahWidgets"],
+      path: "Tests/LeahWidgetsTests"
+    ),
   ]
 )
