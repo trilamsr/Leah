@@ -29,6 +29,14 @@ public final class WidgetTileRegistry {
       guard let p: MapsPayload = decode(e.props) else { return AnyView(EmptyView()) }
       return AnyView(MapsTileView(payload: p))
     }
+    register(kind: .weather) { env in
+      guard let p = try? WeatherPayload(props: env.props) else { return AnyView(EmptyView()) }
+      return AnyView(WeatherTileView(payload: p))
+    }
+    register(kind: .calendar) { env in
+      guard let p = try? CalendarPayload(props: env.props) else { return AnyView(EmptyView()) }
+      return AnyView(CalendarTileView(payload: p))
+    }
   }
 }
 
