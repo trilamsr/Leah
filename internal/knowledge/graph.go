@@ -225,6 +225,11 @@ func (g *Graph) Forget(ctx context.Context, kind EntityKind, key string) error {
 	return nil
 }
 
+// SearchRelevant delegates to the underlying storage layer.
+func (g *Graph) SearchRelevant(ctx context.Context, query string, k int) ([]Chunk, error) {
+	return g.store.SearchRelevant(ctx, query, k)
+}
+
 func unionStrings(a, b []string) []string {
 	seen := make(map[string]struct{}, len(a)+len(b))
 	out := make([]string, 0, len(a)+len(b))

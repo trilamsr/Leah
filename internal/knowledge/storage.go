@@ -26,8 +26,9 @@ var ddl string
 
 // Chunk represents a knowledge snippet retrievable via semantic search.
 type Chunk struct {
-	ID       string
-	Text     string
+	ID   string
+	Text string
+	// Distance is reserved for Phase 2 sqlite-vec ranking; currently always 0.
 	Distance float64
 }
 
@@ -265,8 +266,9 @@ func (s *storage) deleteEntity(kind EntityKind, key string) (bool, error) {
 	return n > 0, nil
 }
 
-// SearchRelevant retrieves top-k chunks ordered by distance (ascending).
-// Returns empty slice when store is empty or no chunks match.
+// SearchRelevant retrieves top-k chunks ordered by insertion order; semantic
+// distance ranking is Phase 2 (sqlite-vec MATCH). Returns empty slice when
+// store is empty or no chunks match.
 func (s *storage) SearchRelevant(ctx context.Context, query string, k int) ([]Chunk, error) {
 	if k <= 0 {
 		return []Chunk{}, nil

@@ -175,7 +175,8 @@ func main() {
 		sonnet = nil
 	}
 	// store.DB() already has conversation_turn from the schema migration above.
-	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB())).Serve(ctx) }()
+	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
+	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil)).Serve(ctx) }()
 
 	if err := loop.Run(ctx); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
