@@ -29,7 +29,7 @@ type pingFn func(ctx context.Context, key string) error
 // subsequent task. The handler routes only "ask" and "verify-key" today.
 func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB) ipc.Handler {
 	stream := liveStreamFn(sonnet)
-	ping := livePingFn(sonnet)
+	ping := livePingFn()
 	return newIPCHandlerWithPingForTest(db, stream, ping)
 }
 
@@ -150,13 +150,10 @@ func liveStreamFn(c *reasoner.AnthropicClient) streamFn {
 	}
 }
 
-// livePingFn performs a 1-token API call to validate the key.
-func livePingFn(c *reasoner.AnthropicClient) pingFn {
-	if c == nil {
-		return func(_ context.Context, _ string) error { return errVerifyFailed }
-	}
-	return func(ctx context.Context, _ string) error {
-		_, err := c.OneShot(ctx, "ping", "1")
-		return err
-	}
+// livePingFn validates the wizard-supplied key by issuing a 1-token Messages
+// call with a transient SDK client bound to THAT key — NOT the daemon's
+// existing ANTHROPIC_API_KEY. Without this, the wizard would silently
+// validate the previously-set key and false-positive bad input.
+func livePingFn() pingFn {
+	return reasoner.VerifyKey
 }
