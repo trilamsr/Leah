@@ -89,6 +89,10 @@ PR BODY HYGIENE
 - `gh pr create` / `gh pr edit` MUST use `--body-file <path>`. HEREDOC bodies escape backticks.
 - Auto-close keyword form: `closes #N, closes #M` (comma-separated). The space-separated form `closes #N #M` only closes `#N`.
 
+## PR body style
+
+PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `-` bullets. No `## Summary` / `## Test Plan` / `## What changed` headers. No emoji. Prose paragraphs ≤6 lines. Past-tense fragments OK. Concrete: file paths, hex values, model ids, test names, commit SHAs. Tone match: scan recent operator-authored PRs in the same repo for cadence. Reference: `~/.claude/projects/-Users-treedesk-Desktop-Projects-leah/memory/feedback_pr_summary_style.md`.
+
 ## Per-dispatch payload
 - Topic: `<TOPIC>`
 - Slug: `<SPEC-SLUG>`

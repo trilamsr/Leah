@@ -145,6 +145,10 @@ VALIDATE EMPIRICALLY + VERIFY SUBAGENT OUTPUT
 WINDOWS PATH TESTS
 - When asserting paths against error messages or production output, canonicalize BOTH sides the same way production code does — OR platform-branch the test inputs. 8.3 short-names + `/etc`-literal paths break Windows CI silently post-merge.
 
+## PR body style
+
+PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `-` bullets. No `## Summary` / `## Test Plan` / `## What changed` headers. No emoji. Prose paragraphs ≤6 lines. Past-tense fragments OK. Concrete: file paths, hex values, model ids, test names, commit SHAs. Tone match: scan recent operator-authored PRs in the same repo for cadence. Reference: `~/.claude/projects/-Users-treedesk-Desktop-Projects-leah/memory/feedback_pr_summary_style.md`.
+
 ## Per-dispatch payload
 - Task: `<TASK-ID>`
 - Spec: `<SPEC-PATH>` (canonical; deviations require design-subagent re-spawn)
