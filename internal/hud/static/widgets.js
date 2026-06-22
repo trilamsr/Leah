@@ -22,17 +22,30 @@
 
   function openStream() {
     let backoff = 2000;
+    // widget.init seeds tileIds before any refresh; refresh frames also union
+    // in so a server-side tile addition reaches the offline-marking set
+    // without a client release.
+    let tileIds = new Set();
     try {
       const es = new EventSource("/api/widgets/stream");
+      es.addEventListener("widget.init", (e) => {
+        try {
+          const ids = JSON.parse(e.data);
+          if (Array.isArray(ids)) tileIds = new Set(ids);
+        } catch { /* leave previous set */ }
+      });
       es.addEventListener("widget.refresh", (e) => {
         backoff = 2000;
         let f;
         try { f = JSON.parse(e.data); } catch { return; }
-        if (f && f.id) swap(f.id, f.html);
+        if (f && f.id) {
+          tileIds.add(f.id);
+          swap(f.id, f.html);
+        }
       });
       es.onerror = () => {
         es.close();
-        ["weather", "market-AAPL", "news", "calendar"].forEach(offlineNode);
+        tileIds.forEach(offlineNode);
         setTimeout(openStream, backoff);
         backoff = Math.min(backoff * 2, 30000);
       };
