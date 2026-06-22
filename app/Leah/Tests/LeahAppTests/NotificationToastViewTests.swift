@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class NotificationToastViewTests: XCTestCase {
   func testSwipeRightDismisses() {
-    var stack = NotificationToastStack()
+    let stack = NotificationToastStack()
     let t = Toast(id: "t1", kind: "info", title: "Hello", body: "world", actionLabel: nil, severity: .info, createdAt: Date())
     stack.push(t)
     XCTAssertEqual(stack.visible.count, 1)

@@ -8,7 +8,7 @@ final class NotificationToastStackTests: XCTestCase {
   }
 
   func testStackCapsAtTwoVisible() {
-    var stack = NotificationToastStack()
+    let stack = NotificationToastStack()
     stack.push(mk("a"))
     stack.push(mk("b"))
     stack.push(mk("c"))
@@ -17,7 +17,7 @@ final class NotificationToastStackTests: XCTestCase {
   }
 
   func testThirdToastCollapsesIntoPlusN() {
-    var stack = NotificationToastStack()
+    let stack = NotificationToastStack()
     stack.push(mk("a"))
     stack.push(mk("b"))
     stack.push(mk("c"))
@@ -35,7 +35,7 @@ final class NotificationToastStackTests: XCTestCase {
 
   func testPriorityRedPersistsBeyond8s() {
     let now = Date()
-    var stack = NotificationToastStack(now: { now.addingTimeInterval(20) })
+    let stack = NotificationToastStack(now: { now.addingTimeInterval(20) })
     stack.push(mk("info", severity: .info, at: now))
     stack.push(mk("red", severity: .redAlert, at: now))
     stack.sweepExpired(defaultLifetime: 8)
