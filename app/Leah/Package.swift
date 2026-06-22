@@ -23,13 +23,17 @@ let package = Package(
       path: "Tests/LeahAppTests"
     ),
     .target(
+      name: "LeahAuth",
+      path: "Sources/LeahAuth"
+    ),
+    .target(
       name: "LeahUI",
-      dependencies: ["LeahIPC"],
+      dependencies: ["LeahIPC", "LeahAuth"],
       path: "Sources/LeahUI"
     ),
     .testTarget(
       name: "LeahUITests",
-      dependencies: ["LeahUI"],
+      dependencies: ["LeahUI", "LeahAuth"],
       path: "Tests/LeahUITests"
     ),
     .target(
