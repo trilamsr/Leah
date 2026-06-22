@@ -32,17 +32,28 @@ public enum AppcastTemplate {
         return f
     }()
 
+    // XML attribute escape — URLs with & and signatures with quotes would
+    // otherwise break the appcast parse.
+    private static func xmlAttr(_ s: String) -> String {
+        s.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
     public static func item(_ i: Item) -> String {
-        """
+        let url = xmlAttr(i.downloadURL)
+        let ver = xmlAttr(i.version)
+        let sig = xmlAttr(i.eddsaSignature)
+        return """
         <item>
-          <title>Leah \(i.version)</title>
+          <title>Leah \(ver)</title>
           <pubDate>\(rfc822.string(from: i.pubDate))</pubDate>
           <enclosure
-            url="\(i.downloadURL)"
-            sparkle:version="\(i.version)"
+            url="\(url)"
+            sparkle:version="\(ver)"
             length="\(i.length)"
             type="application/octet-stream"
-            sparkle:edSignature="\(i.eddsaSignature)" />
+            sparkle:edSignature="\(sig)" />
         </item>
         """
     }

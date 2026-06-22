@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 # Sign a notarized .zip, publish a GitHub release, and emit the appcast <item>.
 #
-# Usage: publish-release.sh VERSION ZIPPATH
-#   VERSION   SemVer string, e.g. 1.0.0
-#   ZIPPATH   Absolute path to the notarized Leah-<VERSION>.zip
+# Usage: publish-release.sh [--dry-run] VERSION ZIPPATH
+#   --dry-run  Sign + emit <item> XML only; skip `gh release create`.
+#   VERSION    SemVer string, e.g. 1.0.0
+#   ZIPPATH    Absolute path to the notarized Leah-<VERSION>.zip
 #
 # Stdout emits the <item> XML fragment — append it inside <channel> in
 # docs/appcast.xml on the gh-pages branch, then push.
 set -euo pipefail
 
-VERSION="${1:?usage: publish-release.sh VERSION ZIPPATH}"
+DRY_RUN=0
+if [ "${1:-}" = "--dry-run" ]; then
+    DRY_RUN=1
+    shift
+fi
+
+VERSION="${1:?usage: publish-release.sh [--dry-run] VERSION ZIPPATH}"
 ZIP="${2:?missing ZIPPATH}"
 
 find_tool() {
@@ -31,12 +38,20 @@ fi
 
 # sign_update emits: sparkle:edSignature="..." length="..."
 SIG_LINE="$("$SIGN_UPDATE" "$ZIP")"
+if [ -z "$SIG_LINE" ]; then
+    echo "sign_update produced no output — aborting before release" >&2
+    exit 1
+fi
 LENGTH=$(stat -f%z "$ZIP")
 DL_URL="https://github.com/maydow/leah/releases/download/v${VERSION}/$(basename "$ZIP")"
 
-gh release create "v${VERSION}" "$ZIP" \
-    --title "Leah v${VERSION}" \
-    --notes "Release v${VERSION}"
+if [ "$DRY_RUN" -eq 0 ]; then
+    gh release create "v${VERSION}" "$ZIP" \
+        --title "Leah v${VERSION}" \
+        --notes "Release v${VERSION}"
+else
+    echo "[dry-run] skipping: gh release create v${VERSION}" >&2
+fi
 
 cat <<EOF
 <item>

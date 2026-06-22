@@ -14,6 +14,9 @@ public final class Updater {
         )
         if let url = URL(string: feedURL) {
             self.controller.updater.setFeedURL(url)
+        } else {
+            // Silent failure would leave updater pointed at no feed; surface it.
+            NSLog("LeahUpdate: invalid feedURL %@ — updates disabled", feedURL)
         }
         self.controller.updater.automaticallyChecksForUpdates = true
         self.controller.updater.updateCheckInterval = 86_400
