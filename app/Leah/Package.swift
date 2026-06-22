@@ -38,7 +38,7 @@ let package = Package(
     ),
     .testTarget(
       name: "LeahUITests",
-      dependencies: ["LeahUI", "LeahAuth"],
+      dependencies: ["LeahUI", "LeahAuth", "LeahIPC"],
       path: "Tests/LeahUITests"
     ),
     .target(

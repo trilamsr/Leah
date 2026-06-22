@@ -10,7 +10,8 @@ import LeahIPC
 // losing ping. IPCClient.receive() wraps a blocking Darwin.read on a private
 // actor, so cancelAll() cannot interrupt an in-flight read — the caller sees
 // the timeout immediately, but the orphan ping task lingers until the OS
-// closes the socket. Acceptable for a first-launch one-shot.
+// closes the socket. A late daemon reply resolves against the already-drained
+// TaskGroup and is silently dropped. Acceptable for a first-launch one-shot.
 public enum IPCKeyVerifyOutcome: Sendable, Equatable {
   case success
   case rejected(reason: String)
