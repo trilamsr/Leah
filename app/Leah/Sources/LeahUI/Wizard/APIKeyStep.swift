@@ -1,16 +1,13 @@
 import SwiftUI
 import LeahAuth
-import LeahIPC
 
-// Step 2: BYOK Anthropic key — SecureField paste + Keychain write + IPC daemon ping
-// per spec §13.15, §17.18, §14b.
-// verifyFn is injected so tests capture the IPC ping without a live socket;
-// production wiring uses IPCKeyVerifier.live.
+// Step 2: BYOK Anthropic key — SecureField paste + Keychain write + optional
+// daemon verify-key ping (spec §13.15, §17.18, §14b). verifyFn is injected so
+// tests run without a live socket; daemon-offline degrades to a warning row so
+// first-launch never hangs on a deaf daemon.
 public struct APIKeyStep: View {
   let onContinue: () -> Void
-  // Async verify: returns nil on success, error string on failure.
-  // Daemon-offline must return nil (degrade gracefully — key is saved, verify on first request).
-  let verifyFn: (String) async -> String?
+  let verifyFn: (String) async -> IPCKeyVerifyOutcome
 
   @State private var key = ""
   @State private var showKey = false
@@ -19,7 +16,7 @@ public struct APIKeyStep: View {
 
   public init(
     onContinue: @escaping () -> Void,
-    verifyFn: @escaping (String) async -> String? = IPCKeyVerifier.live
+    verifyFn: @escaping (String) async -> IPCKeyVerifyOutcome = IPCKeyVerifier.live
   ) {
     self.onContinue = onContinue
     self.verifyFn = verifyFn
@@ -53,7 +50,7 @@ public struct APIKeyStep: View {
       HStack {
         Spacer()
         Button(verifying ? "Verifying…" : "Save & Continue") {
-          Task { await saveAndVerify() }
+          Task { await saveAndVerify(key) }
         }
         .disabled(key.isEmpty || verifying)
       }
@@ -61,20 +58,9 @@ public struct APIKeyStep: View {
     .padding(48)
   }
 
+  // Internal seam: drives save→verify→continue without rendering, for unit tests.
   @MainActor
-  private func saveAndVerify() async {
-    await saveAndVerifyKey(key)
-  }
-
-  // Internal seam for unit tests: drives the full save→verify→continue path
-  // with a caller-supplied key without needing to render the SwiftUI body.
-  @MainActor
-  func testSaveAndVerify(key: String) async {
-    await saveAndVerifyKey(key)
-  }
-
-  @MainActor
-  private func saveAndVerifyKey(_ k: String) async {
+  func saveAndVerify(_ k: String) async {
     do {
       try Keychain.save(k)
     } catch {
@@ -83,13 +69,20 @@ public struct APIKeyStep: View {
     }
     verifying = true
     status = "Verifying key…"
-    if let errMsg = await verifyFn(k) {
-      status = errMsg
-      verifying = false
-      return
-    }
+    let outcome = await verifyFn(k)
     verifying = false
-    status = ""
-    onContinue()
+    switch outcome {
+    case .success:
+      status = ""
+      onContinue()
+    case .rejected(let reason):
+      // Hard fail — Anthropic said no. Block continue so the user can fix the key.
+      status = reason
+    case .offline:
+      // Daemon unreachable or timed out — degrade gracefully. Key is in
+      // Keychain; real call validates on first use.
+      status = "Daemon offline — key saved; will verify on first use."
+      onContinue()
+    }
   }
 }
