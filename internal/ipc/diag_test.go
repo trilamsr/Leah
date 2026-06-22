@@ -7,10 +7,34 @@ import (
 	"time"
 )
 
+// TestDiagStateExposesLastError asserts that an error string passed to
+// HandleState surfaces in the last_error payload field.
+func TestDiagStateExposesLastError(t *testing.T) {
+	const want = "disk: no space left"
+	out, err := HandleState(context.Background(), time.Now(), want)
+	if err != nil {
+		t.Fatalf("HandleState: %v", err)
+	}
+	var frames []Frame
+	for f := range out {
+		frames = append(frames, f)
+	}
+	if len(frames) != 1 {
+		t.Fatalf("want 1 frame, got %d", len(frames))
+	}
+	var p DiagStatePayload
+	if err := json.Unmarshal(frames[0].Payload, &p); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if p.LastError != want {
+		t.Fatalf("last_error: got %q, want %q", p.LastError, want)
+	}
+}
+
 // TestIPCDiagStateResponds asserts HandleState returns exactly one
 // diag.state.response frame with all six payload fields present.
 func TestIPCDiagStateResponds(t *testing.T) {
-	out, err := HandleState(context.Background(), time.Now().Add(-5*time.Second))
+	out, err := HandleState(context.Background(), time.Now().Add(-5*time.Second), "")
 	if err != nil {
 		t.Fatalf("HandleState: %v", err)
 	}
