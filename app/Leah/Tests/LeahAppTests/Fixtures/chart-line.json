@@ -1,0 +1,38 @@
+{
+  "widget": "chart",
+  "id": "chart-pr-velocity",
+  "size": "medium",
+  "props": {
+    "kind": "line",
+    "accent": "merged",
+    "series": [
+      {
+        "name": "merged",
+        "points": [
+          {"x": 0, "y": 3},
+          {"x": 1, "y": 5},
+          {"x": 2, "y": 4},
+          {"x": 3, "y": 7},
+          {"x": 4, "y": 6},
+          {"x": 5, "y": 9},
+          {"x": 6, "y": 8}
+        ]
+      },
+      {
+        "name": "opened",
+        "points": [
+          {"x": 0, "y": 4},
+          {"x": 1, "y": 6},
+          {"x": 2, "y": 5},
+          {"x": 3, "y": 8},
+          {"x": 4, "y": 7},
+          {"x": 5, "y": 10},
+          {"x": 6, "y": 9}
+        ]
+      }
+    ],
+    "events": [
+      {"x": 3, "y": 7, "label": "outage"}
+    ]
+  }
+}

@@ -19,6 +19,8 @@ public final class WidgetTileRegistry {
   }
 
   public func registerWave2Defaults() {
+    register(kind: .market) { e in AnyView(MarketTileView(envelope: e)) }
+    register(kind: .chart) { e in AnyView(ChartTileView(envelope: e)) }
     register(kind: .flights) { e in
       guard let p: FlightsPayload = decode(e.props) else { return AnyView(EmptyView()) }
       return AnyView(FlightsTileView(payload: p))
