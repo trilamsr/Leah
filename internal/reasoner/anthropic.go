@@ -140,6 +140,30 @@ func (c *AnthropicClient) OneShot(ctx context.Context, system, user string) (str
 	return "", nil
 }
 
+// cloneHistoryForCache clones the slice headers we touch (Content per
+// message, Citations per text block) so the downstream cache-control rewrite
+// cannot alias the caller's backing arrays. Pointer targets reachable from
+// elements (e.g. Citations[i].OfPageLocation) remain shared — the SDK
+// marshals them read-only, so deep-cloning every variant adds cost without
+// closing a real bug. The invariant is slice-header independence.
+func cloneHistoryForCache(history []anthropic.MessageParam) []anthropic.MessageParam {
+	out := make([]anthropic.MessageParam, len(history))
+	for i, msg := range history {
+		dup := make([]anthropic.ContentBlockParamUnion, len(msg.Content))
+		copy(dup, msg.Content)
+		for j, blk := range dup {
+			if blk.OfText != nil && len(blk.OfText.Citations) > 0 {
+				cp := *blk.OfText
+				cp.Citations = append([]anthropic.TextCitationParamUnion(nil), blk.OfText.Citations...)
+				dup[j] = anthropic.ContentBlockParamUnion{OfText: &cp}
+			}
+		}
+		msg.Content = dup
+		out[i] = msg
+	}
+	return out
+}
+
 // StreamChunks issues a streaming call with optional cache_control on the
 // system block + last history message, and returns text chunks plus a final
 // summary carrying SDK-reported InputTokens/OutputTokens (so cost accounting
@@ -153,25 +177,20 @@ func (c *AnthropicClient) StreamChunks(ctx context.Context, system string, histo
 	if cache {
 		sysBlock.CacheControl = anthropic.NewCacheControlEphemeralParam()
 	}
-	msgs := make([]anthropic.MessageParam, len(history))
-	copy(msgs, history)
+	msgs := cloneHistoryForCache(history)
 	if cache && len(msgs) > 0 {
-		// Mark the last history message for ephemeral caching. copy() above
-		// duplicated MessageParam values but their Content slices still
-		// alias the caller's backing array — deep-copy Content before
-		// rewriting an element so we never leak mutations to history[i].
+		// Mark the last history message for ephemeral caching. The clone above
+		// is independent of the caller's slices, so rewriting an element here
+		// never leaks into history[i].
 		last := msgs[len(msgs)-1]
-		dup := make([]anthropic.ContentBlockParamUnion, len(last.Content))
-		copy(dup, last.Content)
-		for i, blk := range dup {
+		for i, blk := range last.Content {
 			if blk.OfText != nil && blk.OfText.Text != "" {
 				cp := *blk.OfText
 				cp.CacheControl = anthropic.NewCacheControlEphemeralParam()
-				dup[i] = anthropic.ContentBlockParamUnion{OfText: &cp}
+				last.Content[i] = anthropic.ContentBlockParamUnion{OfText: &cp}
 				break
 			}
 		}
-		last.Content = dup
 		msgs[len(msgs)-1] = last
 	}
 	msgs = append(msgs, anthropic.NewUserMessage(anthropic.NewTextBlock(userText)))
