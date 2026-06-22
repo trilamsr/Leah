@@ -7,6 +7,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
+	"syscall"
+	"time"
 )
 
 type Handler func(ctx context.Context, req Frame) (<-chan Frame, error)
@@ -14,6 +17,9 @@ type Handler func(ctx context.Context, req Frame) (<-chan Frame, error)
 type Server struct {
 	path    string
 	handler Handler
+
+	mu sync.Mutex
+	ln net.Listener
 }
 
 func NewServer(socketPath string, handler Handler) *Server {
@@ -30,23 +36,64 @@ func (s *Server) Serve(ctx context.Context) error {
 		return fmt.Errorf("listen: %w", err)
 	}
 	if err := os.Chmod(s.path, 0o600); err != nil {
+		_ = ln.Close()
 		return fmt.Errorf("chmod socket: %w", err)
 	}
+	return s.serveListener(ctx, ln)
+}
+
+func (s *Server) Stop() error {
+	s.mu.Lock()
+	ln := s.ln
+	s.ln = nil
+	s.mu.Unlock()
+	if ln == nil {
+		return nil
+	}
+	if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) serveListener(ctx context.Context, ln net.Listener) error {
+	s.mu.Lock()
+	s.ln = ln
+	s.mu.Unlock()
 	go func() { <-ctx.Done(); _ = ln.Close() }()
+	const (
+		backoffMin = 5 * time.Millisecond
+		backoffMax = 1 * time.Second
+	)
+	backoff := backoffMin
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
+			// EMFILE/ENFILE are transient; back off so the kernel can
+			// reclaim FDs instead of crashing the daemon.
+			if errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE) {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoff):
+				}
+				if backoff < backoffMax {
+					backoff *= 2
+				}
+				continue
+			}
 			return fmt.Errorf("accept: %w", err)
 		}
+		backoff = backoffMin
 		go s.serveConn(ctx, conn)
 	}
 }
 
 func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	for {
 		req, err := ReadFrame(conn)
 		if err != nil {
