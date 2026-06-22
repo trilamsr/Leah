@@ -87,7 +87,7 @@ func (a *Adapter) Fetch(ctx context.Context, props json.RawMessage) (widget.Payl
 	if err != nil {
 		return widget.Payload{}, fmt.Errorf("weather: do: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return widget.Payload{}, fmt.Errorf("weather: status %d", resp.StatusCode)
