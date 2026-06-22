@@ -109,3 +109,18 @@ func TestEnvelopeActionLabelMaxLen(t *testing.T) {
 		t.Fatalf("expected label-maxlen error; got %v", err)
 	}
 }
+
+func TestEnvelopeActionsMaxItems(t *testing.T) {
+	five := make([]Action, 5)
+	for i := range five {
+		five[i] = Action{Label: "x", Callback: "leah://action/refresh"}
+	}
+	e := Envelope{Widget: "market", ID: "a", Size: "small", Actions: five}
+	if err := e.Validate(); err == nil || !strings.Contains(err.Error(), "max 4") {
+		t.Fatalf("expected actions max-4 error; got %v", err)
+	}
+	e.Actions = five[:4]
+	if err := e.Validate(); err != nil {
+		t.Fatalf("4 actions rejected: %v", err)
+	}
+}
