@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/knowledge"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/reasoner"
 )
@@ -27,13 +29,17 @@ type pingFn func(ctx context.Context, key string) error
 // classifyFn routes a user query to an Intent before the stream path fires.
 type classifyFn func(ctx context.Context, text string) reasoner.Intent
 
+// fetchFn retrieves top-k knowledge chunks for a query; nil return is safe.
+type fetchFn func(ctx context.Context, query string, k int) ([]knowledge.Chunk, error)
+
 // newIPCHandler is the production constructor wired into main.go.
-func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB) ipc.Handler {
+func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph) ipc.Handler {
 	return newIPCHandlerWithClassify(db,
 		liveStreamFn(sonnet),
 		liveOpusStreamFn(sonnet),
 		liveClassifyFn(),
 		livePingFn(),
+		liveFetchFn(kg),
 	)
 }
 
@@ -42,13 +48,13 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB) ipc.Handler {
 func newIPCHandlerForTest(db *sql.DB, s streamFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
 	return newIPCHandlerWithClassify(db, s, s, noClassify,
-		func(_ context.Context, _ string) error { return nil })
+		func(_ context.Context, _ string) error { return nil }, nil)
 }
 
 // newIPCHandlerWithPingForTest is kept for existing verify-key tests.
 func newIPCHandlerWithPingForTest(db *sql.DB, s streamFn, ping pingFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassify(db, s, s, noClassify, ping)
+	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil)
 }
 
 // newIPCHandlerWithClassify is the full injection point — used by all tests.
@@ -57,13 +63,14 @@ func newIPCHandlerWithClassify(
 	sonnetStream, opusStream streamFn,
 	classify classifyFn,
 	ping pingFn,
+	fetch fetchFn,
 ) ipc.Handler {
 	return func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
 		switch req.Kind {
 		case "verify-key":
 			return handleVerifyKey(ctx, req, ping)
 		default:
-			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify)
+			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch)
 		}
 	}
 }
@@ -77,6 +84,7 @@ func handleAsk(
 	db *sql.DB,
 	sonnetStream, opusStream streamFn,
 	classify classifyFn,
+	fetch fetchFn,
 ) (<-chan ipc.Frame, error) {
 	var p struct {
 		Text         string `json:"text"`
@@ -111,7 +119,20 @@ func handleAsk(
 		return out, nil
 	}
 
-	raw, err := s(ctx, req.TurnID, p.Text)
+	promptText := p.Text
+	if fetch != nil {
+		if chunks, err := fetch(ctx, p.Text, 5); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: SearchRelevant: %v\n", err)
+		} else if len(chunks) > 0 {
+			texts := make([]string, len(chunks))
+			for i, c := range chunks {
+				texts[i] = c.Text
+			}
+			promptText = "Context:\n" + strings.Join(texts, "\n") + "\n\nQuery: " + p.Text
+		}
+	}
+
+	raw, err := s(ctx, req.TurnID, promptText)
 	if err != nil {
 		return nil, fmt.Errorf("ipc handler stream: %w", err)
 	}
@@ -134,6 +155,7 @@ func handleAsk(
 			case out <- f:
 			}
 			if f.Kind == "turn.end" {
+				// Persist original user text (not the RAG-augmented prompt).
 				if err := memory.RecordTurn(db, req.TurnID, p.Text, assembled); err != nil {
 					_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: RecordTurn: %v\n", err)
 				}
@@ -227,4 +249,13 @@ func liveClassifyFn() classifyFn {
 // validate the previously-set key and false-positive bad input.
 func livePingFn() pingFn {
 	return reasoner.VerifyKey
+}
+
+// liveFetchFn wraps a knowledge.Graph's SearchRelevant as a fetchFn.
+// Returns nil when graph is nil (no knowledge DB configured).
+func liveFetchFn(kg *knowledge.Graph) fetchFn {
+	if kg == nil {
+		return nil
+	}
+	return kg.SearchRelevant
 }

@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"context"
 	"database/sql"
 	_ "embed"
 	"encoding/json"
@@ -22,6 +23,14 @@ const schemaVersion = "1"
 
 //go:embed schema.sql
 var ddl string
+
+// Chunk represents a knowledge snippet retrievable via semantic search.
+type Chunk struct {
+	ID   string
+	Text string
+	// Distance is reserved for Phase 2 sqlite-vec ranking; currently always 0.
+	Distance float64
+}
 
 // Single-writer pool keeps WAL contention bounded across daemon + CLI.
 type storage struct {
@@ -255,4 +264,28 @@ func (s *storage) deleteEntity(kind EntityKind, key string) (bool, error) {
 		return false, fmt.Errorf("delete refs: %w", err)
 	}
 	return n > 0, nil
+}
+
+// SearchRelevant retrieves top-k chunks ordered by insertion order; semantic
+// distance ranking is Phase 2 (sqlite-vec MATCH). Returns empty slice when
+// store is empty or no chunks match.
+func (s *storage) SearchRelevant(ctx context.Context, query string, k int) ([]Chunk, error) {
+	if k <= 0 {
+		return []Chunk{}, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, text FROM knowledge_chunks ORDER BY rowid ASC LIMIT ?`, k)
+	if err != nil {
+		return nil, fmt.Errorf("query chunks: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Chunk
+	for rows.Next() {
+		var c Chunk
+		if err := rows.Scan(&c.ID, &c.Text); err != nil {
+			return nil, fmt.Errorf("scan chunk: %w", err)
+		}
+		c.Distance = 0.0
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }

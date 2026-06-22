@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/knowledge"
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/sqlstore"
 )
@@ -211,7 +213,7 @@ func TestIPCHandlerClassifiesWidget(t *testing.T) {
 		return reasoner.Intent{Kind: "widget", Widget: "stat", Confidence: 0.95}
 	}
 	h := newIPCHandlerWithClassify(db, sonnetStream, sonnetStream, widgetClassify,
-		func(_ context.Context, _ string) error { return nil })
+		func(_ context.Context, _ string) error { return nil }, nil)
 
 	in := ipc.Frame{Kind: "ask", TurnID: "w1", Payload: json.RawMessage(`{"text":"what is my daily cost?"}`)}
 	out, err := h(context.Background(), in)
@@ -265,7 +267,7 @@ func TestIPCHandlerHonorsOpusEscalation(t *testing.T) {
 		return reasoner.Intent{Kind: "chat"}
 	}
 	h := newIPCHandlerWithClassify(db, sonnetStream, opusStream, chatClassify,
-		func(_ context.Context, _ string) error { return nil })
+		func(_ context.Context, _ string) error { return nil }, nil)
 
 	in := ipc.Frame{
 		Kind:    "ask",
@@ -321,5 +323,52 @@ func TestIPCHandlerContextCancelClosesChannel(t *testing.T) {
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("output channel did not close after ctx cancel")
+	}
+}
+
+// SearchRelevant is called before streaming and context is prepended to prompt.
+func TestIPCHandlerFetchesContext(t *testing.T) {
+	db := newTestTurnDB(t)
+
+	fetchCalled := false
+	spyFetch := func(_ context.Context, query string, k int) ([]knowledge.Chunk, error) {
+		fetchCalled = true
+		if query != "what is leah" {
+			t.Errorf("fetch query: got %q, want %q", query, "what is leah")
+		}
+		if k != 5 {
+			t.Errorf("fetch k: got %d, want 5", k)
+		}
+		return []knowledge.Chunk{{ID: "c1", Text: "Leah is a personal AI assistant."}}, nil
+	}
+
+	var capturedPrompt string
+	spyStream := func(_ context.Context, turnID, prompt string) (<-chan ipc.Frame, error) {
+		capturedPrompt = prompt
+		out := make(chan ipc.Frame, 1)
+		out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: 1, Payload: json.RawMessage(`{}`)}
+		close(out)
+		return out, nil
+	}
+
+	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
+	h := newIPCHandlerWithClassify(db, spyStream, spyStream, noClassify,
+		func(_ context.Context, _ string) error { return nil }, spyFetch)
+	in := ipc.Frame{Kind: "ask", TurnID: "t2", Payload: json.RawMessage(`{"text":"what is leah"}`)}
+	out, err := h(context.Background(), in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	for range out {
+	}
+
+	if !fetchCalled {
+		t.Fatal("SearchRelevant was not called")
+	}
+	if !strings.Contains(capturedPrompt, "Leah is a personal AI assistant.") {
+		t.Fatalf("prompt missing retrieved context: %q", capturedPrompt)
+	}
+	if !strings.Contains(capturedPrompt, "what is leah") {
+		t.Fatalf("prompt missing original query: %q", capturedPrompt)
 	}
 }
