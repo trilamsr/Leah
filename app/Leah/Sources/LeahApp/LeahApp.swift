@@ -20,7 +20,11 @@ struct LeahApp: App {
     let fp = FocusPanelController(client: client)
     focusPanel = fp
     let hk = HotkeyManager { Task { @MainActor in fp.summon() } }
-    hk.register()
+    do {
+      try hk.register()
+    } catch {
+      fatalError("Hotkey registration failed: \(error)")
+    }
     hotkey = hk
     summonObserver = NotificationCenter.default.addObserver(
       forName: .leahSummonFocusPanel,
