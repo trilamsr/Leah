@@ -11,7 +11,7 @@ import (
 
 // repoRootFromTest resolves the leah repo root from this test file's location
 // so runSpecs can find scripts/audit-stale-specs.sh regardless of the `go test`
-// invocation CWD. Mirrors the runtime.Caller pattern in news_anthropic_test.go.
+// invocation CWD.
 func repoRootFromTest(t *testing.T) string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
@@ -41,8 +41,12 @@ func TestRunSpecs_StaleOnlyFilters(t *testing.T) {
 		t.Fatalf("runSpecs exit=%d, want 0; out=%q", code, buf.String())
 	}
 	out := strings.TrimSpace(buf.String())
+	// The real tree carries ≥1 STALE row (placeholder specs for
+	// signed-distribution + local-self-update). Empty output here means the
+	// filter dropped everything — including legitimate STALE rows — so refuse
+	// to pass on empty. Update this assertion only when those specs ship.
 	if out == "" {
-		return // empty stale-set is acceptable
+		t.Fatalf("--stale-only produced empty output; expected ≥1 STALE row from real tree")
 	}
 	for _, line := range strings.Split(out, "\n") {
 		if !strings.HasPrefix(line, "STALE\t") {

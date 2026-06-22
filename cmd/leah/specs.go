@@ -64,6 +64,10 @@ func runSpecs(args []string, w io.Writer) int {
 			_, _ = fmt.Fprintln(w, line)
 		}
 	}
+	if err := sc.Err(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah specs: scan: %v\n", err)
+		return 1
+	}
 	return 0
 }
 
