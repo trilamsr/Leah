@@ -1,6 +1,10 @@
 # Phase 2 dev loop
 
-How to develop a Phase 2 feature with live runtime feedback — edit code, observe the running app, bug-fix, repeat.
+Reference for iterative debugging of leah-daemon and the SwiftUI HUD during development.
+
+## Tools
+
+`scripts/dev/` contains three helpers: `lldb-attach.sh`, `diag-state.sh`, and `repl.sh`. The `scripts/smoke/` directory contains `diag-state.go`, which `diag-state.sh` delegates to.
 
 ## Quick start
 
@@ -35,6 +39,14 @@ scripts/dev/ipc-send.sh '{"kind":"ask","turn_id":"dev-1","seq":0,"payload":{"tex
 # 7. Edit, make dev-stop, make dev, repeat
 ```
 
+## Bug-fix workflow with breakpoints
+
+Reproduce the bug first. Run `make dev` to start the daemon, then use `inject-hotkey.sh` and `inject-text.sh` to drive the app into the failing state. Run `screenshot.sh` to capture the wrong UI state. Run `scripts/dev/diag-state.sh` to confirm what the daemon sees at that moment — the response payload carries `clients`, `conversation`, `memory_stats`, `pending_tts`, `daemon_uptime_s`, and `last_error`.
+
+Once the wrong state is confirmed, attach the debugger. Run `scripts/dev/lldb-attach.sh leah-daemon` — this finds the running daemon PID and drops into an lldb session showing the current process status. Set a breakpoint at the suspicious function (`br set -n <function-name>`), then trigger the bug again via `inject-text.sh`. Step through the frames (`thread step-in`, `thread step-over`) to find the bad value, then patch.
+
+Permission gotchas: Accessibility and Apple Events permissions are required for the inject scripts (grant in System Settings > Privacy & Security). Screen Recording permission is required for `screenshot.sh`. For lldb specifically: attaching requires either a SIP-compatible (debug) build or Developer Mode enabled. Check with `csrutil status` — if SIP is fully enabled, lldb can only attach to processes you built and signed with a debug entitlement. For a production-signed app you cannot attach lldb at all; build an unsigned dev daemon instead (`make build-daemon-dev` or equivalent) and run that locally.
+
 ## Scripts
 
 | Script | Purpose |
@@ -44,6 +56,8 @@ scripts/dev/ipc-send.sh '{"kind":"ask","turn_id":"dev-1","seq":0,"payload":{"tex
 | `inject-text.sh "TEXT"` | Keystroke TEXT into focused window |
 | `ipc-send.sh JSON` | Write one frame to the daemon socket, print responses until turn.end |
 | `tail-logs.sh` | Stream unified app + daemon logs via `log stream`; `--file` tails `/tmp/leah-dev.log`; `--duration Ns` exits after N s |
+| `diag-state.sh` | Query daemon for live diag.state — prints clients, conversation, memory_stats, uptime |
+| `lldb-attach.sh PROC` | Find PID of PROC and drop into lldb session |
 
 ## Permissions
 

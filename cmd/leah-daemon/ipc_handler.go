@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/trilam/leah/internal/ipc"
 	"github.com/trilam/leah/internal/knowledge"
@@ -40,6 +41,7 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 		liveClassifyFn(),
 		livePingFn(),
 		liveFetchFn(kg),
+		time.Now(),
 	)
 }
 
@@ -48,13 +50,19 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 func newIPCHandlerForTest(db *sql.DB, s streamFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
 	return newIPCHandlerWithClassify(db, s, s, noClassify,
-		func(_ context.Context, _ string) error { return nil }, nil)
+		func(_ context.Context, _ string) error { return nil }, nil, time.Time{})
 }
 
 // newIPCHandlerWithPingForTest is kept for existing verify-key tests.
 func newIPCHandlerWithPingForTest(db *sql.DB, s streamFn, ping pingFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil)
+	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil, time.Time{})
+}
+
+// newIPCHandlerWithDiag is kept for the diag_test.go test fixture.
+func newIPCHandlerWithDiag(db *sql.DB, s streamFn, ping pingFn, startTime time.Time) ipc.Handler {
+	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
+	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil, startTime)
 }
 
 // newIPCHandlerWithClassify is the full injection point — used by all tests.
@@ -64,11 +72,14 @@ func newIPCHandlerWithClassify(
 	classify classifyFn,
 	ping pingFn,
 	fetch fetchFn,
+	startTime time.Time,
 ) ipc.Handler {
 	return func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
 		switch req.Kind {
 		case "verify-key":
 			return handleVerifyKey(ctx, req, ping)
+		case "diag.state":
+			return ipc.HandleState(ctx, startTime)
 		default:
 			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch)
 		}
