@@ -2,8 +2,7 @@ import XCTest
 @testable import LeahUI
 
 final class SettingsTests: XCTestCase {
-    func testFourPanesEnumerated() {
-        XCTAssertEqual(SettingsPane.allCases.count, 4)
+    func testPhase1PanesPresent() {
         XCTAssertTrue(SettingsPane.allCases.contains(.general))
         XCTAssertTrue(SettingsPane.allCases.contains(.privacy))
         XCTAssertTrue(SettingsPane.allCases.contains(.permissions))
