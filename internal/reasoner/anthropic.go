@@ -120,6 +120,26 @@ func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (Co
 	}, nil
 }
 
+// OneShot sends a single non-streaming call with max_tokens=64. Used by the
+// widget-intent classifier where budget ≤ 200 ms and output is one JSON line.
+func (c *AnthropicClient) OneShot(ctx context.Context, system, user string) (string, error) {
+	resp, err := c.sdk.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.Model(c.model),
+		MaxTokens: 64,
+		System:    []anthropic.TextBlockParam{buildSystemBlock(system)},
+		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(user))},
+	})
+	if err != nil {
+		return "", fmt.Errorf("anthropic oneshot: %w", err)
+	}
+	for _, blk := range resp.Content {
+		if blk.Type == "text" {
+			return blk.Text, nil
+		}
+	}
+	return "", nil
+}
+
 // Stream issues a streaming messages call and translates SDK events into
 // reasoner.Delta. Text deltas pass through; tool-use blocks surface as
 // ToolUseEvent (suppressed by AskStream callers today). Token counts fire on
