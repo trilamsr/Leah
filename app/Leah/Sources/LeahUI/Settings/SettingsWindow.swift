@@ -57,10 +57,13 @@ struct SettingsView: View {
             Divider()
             Group {
                 switch selected {
-                case .general:     GeneralPane()
-                case .privacy:     PrivacyPane()
-                case .permissions: PermissionsPane()
-                case .advanced:    AdvancedPane()
+                case .general:      GeneralPane()
+                case .privacy:      PrivacyPane()
+                case .permissions:  PermissionsPane()
+                case .advanced:     AdvancedPane()
+                case .integrations: IntegrationsPane()
+                case .memory:       MemoryPane()
+                case .about:        AboutPane()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

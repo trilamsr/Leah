@@ -7,14 +7,22 @@ public struct IntegrationStep: View {
   let onContinue: () -> Void
   @State private var selected: Integration = .calendar
   @State private var status = ""
+  @State private var calendarState: ConnectionState = .none
   private let store = EKEventStore()
 
   public init(onContinue: @escaping () -> Void) { self.onContinue = onContinue }
 
-  enum Integration: String, CaseIterable {
+  public enum Integration: String, CaseIterable, Equatable {
     case calendar = "Calendar"
     case mail     = "Mail"
     case files    = "Files"
+
+    public var connectionState: ConnectionState {
+      switch self {
+      case .calendar: return .none
+      case .mail, .files: return .none
+      }
+    }
   }
 
   public var body: some View {
@@ -26,9 +34,10 @@ public struct IntegrationStep: View {
         .font(.system(size: 13))
         .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
       ForEach(Integration.allCases, id: \.self) { opt in
-        HStack {
+        HStack(spacing: 10) {
           Image(systemName: selected == opt ? "largecircle.fill.circle" : "circle")
             .foregroundColor(selected == opt ? .accentColor : .gray)
+          StatusGlyphView(state: opt == .calendar ? calendarState : .none)
           Text(opt.rawValue)
             .font(.system(size: 13))
             .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
@@ -56,6 +65,7 @@ public struct IntegrationStep: View {
         store.requestFullAccessToEvents { ok, _ in
           DispatchQueue.main.async {
             status = ok ? "Calendar connected." : "Calendar access denied."
+            calendarState = ok ? .connected : .none
             if ok { onContinue() }
           }
         }
@@ -63,12 +73,12 @@ public struct IntegrationStep: View {
         store.requestAccess(to: .event) { ok, _ in
           DispatchQueue.main.async {
             status = ok ? "Calendar connected." : "Calendar access denied."
+            calendarState = ok ? .connected : .none
             if ok { onContinue() }
           }
         }
       }
     case .mail, .files:
-      // Phase 2 integrations — scaffold only; advance immediately.
       onContinue()
     }
   }

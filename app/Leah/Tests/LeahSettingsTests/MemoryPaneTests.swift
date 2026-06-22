@@ -8,6 +8,7 @@ final class MemoryPaneTests: XCTestCase {
         XCTAssertEqual(stats.modelDimLabel, "voyage-3.5-lite · 1024d")
     }
 
+    @MainActor
     func testPurgeRequiresTouchID() async {
         let gate = FakeTouchIDGate(authorized: false, available: true)
         let pane = MemoryPaneModel(stats: .init(chunkCount: 0, modelID: "x", dim: 0), gate: gate)
@@ -16,6 +17,7 @@ final class MemoryPaneTests: XCTestCase {
         XCTAssertEqual(gate.evaluateCalls, 1)
     }
 
+    @MainActor
     func testPurgeRequiresTypedPurge() async {
         let gate = FakeTouchIDGate(authorized: true, available: true)
         let pane = MemoryPaneModel(stats: .init(chunkCount: 0, modelID: "x", dim: 0), gate: gate)
@@ -24,6 +26,7 @@ final class MemoryPaneTests: XCTestCase {
         XCTAssertEqual(gate.evaluateCalls, 0, "typed-friction guards Touch ID — gate must not be invoked on mismatch")
     }
 
+    @MainActor
     func testPurgeProceedsWhenTouchIDAuthorized() async {
         let gate = FakeTouchIDGate(authorized: true, available: true)
         let pane = MemoryPaneModel(stats: .init(chunkCount: 0, modelID: "x", dim: 0), gate: gate)
@@ -31,6 +34,7 @@ final class MemoryPaneTests: XCTestCase {
         XCTAssertEqual(outcome, .authorized)
     }
 
+    @MainActor
     func testPurgeFallsBackWhenTouchIDUnavailable() async {
         let gate = FakeTouchIDGate(authorized: false, available: false)
         let pane = MemoryPaneModel(stats: .init(chunkCount: 0, modelID: "x", dim: 0), gate: gate)

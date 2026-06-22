@@ -1,0 +1,93 @@
+import SwiftUI
+import EventKit
+
+public struct IntegrationRow {
+    public enum Kind: String, CaseIterable, Equatable {
+        case calendar, mail, files
+
+        public var label: String {
+            switch self {
+            case .calendar: return "Calendar"
+            case .mail:     return "Mail"
+            case .files:    return "Files"
+            }
+        }
+    }
+}
+
+public struct IntegrationsPane: View {
+    @State private var calendarState: ConnectionState = .none
+    @State private var mailState:     ConnectionState = .none
+    @State private var filesState:    ConnectionState = .none
+    @State private var pendingDisconnect: IntegrationRow.Kind?
+    private let store = EKEventStore()
+
+    public init() {}
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            row(.calendar, state: calendarState)
+            Divider()
+            row(.mail, state: mailState)
+            Divider()
+            row(.files, state: filesState)
+            Spacer()
+        }
+        .padding(24)
+        .onAppear { refresh() }
+        .alert(item: $pendingDisconnect) { kind in
+            Alert(
+                title: Text("Disconnect \(kind.label)?"),
+                message: Text("Memory indexed from \(kind.label) will be purged."),
+                primaryButton: .destructive(Text("Disconnect & purge")) { disconnect(kind) },
+                secondaryButton: .cancel()
+            )
+        }
+    }
+
+    private func row(_ kind: IntegrationRow.Kind, state: ConnectionState) -> some View {
+        HStack(spacing: 12) {
+            StatusGlyphView(state: state)
+            Text(kind.label).foregroundColor(.white)
+            Spacer()
+            if state == .connected {
+                Button("Disconnect") { pendingDisconnect = kind }
+            } else {
+                Button("Connect") { connect(kind) }
+            }
+        }
+    }
+
+    private func refresh() {
+        calendarState = EKEventStore.authorizationStatus(for: .event) == .fullAccess ? .connected : .none
+    }
+
+    private func connect(_ kind: IntegrationRow.Kind) {
+        switch kind {
+        case .calendar:
+            if #available(macOS 14.0, *) {
+                store.requestFullAccessToEvents { ok, _ in
+                    DispatchQueue.main.async { calendarState = ok ? .connected : .none }
+                }
+            } else {
+                store.requestAccess(to: .event) { ok, _ in
+                    DispatchQueue.main.async { calendarState = ok ? .connected : .none }
+                }
+            }
+        case .mail:  mailState = .partial
+        case .files: filesState = .partial
+        }
+    }
+
+    private func disconnect(_ kind: IntegrationRow.Kind) {
+        switch kind {
+        case .calendar: calendarState = .none
+        case .mail:     mailState = .none
+        case .files:    filesState = .none
+        }
+    }
+}
+
+extension IntegrationRow.Kind: Identifiable {
+    public var id: String { rawValue }
+}
