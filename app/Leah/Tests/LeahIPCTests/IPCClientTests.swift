@@ -4,7 +4,7 @@ import XCTest
 final class FrameCodecTests: XCTestCase {
     func testRoundTripFrame() throws {
         let payload = #"{"text":"hi"}"#.data(using: .utf8)!
-        let f = Frame(kind: "prose.delta", turnId: "t1", seq: 7, payload: payload)
+        let f = Frame(kind: "prose.delta", turnId: "t1", seq: 7, payload: RawJSON(payload))
         let encoded = try FrameCodec.encode(f)
         // 4-byte length prefix + JSON body
         XCTAssertGreaterThan(encoded.count, 4)
@@ -16,8 +16,10 @@ final class FrameCodecTests: XCTestCase {
     }
 
     func testFrameSizeCapRejected() {
-        let huge = Data(repeating: 0x78, count: 300_000)
-        let f = Frame(kind: "prose.delta", turnId: "t1", seq: 1, payload: huge)
+        // Large valid-JSON string payload exceeding the 256KB cap.
+        let huge = "\"" + String(repeating: "x", count: 300_000) + "\""
+        let payload = huge.data(using: .utf8)!
+        let f = Frame(kind: "prose.delta", turnId: "t1", seq: 1, payload: RawJSON(payload))
         XCTAssertThrowsError(try FrameCodec.encode(f))
     }
 
@@ -34,7 +36,7 @@ final class FrameCodecTests: XCTestCase {
         ]
         for kind in kinds {
             let payload = #"{"kind_echo":"\#(kind)"}"#.data(using: .utf8)!
-            let f = Frame(kind: kind, turnId: "t-\(kind)", seq: 42, payload: payload)
+            let f = Frame(kind: kind, turnId: "t-\(kind)", seq: 42, payload: RawJSON(payload))
             let encoded = try FrameCodec.encode(f)
             let (decoded, consumed) = try FrameCodec.decode(encoded)
             XCTAssertEqual(consumed, encoded.count, "consumed mismatch for kind \(kind)")
@@ -71,7 +73,7 @@ final class FrameCodecTests: XCTestCase {
         // Use non-empty payload so the payload key check on the next test isn't
         // confused with omitempty behavior.
         let payload = #"{"x":1}"#.data(using: .utf8)!
-        let f = Frame(kind: "turn.end", turnId: "xyz", seq: 0, payload: payload)
+        let f = Frame(kind: "turn.end", turnId: "xyz", seq: 0, payload: RawJSON(payload))
         let encoded = try FrameCodec.encode(f)
         let jsonBody = encoded.dropFirst(4)
         let jsonObj = try JSONSerialization.jsonObject(with: jsonBody) as! [String: Any]
@@ -82,7 +84,7 @@ final class FrameCodecTests: XCTestCase {
 
     func testEmptyPayloadOmittedOnWire() throws {
         // Mirrors Go's `omitempty`: empty payload must not produce a "payload" key.
-        let f = Frame(kind: "turn.end", turnId: "t1", seq: 1, payload: Data())
+        let f = Frame(kind: "turn.end", turnId: "t1", seq: 1, payload: RawJSON(Data()))
         let encoded = try FrameCodec.encode(f)
         let jsonBody = encoded.dropFirst(4)
         let jsonObj = try JSONSerialization.jsonObject(with: jsonBody) as! [String: Any]
@@ -97,7 +99,34 @@ final class FrameCodecTests: XCTestCase {
         withUnsafeBytes(of: n) { ptr in encoded.replaceSubrange(0..<4, with: ptr) }
         encoded.append(body)
         let (frame, _) = try FrameCodec.decode(encoded)
-        XCTAssertEqual(frame.payload, Data())
+        XCTAssertEqual(frame.payload.data, Data())
+    }
+
+    func testGoWireFormatDecodes() throws {
+        // Wire format from Go daemon: payload is a literal JSON object, not base64.
+        let json = #"{"kind":"prose.delta","turn_id":"t1","seq":7,"payload":{"text":"hi"}}"#.data(using: .utf8)!
+        var encoded = Data(count: 4)
+        let n = UInt32(json.count).bigEndian
+        withUnsafeBytes(of: n) { ptr in encoded.replaceSubrange(0..<4, with: ptr) }
+        encoded.append(json)
+        let (f, _) = try FrameCodec.decode(encoded)
+        XCTAssertEqual(f.kind, "prose.delta")
+        XCTAssertEqual(f.turnId, "t1")
+        XCTAssertEqual(f.seq, 7)
+        let payloadStr = String(data: f.payload.data, encoding: .utf8)!
+        XCTAssertTrue(payloadStr.contains("\"text\":\"hi\""), "payload should be raw JSON object bytes, got: \(payloadStr)")
+    }
+
+    func testGoWireFormatEncodes() throws {
+        // Swift→Go: payload must be encoded as literal JSON, never base64.
+        let payload = #"{"text":"hi"}"#.data(using: .utf8)!
+        let f = Frame(kind: "prose.delta", turnId: "t1", seq: 7, payload: RawJSON(payload))
+        let encoded = try FrameCodec.encode(f)
+        // Strip 4-byte length prefix and check body
+        let body = encoded.suffix(from: 4)
+        let str = String(data: body, encoding: .utf8)!
+        XCTAssertTrue(str.contains("\"payload\":{\"text\":\"hi\"}"), "got: \(str)")
+        XCTAssertFalse(str.contains("base64"))
     }
 }
 
