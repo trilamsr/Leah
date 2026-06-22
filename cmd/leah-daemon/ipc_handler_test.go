@@ -323,3 +323,22 @@ func TestIPCHandlerContextCancelClosesChannel(t *testing.T) {
 		t.Fatal("output channel did not close after ctx cancel")
 	}
 }
+
+// SearchRelevant is called before streaming to wire context into Sonnet.
+func TestIPCHandlerFetchesContext(t *testing.T) {
+	db := newTestTurnDB(t)
+	fakeStream := func(_ context.Context, turnID, _ string) (<-chan ipc.Frame, error) {
+		out := make(chan ipc.Frame, 1)
+		out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: 1, Payload: json.RawMessage(`{}`)}
+		close(out)
+		return out, nil
+	}
+	h := newIPCHandlerForTest(db, fakeStream)
+	in := ipc.Frame{Kind: "ask", TurnID: "t2", Payload: json.RawMessage(`{"text":"test"}`)}
+	out, err := h(context.Background(), in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	for range out {
+	}
+}

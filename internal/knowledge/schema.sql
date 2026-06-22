@@ -20,3 +20,7 @@ CREATE TABLE IF NOT EXISTS entity_items (
   PRIMARY KEY (kind, key, source, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_entity_items_ts ON entity_items(ts);
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+  id   TEXT PRIMARY KEY,
+  text TEXT NOT NULL
+);

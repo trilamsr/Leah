@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -120,5 +121,21 @@ func TestStorage_UpsertEntity_UpdatesLastTouched(t *testing.T) {
 	}
 	if !got.LastTouched.Equal(t1) {
 		t.Fatalf("last_touched: want %v, got %v", t1, got.LastTouched)
+	}
+}
+
+func TestSearchRelevantTopK(t *testing.T) {
+	s, err := openStorage(filepath.Join(t.TempDir(), "knowledge.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	ctx := context.Background()
+	chunks, err := s.SearchRelevant(ctx, "test query", 5)
+	if err != nil {
+		t.Fatalf("SearchRelevant: %v", err)
+	}
+	if len(chunks) != 0 {
+		t.Fatalf("want 0 chunks on empty store, got %d", len(chunks))
 	}
 }
