@@ -140,10 +140,12 @@ func (c *AnthropicClient) OneShot(ctx context.Context, system, user string) (str
 	return "", nil
 }
 
-// cloneHistoryForCache returns a deep-enough copy of history that any
-// downstream cache-control rewrite cannot alias the caller's backing arrays.
-// We clone the Content slice + each text block's Citations slice; SDK param
-// values otherwise hold no caller-mutable state.
+// cloneHistoryForCache clones the slice headers we touch (Content per
+// message, Citations per text block) so the downstream cache-control rewrite
+// cannot alias the caller's backing arrays. Pointer targets reachable from
+// elements (e.g. Citations[i].OfPageLocation) remain shared — the SDK
+// marshals them read-only, so deep-cloning every variant adds cost without
+// closing a real bug. The invariant is slice-header independence.
 func cloneHistoryForCache(history []anthropic.MessageParam) []anthropic.MessageParam {
 	out := make([]anthropic.MessageParam, len(history))
 	for i, msg := range history {

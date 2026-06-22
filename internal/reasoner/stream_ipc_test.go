@@ -147,56 +147,59 @@ func TestStreamChunksDoesNotMutateHistory(t *testing.T) {
 	}
 }
 
-// TestStreamChunks_HistoryCitationsDeepCopied — TextBlockParam.Citations is a
-// slice header; if cloneHistoryForCache only re-wrote OfText without cloning
-// Citations, a post-call mutation of the caller's Citations[0] would leak into
-// the streamer goroutine's captured msgs (data race + correctness bug). Lock
-// the invariant: cloned history must be independent of the caller's Citations
-// backing array.
+// TestStreamChunks_HistoryCitationsDeepCopied — locks cloneHistoryForCache's
+// slice-header independence: caller-side replacement of Citations[0] must NOT
+// leak into the cloned history. Pointer targets reachable from elements (e.g.
+// OfPageLocation) intentionally remain shared — the SDK marshals them read-
+// only, so deep-cloning every variant adds cost without closing a real bug.
+// The pointer-aliasing sub-test pins that scoping decision.
 func TestStreamChunks_HistoryCitationsDeepCopied(t *testing.T) {
-	cite := anthropic.TextCitationParamUnion{
-		OfPageLocation: &anthropic.CitationPageLocationParam{
+	mkHistory := func() ([]anthropic.MessageParam, *anthropic.CitationPageLocationParam) {
+		loc := &anthropic.CitationPageLocationParam{
 			CitedText:       "original",
 			DocumentIndex:   1,
 			StartPageNumber: 1,
 			EndPageNumber:   2,
-		},
-	}
-	tb := anthropic.TextBlockParam{
-		Text:      "user-turn-1",
-		Citations: []anthropic.TextCitationParamUnion{cite},
-	}
-	history := []anthropic.MessageParam{
-		{Content: []anthropic.ContentBlockParamUnion{{OfText: &tb}}, Role: "user"},
-	}
-
-	cloned := cloneHistoryForCache(history)
-
-	// Mutate caller-side Citations after clone. A correct deep-copy means
-	// cloned[] sees the ORIGINAL citation, not the post-clone mutation.
-	history[0].Content[0].OfText.Citations[0] = anthropic.TextCitationParamUnion{
-		OfPageLocation: &anthropic.CitationPageLocationParam{
-			CitedText:       "MUTATED",
-			DocumentIndex:   99,
-			StartPageNumber: 99,
-			EndPageNumber:   99,
-		},
+		}
+		tb := anthropic.TextBlockParam{
+			Text:      "user-turn-1",
+			Citations: []anthropic.TextCitationParamUnion{{OfPageLocation: loc}},
+		}
+		return []anthropic.MessageParam{
+			{Content: []anthropic.ContentBlockParamUnion{{OfText: &tb}}, Role: "user"},
+		}, loc
 	}
 
-	if len(cloned) != 1 || len(cloned[0].Content) != 1 || cloned[0].Content[0].OfText == nil {
-		t.Fatalf("clone shape lost")
-	}
-	got := cloned[0].Content[0].OfText.Citations
-	if len(got) != 1 {
-		t.Fatalf("cloned Citations len: got %d want 1", len(got))
-	}
-	if got[0].OfPageLocation == nil {
-		t.Fatalf("cloned Citations element variant lost")
-	}
-	if got[0].OfPageLocation.CitedText != "original" {
-		t.Fatalf("Citations backing array aliased: cloned saw caller mutation %q (want %q)",
-			got[0].OfPageLocation.CitedText, "original")
-	}
+	t.Run("slice_header_independent", func(t *testing.T) {
+		history, _ := mkHistory()
+		cloned := cloneHistoryForCache(history)
+
+		// Replace caller-side element. Slice-header clone means cloned[] keeps
+		// the original, NOT the replacement.
+		history[0].Content[0].OfText.Citations[0] = anthropic.TextCitationParamUnion{
+			OfPageLocation: &anthropic.CitationPageLocationParam{CitedText: "MUTATED"},
+		}
+		got := cloned[0].Content[0].OfText.Citations
+		if got[0].OfPageLocation == nil || got[0].OfPageLocation.CitedText != "original" {
+			t.Fatalf("slice header aliased: cloned saw caller replacement")
+		}
+	})
+
+	t.Run("pointer_target_shared_by_design", func(t *testing.T) {
+		history, loc := mkHistory()
+		cloned := cloneHistoryForCache(history)
+
+		// Pin the scoping decision: mutating through the shared pointer DOES
+		// surface in clone. The SDK never mutates these in practice (marshal-
+		// only), so a shallow pointer is intentional. If a future change
+		// flips this to deep-clone every variant, update both this assertion
+		// and cloneHistoryForCache's docstring.
+		loc.CitedText = "POINTER_MUTATED"
+		got := cloned[0].Content[0].OfText.Citations
+		if got[0].OfPageLocation.CitedText != "POINTER_MUTATED" {
+			t.Fatalf("pointer target unexpectedly isolated; doc claims shared — reconcile")
+		}
+	})
 }
 
 func TestStreamToIPCModelSelector(t *testing.T) {
