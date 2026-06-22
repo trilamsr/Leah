@@ -3,6 +3,18 @@ import AppKit
 @testable import LeahUI
 
 final class FocusPanelTests: XCTestCase {
+  // Esc must dismiss the panel (spec §4.3).
+  @MainActor
+  func testEscKeyDismissesPanel() {
+    var dismissed = false
+    let controller = FocusPanelController(client: nil, onDismiss: { dismissed = true })
+    controller.summon()
+    XCTAssertTrue(controller.isVisible, "panel must be visible after summon()")
+    controller.handleEscapeKey()
+    XCTAssertTrue(dismissed, "onDismiss must fire on Esc")
+    XCTAssertFalse(controller.isVisible, "panel must be hidden after Esc")
+  }
+
   @MainActor
   func testPanelHasNonActivatingStyleMask() {
     let panel = FocusPanelController.makePanel()

@@ -4,10 +4,15 @@ import LeahIPC
 
 public final class FocusPanelController: NSObject {
   private var panel: NSPanel?
-  private let client: IPCClient
+  private let client: IPCClient?
+  // Fired after every dismiss() — used by callers and tests to observe closure.
+  private let onDismiss: (() -> Void)?
 
-  public init(client: IPCClient) {
+  public var isVisible: Bool { panel?.isVisible ?? false }
+
+  public init(client: IPCClient?, onDismiss: (() -> Void)? = nil) {
     self.client = client
+    self.onDismiss = onDismiss
   }
 
   /// Builds the focus-panel NSPanel per spec §4.3 (testable independently).
@@ -33,9 +38,9 @@ public final class FocusPanelController: NSObject {
   public func summon() {
     if panel == nil {
       let p = FocusPanelController.makePanel()
-      let view = FocusPanelView(client: client)
-      p.contentView = NSHostingView(rootView: view)
-      // Dismiss on Esc via window delegate.
+      if let c = client {
+        p.contentView = NSHostingView(rootView: FocusPanelView(client: c))
+      }
       p.delegate = self
       panel = p
     }
@@ -46,6 +51,14 @@ public final class FocusPanelController: NSObject {
   @MainActor
   public func dismiss() {
     panel?.orderOut(nil)
+    onDismiss?()
+  }
+
+  // Esc dismissal (spec §4.3): called by the delegate's keyDown or
+  // windowShouldClose when the user presses Escape.
+  @MainActor
+  public func handleEscapeKey() {
+    dismiss()
   }
 }
 
@@ -53,5 +66,11 @@ extension FocusPanelController: NSWindowDelegate {
   public func windowDidResignKey(_ notification: Notification) {
     // Click-outside dismissal: panel loses key when user clicks elsewhere.
     dismiss()
+  }
+
+  public func windowShouldClose(_ sender: NSWindow) -> Bool {
+    // Esc on an NSPanel fires windowShouldClose; treat it as dismiss.
+    dismiss()
+    return true
   }
 }
