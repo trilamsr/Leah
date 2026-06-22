@@ -140,6 +140,25 @@ classify() {
     reason=""
   fi
 
+  # Lexical-slug PARTIAL trap: filename matches a thin sibling pkg
+  # (e.g. internal/contracts for comms-notifier) while the real impl
+  # lives elsewhere. Re-resolve via the first internal/<pkg> the body
+  # cites that isn't the slug pkg — if it's heavier on disk, prefer it.
+  # Runs BEFORE the cmd/scripts fold so a body-derived pkg can still
+  # pick up cmd-mention LOC the same way the original would.
+  if [ "$loc" -le 100 ]; then
+    local body_pkg body_loc
+    body_pkg=$(grep -oE 'internal/[a-zA-Z0-9_-]+' "$spec" 2>/dev/null \
+      | awk -v skip="$pkg" '$0 != skip { print; exit }')
+    if [ -n "$body_pkg" ] && [ -d "$ROOT/$body_pkg" ]; then
+      body_loc=$(nontest_loc "$ROOT/$body_pkg")
+      if [ "$body_loc" -gt "$loc" ]; then
+        pkg="$body_pkg"; pkg_abs="$ROOT/$body_pkg"; loc="$body_loc"
+        reason="$pkg ($loc LOC)"
+      fi
+    fi
+  fi
+
   # Fold cmd/ and scripts/ LOC in before STALE — some specs ship there only.
   cmd_files=$(resolve_cmd_files "$spec")
   script_files=$(resolve_script_files "$spec")

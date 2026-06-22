@@ -22,6 +22,11 @@ mkfixture() {
   mkdir -p "$dir/internal/partial"
   mkdir -p "$dir/cmd/leah"
   mkdir -p "$dir/scripts/release"
+  # Misnamed-slug pair: filename slug `notifier` resolves to a thin
+  # `internal/notifier` stub, but the spec body cites `internal/notify`
+  # first — body-mention fallback should pick the heavier pkg.
+  mkdir -p "$dir/internal/notifier"
+  mkdir -p "$dir/internal/notify"
 
   # SHIPPED: >100 LOC of non-test Go.
   {
@@ -32,6 +37,14 @@ mkfixture() {
   # PARTIAL: package dir exists but <100 LOC.
   printf 'package partial\n\n// only a stub\n' > "$dir/internal/partial/partial.go"
 
+  # Body-fallback target: slug-derived dir is a 1-line stub, body-derived
+  # dir holds the real impl (>100 LOC). Fixture exercises the override.
+  printf 'package notifier\n\n// thin shim — real impl is in notify\n' > "$dir/internal/notifier/notifier.go"
+  {
+    echo "package notify"
+    for _ in $(seq 1 120); do echo "// real impl line"; done
+  } > "$dir/internal/notify/notify.go"
+
   # STALE spec points at a placeholder pkg that doesn't exist.
   printf '# shipped spec\n\nImplemented in `internal/shipped`.\n' \
     > "$dir/docs/engineer/specs/2026-06-10-shipped.md"
@@ -39,6 +52,9 @@ mkfixture() {
     > "$dir/docs/engineer/specs/2026-06-10-partial.md"
   printf '# stale spec\n\nPlaceholder reference to `internal/foo`.\n' \
     > "$dir/docs/engineer/specs/2026-06-10-stale.md"
+  # Slug `notifier` lexically resolves to the stub; body names notify first.
+  printf '# notifier spec\n\nReal surface is `internal/notify`; thin shim lives at `internal/notifier`.\n' \
+    > "$dir/docs/engineer/specs/2026-06-10-notifier.md"
 
   # SHIPPED via cmd/leah/: slug "local-self-update" diverges from the
   # actual file name "self_upgrade.go". Spec body names the subcommand
@@ -91,6 +107,13 @@ run_and_assert() {
   echo "$out" | grep -q $'^SHIPPED\t2026-06-10-signed-distribution.md\t' \
     && pass "scripts/release surface resolved as SHIPPED" \
     || fail "missing SHIPPED row for scripts/release surface; got: $out"
+
+  # Body-fallback override: filename slug `notifier` lexically hits the
+  # stub, but the spec body cites `internal/notify` first — that pkg has
+  # the real impl, so the row must read SHIPPED internal/notify.
+  echo "$out" | grep -q $'^SHIPPED\t2026-06-10-notifier.md\tinternal/notify ' \
+    && pass "body-fallback override picked internal/notify" \
+    || fail "expected SHIPPED internal/notify for notifier.md; got: $out"
 
   rm -rf "$dir"
 }
