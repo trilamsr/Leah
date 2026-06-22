@@ -4,6 +4,8 @@ Runtime config for `trilamsr/Leah` that is NOT in version control. If you change
 
 ## Current state (snapshot 2026-06-21)
 
+User-controlled fields only. The live API also returns generated fields (`url`, `checks[].app_id`, etc.) that won't match after a recreate — ignore them when diffing.
+
 ### Repo-level merge settings
 
 ```json
@@ -36,13 +38,15 @@ Runtime config for `trilamsr/Leah` that is NOT in version control. If you change
 # Enable auto-merge on the repo (unblocks --auto on `gh pr merge`)
 gh api -X PATCH repos/trilamsr/Leah -f allow_auto_merge=true
 
-# Protect main: require the single CI check, no strict rebase, no admin enforcement
+# Protect main: require the single CI check, no strict rebase, no admin enforcement.
+# `-f required_pull_request_reviews=null` / `-f restrictions=null` are mandatory:
+# the endpoint requires those keys present, and `-F field=` would send "" instead of null.
 gh api -X PUT repos/trilamsr/Leah/branches/main/protection \
   -F required_status_checks[strict]=false \
   -F 'required_status_checks[contexts][]=build + test + vet + lint' \
   -F enforce_admins=false \
-  -F required_pull_request_reviews= \
-  -F restrictions=
+  -f required_pull_request_reviews=null \
+  -f restrictions=null
 ```
 
 ## Why
