@@ -228,6 +228,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runTrip(ctx, rest, stdout)
 	case "slack":
 		return runSlack(ctx, rest, stdout)
+	case "open":
+		return runOpen(ctx, rest, stdout)
 	default:
 		usage()
 		return 2
@@ -677,5 +679,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  pr-state <N>|--open|--queue  one-line PR readiness (state, CI, review, mergeable)")
 	_, _ = fmt.Fprintln(os.Stderr, "  review-queue [--org X] [--json]  PRs awaiting your review, oldest-first")
 	_, _ = fmt.Fprintln(os.Stderr, "  slack <send|list|thread|search>  wraps the slack adapter for CLI use")
+	_, _ = fmt.Fprintln(os.Stderr, "  open <target>             launch streaming/social via macOS open (netflix, spotify, linkedin, …)")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }
