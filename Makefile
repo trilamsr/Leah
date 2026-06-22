@@ -1,16 +1,39 @@
-.PHONY: dev verify-pr baseline check lint ensure-lint smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation handoff-test check-amend-guard help
+.PHONY: dev dev-stop verify-pr baseline check lint ensure-lint smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation handoff-test check-amend-guard help
 
 # Pinned to match .github/workflows/check.yml. Bump both together.
 GOLANGCI_LINT_VERSION := v2.12.2
 
-# Run leah-daemon against ~/.leah-state-dev/ sandbox.
-# Opens browser to dashboard. Tails audit log in foreground.
+# Boot full Phase 2 dev environment: build daemon, launch it in background,
+# wait for socket, launch the Swift app, and tail unified logs.
+# Companion: make dev-stop tears everything down.
 dev:
-	@mkdir -p ~/.leah-state-dev/
-	@LEAH_STATE_DIR=~/.leah-state-dev/ go run ./cmd/leah-daemon &
-	@sleep 2
-	@command -v open >/dev/null && open http://127.0.0.1:8080/dashboard || echo "open dashboard at http://127.0.0.1:8080/dashboard"
-	@tail -f ~/.leah-state-dev/audit.jsonl 2>/dev/null || echo "audit log not yet created"
+	@mkdir -p ~/.leah-state-dev/ ~/Library/Caches/Leah
+	@cd app/Leah && swift build 2>&1 | tail -5; test $${PIPESTATUS[0]} -eq 0 || { echo "FAIL: swift build"; exit 1; }
+	@LEAH_STATE_DIR=~/.leah-state-dev/ go run ./cmd/leah-daemon > /tmp/leah-dev.log 2>&1 & \
+	  echo $$! > /tmp/leah-dev-daemon.pid
+	@echo "waiting for socket at ~/Library/Caches/Leah/leah.sock ..."; \
+	  for i in $$(seq 1 100); do \
+	    [ -S "$$HOME/Library/Caches/Leah/leah.sock" ] && break; \
+	    sleep 0.1; \
+	  done; \
+	  [ -S "$$HOME/Library/Caches/Leah/leah.sock" ] || \
+	    { echo "FAIL: socket did not appear"; tail -10 /tmp/leah-dev.log; exit 1; }
+	@APP="app/Leah/.build/debug/Leah.app"; \
+	  if [ -e "$$APP" ]; then open "$$APP"; \
+	  else echo "skip app launch — bundle not at $$APP (swift build produces a binary, not .app, in dev)"; fi
+	@log stream --predicate 'subsystem == "com.maydow.leah" OR processImagePath ENDSWITH "leah-daemon"' \
+	  --style syslog >> /tmp/leah-dev.log 2>&1 &
+	@echo "READY — pid file at /tmp/leah-dev-daemon.pid, log at /tmp/leah-dev.log"
+
+# Tear down the dev environment started by make dev.
+dev-stop:
+	@if [ -f /tmp/leah-dev-daemon.pid ]; then \
+	  kill "$$(cat /tmp/leah-dev-daemon.pid)" 2>/dev/null || true; \
+	  rm -f /tmp/leah-dev-daemon.pid; \
+	fi
+	@osascript -e 'tell application "Leah" to quit' 2>/dev/null || true
+	@pkill -f 'leah-daemon' 2>/dev/null || true
+	@echo "dev environment stopped"
 
 # Re-run check.sh against a specific PR head SHA locally.
 # Use: make verify-pr PR=<num>
@@ -167,4 +190,4 @@ sign-and-notarize:
 	@bash scripts/sign-and-notarize.sh $(ARGS)
 
 help:
-	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, lint, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run, sign-and-notarize [ARGS=--all]"
+	@echo "Targets: dev, dev-stop, verify-pr PR=<n>, baseline, check, lint, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run, sign-and-notarize [ARGS=--all]"
