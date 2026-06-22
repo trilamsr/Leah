@@ -5,16 +5,18 @@ Rerun: `bash scripts/audit-stale-specs.sh` — this runbook is mechanically repr
 
 Method: for each spec, derive expected package from filename + first `internal/`|`cmd/` mention inside spec; mark SHIPPED (>100 LOC non-test), PARTIAL (<=100 LOC or stub only), STALE (zero matching surface).
 
-## STALE (2)
+## STALE (0)
 
-- `2026-06-10-local-self-update.md` — no pkg dir (internal/local-self-update)
-- `2026-06-10-signed-distribution.md` — no pkg dir (internal/signed-distribution)
+(empty — after PR #332 added body-mention + cmd/ + scripts/ fallback heuristics, both prior STALE entries now resolve via their non-internal/ surfaces: `local-self-update` → `cmd/leah/self_upgrade.go` (659 LOC), `signed-distribution` → `scripts/release/*.sh` (209 LOC).)
 
 ## PARTIAL (1)
 
 - `2026-06-21-comms-notifier.md` — internal/contracts (60 LOC; stub/thin)
 
-## SHIPPED (38)
+## SHIPPED (40)
+
+- `2026-06-10-local-self-update.md` — cmd/scripts (659 LOC)
+- `2026-06-10-signed-distribution.md` — cmd/scripts (209 LOC)
 
 - `2026-06-09-gcal-adapter.md` — internal/adapters/gcal (322 LOC)
 - `2026-06-09-gmail-adapter.md` — internal/adapters/gmail (253 LOC)
@@ -61,8 +63,7 @@ Method: for each spec, derive expected package from filename + first `internal/`
 
 ## Decision matrix
 
-- **STALE** → either delete the spec (if abandoned) or open a Linear ticket to ship.
-  - `signed-distribution.md` + `local-self-update.md` both gated on `internal/selfupgrade` pkg — consolidate or carve. (Script-improvement PR in flight will recognize `cmd/leah/self_upgrade.go` and downgrade these to PARTIAL; next runbook regen catches that.)
+- **STALE** → either delete the spec (if abandoned) or open a Linear ticket to ship. (No STALE entries this run.)
 - **PARTIAL** → file follow-up tickets or accept as carved-out.
   - `comms-notifier.md` — `internal/contracts` shipped at 60 LOC; spec contract partially realised. Accept-as-carved unless reopening the notifier surface.
 - **SHIPPED** → no action.
