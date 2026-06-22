@@ -7,6 +7,9 @@ let package = Package(
   products: [
     .executable(name: "Leah", targets: ["LeahApp"]),
   ],
+  dependencies: [
+    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
+  ],
   targets: [
     .executableTarget(
       name: "LeahApp",
@@ -36,6 +39,16 @@ let package = Package(
       name: "LeahWidgetsTests",
       dependencies: ["LeahWidgets"],
       path: "Tests/LeahWidgetsTests"
+    ),
+    .target(
+      name: "LeahUpdate",
+      dependencies: [.product(name: "Sparkle", package: "Sparkle")],
+      path: "Sources/LeahUpdate"
+    ),
+    .testTarget(
+      name: "LeahUpdateTests",
+      dependencies: ["LeahUpdate"],
+      path: "Tests/LeahUpdateTests"
     ),
   ]
 )
