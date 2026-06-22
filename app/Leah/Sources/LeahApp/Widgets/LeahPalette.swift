@@ -12,3 +12,12 @@ extension Color {
   // Ivory #F2EDE0 — body text default; positive deltas; non-accent chart series @ 40%.
   public static let leahIvory = Color(red: 242/255, green: 237/255, blue: 224/255)
 }
+
+enum LeahPalette {
+  static let obsidian2    = Color(red: 0x16/255, green: 0x19/255, blue: 0x22/255)
+  static let ivory        = Color.leahIvory
+  static let champagneGold = Color.leahGold
+  static let oxblood      = Color(red: 0x7A/255, green: 0x1F/255, blue: 0x2B/255)
+  static let textMuted    = Color(red: 0xB8/255, green: 0xB0/255, blue: 0xA0/255)
+  static let hairline     = Color.white.opacity(0.20)
+}

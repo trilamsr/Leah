@@ -1,0 +1,11 @@
+{
+  "widget": "citation",
+  "id": "arxiv-2106-09685",
+  "size": "small",
+  "props": {
+    "site_name": "arxiv.org",
+    "title": "LoRA: Low-Rank Adaptation of Large Language Models",
+    "snippet": "An efficient method for adapting pre-trained language models to downstream tasks by freezing the pretrained model weights and injecting trainable rank-decomposition matrices into each layer of the Transformer architecture, greatly reducing the number of trainable parameters for downstream tasks.",
+    "url": "https://arxiv.org/abs/2106.09685"
+  }
+}
