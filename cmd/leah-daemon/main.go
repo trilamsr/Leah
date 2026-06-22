@@ -26,6 +26,7 @@ import (
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/onboarding"
+	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/recommend"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/voice"
@@ -162,20 +163,19 @@ func main() {
 		defer closeDash()
 	}
 
-	// Placeholder handler — Task 8 replaces this with the reasoner-backed router.
 	home, err := os.UserHomeDir()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: home dir: %v\n", err)
 		os.Exit(1)
 	}
 	sockPath := filepath.Join(home, "Library", "Caches", "Leah", "leah.sock")
-	echoHandler := func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
-		out := make(chan ipc.Frame, 1)
-		out <- ipc.Frame{Kind: "prose.delta", TurnID: req.TurnID, Seq: 1}
-		close(out)
-		return out, nil
+	sonnet, err := reasoner.NewAnthropicClient()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: anthropic: %v (IPC stream will error until key is set)\n", err)
+		sonnet = nil
 	}
-	go func() { _ = ipc.NewServer(sockPath, echoHandler).Serve(ctx) }()
+	// store.DB() already has conversation_turn from the schema migration above.
+	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB())).Serve(ctx) }()
 
 	if err := loop.Run(ctx); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
