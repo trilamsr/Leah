@@ -33,24 +33,15 @@ func TestIPCDiagStateResponds(t *testing.T) {
 		t.Fatalf("diag.state: got kind %q, want %q", frames[0].Kind, "diag.state.response")
 	}
 
-	var p struct {
-		Clients       []string               `json:"clients"`
-		Conversation  map[string]interface{} `json:"conversation"`
-		MemoryStats   map[string]interface{} `json:"memory_stats"`
-		PendingTTS    bool                   `json:"pending_tts"`
-		DaemonUptimeS int64                  `json:"daemon_uptime_s"`
-		LastError     string                 `json:"last_error"`
+	// Map-decode first so missing keys are detectable — a typed struct
+	// would silently zero-fill bool/int/string fields and miss deletions.
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(frames[0].Payload, &m); err != nil {
+		t.Fatalf("unmarshal payload map: %v", err)
 	}
-	if err := json.Unmarshal(frames[0].Payload, &p); err != nil {
-		t.Fatalf("unmarshal payload: %v", err)
-	}
-	if p.Clients == nil {
-		t.Fatal("diag.state: clients must not be nil")
-	}
-	if p.Conversation == nil {
-		t.Fatal("diag.state: conversation must not be nil")
-	}
-	if p.MemoryStats == nil {
-		t.Fatal("diag.state: memory_stats must not be nil")
+	for _, k := range []string{"clients", "conversation", "memory_stats", "pending_tts", "daemon_uptime_s", "last_error"} {
+		if _, ok := m[k]; !ok {
+			t.Fatalf("diag.state: payload missing required field %q", k)
+		}
 	}
 }

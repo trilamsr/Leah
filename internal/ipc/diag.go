@@ -17,8 +17,9 @@ type DiagStatePayload struct {
 }
 
 // HandleState returns a single-frame channel containing a diag.state.response
-// frame. Fields are populated with best-effort stubs; callers may extend the
-// payload in future iterations without breaking the wire format.
+// frame. Returns a channel (not a direct conn.Write) so the existing
+// serveConn dispatcher in server.go owns frame I/O — all handlers in this
+// codebase share the (ctx, req) -> (<-chan Frame, error) shape.
 func HandleState(_ context.Context, startTime time.Time) (<-chan Frame, error) {
 	p := DiagStatePayload{
 		Clients:       []string{},
