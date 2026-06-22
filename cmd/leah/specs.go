@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -16,18 +17,18 @@ import (
 // classification (SHIPPED / PARTIAL / STALE) to w. Flags:
 //
 //	--stale-only   drop SHIPPED + PARTIAL rows; emit STALE only
-//
-// TODO(--json): the underlying script emits TSV; v1 ships pass-through.
-// Convert to structured JSON once we have a second consumer that needs it.
+//	--json         emit one JSON object per row ({status, spec, detail}) as JSONL
 //
 // Repo root is resolved via runtime.Caller so the binary works regardless of
 // invocation CWD; LEAH_REPO_ROOT overrides for tests + sandboxed runs.
 func runSpecs(args []string, w io.Writer) int {
-	staleOnly := false
+	staleOnly, asJSON := false, false
 	for _, a := range args {
 		switch a {
 		case "--stale-only":
 			staleOnly = true
+		case "--json":
+			asJSON = true
 		case "-h", "--help":
 			printSpecsHelp(w)
 			return 0
@@ -53,15 +54,36 @@ func runSpecs(args []string, w io.Writer) int {
 		return 1
 	}
 
-	if !staleOnly {
+	if !staleOnly && !asJSON {
 		_, _ = io.Copy(w, &out)
 		return 0
 	}
+	enc := json.NewEncoder(w)
 	sc := bufio.NewScanner(&out)
 	for sc.Scan() {
 		line := sc.Text()
-		if strings.HasPrefix(line, "STALE\t") {
+		if staleOnly && !strings.HasPrefix(line, "STALE\t") {
+			continue
+		}
+		if !asJSON {
 			_, _ = fmt.Fprintln(w, line)
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 2 {
+			continue
+		}
+		row := struct {
+			Status string `json:"status"`
+			Spec   string `json:"spec"`
+			Detail string `json:"detail"`
+		}{Status: parts[0], Spec: parts[1]}
+		if len(parts) == 3 {
+			row.Detail = parts[2]
+		}
+		if err := enc.Encode(row); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "leah specs: encode: %v\n", err)
+			return 1
 		}
 	}
 	if err := sc.Err(); err != nil {
@@ -86,8 +108,9 @@ func specsRepoRoot() string {
 }
 
 func printSpecsHelp(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "usage: leah specs [--stale-only]")
+	_, _ = fmt.Fprintln(w, "usage: leah specs [--stale-only] [--json]")
 	_, _ = fmt.Fprintln(w, "")
 	_, _ = fmt.Fprintln(w, "Lists docs/engineer/specs/*.md classified as SHIPPED / PARTIAL / STALE.")
-	_, _ = fmt.Fprintln(w, "Wraps scripts/audit-stale-specs.sh; output is tab-separated.")
+	_, _ = fmt.Fprintln(w, "Wraps scripts/audit-stale-specs.sh; default output is tab-separated.")
+	_, _ = fmt.Fprintln(w, "--json emits one {status,spec,detail} object per line (JSONL).")
 }
