@@ -24,40 +24,83 @@ type streamFn func(ctx context.Context, turnID, userText string) (<-chan ipc.Fra
 // pingFn is called by the verify-key path; returns nil on success.
 type pingFn func(ctx context.Context, key string) error
 
+// classifyFn routes a user query to an Intent before the stream path fires.
+type classifyFn func(ctx context.Context, text string) reasoner.Intent
+
 // newIPCHandler is the production constructor wired into main.go.
-// Haiku classify is skipped in this wave — widget routing lands in a
-// subsequent task. The handler routes only "ask" and "verify-key" today.
 func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB) ipc.Handler {
-	stream := liveStreamFn(sonnet)
-	ping := livePingFn()
-	return newIPCHandlerWithPingForTest(db, stream, ping)
+	return newIPCHandlerWithClassify(db,
+		liveStreamFn(sonnet),
+		liveOpusStreamFn(sonnet),
+		liveClassifyFn(),
+		livePingFn(),
+	)
 }
 
 // newIPCHandlerForTest wires a caller-supplied streamFn; used by tests that
-// don't need to exercise the verify-key path.
+// don't need to exercise classify or verify-key.
 func newIPCHandlerForTest(db *sql.DB, s streamFn) ipc.Handler {
-	return newIPCHandlerWithPingForTest(db, s, func(_ context.Context, _ string) error { return nil })
+	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
+	return newIPCHandlerWithClassify(db, s, s, noClassify,
+		func(_ context.Context, _ string) error { return nil })
 }
 
-// newIPCHandlerWithPingForTest is the injection-point used by all tests.
+// newIPCHandlerWithPingForTest is kept for existing verify-key tests.
 func newIPCHandlerWithPingForTest(db *sql.DB, s streamFn, ping pingFn) ipc.Handler {
+	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
+	return newIPCHandlerWithClassify(db, s, s, noClassify, ping)
+}
+
+// newIPCHandlerWithClassify is the full injection point — used by all tests.
+func newIPCHandlerWithClassify(
+	db *sql.DB,
+	sonnetStream, opusStream streamFn,
+	classify classifyFn,
+	ping pingFn,
+) ipc.Handler {
 	return func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
 		switch req.Kind {
 		case "verify-key":
 			return handleVerifyKey(ctx, req, ping)
 		default:
-			return handleAsk(ctx, req, db, s)
+			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify)
 		}
 	}
 }
 
-// handleAsk streams the Sonnet response and persists the turn on completion.
+// handleAsk classifies the query (Haiku router), routes widget intents to
+// widget.mount, escalates to Opus when requested, and persists the turn.
 // RecordTurn failure is logged but non-fatal per spec §17.16.
-func handleAsk(ctx context.Context, req ipc.Frame, db *sql.DB, s streamFn) (<-chan ipc.Frame, error) {
+func handleAsk(
+	ctx context.Context,
+	req ipc.Frame,
+	db *sql.DB,
+	sonnetStream, opusStream streamFn,
+	classify classifyFn,
+) (<-chan ipc.Frame, error) {
 	var p struct {
-		Text string `json:"text"`
+		Text         string `json:"text"`
+		EscalateOpus bool   `json:"escalate_opus"`
 	}
 	_ = json.Unmarshal(req.Payload, &p)
+
+	// Haiku classify: widget intent emits widget.mount and skips Sonnet.
+	if classify != nil {
+		intent := classify(ctx, p.Text)
+		if intent.Kind == "widget" {
+			payload, _ := json.Marshal(map[string]string{"widget_type": intent.Widget})
+			out := make(chan ipc.Frame, 1)
+			out <- ipc.Frame{Kind: "widget.mount", TurnID: req.TurnID, Seq: 1, Payload: payload}
+			close(out)
+			return out, nil
+		}
+	}
+
+	// Pick stream: Opus on escalation flag, Sonnet otherwise.
+	s := sonnetStream
+	if p.EscalateOpus && opusStream != nil {
+		s = opusStream
+	}
 
 	if s == nil {
 		// No reasoner available (API key missing at boot): emit error frame.
@@ -118,7 +161,7 @@ func handleVerifyKey(ctx context.Context, req ipc.Frame, ping pingFn) (<-chan ip
 	return out, nil
 }
 
-// liveStreamFn builds the production streamFn from a live AnthropicClient.
+// liveStreamFn builds the production Sonnet streamFn from a live AnthropicClient.
 // It calls client.Stream directly (not Reasoner.AskStream) to avoid the
 // budget-charging path — the daemon HUD chat does not route through
 // the per-process budget cap used by CLI commands.
@@ -147,6 +190,34 @@ func liveStreamFn(c *reasoner.AnthropicClient) streamFn {
 			out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: seq, Payload: json.RawMessage(`{}`)}
 		}()
 		return out, nil
+	}
+}
+
+// liveOpusStreamFn builds the Opus streamFn for the escalate_opus path.
+func liveOpusStreamFn(c *reasoner.AnthropicClient) streamFn {
+	if c == nil {
+		return nil
+	}
+	opus, err := reasoner.NewAnthropicClientWithModel("claude-opus-4-8")
+	if err != nil {
+		return nil
+	}
+	return liveStreamFn(opus)
+}
+
+// liveClassifyFn builds the Haiku-backed classify function.
+// Degrades to a no-op chat classifier when ANTHROPIC_API_KEY is absent.
+func liveClassifyFn() classifyFn {
+	haiku, err := reasoner.NewAnthropicClientWithModel("claude-haiku-4-5")
+	if err != nil {
+		return func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
+	}
+	return func(ctx context.Context, text string) reasoner.Intent {
+		intent, err := reasoner.Classify(ctx, haiku, text)
+		if err != nil {
+			return reasoner.Intent{Kind: "chat"}
+		}
+		return intent
 	}
 }
 
