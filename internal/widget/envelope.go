@@ -11,11 +11,18 @@ import (
 
 const MaxEnvelopeBytes = 256 * 1024
 
+type Action struct {
+	Label    string `json:"label"`
+	Callback string `json:"callback"`
+	Icon     string `json:"icon,omitempty"`
+}
+
 type Envelope struct {
 	Widget  string          `json:"widget"`
 	ID      string          `json:"id"`
 	Size    string          `json:"size"`
-	Actions []string        `json:"actions,omitempty"`
+	Refresh *int            `json:"refresh,omitempty"`
+	Actions []Action        `json:"actions,omitempty"`
 	Props   json.RawMessage `json:"props,omitempty"`
 }
 
@@ -26,7 +33,7 @@ var validKinds = map[string]struct{}{
 }
 
 var validSizes = map[string]struct{}{
-	"small": {}, "medium": {}, "large": {},
+	"small": {}, "medium": {}, "large": {}, "hero": {},
 }
 
 func (e *Envelope) Validate() error {
@@ -44,6 +51,17 @@ func (e *Envelope) Validate() error {
 	}
 	if _, ok := validSizes[e.Size]; !ok {
 		return fmt.Errorf("unknown size %q", e.Size)
+	}
+	if e.Refresh != nil && *e.Refresh < 5 {
+		return fmt.Errorf("refresh %d below minimum 5s", *e.Refresh)
+	}
+	if len(e.Actions) > 4 {
+		return fmt.Errorf("actions %d exceeds max 4", len(e.Actions))
+	}
+	for i, a := range e.Actions {
+		if a.Label == "" || a.Callback == "" {
+			return fmt.Errorf("action[%d] missing label or callback", i)
+		}
 	}
 	if len(e.Props) > MaxEnvelopeBytes {
 		return fmt.Errorf("props %d bytes exceeds 256 KB cap", len(e.Props))
