@@ -53,8 +53,12 @@ public actor IPCClient {
 
     public func send(_ f: Frame) throws {
         let bytes = try FrameCodec.encode(f)
+        // FrameCodec.encode always produces a 4-byte length prefix + body, so
+        // empty bytes is unreachable; assert it explicitly so withUnsafeBytes's
+        // nil-baseAddress branch can't silently no-op a "successful" send.
+        guard !bytes.isEmpty else { throw IPCError.writeFailed(errno: EINVAL) }
         try bytes.withUnsafeBytes { raw in
-            guard let base = raw.baseAddress else { return }
+            let base = raw.baseAddress!
             var sent = 0
             while sent < bytes.count {
                 let n = Darwin.write(fd, base.advanced(by: sent), bytes.count - sent)
@@ -99,6 +103,23 @@ public actor IPCClient {
             fd = -1
         }
     }
+
+    // Reclaim fd when the actor is dropped without an explicit close(); fd is
+    // a POSIX resource the Swift runtime won't auto-release on deallocation.
+    deinit {
+        if fd >= 0 {
+            _ = Darwin.close(fd)
+        }
+    }
+
+    #if DEBUG
+    // Test-only: inject a pre-opened fd (e.g. one end of socketpair) so deinit
+    // behavior is observable without spinning a real daemon.
+    public func _injectFDForTest(_ newFD: Int32) {
+        if fd >= 0 { _ = Darwin.close(fd) }
+        fd = newFD
+    }
+    #endif
 
     // 1s→32s exponential backoff; Task.checkCancellation gives cooperative cancel.
     public func reconnectLoop() async throws {

@@ -164,4 +164,48 @@ final class IPCClientTests: XCTestCase {
             do { try await client.connect() } catch { /* expected */ }
         }
     }
+
+    func testSendOnUnconnectedClientThrows() async {
+        // send() must surface a writeFailed error (EBADF) when fd is unset,
+        // never silently succeed. Guards against the nil-baseAddress regression
+        // where withUnsafeBytes on empty Data short-circuits to a no-op return.
+        let client = IPCClient(socketPath: "/tmp/leah-ipc-unused.sock")
+        let f = Frame(kind: "turn.end", turnId: "t1", seq: 1, payload: RawJSON(Data()))
+        do {
+            try await client.send(f)
+            XCTFail("expected writeFailed; send must not silently succeed when fd == -1")
+        } catch IPCClient.IPCError.writeFailed {
+            // expected: writing to fd=-1 returns EBADF
+        } catch {
+            XCTFail("expected writeFailed, got \(error)")
+        }
+    }
+
+    func testDeinitClosesSocketFD() async throws {
+        // Actor holds a POSIX fd; without deinit { close } the fd leaks when
+        // the client is dropped without an explicit close() call.
+        // Verify via socketpair: peer fd sees EOF (read returns 0) once the
+        // owning end is closed by deinit.
+        var sv: [Int32] = [-1, -1]
+        let rc = sv.withUnsafeMutableBufferPointer { ptr in
+            Darwin.socketpair(AF_UNIX, SOCK_STREAM, 0, ptr.baseAddress!)
+        }
+        XCTAssertEqual(rc, 0, "socketpair failed: \(String(cString: strerror(errno)))")
+        let ownedFD = sv[0]
+        let peerFD = sv[1]
+        defer { _ = Darwin.close(peerFD) }
+
+        // Scope the client so it is deallocated on block exit.
+        do {
+            let client = IPCClient(socketPath: "/unused")
+            await client._injectFDForTest(ownedFD)
+            _ = client
+        }
+        // Give the runtime a tick to run actor deinit.
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        var buf = [UInt8](repeating: 0, count: 1)
+        let n = Darwin.read(peerFD, &buf, 1)
+        XCTAssertEqual(n, 0, "peer must see EOF (0) once owning fd is closed by deinit; got n=\(n) errno=\(errno)")
+    }
 }
