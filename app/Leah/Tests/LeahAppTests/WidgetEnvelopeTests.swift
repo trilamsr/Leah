@@ -81,8 +81,10 @@ final class WidgetEnvelopeTests: XCTestCase {
   }
 
   func testActionRequiresLabelAndCallback() {
-    let empty = WidgetEnvelope.Action(label: "", callback: "leah://action/pin", icon: nil)
-    XCTAssertThrowsError(try env(actions: [empty]).validate())
+    let emptyLabel = WidgetEnvelope.Action(label: "", callback: "leah://action/pin", icon: nil)
+    let emptyCallback = WidgetEnvelope.Action(label: "Pin", callback: "", icon: nil)
+    XCTAssertThrowsError(try env(actions: [emptyLabel]).validate())
+    XCTAssertThrowsError(try env(actions: [emptyCallback]).validate())
   }
 
   func testEnvelopeCap256KB() throws {
