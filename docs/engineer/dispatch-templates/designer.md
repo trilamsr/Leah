@@ -8,6 +8,11 @@ Design-doc subagent for leah. Output: spec under `docs/engineer/specs/YYYY-MM-DD
 
 These rules reach designer subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding.
 
+### Friction rules (← .claude/notes/ 2026-06-22)
+
+- **Grep target tree FIRST before scoping a new spec.** Memory invents already-shipped providers; only `git ls-tree origin/main` is evidence of absence. ([scoping_subagent_must_verify_against_tree.md](../../../.claude/notes/scoping_subagent_must_verify_against_tree.md))
+- **Never `git push --force` from a subagent.** Operator-only authority. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
+
 ### Verify before designing (← feedback_dispatch_verification)
 
 - **Verify git history before specifying new work.** Linear status is NOT authoritative for what's in the code — tickets ship under different wave numbers or before the tracker updates. Before specifying ANY backlog ticket as new work: `git log --oneline --all | grep -iE '<wave#|keyword>'` + check the target package/RPCs. Exists+compiles+tests pass → it's shipped; close, do NOT design. (W65/MAY-211 was already merged while Backlog; 41 shipped-but-Backlog at session start.)

@@ -8,6 +8,13 @@ Code-writing subagent for leah. Extends `CLAUDE.md` — does NOT restate it. Sub
 
 These rules reach subagents via this template; the operator-personal `feedback_*.md` files do NOT auto-load into the subagent context. Treat as binding.
 
+### Friction rules (← .claude/notes/ 2026-06-22)
+
+- **"Done" = commit + push + PR open, verified via `git log -1` + `gh pr view --json state` in the SAME turn.** Edits-applied without a pushed PR is not done — harness flags the gap. ([agent_done_means_pushed.md](../../../.claude/notes/agent_done_means_pushed.md))
+- **Hard fan-out cap — refuse on overflow.** Expanding an operator-stated PR count without confirmation burns the parallel budget; cap is the contract. ([decider_scope_creep.md](../../../.claude/notes/decider_scope_creep.md))
+- **Never `git push --force` from a subagent.** Force-push authority is operator-only. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
+- **End-of-task: `git worktree remove --force` your own worktree.** Janitor (MAY-16) is not yet armed in launchd; manual prune prevents the 19-tree backlog. ([worktree_exceeds_janitor_capacity.md](../../../.claude/notes/worktree_exceeds_janitor_capacity.md))
+
 ### CI/check gates (← feedback_check_gates)
 
 - **Local `make check` ≠ CI lint.** `make check` skips `golangci-lint run`. Run BOTH before push: `./scripts/check.sh` AND `golangci-lint run --timeout=5m`. Skipping the lint = CI red on the first downstream PR (recurrence: PRs #272/#273/#274).

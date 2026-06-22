@@ -8,6 +8,10 @@ Adversarial review subagent for leah. Read-only against a target PR or spec. Nev
 
 These rules reach reviewer subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding.
 
+### Friction rules (← .claude/notes/ 2026-06-22)
+
+- **Never `git push --force` from a subagent — flag any author force-push trace in PR history as a finding.** Force-push authority is operator-only; reviewers reject PRs whose ref-log shows subagent-driven force-push. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
+
 ### Reviewer quality bar (← feedback_check_gates)
 
 - **State A+ pass criteria FIRST, then findings.** Declare the A+ rubric before listing anything. Every recommendation must be LOAD-BEARING — it names the concrete defect it prevents — or it's DROPPED. Over-engineering is its own reject dimension.
