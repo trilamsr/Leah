@@ -30,8 +30,10 @@ type Options struct {
 }
 
 func (o Options) validate() error {
-	if o.Lat == 0 && o.Lon == 0 {
-		return errors.New("weather: Options.Lat/Lon required")
+	// Reject partial init: an unset coordinate is almost always a bug
+	// (Lat=37.7749, Lon=0 lands in the Atlantic off Africa, not San Francisco).
+	if o.Lat == 0 || o.Lon == 0 {
+		return errors.New("weather: Options.Lat and Options.Lon required (non-zero)")
 	}
 	if o.JWTPath == "" {
 		return errors.New("weather: Options.JWTPath required")
