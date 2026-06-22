@@ -1,6 +1,9 @@
 # Go
 /leah
 /leah-bin
+/leah-daemon
+/leah-eval
+/leah-hud
 *.test
 *.out
 
