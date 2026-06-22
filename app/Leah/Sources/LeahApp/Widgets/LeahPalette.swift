@@ -14,9 +14,11 @@ extension Color {
 }
 
 enum LeahPalette {
+  static let obsidian1    = Color(red: 0x0E/255, green: 0x10/255, blue: 0x14/255)
   static let obsidian2    = Color(red: 0x16/255, green: 0x19/255, blue: 0x22/255)
   static let ivory        = Color.leahIvory
   static let champagneGold = Color.leahGold
+  static let redAlert     = Color.leahRedAlert
   static let oxblood      = Color(red: 0x7A/255, green: 0x1F/255, blue: 0x2B/255)
   static let textMuted    = Color(red: 0xB8/255, green: 0xB0/255, blue: 0xA0/255)
   static let hairline     = Color.white.opacity(0.20)
