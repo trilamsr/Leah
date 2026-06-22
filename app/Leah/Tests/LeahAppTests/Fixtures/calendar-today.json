@@ -1,0 +1,40 @@
+{
+  "widget": "calendar",
+  "id": "cal-today",
+  "size": "medium",
+  "refresh": 300,
+  "props": {
+    "range": "today",
+    "now": "2026-06-22T12:15:00Z",
+    "events": [
+      {
+        "id": "evt-1",
+        "title": "Standup",
+        "start": "2026-06-22T09:00:00Z",
+        "end":   "2026-06-22T09:15:00Z",
+        "is_current": false
+      },
+      {
+        "id": "evt-2",
+        "title": "Spec review",
+        "start": "2026-06-22T12:00:00Z",
+        "end":   "2026-06-22T13:00:00Z",
+        "is_current": true
+      },
+      {
+        "id": "evt-3",
+        "title": "1:1 jen",
+        "start": "2026-06-22T15:00:00Z",
+        "end":   "2026-06-22T15:30:00Z",
+        "is_current": false
+      },
+      {
+        "id": "evt-4",
+        "title": "Arch sync",
+        "start": "2026-06-22T16:00:00Z",
+        "end":   "2026-06-22T17:00:00Z",
+        "is_current": false
+      }
+    ]
+  }
+}
