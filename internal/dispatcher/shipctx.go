@@ -50,7 +50,10 @@ func FetchPRContext(ctx context.Context, exec CmdExecutor, repo string, n int) (
 		// Non-fatal: title/body/branch still useful.
 		diffOut = "(diff fetch failed: " + err.Error() + ")"
 	}
-	diff := truncateLines(diffOut, prDiffMaxLines)
+	diff := diffOut
+	if lines := strings.Split(diffOut, "\n"); len(lines) > prDiffMaxLines {
+		diff = strings.Join(lines[:prDiffMaxLines], "\n") + "\n... (truncated)"
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "## Context from PR #%d (%s)\n\n", n, repo)
@@ -124,15 +127,30 @@ func FetchThreadContext(window string, histPath string) (string, error) {
 		return "", fmt.Errorf("scan history: %w", err)
 	}
 
-	n, suffix, ok := splitWindow(window)
-	if !ok || n <= 0 {
+	return composeWindow(window, lines)
+}
+
+// composeWindow parses `<N>{c|m}`, slices the last N lines (minute-mode treats
+// 1m≈2 commands as a line-count approximation when timestamps are absent),
+// strips zsh `: <ts>:0;` prefixes, and renders the markdown block. Collapses
+// what used to be four separate helpers — one call site, one function.
+func composeWindow(window string, lines []string) (string, error) {
+	w := strings.TrimSpace(window)
+	if len(w) < 2 {
 		return "", fmt.Errorf("invalid --from-thread window %q (want e.g. 30m or 100c)", window)
 	}
-	// Minute-mode falls back to last-N-line slice when timestamps absent;
-	// keeps the surface simple — the caller wanted "some recent thread".
-	// Heuristic: treat 30m ≈ last 60 commands; 60m ≈ last 120.
+	suffix := w[len(w)-1:]
+	if suffix != "c" && suffix != "m" {
+		return "", fmt.Errorf("invalid --from-thread window %q (want e.g. 30m or 100c)", window)
+	}
+	n, err := strconv.Atoi(w[:len(w)-1])
+	if err != nil || n <= 0 {
+		return "", fmt.Errorf("invalid --from-thread window %q (want e.g. 30m or 100c)", window)
+	}
+	label := "commands"
 	if suffix == "m" {
-		n = n * 2
+		n *= 2
+		label = "minutes (line-count approx)"
 	}
 	if n > len(lines) {
 		n = len(lines)
@@ -140,10 +158,16 @@ func FetchThreadContext(window string, histPath string) (string, error) {
 	tail := lines[len(lines)-n:]
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "## Context from terminal thread (last %d %s)\n\n", n, longSuffix(suffix))
+	fmt.Fprintf(&b, "## Context from terminal thread (last %d %s)\n\n", n, label)
 	b.WriteString("```\n")
 	for _, ln := range tail {
-		b.WriteString(stripZshHistTimestamp(ln))
+		// Drop zsh extended_history's `: <ts>:0;` prefix; bash lines untouched.
+		if strings.HasPrefix(ln, ": ") {
+			if idx := strings.Index(ln, ";"); idx >= 0 {
+				ln = ln[idx+1:]
+			}
+		}
+		b.WriteString(ln)
 		b.WriteString("\n")
 	}
 	b.WriteString("```\n")
@@ -166,49 +190,3 @@ func ComposeContext(prCtx, issueCtx, threadCtx string) string {
 	return strings.Join(parts, "\n\n") + "\n\n"
 }
 
-func truncateLines(s string, max int) string {
-	lines := strings.Split(s, "\n")
-	if len(lines) <= max {
-		return s
-	}
-	return strings.Join(lines[:max], "\n") + "\n... (truncated)"
-}
-
-func splitWindow(w string) (n int, suffix string, ok bool) {
-	w = strings.TrimSpace(w)
-	if len(w) < 2 {
-		return 0, "", false
-	}
-	suf := w[len(w)-1:]
-	if suf != "c" && suf != "m" {
-		return 0, "", false
-	}
-	v, err := strconv.Atoi(w[:len(w)-1])
-	if err != nil {
-		return 0, "", false
-	}
-	return v, suf, true
-}
-
-func longSuffix(s string) string {
-	switch s {
-	case "c":
-		return "commands"
-	case "m":
-		return "minutes (line-count approx)"
-	}
-	return s
-}
-
-// stripZshHistTimestamp drops the `: <ts>:0;` prefix zsh's extended_history
-// option adds. Leaves bash history lines untouched.
-func stripZshHistTimestamp(line string) string {
-	if !strings.HasPrefix(line, ": ") {
-		return line
-	}
-	idx := strings.Index(line, ";")
-	if idx < 0 {
-		return line
-	}
-	return line[idx+1:]
-}

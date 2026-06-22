@@ -2,7 +2,6 @@ package listener_test
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -137,12 +136,3 @@ func TestFakeListener_ConcurrentSafe(t *testing.T) {
 	wg.Wait()
 }
 
-// TestListener_Real_NotImplemented: real backend is a W12 placeholder.
-func TestListener_Real_NotImplemented(t *testing.T) {
-	t.Parallel()
-	rl := listener.NewReal()
-	_, err := rl.Start(context.Background())
-	if !errors.Is(err, listener.ErrNotImplemented) {
-		t.Fatalf("err = %v, want ErrNotImplemented", err)
-	}
-}

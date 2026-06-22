@@ -33,9 +33,9 @@ func TestWorkToolSource_StaleItem_Recommends(t *testing.T) {
 		src    func(WorkItemSeam) Source
 		source string
 	}{
-		{"jira", func(s WorkItemSeam) Source { return NewJiraSource(s, WorkToolOpts{Now: func() time.Time { return now }}) }, "jira"},
-		{"linear", func(s WorkItemSeam) Source { return NewLinearSource(s, WorkToolOpts{Now: func() time.Time { return now }}) }, "linear"},
-		{"confluence", func(s WorkItemSeam) Source { return NewConfluenceSource(s, WorkToolOpts{Now: func() time.Time { return now }}) }, "confluence"},
+		{"jira", func(s WorkItemSeam) Source { return newWorkToolSource("jira", s, WorkToolOpts{Now: func() time.Time { return now }}) }, "jira"},
+		{"linear", func(s WorkItemSeam) Source { return newWorkToolSource("linear", s, WorkToolOpts{Now: func() time.Time { return now }}) }, "linear"},
+		{"confluence", func(s WorkItemSeam) Source { return newWorkToolSource("confluence", s, WorkToolOpts{Now: func() time.Time { return now }}) }, "confluence"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -66,7 +66,7 @@ func TestWorkToolSource_StaleItem_Recommends(t *testing.T) {
 // TestWorkToolSource_NoItems_EmptyRecs guards cold-start: an empty read is a
 // benign nil slice, nil error — Engine.Propose merges multiple sources.
 func TestWorkToolSource_NoItems_EmptyRecs(t *testing.T) {
-	src := NewJiraSource(&fakeItems{}, WorkToolOpts{})
+	src := newWorkToolSource("jira", &fakeItems{}, WorkToolOpts{})
 	recs, err := src.Recommendations(context.Background())
 	if err != nil {
 		t.Fatalf("Recommendations: %v", err)
@@ -80,7 +80,7 @@ func TestWorkToolSource_NoItems_EmptyRecs(t *testing.T) {
 // deletion-default keeps the candidate pool small.
 func TestWorkToolSource_FreshItem_NoRec(t *testing.T) {
 	now := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
-	src := NewLinearSource(&fakeItems{items: staleItemsAged("LEA-1", 0, now)}, WorkToolOpts{Now: func() time.Time { return now }})
+	src := newWorkToolSource("linear", &fakeItems{items: staleItemsAged("LEA-1", 0, now)}, WorkToolOpts{Now: func() time.Time { return now }})
 	recs, err := src.Recommendations(context.Background())
 	if err != nil {
 		t.Fatalf("Recommendations: %v", err)
@@ -94,7 +94,7 @@ func TestWorkToolSource_FreshItem_NoRec(t *testing.T) {
 // aggregator can isolate per-source failures.
 func TestWorkToolSource_SeamError_Propagates(t *testing.T) {
 	sentinel := errors.New("api down")
-	src := NewConfluenceSource(&fakeItems{err: sentinel}, WorkToolOpts{})
+	src := newWorkToolSource("confluence", &fakeItems{err: sentinel}, WorkToolOpts{})
 	_, err := src.Recommendations(context.Background())
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("err = %v, want wraps %v", err, sentinel)

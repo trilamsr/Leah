@@ -85,7 +85,7 @@ func runNews(parent context.Context, args []string, w io.Writer) int {
 		_, _ = fmt.Fprintf(os.Stderr, "leah news: %v\n", err)
 		return 2
 	}
-	since, rest, err := parseSinceTime(rest)
+	since, rest, err := ParseSince(rest)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah news: %v\nusage: leah news [--bundle <name>] [--since <RFC3339>]\n", err)
 		return 2
@@ -200,48 +200,6 @@ func parseBundleFlag(args []string) (bundle string, rest []string, err error) {
 	return bundle, rest, nil
 }
 
-// parseSinceTime consumes a single --since <RFC3339> pair. Mirrors parseBundleFlag
-// shape so duplicate detection and = vs space forms work identically — operator
-// muscle-memory from --bundle transfers.
-func parseSinceTime(args []string) (since time.Time, rest []string, err error) {
-	rest = make([]string, 0, len(args))
-	seen := false
-	var raw string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "--since":
-			if seen {
-				return time.Time{}, nil, errors.New("--since may only be specified once")
-			}
-			if i+1 >= len(args) {
-				return time.Time{}, nil, errors.New("--since requires a value")
-			}
-			raw = args[i+1]
-			seen = true
-			i++
-		case strings.HasPrefix(a, "--since="):
-			if seen {
-				return time.Time{}, nil, errors.New("--since may only be specified once")
-			}
-			raw = strings.TrimPrefix(a, "--since=")
-			if raw == "" {
-				return time.Time{}, nil, errors.New("--since requires a value")
-			}
-			seen = true
-		default:
-			rest = append(rest, a)
-		}
-	}
-	if !seen {
-		return time.Time{}, rest, nil
-	}
-	t, perr := time.Parse(time.RFC3339, raw)
-	if perr != nil {
-		return time.Time{}, nil, fmt.Errorf("--since: invalid RFC3339 %q: %w", raw, perr)
-	}
-	return t, rest, nil
-}
 
 func knownBundles() string {
 	names := make([]string, 0, len(newsBundles))

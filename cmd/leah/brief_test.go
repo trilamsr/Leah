@@ -42,8 +42,8 @@ func TestBriefSinceInvalidRFC3339ExitsTwo(t *testing.T) {
 	if rc != 2 {
 		t.Fatalf("rc = %d, want 2", rc)
 	}
-	if !strings.Contains(stderr, "invalid --since") {
-		t.Fatalf("stderr missing invalid --since: %q", stderr)
+	if !strings.Contains(stderr, "--since: invalid RFC3339") {
+		t.Fatalf("stderr missing --since RFC3339 diagnostic: %q", stderr)
 	}
 }
 
@@ -55,8 +55,8 @@ func TestBriefSinceMissingValueExitsTwo(t *testing.T) {
 	if rc != 2 {
 		t.Fatalf("rc = %d, want 2", rc)
 	}
-	if !strings.Contains(stderr, "invalid --since") {
-		t.Fatalf("stderr missing invalid --since: %q", stderr)
+	if !strings.Contains(stderr, "--since requires a value") {
+		t.Fatalf("stderr missing --since requires-value diagnostic: %q", stderr)
 	}
 }
 
@@ -72,8 +72,8 @@ func TestBriefSinceValidRFC3339Accepted(t *testing.T) {
 	if rc != 0 {
 		t.Fatalf("rc = %d, want 0; stderr=%q", rc, stderr)
 	}
-	if strings.Contains(stderr, "invalid --since") {
-		t.Fatalf("unexpected invalid --since: %q", stderr)
+	if strings.Contains(stderr, "--since:") {
+		t.Fatalf("unexpected --since error: %q", stderr)
 	}
 	// The cursor must propagate all the way to WriteFile — filename is
 	// derived from the anchor, so a 2026-06-21 cursor writes 2026-06-21.md

@@ -21,17 +21,10 @@ func runBrief(parent context.Context, args []string) int {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah brief [--voice] [--silent] [--since=<RFC3339>]")
 		return 0
 	}
-	// Bare `--since` returns the sentinel "<missing>" which fails the
-	// RFC3339 parse below — same exit-2 surface as a typo.
-	since, args := parseSinceFlag(args)
-	var anchor time.Time
-	if since != "" {
-		t, err := time.Parse(time.RFC3339, since)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "leah brief: invalid --since %q: %v\nusage: leah brief [--voice] [--silent] [--since=<RFC3339>]\n", since, err)
-			return 2
-		}
-		anchor = t
+	anchor, args, err := ParseSince(args)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah brief: %v\nusage: leah brief [--voice] [--silent] [--since=<RFC3339>]\n", err)
+		return 2
 	}
 	voiceMode := false
 	silentMode := false
