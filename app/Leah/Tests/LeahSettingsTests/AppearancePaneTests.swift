@@ -1,6 +1,7 @@
 import XCTest
 @testable import LeahUI
 
+@MainActor
 final class AppearancePaneTests: XCTestCase {
     override func setUp() {
         super.setUp()

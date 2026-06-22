@@ -61,6 +61,8 @@ struct SettingsView: View {
                 case .privacy:      PrivacyPane()
                 case .permissions:  PermissionsPane()
                 case .advanced:     AdvancedPane()
+                case .voice:        VoicePane()
+                case .appearance:   AppearancePane()
                 case .integrations: IntegrationsPane()
                 case .memory:       MemoryPane()
                 case .about:        AboutPane()
