@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Leah</title>
+    <link>https://maydow.github.io/leah/appcast.xml</link>
+    <description>Leah update feed</description>
+    <language>en</language>
+    <!-- Release <item> entries are appended here by scripts/release/publish-release.sh -->
+  </channel>
+</rss>
