@@ -18,8 +18,9 @@ type Server struct {
 	path    string
 	handler Handler
 
-	mu sync.Mutex
-	ln net.Listener
+	mu      sync.Mutex
+	ln      net.Listener
+	stopped chan struct{}
 }
 
 func NewServer(socketPath string, handler Handler) *Server {
@@ -46,7 +47,12 @@ func (s *Server) Stop() error {
 	s.mu.Lock()
 	ln := s.ln
 	s.ln = nil
+	stopped := s.stopped
+	s.stopped = nil
 	s.mu.Unlock()
+	if stopped != nil {
+		close(stopped)
+	}
 	if ln == nil {
 		return nil
 	}
@@ -57,10 +63,33 @@ func (s *Server) Stop() error {
 }
 
 func (s *Server) serveListener(ctx context.Context, ln net.Listener) error {
+	stopped := make(chan struct{})
 	s.mu.Lock()
 	s.ln = ln
+	s.stopped = stopped
 	s.mu.Unlock()
-	go func() { <-ctx.Done(); _ = ln.Close() }()
+	watcherDone := make(chan struct{})
+	go func() {
+		defer close(watcherDone)
+		select {
+		case <-ctx.Done():
+			_ = ln.Close()
+		case <-stopped:
+		}
+	}()
+	defer func() {
+		s.mu.Lock()
+		if s.stopped == stopped {
+			s.stopped = nil
+			close(stopped) // release watcher when loop exits on its own
+		}
+		if s.ln == ln {
+			s.ln = nil
+		}
+		s.mu.Unlock()
+		_ = ln.Close() // idempotent — Stop or permanent-error exit, either closes the FD
+		<-watcherDone
+	}()
 	const (
 		backoffMin = 5 * time.Millisecond
 		backoffMax = 1 * time.Second

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -132,15 +133,16 @@ func TestServerHandlerErr(t *testing.T) {
 	}
 }
 
-// Stop() must unblock Serve()'s accept loop and return without error so
-// daemon shutdown is bounded, not "wait for the next connection."
+// Stop() must unblock Serve()'s accept loop without leaking the
+// ctx-watcher goroutine — a Background context never cancels, so the
+// shutdown path itself must release that watcher.
 func TestServer_Shutdown_StopsAcceptLoop_GracefulClose(t *testing.T) {
 	sock := shortSock(t)
 	handler := func(ctx context.Context, req Frame) (<-chan Frame, error) { return nil, nil }
 	s := NewServer(sock, handler)
+	pre := runtime.NumGoroutine()
 	done := make(chan error, 1)
 	go func() { done <- s.Serve(context.Background()) }()
-	// Wait for the socket to bind before we yank it.
 	_ = dialReady(t, sock).Close()
 	if err := s.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
@@ -153,6 +155,9 @@ func TestServer_Shutdown_StopsAcceptLoop_GracefulClose(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Serve did not return after Stop()")
 	}
+	testutil.Eventually(t, 1*time.Second, 20*time.Millisecond, func() bool {
+		return runtime.NumGoroutine() <= pre+1
+	})
 }
 
 // flakyListener returns EMFILE on the first Accept then defers to a real
