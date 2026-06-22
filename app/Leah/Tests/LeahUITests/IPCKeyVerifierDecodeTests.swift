@@ -43,6 +43,24 @@ final class IPCKeyVerifierDecodeTests: XCTestCase {
     XCTAssertEqual(outcome, .offline)
   }
 
+  // Malformed JSON payload on the correct kind hits the `decode? == nil` branch.
+  func testDecodeMalformedPayloadReturnsOffline() async throws {
+    let f = Frame(
+      kind: "verify-key.result",
+      turnId: "t",
+      seq: 0,
+      payload: RawJSON(Data(#"{"ok":"not-a-bool"}"#.utf8))
+    )
+    let server = try LocalUnixEchoServer(response: try FrameCodec.encode(f))
+    defer { server.shutdown() }
+    let outcome = await IPCKeyVerifier.verify(
+      key: "sk-ant-anything",
+      timeout: 2.0,
+      socketPath: server.path
+    )
+    XCTAssertEqual(outcome, .offline)
+  }
+
   // Encodes a verify-key.result frame the same way the production daemon does:
   // 4-byte big-endian length prefix + JSON body. `kind` defaults match the happy
   // path; pass kind:"other" to exercise the wrong-kind branch.
@@ -97,36 +115,50 @@ final class LocalUnixEchoServer {
     self.serverTask = Task.detached {
       let client = Darwin.accept(fd, nil, nil)
       guard client >= 0 else { return }
-      // Drain inbound: 4-byte BE length + body.
+      defer { Darwin.close(client) }
+      // Drain inbound length-prefixed frame; tolerate EINTR + partial reads
+      // so a negative return never decrements the cursor (SEGV trap).
       var hdr = [UInt8](repeating: 0, count: 4)
-      _ = hdr.withUnsafeMutableBufferPointer { Darwin.read(client, $0.baseAddress, 4) }
+      guard Self.readFull(client, &hdr, 4) else { return }
       let n = UInt32(hdr[0]) << 24 | UInt32(hdr[1]) << 16 | UInt32(hdr[2]) << 8 | UInt32(hdr[3])
       if n > 0 {
         var body = [UInt8](repeating: 0, count: Int(n))
-        var got = 0
-        while got < Int(n) {
-          let r = body.withUnsafeMutableBufferPointer { Darwin.read(client, $0.baseAddress?.advanced(by: got), Int(n) - got) }
-          if r <= 0 { break }
-          got += r
-        }
+        guard Self.readFull(client, &body, Int(n)) else { return }
       }
-      // Write canned response.
       response.withUnsafeBytes { raw in
         guard let base = raw.baseAddress else { return }
         var sent = 0
         while sent < response.count {
           let w = Darwin.write(client, base.advanced(by: sent), response.count - sent)
-          if w <= 0 { break }
+          if w < 0 { if errno == EINTR { continue } else { return } }
+          if w == 0 { return }
           sent += w
         }
       }
-      Darwin.close(client)
     }
   }
 
+  private static func readFull(_ fd: Int32, _ buf: inout [UInt8], _ count: Int) -> Bool {
+    var got = 0
+    while got < count {
+      let r = buf.withUnsafeMutableBufferPointer {
+        Darwin.read(fd, $0.baseAddress?.advanced(by: got), count - got)
+      }
+      if r < 0 { if errno == EINTR { continue } else { return false } }
+      if r == 0 { return false }
+      got += r
+    }
+    return true
+  }
+
+  // Synchronous shutdown: close listener first (unblocks accept), then await
+  // the server task so unlink() races nothing.
   func shutdown() {
-    serverTask.cancel()
     Darwin.close(listenFD)
+    let task = serverTask
+    let sem = DispatchSemaphore(value: 0)
+    Task.detached { _ = await task.value; sem.signal() }
+    _ = sem.wait(timeout: .now() + .seconds(2))
     unlink(path)
   }
 }
