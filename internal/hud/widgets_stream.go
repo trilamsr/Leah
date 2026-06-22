@@ -139,12 +139,12 @@ func (s *Stream) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	ch := s.Subscribe(ctx)
-	if init, err := json.Marshal(s.TileIDs()); err == nil {
-		if _, err := fmt.Fprintf(w, "event: widget.init\ndata: %s\n\n", init); err != nil {
-			return
-		}
-		fl.Flush()
+	// json.Marshal on []string is total — no error branch worth handling.
+	init, _ := json.Marshal(s.TileIDs())
+	if _, err := fmt.Fprintf(w, "event: widget.init\ndata: %s\n\n", init); err != nil {
+		return
 	}
+	fl.Flush()
 	keepalive := time.NewTicker(20 * time.Second)
 	defer keepalive.Stop()
 	for {

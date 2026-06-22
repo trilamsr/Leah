@@ -161,6 +161,27 @@ func TestWidgetsStream_TileListServedToClient(t *testing.T) {
 	}
 }
 
+func TestWidgetsStream_InitArrivesBeforeFirstRefresh(t *testing.T) {
+	// Ordering: client builds tileIds from widget.init, then unions in refresh
+	// ids. A refresh-before-init would leave a connection that errors before
+	// any refresh marking zero tiles offline.
+	s := NewStream([]TileRenderer{
+		{ID: "weather", TTL: time.Hour, Render: func(_ context.Context) string { return `<div class="widget">w</div>` }},
+		{ID: "news", TTL: time.Hour, Render: func(_ context.Context) string { return `<div class="widget">n</div>` }},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	go s.Run(ctx)
+	time.Sleep(50 * time.Millisecond) // let initial ticks land in s.last so Subscribe replays them
+	srv := httptest.NewServer(http.HandlerFunc(s.HandleSSE))
+	defer srv.Close()
+
+	events := readEventNames(t, srv.URL, 3, 500*time.Millisecond)
+	if len(events) == 0 || events[0] != "widget.init" {
+		t.Fatalf("first event = %v, want widget.init first", events)
+	}
+}
+
 func TestWidgetStream_SetsSSEHeaders(t *testing.T) {
 	s := NewStream([]TileRenderer{{ID: "x", TTL: time.Hour, Render: func(_ context.Context) string { return "<div></div>" }}})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -238,6 +259,34 @@ func readFrames(t *testing.T, url string, want int, timeout time.Duration) []pus
 		}
 	}
 	return frames
+}
+
+func readEventNames(t *testing.T, url string, want int, timeout time.Duration) []string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req.Header.Set("Accept", "text/event-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var out []string
+	r := bufio.NewReader(resp.Body)
+	for len(out) < want {
+		line, err := r.ReadString('\n')
+		if line != "" {
+			line = strings.TrimRight(line, "\n")
+			if strings.HasPrefix(line, "event: ") {
+				out = append(out, strings.TrimPrefix(line, "event: "))
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return out
 }
 
 func readInitTiles(t *testing.T, url string, timeout time.Duration) []string {
