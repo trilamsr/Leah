@@ -126,7 +126,7 @@ func (c *AnthropicClient) OneShot(ctx context.Context, system, user string) (str
 	resp, err := c.sdk.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(c.model),
 		MaxTokens: 64,
-		System:    []anthropic.TextBlockParam{{Text: system}},
+		System:    []anthropic.TextBlockParam{buildSystemBlock(system)},
 		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(user))},
 	})
 	if err != nil {

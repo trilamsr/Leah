@@ -2,8 +2,6 @@ package reasoner
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
 	"testing"
 )
 
@@ -41,8 +39,5 @@ func TestClassifyBadJSONIsChat(t *testing.T) {
 	}
 	if got.Kind != "chat" {
 		t.Fatalf("malformed Haiku output must degrade to chat, got %+v", got)
-	}
-	if !strings.HasPrefix(got.Widget, "") {
-		_, _ = json.Marshal(got) // silence unused-import on json
 	}
 }
