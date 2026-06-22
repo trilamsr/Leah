@@ -54,7 +54,16 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		}
 		out, err := s.handler(ctx, req)
 		if err != nil {
-			_ = WriteFrame(conn, Frame{Kind: "error", TurnID: req.TurnID, Seq: 0})
+			// Best-effort error frame; if the write fails the socket is
+			// half-dead — bail rather than loop on a wedged conn.
+			if werr := WriteFrame(conn, Frame{Kind: "error", TurnID: req.TurnID, Seq: 0}); werr != nil {
+				return
+			}
+			continue
+		}
+		if out == nil {
+			// Handler may signal "no frames" with a nil channel; skip the
+			// range so we don't block on a nil receive (deadlock).
 			continue
 		}
 		for f := range out {

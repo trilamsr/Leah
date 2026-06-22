@@ -163,7 +163,12 @@ func main() {
 	}
 
 	// Placeholder handler — Task 8 replaces this with the reasoner-backed router.
-	sockPath := filepath.Join(os.Getenv("HOME"), "Library", "Caches", "Leah", "leah.sock")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: home dir: %v\n", err)
+		os.Exit(1)
+	}
+	sockPath := filepath.Join(home, "Library", "Caches", "Leah", "leah.sock")
 	echoHandler := func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
 		out := make(chan ipc.Frame, 1)
 		out <- ipc.Frame{Kind: "prose.delta", TurnID: req.TurnID, Seq: 1}

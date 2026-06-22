@@ -2,6 +2,7 @@ package ipc
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -30,5 +31,25 @@ func TestFrameSizeCap(t *testing.T) {
 	var buf bytes.Buffer
 	if err := WriteFrame(&buf, huge); err == nil {
 		t.Fatal("expected size-cap error, got nil")
+	}
+}
+
+// Oversized header from a malicious/buggy peer must be rejected without
+// allocating the declared body — otherwise the parser becomes a DoS vector.
+func TestReadFrameRejectsOversizedHeader(t *testing.T) {
+	var hdr [4]byte
+	binary.BigEndian.PutUint32(hdr[:], MaxFrameBytes+1)
+	if _, err := ReadFrame(bytes.NewReader(hdr[:])); err == nil {
+		t.Fatal("expected oversized-header error, got nil")
+	}
+}
+
+// Truncated body (header promises N bytes, peer sends fewer then closes)
+// must surface as an error, not a zero-value Frame.
+func TestReadFrameRejectsTruncatedBody(t *testing.T) {
+	var hdr [4]byte
+	binary.BigEndian.PutUint32(hdr[:], 100)
+	if _, err := ReadFrame(bytes.NewReader(append(hdr[:], []byte("short")...))); err == nil {
+		t.Fatal("expected truncated-body error, got nil")
 	}
 }
