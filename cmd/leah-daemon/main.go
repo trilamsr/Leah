@@ -21,6 +21,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/costmonth"
 	"github.com/trilam/leah/internal/daemonloop"
+	"github.com/trilam/leah/internal/ipc"
 	"github.com/trilam/leah/internal/macos/activeapp"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
@@ -160,6 +161,16 @@ func main() {
 		}
 		defer closeDash()
 	}
+
+	// Placeholder handler — Task 8 replaces this with the reasoner-backed router.
+	sockPath := filepath.Join(os.Getenv("HOME"), "Library", "Caches", "Leah", "leah.sock")
+	echoHandler := func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
+		out := make(chan ipc.Frame, 1)
+		out <- ipc.Frame{Kind: "prose.delta", TurnID: req.TurnID, Seq: 1}
+		close(out)
+		return out, nil
+	}
+	go func() { _ = ipc.NewServer(sockPath, echoHandler).Serve(ctx) }()
 
 	if err := loop.Run(ctx); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
