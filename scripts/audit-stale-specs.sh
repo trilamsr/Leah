@@ -69,9 +69,55 @@ nontest_loc() {
     | tr -d ' '
 }
 
+# _test.go excluded so a thick test file can't masquerade as a shipped
+# surface; shell scripts have no such convention so all .sh files count.
+extra_loc() {
+  local files="$1" file abs total=0 n
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    case "$file" in *_test.go) continue ;; esac
+    abs="$ROOT/$file"
+    [ -f "$abs" ] || continue
+    n=$(wc -l < "$abs" 2>/dev/null | tr -d ' ')
+    total=$((total + ${n:-0}))
+  done <<EOF
+$files
+EOF
+  echo "$total"
+}
+
+# Slugs often diverge from filenames (local-self-update vs self_upgrade.go);
+# the `leah <subcommand>` mention in prose is more reliable than slug tokens.
+resolve_cmd_files() {
+  local spec="$1" tokens token snake f out=""
+  tokens=$(grep -oE '`?leah[ -][a-z][a-z0-9_-]+' "$spec" 2>/dev/null \
+    | sed -E 's/^`?leah[ -]//' \
+    | awk '!seen[$0]++')
+  while IFS= read -r token; do
+    [ -z "$token" ] && continue
+    snake=$(echo "$token" | tr '-' '_')
+    for f in "$ROOT/cmd/leah/$snake".go "$ROOT/cmd/leah/$snake"_*.go; do
+      [ -f "$f" ] || continue
+      out="$out${f#$ROOT/}
+"
+    done
+  done <<EOF
+$tokens
+EOF
+  printf '%s' "$out" | awk 'NF && !seen[$0]++'
+}
+
+# Some specs (signed-distribution) ship entirely as shell with no internal/
+# surface; literal path match avoids false positives on unrelated scripts.
+resolve_script_files() {
+  local spec="$1"
+  grep -oE 'scripts/[a-zA-Z0-9_./-]+\.sh' "$spec" 2>/dev/null \
+    | awk '!seen[$0]++'
+}
+
 classify() {
   local spec="$1"
-  local fname stem pkg pkg_abs loc
+  local fname stem pkg pkg_abs loc cmd_files script_files extra total reason
   fname=$(basename "$spec")
   # Strip YYYY-MM-DD- prefix; everything after becomes the package stem.
   stem=$(echo "${fname%.md}" | sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}-//')
@@ -86,16 +132,37 @@ classify() {
     return
   fi
 
-  if [ ! -d "$pkg_abs" ]; then
+  if [ -d "$pkg_abs" ]; then
+    loc=$(nontest_loc "$pkg_abs")
+    reason="$pkg ($loc LOC)"
+  else
+    loc=0
+    reason=""
+  fi
+
+  # Fold cmd/ and scripts/ LOC in before STALE — some specs ship there only.
+  cmd_files=$(resolve_cmd_files "$spec")
+  script_files=$(resolve_script_files "$spec")
+  extra=$(extra_loc "$(printf '%s\n%s' "$cmd_files" "$script_files")")
+  total=$((loc + extra))
+
+  if [ -n "$cmd_files$script_files" ]; then
+    if [ -n "$reason" ]; then
+      reason="$reason + cmd/scripts ($extra LOC)"
+    else
+      reason="cmd/scripts ($extra LOC)"
+    fi
+  fi
+
+  if [ "$total" -eq 0 ]; then
     printf 'STALE\t%s\tno pkg dir (%s)\n' "$fname" "$pkg"
     return
   fi
 
-  loc=$(nontest_loc "$pkg_abs")
-  if [ "$loc" -gt 100 ]; then
-    printf 'SHIPPED\t%s\t%s (%s LOC)\n' "$fname" "$pkg" "$loc"
+  if [ "$total" -gt 100 ]; then
+    printf 'SHIPPED\t%s\t%s\n' "$fname" "$reason"
   else
-    printf 'PARTIAL\t%s\t%s (%s LOC; stub/thin)\n' "$fname" "$pkg" "$loc"
+    printf 'PARTIAL\t%s\t%s stub/thin\n' "$fname" "$reason"
   fi
 }
 
