@@ -20,6 +20,8 @@ mkfixture() {
   mkdir -p "$dir/docs/engineer/specs"
   mkdir -p "$dir/internal/shipped"
   mkdir -p "$dir/internal/partial"
+  mkdir -p "$dir/cmd/leah"
+  mkdir -p "$dir/scripts/release"
 
   # SHIPPED: >100 LOC of non-test Go.
   {
@@ -37,6 +39,25 @@ mkfixture() {
     > "$dir/docs/engineer/specs/2026-06-10-partial.md"
   printf '# stale spec\n\nPlaceholder reference to `internal/foo`.\n' \
     > "$dir/docs/engineer/specs/2026-06-10-stale.md"
+
+  # SHIPPED via cmd/leah/: slug "local-self-update" diverges from the
+  # actual file name "self_upgrade.go". Spec body names the subcommand
+  # `leah self-upgrade`, which is what should drive resolution.
+  {
+    echo "package main"
+    for _ in $(seq 1 120); do echo "// cmd surface line"; done
+  } > "$dir/cmd/leah/self_upgrade.go"
+  printf '# local-self-update\n\nCLI: `leah self-upgrade` swaps the binary.\n' \
+    > "$dir/docs/engineer/specs/2026-06-10-local-self-update.md"
+
+  # SHIPPED via scripts/release/: no `internal/` surface at all. Spec
+  # body must drive the lookup via the explicit shell-script path.
+  {
+    echo "#!/usr/bin/env bash"
+    for _ in $(seq 1 120); do echo "# notarize step"; done
+  } > "$dir/scripts/release/notarize.sh"
+  printf '# signed-distribution\n\nRelease: `scripts/release/notarize.sh` runs notarytool.\n' \
+    > "$dir/docs/engineer/specs/2026-06-10-signed-distribution.md"
 
   echo "$dir"
 }
@@ -62,6 +83,14 @@ run_and_assert() {
   echo "$out" | grep -q $'^STALE\t2026-06-10-stale.md\t' \
     && pass "STALE row present" \
     || fail "missing STALE row; got: $out"
+
+  echo "$out" | grep -q $'^SHIPPED\t2026-06-10-local-self-update.md\t' \
+    && pass "cmd/leah surface resolved as SHIPPED" \
+    || fail "missing SHIPPED row for cmd/leah surface; got: $out"
+
+  echo "$out" | grep -q $'^SHIPPED\t2026-06-10-signed-distribution.md\t' \
+    && pass "scripts/release surface resolved as SHIPPED" \
+    || fail "missing SHIPPED row for scripts/release surface; got: $out"
 
   rm -rf "$dir"
 }
