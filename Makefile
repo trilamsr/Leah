@@ -146,7 +146,7 @@ verify-attestation:
 	        --source-tag "$(TAG)" \
 	        "$$DEST"/leah-*-* "$$DEST"/leah-daemon-*-* "$$DEST"/leah-hud-*-*
 
-.PHONY: app-build app-test app-run
+.PHONY: app-build app-test app-run sign-and-notarize
 
 # Swift Package build of the Leah.app shell.
 app-build:
@@ -160,5 +160,11 @@ app-test:
 app-run: app-build
 	@app/Leah/.build/release/Leah
 
+# Sign + notarize + staple Leah.app for distribution.
+# ARGS controls the operation: --build-only | --sign | --notarize | --staple | --all
+# See scripts/sign-and-notarize.sh and docs/engineer/runbooks/signing-and-notarization.md.
+sign-and-notarize:
+	@bash scripts/sign-and-notarize.sh $(ARGS)
+
 help:
-	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, lint, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run"
+	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, lint, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run, sign-and-notarize [ARGS=--all]"
