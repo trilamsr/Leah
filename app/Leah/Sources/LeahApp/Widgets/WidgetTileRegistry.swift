@@ -37,6 +37,8 @@ public final class WidgetTileRegistry {
       guard let p = try? CalendarPayload(props: env.props) else { return AnyView(EmptyView()) }
       return AnyView(CalendarTileView(payload: p))
     }
+    CitationTileView.register(in: self)
+    ImageTileView.register(in: self)
   }
 }
 

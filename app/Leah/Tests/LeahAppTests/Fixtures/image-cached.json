@@ -1,0 +1,10 @@
+{
+  "widget": "image",
+  "id": "diagram-001",
+  "size": "medium",
+  "props": {
+    "cached_path": "/tmp/leah-image-cache/sha256-abc123.png",
+    "mime": "image/png",
+    "size": 48211
+  }
+}
