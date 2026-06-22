@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/sqlstore"
 )
 
@@ -191,6 +192,97 @@ func TestIPCHandlerRecordTurnFailureIsNonFatal(t *testing.T) {
 	}
 	if frames[len(frames)-1].Kind != "turn.end" {
 		t.Fatalf("turn.end must still surface despite RecordTurn failure; got %q", frames[len(frames)-1].Kind)
+	}
+}
+
+// Haiku classify returning widget kind must emit a widget.mount frame and
+// skip the Sonnet stream entirely.
+func TestIPCHandlerClassifiesWidget(t *testing.T) {
+	db := newTestTurnDB(t)
+	// streamFn must NOT be called for widget queries.
+	sonnetCalled := false
+	sonnetStream := func(_ context.Context, _, _ string) (<-chan ipc.Frame, error) {
+		sonnetCalled = true
+		out := make(chan ipc.Frame, 1)
+		close(out)
+		return out, nil
+	}
+	widgetClassify := func(_ context.Context, _ string) reasoner.Intent {
+		return reasoner.Intent{Kind: "widget", Widget: "stat", Confidence: 0.95}
+	}
+	h := newIPCHandlerWithClassify(db, sonnetStream, sonnetStream, widgetClassify,
+		func(_ context.Context, _ string) error { return nil })
+
+	in := ipc.Frame{Kind: "ask", TurnID: "w1", Payload: json.RawMessage(`{"text":"what is my daily cost?"}`)}
+	out, err := h(context.Background(), in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	var frames []ipc.Frame
+	for f := range out {
+		frames = append(frames, f)
+	}
+	if sonnetCalled {
+		t.Fatal("Sonnet stream must not be called for widget intent")
+	}
+	if len(frames) == 0 {
+		t.Fatal("want at least one frame for widget intent")
+	}
+	if frames[0].Kind != "widget.mount" {
+		t.Fatalf("first frame kind: want widget.mount, got %q", frames[0].Kind)
+	}
+	var wp struct {
+		WidgetType string `json:"widget_type"`
+	}
+	if err := json.Unmarshal(frames[0].Payload, &wp); err != nil {
+		t.Fatalf("unmarshal widget.mount payload: %v", err)
+	}
+	if wp.WidgetType != "stat" {
+		t.Fatalf("widget_type: want stat, got %q", wp.WidgetType)
+	}
+}
+
+// escalate_opus: true in the ask payload must route to the opus streamFn.
+func TestIPCHandlerHonorsOpusEscalation(t *testing.T) {
+	db := newTestTurnDB(t)
+	sonnetCalled := false
+	opusCalled := false
+	sonnetStream := func(_ context.Context, turnID, _ string) (<-chan ipc.Frame, error) {
+		sonnetCalled = true
+		out := make(chan ipc.Frame, 1)
+		out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: 1, Payload: json.RawMessage(`{}`)}
+		close(out)
+		return out, nil
+	}
+	opusStream := func(_ context.Context, turnID, _ string) (<-chan ipc.Frame, error) {
+		opusCalled = true
+		out := make(chan ipc.Frame, 1)
+		out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: 1, Payload: json.RawMessage(`{}`)}
+		close(out)
+		return out, nil
+	}
+	chatClassify := func(_ context.Context, _ string) reasoner.Intent {
+		return reasoner.Intent{Kind: "chat"}
+	}
+	h := newIPCHandlerWithClassify(db, sonnetStream, opusStream, chatClassify,
+		func(_ context.Context, _ string) error { return nil })
+
+	in := ipc.Frame{
+		Kind:    "ask",
+		TurnID:  "op1",
+		Payload: json.RawMessage(`{"text":"complex reasoning task","escalate_opus":true}`),
+	}
+	out, err := h(context.Background(), in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	for range out {
+	}
+	if !opusCalled {
+		t.Fatal("opusStream must be called when escalate_opus=true")
+	}
+	if sonnetCalled {
+		t.Fatal("sonnetStream must not be called when escalate_opus=true")
 	}
 }
 
