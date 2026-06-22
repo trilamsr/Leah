@@ -42,8 +42,8 @@ func TestBriefSinceInvalidRFC3339ExitsTwo(t *testing.T) {
 	if rc != 2 {
 		t.Fatalf("rc = %d, want 2", rc)
 	}
-	if !strings.Contains(stderr, "--since") {
-		t.Fatalf("stderr missing --since diagnostic: %q", stderr)
+	if !strings.Contains(stderr, "--since: invalid RFC3339") {
+		t.Fatalf("stderr missing --since RFC3339 diagnostic: %q", stderr)
 	}
 }
 
@@ -55,8 +55,8 @@ func TestBriefSinceMissingValueExitsTwo(t *testing.T) {
 	if rc != 2 {
 		t.Fatalf("rc = %d, want 2", rc)
 	}
-	if !strings.Contains(stderr, "--since") {
-		t.Fatalf("stderr missing --since diagnostic: %q", stderr)
+	if !strings.Contains(stderr, "--since requires a value") {
+		t.Fatalf("stderr missing --since requires-value diagnostic: %q", stderr)
 	}
 }
 

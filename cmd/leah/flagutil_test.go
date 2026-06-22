@@ -22,6 +22,7 @@ func TestParseSince_Forms(t *testing.T) {
 		{"absent", []string{"ship"}, time.Time{}, []string{"ship"}, false},
 		{"mixed with flag", []string{"--llm", "--since=" + ts, "ship"}, want, []string{"--llm", "ship"}, false},
 		{"bare trailing rejects", []string{"ship", "--since"}, time.Time{}, nil, true},
+		{"bare only rejects", []string{"--since"}, time.Time{}, nil, true},
 		{"empty equals rejects", []string{"--since="}, time.Time{}, nil, true},
 		{"repeat rejects", []string{"--since=" + ts, "--since=" + ts}, time.Time{}, nil, true},
 		{"invalid rfc3339 rejects", []string{"--since=not-a-date"}, time.Time{}, nil, true},
