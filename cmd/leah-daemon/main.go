@@ -35,7 +35,21 @@ import (
 
 func main() {
 	dashboardAddr := flag.String("dashboard", "", "if non-empty, serve JARVIS dashboard at this addr (e.g. 127.0.0.1:8080); default off")
+	logLevel := flag.String("log-level", "info", "log verbosity: debug|info|warn|error")
 	flag.Parse()
+
+	// Priority: explicit -log-level flag > LEAH_LOG_LEVEL env > default "info".
+	// flag.Visit walks only flags that were actually set on the command line,
+	// so passing -log-level=info (the default value) still overrides env.
+	var flagSet bool
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "log-level" {
+			flagSet = true
+		}
+	})
+	if flagSet || os.Getenv("LEAH_LOG_LEVEL") == "" {
+		_ = os.Setenv("LEAH_LOG_LEVEL", *logLevel)
+	}
 
 	pollEvery := 30 * time.Second
 	if v := os.Getenv("LEAH_DAEMON_POLL_SECONDS"); v != "" {
@@ -51,7 +65,8 @@ func main() {
 	a := &audit.Logger{Path: auditPath}
 	rc := regattaclient.New()
 
-	lg, closeLog, err := obs.NewLogger()
+	errRing := obs.NewErrorRing(10)
+	lg, closeLog, err := obs.NewLoggerWithRing(errRing)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: obs logger: %v\n", err)
 		os.Exit(1)
@@ -176,7 +191,7 @@ func main() {
 	}
 	// store.DB() already has conversation_turn from the schema migration above.
 	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
-	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil)).Serve(ctx) }()
+	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing)).Serve(ctx) }()
 
 	if err := loop.Run(ctx); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)

@@ -82,8 +82,10 @@ func TestBootRegatta_DetectNoMode_GracefulSkip(t *testing.T) {
 	if gated != nil {
 		t.Fatalf("bootRegatta returned non-nil GatedClient on ModeNone — want nil")
 	}
-	if !strings.Contains(buf.String(), "leah connect regatta") {
-		t.Fatalf("missing connect-regatta hint in log: %q", buf.String())
+	// ErrNoMode is normal personal-use; must NOT log to stderr so it never
+	// surfaces in diag.state.last_error.
+	if buf.String() != "" {
+		t.Fatalf("ErrNoMode must produce no log output, got: %q", buf.String())
 	}
 	if got := readGauge(t, reg, "leah_regatta_unavailable"); got != 1 {
 		t.Fatalf("leah_regatta_unavailable = %v, want 1", got)

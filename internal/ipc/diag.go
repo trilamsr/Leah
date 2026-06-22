@@ -17,17 +17,16 @@ type DiagStatePayload struct {
 }
 
 // HandleState returns a single-frame channel containing a diag.state.response
-// frame. Returns a channel (not a direct conn.Write) so the existing
-// serveConn dispatcher in server.go owns frame I/O — all handlers in this
-// codebase share the (ctx, req) -> (<-chan Frame, error) shape.
-func HandleState(_ context.Context, startTime time.Time) (<-chan Frame, error) {
+// frame. lastError is the most recent ERROR-level log line from the daemon's
+// obs.ErrorRing; pass "" when none is available.
+func HandleState(_ context.Context, startTime time.Time, lastError string) (<-chan Frame, error) {
 	p := DiagStatePayload{
 		Clients:       []string{},
 		Conversation:  map[string]interface{}{},
 		MemoryStats:   map[string]interface{}{},
 		PendingTTS:    false,
 		DaemonUptimeS: int64(time.Since(startTime).Seconds()),
-		LastError:     "",
+		LastError:     lastError,
 	}
 	payload, _ := json.Marshal(p)
 	out := make(chan Frame, 1)

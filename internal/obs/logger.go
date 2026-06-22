@@ -92,6 +92,48 @@ func NewLogger() (*slog.Logger, func(), error) {
 	return lg, closeFn, nil
 }
 
+// NewLoggerWithRing is NewLogger plus an ErrorRing that captures every
+// ERROR-level log entry so diag.state can surface the last failure.
+func NewLoggerWithRing(ring *ErrorRing) (*slog.Logger, func(), error) {
+	level := parseLevel(os.Getenv("LEAH_LOG_LEVEL"))
+	stateDir := os.Getenv("LEAH_STATE_DIR")
+	if stateDir == "" {
+		home, _ := os.UserHomeDir()
+		stateDir = filepath.Join(home, ".leah-state")
+	}
+	logsDir := filepath.Join(stateDir, "logs")
+	if err := os.MkdirAll(logsDir, 0o700); err != nil {
+		return nil, func() {}, fmt.Errorf("obs: mkdir logs: %w", err)
+	}
+	rot := newDailyRotator(logsDir)
+	mw := &multiWriter{rotator: rot, extra: os.Stderr}
+
+	inner := slog.NewJSONHandler(mw, &slog.HandlerOptions{
+		Level: level,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				a.Key = "ts"
+			}
+			return a
+		},
+	})
+	lg := slog.New(&ringHandler{Handler: inner, ring: ring})
+	return lg, func() { rot.close() }, nil
+}
+
+// ringHandler wraps an slog.Handler and feeds ERROR-level messages into ring.
+type ringHandler struct {
+	slog.Handler
+	ring *ErrorRing
+}
+
+func (h *ringHandler) Handle(ctx context.Context, r slog.Record) error {
+	if r.Level >= slog.LevelError && h.ring != nil {
+		h.ring.Add(r.Message)
+	}
+	return h.Handler.Handle(ctx, r)
+}
+
 // parseLevel maps a LEAH_LOG_LEVEL string to slog.Level. Unknown → INFO.
 func parseLevel(s string) slog.Level {
 	switch strings.ToUpper(strings.TrimSpace(s)) {

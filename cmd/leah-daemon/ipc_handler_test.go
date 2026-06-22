@@ -213,7 +213,7 @@ func TestIPCHandlerClassifiesWidget(t *testing.T) {
 		return reasoner.Intent{Kind: "widget", Widget: "stat", Confidence: 0.95}
 	}
 	h := newIPCHandlerWithClassify(db, sonnetStream, sonnetStream, widgetClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, time.Time{})
+		func(_ context.Context, _ string) error { return nil }, nil, time.Time{}, nil)
 
 	in := ipc.Frame{Kind: "ask", TurnID: "w1", Payload: json.RawMessage(`{"text":"what is my daily cost?"}`)}
 	out, err := h(context.Background(), in)
@@ -267,7 +267,7 @@ func TestIPCHandlerHonorsOpusEscalation(t *testing.T) {
 		return reasoner.Intent{Kind: "chat"}
 	}
 	h := newIPCHandlerWithClassify(db, sonnetStream, opusStream, chatClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, time.Time{})
+		func(_ context.Context, _ string) error { return nil }, nil, time.Time{}, nil)
 
 	in := ipc.Frame{
 		Kind:    "ask",
@@ -353,7 +353,7 @@ func TestIPCHandlerFetchesContext(t *testing.T) {
 
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
 	h := newIPCHandlerWithClassify(db, spyStream, spyStream, noClassify,
-		func(_ context.Context, _ string) error { return nil }, spyFetch, time.Time{})
+		func(_ context.Context, _ string) error { return nil }, spyFetch, time.Time{}, nil)
 	in := ipc.Frame{Kind: "ask", TurnID: "t2", Payload: json.RawMessage(`{"text":"what is leah"}`)}
 	out, err := h(context.Background(), in)
 	if err != nil {
