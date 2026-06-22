@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/trilam/leah/internal/ipc"
@@ -55,6 +56,85 @@ func TestStreamToIPCEmitsProseDeltas(t *testing.T) {
 	}
 	if s.cacheBlocks != 1 {
 		t.Fatalf("expected ephemeral cache_control on >1024-token prompt, got %d", s.cacheBlocks)
+	}
+}
+
+// blockingStreamer releases chunks only when release closes; lets the test
+// drive the ctx-cancel race deterministically.
+type blockingStreamer struct {
+	release chan struct{}
+}
+
+func (b *blockingStreamer) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan string, error) {
+	out := make(chan string)
+	go func() {
+		defer close(out)
+		select {
+		case <-ctx.Done():
+			return
+		case <-b.release:
+			return
+		}
+	}()
+	return out, nil
+}
+
+// TestStreamToIPCCancelClosesChannel — ctx-cancel must close the frame
+// channel even if turn.end was never emitted; otherwise the IPC caller
+// deadlocks waiting on a frame that will never arrive.
+func TestStreamToIPCCancelClosesChannel(t *testing.T) {
+	b := &blockingStreamer{release: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	out, err := streamToIPCWith(ctx, b, "t-cancel", "sys", nil, "u")
+	if err != nil {
+		t.Fatalf("stream: %v", err)
+	}
+	cancel()
+	close(b.release)
+	done := make(chan struct{})
+	go func() {
+		for range out {
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("frame channel did not close after ctx cancel")
+	}
+}
+
+// TestStreamChunksDoesNotMutateHistory — caller's history slice MUST remain
+// byte-for-byte identical after StreamChunks runs. Shallow copy(msgs, history)
+// shared the Content backing array; mutating last.Content[i] would leak back.
+func TestStreamChunksDoesNotMutateHistory(t *testing.T) {
+	originalText := "user-turn-1"
+	history := []anthropic.MessageParam{
+		anthropic.NewUserMessage(anthropic.NewTextBlock(originalText)),
+	}
+	beforeBlock := history[0].Content[0]
+	if beforeBlock.OfText == nil {
+		t.Fatalf("setup: expected OfText non-nil")
+	}
+	beforeCache := beforeBlock.OfText.CacheControl
+
+	c := &AnthropicClient{model: "claude-sonnet-4-6"}
+	system := strings.Repeat("s ", 3000) // > 1024 tokens ⇒ cache path
+	// Pre-cancelled ctx — StreamChunks runs the history-cloning code path
+	// then the SDK stream short-circuits without a network call.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	out, err := c.StreamChunks(ctx, system, history, "hi", true)
+	if err == nil {
+		for range out {
+		}
+	}
+
+	if history[0].Content[0].OfText.Text != originalText {
+		t.Fatalf("history text mutated: %q", history[0].Content[0].OfText.Text)
+	}
+	if history[0].Content[0].OfText.CacheControl != beforeCache {
+		t.Fatalf("history CacheControl mutated: %+v", history[0].Content[0].OfText.CacheControl)
 	}
 }
 

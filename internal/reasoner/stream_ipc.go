@@ -62,7 +62,10 @@ func streamToIPCWith(ctx context.Context, s streamer, turnID, system string, his
 		}
 		cp, _ := json.Marshal(cost)
 		seq++
-		out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: seq, Payload: cp}
+		select {
+		case <-ctx.Done():
+		case out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: seq, Payload: cp}:
+		}
 	}()
 	return out, nil
 }

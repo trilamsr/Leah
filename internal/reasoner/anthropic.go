@@ -154,17 +154,22 @@ func (c *AnthropicClient) StreamChunks(ctx context.Context, system string, histo
 	msgs := make([]anthropic.MessageParam, len(history))
 	copy(msgs, history)
 	if cache && len(msgs) > 0 {
-		// Mark the last history message for ephemeral caching so the
-		// conversation prefix is eligible for cache-read on subsequent turns.
+		// Mark the last history message for ephemeral caching. copy() above
+		// duplicated MessageParam values but their Content slices still
+		// alias the caller's backing array — deep-copy Content before
+		// rewriting an element so we never leak mutations to history[i].
 		last := msgs[len(msgs)-1]
-		for i, blk := range last.Content {
+		dup := make([]anthropic.ContentBlockParamUnion, len(last.Content))
+		copy(dup, last.Content)
+		for i, blk := range dup {
 			if blk.OfText != nil && blk.OfText.Text != "" {
 				cp := *blk.OfText
 				cp.CacheControl = anthropic.NewCacheControlEphemeralParam()
-				last.Content[i] = anthropic.ContentBlockParamUnion{OfText: &cp}
+				dup[i] = anthropic.ContentBlockParamUnion{OfText: &cp}
 				break
 			}
 		}
+		last.Content = dup
 		msgs[len(msgs)-1] = last
 	}
 	msgs = append(msgs, anthropic.NewUserMessage(anthropic.NewTextBlock(userText)))
