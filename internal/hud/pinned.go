@@ -44,14 +44,11 @@ type Watcher struct {
 
 	mu sync.Mutex
 	fs *fsnotify.Watcher
-	// fsWatchers makes the §10.2 single-watcher invariant structurally
-	// testable — timing-based goroutine counts proved tautological.
-	fsWatchers int
 }
 
-// NumFSWatchers returns the count of underlying fsnotify.Watcher instances.
-// Spec § 10.2 requires exactly 1 across both files.
-func (w *Watcher) NumFSWatchers() int { return w.fsWatchers }
+// WatchedPaths probes fsnotify's live watch list so the § 10.2 invariant is
+// asserted against runtime state, not a counter the constructor sets to 1.
+func (w *Watcher) WatchedPaths() []string { return w.fs.WatchList() }
 
 // NewWatcher registers the parent directories of both files. fsnotify watches
 // dirs (not files) so atomic-rename writes land as Create on the target name.
@@ -60,7 +57,7 @@ func NewWatcher(pinPath, regPath string) (*Watcher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hud.Watcher: fsnotify: %w", err)
 	}
-	w := &Watcher{pinPath: pinPath, regPath: regPath, fs: f, fsWatchers: 1}
+	w := &Watcher{pinPath: pinPath, regPath: regPath, fs: f}
 	for _, p := range []string{pinPath, regPath} {
 		dir := filepath.Dir(p)
 		if err := os.MkdirAll(dir, 0o755); err != nil {

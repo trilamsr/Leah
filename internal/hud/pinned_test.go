@@ -110,14 +110,15 @@ func TestPinCapTwo(t *testing.T) {
 	}
 }
 
-// TestSingleWatcherForBothFiles asserts the spec § 10.2 invariant structurally:
-// exactly ONE fsnotify.Watcher backs both pinned-widgets.json AND
-// widget-registry.json. A two-watcher implementation (NewWatcher called twice)
-// would expose NumFSWatchers() == 2.
+// TestSingleWatcherForBothFiles probes fsnotify's live watch list — both
+// parent dirs must appear on ONE watcher (spec § 10.2). A regression that
+// constructs a second fsnotify.Watcher per file would not register both
+// dirs on the single instance the Watcher exposes.
 func TestSingleWatcherForBothFiles(t *testing.T) {
-	dir := t.TempDir()
-	pinPath := filepath.Join(dir, "pinned-widgets.json")
-	regPath := filepath.Join(dir, "widget-registry.json")
+	pinDir := t.TempDir()
+	regDir := t.TempDir()
+	pinPath := filepath.Join(pinDir, "pinned-widgets.json")
+	regPath := filepath.Join(regDir, "widget-registry.json")
 	_ = os.WriteFile(pinPath, []byte("[]"), 0o644)
 	_ = os.WriteFile(regPath, []byte("{}"), 0o644)
 
@@ -127,8 +128,16 @@ func TestSingleWatcherForBothFiles(t *testing.T) {
 	}
 	defer func() { _ = w.Close() }()
 
-	if got := w.NumFSWatchers(); got != 1 {
-		t.Fatalf("NumFSWatchers = %d, want 1 (spec § 10.2 single-watcher invariant)", got)
+	got := w.WatchedPaths()
+	if len(got) != 2 {
+		t.Fatalf("WatchedPaths = %v (len %d), want both dirs on one watcher", got, len(got))
+	}
+	seen := map[string]bool{}
+	for _, p := range got {
+		seen[filepath.Clean(p)] = true
+	}
+	if !seen[filepath.Clean(pinDir)] || !seen[filepath.Clean(regDir)] {
+		t.Fatalf("WatchedPaths missing pin or reg dir: got %v", got)
 	}
 }
 
