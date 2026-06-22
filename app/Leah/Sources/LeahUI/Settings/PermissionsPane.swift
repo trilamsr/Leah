@@ -1,10 +1,12 @@
 import SwiftUI
 import AVFoundation
 import EventKit
+import ApplicationServices
 
 public struct PermissionsPane: View {
     @State private var micGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     @State private var calGranted = EKEventStore.authorizationStatus(for: .event) == .fullAccess
+    @State private var axGranted = AXIsProcessTrusted()
 
     public init() {}
 
@@ -18,7 +20,7 @@ public struct PermissionsPane: View {
             Divider()
             permissionRow(
                 label: "Accessibility (for ⌥Space hotkey)",
-                granted: false,
+                granted: axGranted,
                 urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
             )
             Divider()
