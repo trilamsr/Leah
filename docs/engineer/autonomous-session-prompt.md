@@ -88,6 +88,14 @@ LOOP SKILL INTEGRATION
 - Wake cadence: dynamic. Short (60-270s) only when polling external state the harness CANNOT notify on (CI run on an active automerge, GH branch-protection status). Long (1200-1800s) when all 6 slots full + waiting on subagent completion — harness auto-notifies on subagent finish, so the long wake is fallback only, never the primary signal. Never sleep 300-1000s (cache miss without amortization).
 - Each wake = one status pulse + dispatch round: drain merged PRs, advance queue, fill idle slots, file followups for new blockers, schedule next wake.
 
+PR BODY STYLE
+PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `-` bullets. No `## Summary` / `## Test Plan` / `## What changed` headers. No emoji. Prose paragraphs ≤6 lines. Past-tense fragments OK. Concrete: file paths, hex values, model ids, test names, commit SHAs. Tone match: scan recent operator-authored PRs in the same repo for cadence. Reference: `~/.claude/projects/-Users-treedesk-Desktop-Projects-leah/memory/feedback_pr_summary_style.md`.
+
+PROGRESS BEACON (autonomous runs)
+After every 3 merged PRs in autonomous mode, emit one unprompted line to operator:
+`WAVE-GATE: <count> merged this wave (#A #B #C). Next: <next task>. Active: <count> agents`.
+Terse, past-tense fragments. No `-` bullets. No headers. If operator asks "where are we" / "what now" 2+ times in 1hr → flush progress.md to MEMORY.md immediately. Reference: `~/.claude/projects/-Users-treedesk-Desktop-Projects-leah/memory/feedback_progress_beacon.md`.
+
 WORKTREE / GIT HYGIENE (long-session)
 - Agent tree spillage: harness sometimes drops agents into primary tree instead of worktree. Stash primary before reset; verify `.claude/worktrees/agent-<id>/` matches before edits.
 - Primary checkout always on `main`: feature branches in primary block subagent worktrees from grabbing the same branch — git refuses checkout. If primary drifts onto a feature branch, immediately `git checkout main && git pull --ff-only origin main`.

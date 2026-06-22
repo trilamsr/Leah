@@ -65,6 +65,10 @@ GH MINIMAL FIELDS
 DROP CEREMONY
 - Skip the zero-reward steps: no decorative PR-body sections, no per-comment lint noise, no mid-stream CHANGELOG bumps. Triage is a decision, not a ritual.
 
+## PR body style
+
+PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `-` bullets. No `## Summary` / `## Test Plan` / `## What changed` headers. No emoji. Prose paragraphs ≤6 lines. Past-tense fragments OK. Concrete: file paths, hex values, model ids, test names, commit SHAs. Tone match: scan recent operator-authored PRs in the same repo for cadence. Reference: `~/.claude/projects/-Users-treedesk-Desktop-Projects-leah/memory/feedback_pr_summary_style.md`.
+
 ## Per-dispatch payload
 - Target(s): `<TARGET>`
 

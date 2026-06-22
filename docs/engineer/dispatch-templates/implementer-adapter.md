@@ -137,6 +137,10 @@ Footer block to paste:
   Reviewer-recommendation: APPROVE
 ```
 
+## PR body style
+
+PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `-` bullets. No `## Summary` / `## Test Plan` / `## What changed` headers. No emoji. Prose paragraphs ≤6 lines. Past-tense fragments OK. Concrete: file paths, hex values, model ids, test names, commit SHAs. Tone match: scan recent operator-authored PRs in the same repo for cadence. Reference: `~/.claude/projects/-Users-treedesk-Desktop-Projects-leah/memory/feedback_pr_summary_style.md`.
+
 ## Per-dispatch payload
 
 - TARGET-PACKAGE: `<path>`

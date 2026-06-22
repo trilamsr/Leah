@@ -9,3 +9,4 @@ Lessons captured by the learn-from-mistakes skill, agent-internal scope
 - [Subagent force-push forbidden](subagent_force_push_forbidden.md)
 - [Worktree count exceeded janitor](worktree_exceeds_janitor_capacity.md)
 - [Agent rebase + push races mid-flight auto-merge](agent_rebase_races_merge.md)
+- [Multi-agent review: stale-test BLOCK](multi-agent-review.md) — reviewer must re-run named test on PR HEAD before posting BLOCK; stale signatures produce false-positive blocks.
