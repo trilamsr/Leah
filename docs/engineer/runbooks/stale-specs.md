@@ -15,8 +15,8 @@ Method: for each spec, derive expected package from filename + first `internal/`
 
 ## SHIPPED (40)
 
-- `2026-06-10-local-self-update.md` — cmd/leah (659 LOC)
-- `2026-06-10-signed-distribution.md` — scripts/release (209 LOC)
+- `2026-06-10-local-self-update.md` — cmd/scripts (659 LOC)
+- `2026-06-10-signed-distribution.md` — cmd/scripts (209 LOC)
 
 - `2026-06-09-gcal-adapter.md` — internal/adapters/gcal (322 LOC)
 - `2026-06-09-gmail-adapter.md` — internal/adapters/gmail (253 LOC)
