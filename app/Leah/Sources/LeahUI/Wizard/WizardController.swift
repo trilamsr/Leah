@@ -30,6 +30,7 @@ public final class WizardController: ObservableObject {
     window = w
   }
 
+  @MainActor
   public func advance() {
     switch currentStep {
     case .welcome:     currentStep = .apiKey

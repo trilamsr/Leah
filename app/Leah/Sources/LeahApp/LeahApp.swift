@@ -33,6 +33,7 @@ struct LeahApp: App {
       object: nil,
       queue: .main
     ) { _ in Task { @MainActor in fp.summon() } }
+    // sw is retained by the observer closure for the observer's lifetime.
     let sw = SettingsWindowController()
     settingsObserver = NotificationCenter.default.addObserver(
       forName: .leahOpenSettings,

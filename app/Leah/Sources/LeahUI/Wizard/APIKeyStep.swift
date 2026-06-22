@@ -8,7 +8,6 @@ public struct APIKeyStep: View {
   @State private var key = ""
   @State private var showKey = false
   @State private var status = ""
-  @State private var verifying = false
 
   public init(onContinue: @escaping () -> Void) { self.onContinue = onContinue }
 
@@ -30,7 +29,7 @@ public struct APIKeyStep: View {
         }
         Button(showKey ? "Hide" : "Show") { showKey.toggle() }
       }
-      Text("We send 1 token to verify, then store it in macOS Keychain.")
+      Text("Stored securely in macOS Keychain.")
         .font(.system(size: 12))
         .foregroundColor(Color(red: 138/255, green: 132/255, blue: 120/255))
       if !status.isEmpty {
@@ -39,19 +38,15 @@ public struct APIKeyStep: View {
       Spacer()
       HStack {
         Spacer()
-        Button("Verify & Continue") {
-          verifying = true
-          status = "Saving to Keychain…"
+        Button("Save & Continue") {
           do {
             try Keychain.save(key)
-            status = "Saved."
             onContinue()
           } catch {
             status = "Failed to save: \(error)"
           }
-          verifying = false
         }
-        .disabled(key.isEmpty || verifying)
+        .disabled(key.isEmpty)
       }
     }
     .padding(48)
