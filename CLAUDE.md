@@ -43,3 +43,7 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 
 - gh minimal fields: every `gh pr list/view/issue list` MUST pass explicit `--json` allowlist.
 - ci-check compress: `make check 2>&1 | tee /tmp/cicheck.log | grep -E "^(FAIL|ok|---|Error|error:|PASS)" | tail -40` + exit code.
+
+## Repo settings
+
+- GitHub auto-merge + main branch protection live outside the repo. Snapshot, recreate commands, and rationale: `docs/engineer/runbooks/repo-settings.md`. Touch settings via `gh api` or web UI → update that runbook.
