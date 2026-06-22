@@ -77,13 +77,11 @@ func decodeProps(raw json.RawMessage) (props, error) {
 }
 
 func (a *Adapter) Fetch(ctx context.Context, raw json.RawMessage) (widget.Payload, error) {
-	p, err := decodeProps(raw)
-	if err != nil {
+	if err := a.Validate(raw); err != nil {
 		return widget.Payload{}, err
 	}
-	if len(p.Symbols) == 0 {
-		return widget.Payload{}, errors.New("markets: props.symbols must be non-empty")
-	}
+	p, _ := decodeProps(raw)
+	// Rate-limit gate runs AFTER Validate so malformed props never burn budget.
 	if !a.rl.Allow("alpha_vantage") {
 		return widget.Payload{}, errors.New("markets: rate limit exceeded (5/min)")
 	}
@@ -111,9 +109,17 @@ func (a *Adapter) Fetch(ctx context.Context, raw json.RawMessage) (widget.Payloa
 	}, nil
 }
 
-// Refresh delegates to Fetch — Alpha Vantage offers no conditional-GET, so a
-// time-windowed etag is the only freshness signal we own.
-func (a *Adapter) Refresh(ctx context.Context, _ string, raw json.RawMessage, _ *widget.Payload) (widget.Payload, error) {
+// Refresh skips the network when the prev payload's etag matches the current
+// minute bucket — AV has no conditional-GET, but the etag (sorted symbols +
+// UTC minute) means an identical request inside the same minute can reuse the
+// cached payload. Falls through to Fetch on stale/missing prev.
+func (a *Adapter) Refresh(ctx context.Context, _ string, raw json.RawMessage, prev *widget.Payload) (widget.Payload, error) {
+	if prev != nil && prev.Etag != "" {
+		p, err := decodeProps(raw)
+		if err == nil && len(p.Symbols) > 0 && etag(p.Symbols, time.Now().UTC()) == prev.Etag {
+			return *prev, nil
+		}
+	}
 	return a.Fetch(ctx, raw)
 }
 

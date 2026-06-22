@@ -131,3 +131,48 @@ func TestMarketAdapter_RateLimitDenies(t *testing.T) {
 		t.Fatalf("3rd call should rate-limit")
 	}
 }
+
+func TestMarketAdapter_ValidateRunsBeforeRateLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
+	}))
+	defer srv.Close()
+	a := markets.NewAdapter(markets.Options{Endpoint: srv.URL, APIKey: "k", RateLimit: 1})
+	// Malformed props must NOT consume the single rate-limit token.
+	if _, err := a.Fetch(context.Background(), json.RawMessage(`{}`)); err == nil {
+		t.Fatalf("want validation error")
+	}
+	if _, err := a.Fetch(context.Background(), json.RawMessage(`{"symbols":["AAPL"]}`)); err != nil {
+		t.Fatalf("good call after bad-input rejection should pass: %v", err)
+	}
+}
+
+func TestMarketAdapter_RefreshReusesPrevEtagWithinMinute(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
+	}))
+	defer srv.Close()
+	a := markets.NewAdapter(markets.Options{Endpoint: srv.URL, APIKey: "k"})
+	props := json.RawMessage(`{"symbols":["AAPL"]}`)
+	p, err := a.Fetch(context.Background(), props)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls after Fetch: %d", calls)
+	}
+	got, err := a.Refresh(context.Background(), "w1", props, &p)
+	if err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("Refresh re-hit upstream: calls=%d", calls)
+	}
+	if got.Etag != p.Etag {
+		t.Fatalf("Refresh etag changed: %q vs %q", got.Etag, p.Etag)
+	}
+}
