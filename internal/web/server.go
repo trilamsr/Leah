@@ -155,8 +155,8 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 }
 
 // BuildMux is the exported handler-graph constructor; production wraps it
-// with MetricsMiddleware in the daemon composition root. Identical semantics
-// to the legacy buildMux (which now delegates here).
+// with MetricsMiddleware in the daemon composition root. Calls the private
+// buildMux after ensuring the SSE broadcaster is initialized.
 func (s *Server) BuildMux() (http.Handler, error) {
 	s.ensureBroadcaster()
 	m, err := s.buildMux()
