@@ -1,0 +1,52 @@
+// Package widget is the daemon-side widget catalog: envelope schema
+// (spec §10.7) plus per-kind adapters. The 256 KB cap on Validate()
+// mirrors ipc.MaxFrameBytes so an envelope that fits here is guaranteed
+// to fit in one IPC frame.
+package widget
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+const MaxEnvelopeBytes = 256 * 1024
+
+type Envelope struct {
+	Widget  string          `json:"widget"`
+	ID      string          `json:"id"`
+	Size    string          `json:"size"`
+	Actions []string        `json:"actions,omitempty"`
+	Props   json.RawMessage `json:"props,omitempty"`
+}
+
+var validKinds = map[string]struct{}{
+	"market": {}, "flights": {}, "calendar": {}, "weather": {},
+	"maps": {}, "table": {}, "chart": {}, "image": {},
+	"code": {}, "citation": {}, "stat": {}, "list": {}, "diff": {},
+}
+
+var validSizes = map[string]struct{}{
+	"small": {}, "medium": {}, "large": {},
+}
+
+func (e *Envelope) Validate() error {
+	if e.Widget == "" {
+		return fmt.Errorf("widget kind required")
+	}
+	if _, ok := validKinds[e.Widget]; !ok {
+		return fmt.Errorf("unknown widget kind %q", e.Widget)
+	}
+	if e.ID == "" {
+		return fmt.Errorf("id required")
+	}
+	if e.Size == "" {
+		return fmt.Errorf("size required")
+	}
+	if _, ok := validSizes[e.Size]; !ok {
+		return fmt.Errorf("unknown size %q", e.Size)
+	}
+	if len(e.Props) > MaxEnvelopeBytes {
+		return fmt.Errorf("props %d bytes exceeds 256 KB cap", len(e.Props))
+	}
+	return nil
+}

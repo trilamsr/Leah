@@ -12,6 +12,15 @@ import (
 
 const MaxFrameBytes = 256 * 1024
 
+const (
+	KindWidgetMount       = "widget.mount"
+	KindWidgetUpdate      = "widget.update"
+	KindWidgetStale       = "widget.stale"
+	KindWidgetError       = "widget.error"
+	KindWidgetDismiss     = "widget.dismiss"
+	KindNotificationToast = "notification.toast"
+)
+
 type Frame struct {
 	Kind    string          `json:"kind"`
 	TurnID  string          `json:"turn_id"`
