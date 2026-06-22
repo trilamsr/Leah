@@ -1,0 +1,9 @@
+{
+  "widget": "diff",
+  "id": "diff-readme-typo",
+  "size": "medium",
+  "props": {
+    "filename": "README.md",
+    "unified": "@@ -1,3 +1,3 @@\n # Leah\n-A pesonal assistant.\n+A personal assistant.\n"
+  }
+}

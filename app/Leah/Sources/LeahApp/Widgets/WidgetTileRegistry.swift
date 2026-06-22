@@ -39,6 +39,14 @@ public final class WidgetTileRegistry {
     }
     CitationTileView.register(in: self)
     ImageTileView.register(in: self)
+    register(kind: .code) { env in
+      guard let p = try? CodeTilePayload(envelope: env) else { return AnyView(EmptyView()) }
+      return AnyView(CodeTileView(payload: p))
+    }
+    register(kind: .diff) { env in
+      guard let p = try? DiffTilePayload(envelope: env) else { return AnyView(EmptyView()) }
+      return AnyView(DiffTileView(payload: p))
+    }
   }
 }
 
