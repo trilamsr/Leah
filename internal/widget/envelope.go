@@ -7,9 +7,15 @@ package widget
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 )
 
 const MaxEnvelopeBytes = 256 * 1024
+
+var (
+	idPattern       = regexp.MustCompile(`^[a-z0-9_-]{1,64}$`)
+	callbackPattern = regexp.MustCompile(`^leah://action/[a-z_]+(\?.*)?$`)
+)
 
 type Action struct {
 	Label    string `json:"label"`
@@ -46,6 +52,9 @@ func (e *Envelope) Validate() error {
 	if e.ID == "" {
 		return fmt.Errorf("id required")
 	}
+	if !idPattern.MatchString(e.ID) {
+		return fmt.Errorf("id %q must match %s", e.ID, idPattern)
+	}
 	if e.Size == "" {
 		return fmt.Errorf("size required")
 	}
@@ -61,6 +70,12 @@ func (e *Envelope) Validate() error {
 	for i, a := range e.Actions {
 		if a.Label == "" || a.Callback == "" {
 			return fmt.Errorf("action[%d] missing label or callback", i)
+		}
+		if len(a.Label) > 32 {
+			return fmt.Errorf("action[%d] label %d chars exceeds max 32", i, len(a.Label))
+		}
+		if !callbackPattern.MatchString(a.Callback) {
+			return fmt.Errorf("action[%d] callback %q must match %s", i, a.Callback, callbackPattern)
 		}
 	}
 	if len(e.Props) > MaxEnvelopeBytes {
