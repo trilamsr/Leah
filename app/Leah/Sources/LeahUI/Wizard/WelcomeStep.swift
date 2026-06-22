@@ -34,7 +34,15 @@ public struct WelcomeStep: View {
     }
     .padding(48)
     .onAppear {
-      let u = AVSpeechUtterance(string: "Hi, I'm Leah.")
+      let phrase = "Hi, I'm Leah."
+      let attributed = NSMutableAttributedString(string: phrase)
+      let leahRange = (phrase as NSString).range(of: "Leah")
+      attributed.addAttribute(
+        NSAttributedString.Key(rawValue: AVSpeechSynthesisIPANotationAttribute),
+        value: "ˈliːə",
+        range: leahRange
+      )
+      let u = AVSpeechUtterance(attributedString: attributed)
       u.voice = AVSpeechSynthesisVoice(identifier: "com.apple.voice.premium.en-US.Ava")
         ?? AVSpeechSynthesisVoice(language: "en-US")
       u.volume = 0.5
