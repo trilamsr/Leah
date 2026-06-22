@@ -29,9 +29,10 @@ var defaultNewsSources = []feeds.NewsSource{
 // the verification matrix. Operators who want bundle behavior plus a personal
 // override can copy the chosen bundle into $LEAH_STATE_DIR/feeds-news.json.
 //
-// TODO(MAY): anthropic via feeds.feedburner.com/anthropic — FeedBurner is
-// deprecated Google infrastructure; swap to native Anthropic RSS once they
-// publish one. Tracker: pending Linear issue.
+// anthropic served via FeedBurner (deprecated Google infra) because
+// anthropic.com/news/rss.xml is 404 as of 2026-06-21. Revisit when that
+// path — or any canonical anthropic.com feed — returns 200 with an
+// rss/xml content-type; then swap and drop this note.
 var newsBundles = map[string][]feeds.NewsSource{
 	"ai": {
 		{Name: "arxiv-cs.ai", URL: "https://export.arxiv.org/rss/cs.AI"},
