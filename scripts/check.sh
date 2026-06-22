@@ -26,6 +26,10 @@ golangci-lint run --timeout=5m ./...    >"$LOG/lint"     2>&1 & PIDS+=($!); NAME
 "$SCRIPT_DIR/check-comment-density.sh" >"$LOG/density"  2>&1 & PIDS+=($!); NAMES+=(density)
 "$SCRIPT_DIR/check-no-bare-sleep.sh"   >"$LOG/sleep"    2>&1 & PIDS+=($!); NAMES+=(sleep)
 "$SCRIPT_DIR/check-doc-links.sh"       >"$LOG/doclinks" 2>&1 & PIDS+=($!); NAMES+=(doclinks)
+# MAY-16: guard the destructive-regression class on the worktree janitor.
+# Mutation tests confirm both the prefix-check and the merged/deleted
+# guard are load-bearing — dropping either prunes live agent work.
+"$SCRIPT_DIR/leah-worktree-janitor_test.sh" >"$LOG/janitor"  2>&1 & PIDS+=($!); NAMES+=(janitor)
 
 FAILED=0
 for i in "${!PIDS[@]}"; do
