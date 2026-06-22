@@ -140,6 +140,61 @@ func (c *AnthropicClient) OneShot(ctx context.Context, system, user string) (str
 	return "", nil
 }
 
+// StreamChunks issues a streaming call with optional cache_control on the
+// system block + last history message, and returns raw text chunks. This is
+// the production binding for the streamer interface consumed by StreamToIPC.
+// When cache is true and the system prompt exceeds the cacheable threshold,
+// cache_control: { type: "ephemeral" } is applied to the system block and to
+// the last message in history (if present) so the stable prefix is cached.
+func (c *AnthropicClient) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan string, error) {
+	sysBlock := anthropic.TextBlockParam{Text: system}
+	if cache {
+		sysBlock.CacheControl = anthropic.NewCacheControlEphemeralParam()
+	}
+	msgs := make([]anthropic.MessageParam, len(history))
+	copy(msgs, history)
+	if cache && len(msgs) > 0 {
+		// Mark the last history message for ephemeral caching so the
+		// conversation prefix is eligible for cache-read on subsequent turns.
+		last := msgs[len(msgs)-1]
+		for i, blk := range last.Content {
+			if blk.OfText != nil && blk.OfText.Text != "" {
+				cp := *blk.OfText
+				cp.CacheControl = anthropic.NewCacheControlEphemeralParam()
+				last.Content[i] = anthropic.ContentBlockParamUnion{OfText: &cp}
+				break
+			}
+		}
+		msgs[len(msgs)-1] = last
+	}
+	msgs = append(msgs, anthropic.NewUserMessage(anthropic.NewTextBlock(userText)))
+	params := anthropic.MessageNewParams{
+		Model:     anthropic.Model(c.model),
+		MaxTokens: 4096,
+		System:    []anthropic.TextBlockParam{sysBlock},
+		Messages:  msgs,
+	}
+	stream := c.sdk.Messages.NewStreaming(ctx, params)
+	out := make(chan string, 16)
+	go func() {
+		defer func() { _ = stream.Close() }()
+		defer close(out)
+		for stream.Next() {
+			ev := stream.Current()
+			if bd, ok := ev.AsAny().(anthropic.ContentBlockDeltaEvent); ok {
+				if td := bd.Delta.AsTextDelta(); td.Text != "" {
+					select {
+					case <-ctx.Done():
+						return
+					case out <- td.Text:
+					}
+				}
+			}
+		}
+	}()
+	return out, nil
+}
+
 // Stream issues a streaming messages call and translates SDK events into
 // reasoner.Delta. Text deltas pass through; tool-use blocks surface as
 // ToolUseEvent (suppressed by AskStream callers today). Token counts fire on
