@@ -115,7 +115,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer c.Close()
-	_ = c.(*net.UnixConn).SetDeadline(time.Now().Add(time.Duration(timeoutSec) * time.Second))
+	if uc, ok := c.(*net.UnixConn); ok {
+		_ = uc.SetDeadline(time.Now().Add(time.Duration(timeoutSec) * time.Second))
+	}
 
 	if err := writeFrame(c, f); err != nil {
 		fmt.Fprintln(os.Stderr, "write:", err)

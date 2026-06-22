@@ -9,6 +9,7 @@ if [ -z "$TEXT" ]; then
   exit 1
 fi
 
-# Use keystroke for arbitrary strings; single-quotes inside TEXT are escaped.
-ESCAPED="${TEXT//\'/\'}"
+# Escape backslashes then double-quotes for the osascript string literal.
+ESCAPED="${TEXT//\\/\\\\}"
+ESCAPED="${ESCAPED//\"/\\\"}"
 osascript -e "tell application \"System Events\" to keystroke \"$ESCAPED\""

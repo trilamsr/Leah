@@ -8,7 +8,7 @@ GOLANGCI_LINT_VERSION := v2.12.2
 # Companion: make dev-stop tears everything down.
 dev:
 	@mkdir -p ~/.leah-state-dev/ ~/Library/Caches/Leah
-	@cd app/Leah && swift build 2>&1 | tail -5
+	@cd app/Leah && swift build 2>&1 | tail -5; test $${PIPESTATUS[0]} -eq 0 || { echo "FAIL: swift build"; exit 1; }
 	@LEAH_STATE_DIR=~/.leah-state-dev/ go run ./cmd/leah-daemon > /tmp/leah-dev.log 2>&1 & \
 	  echo $$! > /tmp/leah-dev-daemon.pid
 	@echo "waiting for socket at ~/Library/Caches/Leah/leah.sock ..."; \
@@ -17,8 +17,10 @@ dev:
 	    sleep 0.1; \
 	  done; \
 	  [ -S "$$HOME/Library/Caches/Leah/leah.sock" ] || \
-	    { echo "FAIL: socket did not appear"; cat /tmp/leah-dev.log | tail -10; exit 1; }
-	@open "app/Leah/.build/debug/Leah.app" 2>/dev/null || true
+	    { echo "FAIL: socket did not appear"; tail -10 /tmp/leah-dev.log; exit 1; }
+	@APP="app/Leah/.build/debug/Leah.app"; \
+	  if [ -e "$$APP" ]; then open "$$APP"; \
+	  else echo "skip app launch — bundle not at $$APP (swift build produces a binary, not .app, in dev)"; fi
 	@log stream --predicate 'subsystem == "com.maydow.leah" OR processImagePath ENDSWITH "leah-daemon"' \
 	  --style syslog >> /tmp/leah-dev.log 2>&1 &
 	@echo "READY — pid file at /tmp/leah-dev-daemon.pid, log at /tmp/leah-dev.log"

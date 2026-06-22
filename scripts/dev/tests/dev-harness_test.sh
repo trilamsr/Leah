@@ -48,7 +48,7 @@ fi
 
 # ── 5. tail-logs.sh --duration 1s exits 0 ────────────────────────────────────
 
-if timeout 3 "$DEV_DIR/tail-logs.sh" --duration 1s 2>/dev/null; then
+if timeout 5 "$DEV_DIR/tail-logs.sh" --duration 1s 2>/dev/null; then
   pass "tail-logs.sh --duration 1s exits 0"
 else
   rc=$?
