@@ -146,5 +146,19 @@ verify-attestation:
 	        --source-tag "$(TAG)" \
 	        "$$DEST"/leah-*-* "$$DEST"/leah-daemon-*-* "$$DEST"/leah-hud-*-*
 
+.PHONY: app-build app-test app-run
+
+# Swift Package build of the Leah.app shell.
+app-build:
+	@cd app/Leah && swift build -c release
+
+app-test:
+	@cd app/Leah && swift test
+
+# Run the app from the SwiftPM build artifact (dev loop; production app is
+# built via xcodebuild + sign-and-notarize.sh — see scripts/sign-and-notarize.sh).
+app-run: app-build
+	@app/Leah/.build/release/Leah
+
 help:
-	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, lint, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>"
+	@echo "Targets: dev, verify-pr PR=<n>, baseline, check, lint, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run"
