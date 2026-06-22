@@ -1,0 +1,13 @@
+{
+  "widget": "market",
+  "id": "market-aapl",
+  "size": "small",
+  "props": {
+    "symbol": "AAPL",
+    "price": "228.43",
+    "change": "1.82",
+    "change_pct": "+0.80%",
+    "delta": 1.82,
+    "sparkline": [225.1, 225.8, 226.4, 227.0, 226.6, 227.2, 227.9, 228.1, 228.0, 228.43]
+  }
+}
