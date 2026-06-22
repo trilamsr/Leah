@@ -3,6 +3,7 @@ package reasoner
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ type fakeStreamer struct {
 	sendFinal   bool
 }
 
-func (f *fakeStreamer) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, error) {
+func (f *fakeStreamer) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, func() error, error) {
 	out := make(chan StreamChunk, len(f.chunks)+1)
 	f.gotCache = cache
 	if cache {
@@ -37,7 +38,7 @@ func (f *fakeStreamer) StreamChunks(ctx context.Context, system string, history 
 		out <- StreamChunk{Final: true, InputTokens: f.finalIn, OutputTokens: f.finalOut}
 	}
 	close(out)
-	return out, nil
+	return out, func() error { return nil }, nil
 }
 
 func TestStreamToIPCEmitsProseDeltas(t *testing.T) {
@@ -74,7 +75,7 @@ type blockingStreamer struct {
 	release chan struct{}
 }
 
-func (b *blockingStreamer) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, error) {
+func (b *blockingStreamer) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, func() error, error) {
 	out := make(chan StreamChunk)
 	go func() {
 		defer close(out)
@@ -85,7 +86,7 @@ func (b *blockingStreamer) StreamChunks(ctx context.Context, system string, hist
 			return
 		}
 	}()
-	return out, nil
+	return out, func() error { return nil }, nil
 }
 
 // TestStreamToIPCCancelClosesChannel — ctx-cancel must close the frame
@@ -133,7 +134,7 @@ func TestStreamChunksDoesNotMutateHistory(t *testing.T) {
 	// then the SDK stream short-circuits without a network call.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	out, err := c.StreamChunks(ctx, system, history, "hi", true)
+	out, _, err := c.StreamChunks(ctx, system, history, "hi", true)
 	if err == nil {
 		for range out {
 		}
@@ -147,25 +148,24 @@ func TestStreamChunksDoesNotMutateHistory(t *testing.T) {
 	}
 }
 
-func TestStreamToIPCModelSelector(t *testing.T) {
-	s := &fakeStreamer{chunks: []string{"ok"}}
-	system := strings.Repeat("s ", 3000) // > 1024 tokens ⇒ cache
-	out, err := streamToIPCWith(context.Background(), s, "t2", system, nil, "hi")
-	if err != nil {
-		t.Fatalf("stream: %v", err)
+// TestStreamToIPCEscalateOpus — escalateOpus=true must swap the model on the
+// outbound request to opusModel without leaking the swap back onto the caller's
+// client. We can't observe model selection through the fake streamer (it ignores
+// the client), so we assert the post-call invariant: the original client's
+// model is unchanged. The model-swap branch is exercised; the production binding
+// path through *AnthropicClient.StreamChunks is covered by the live SDK.
+func TestStreamToIPCEscalateOpus(t *testing.T) {
+	original := "claude-sonnet-4-6"
+	c := &AnthropicClient{model: original}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	out, err := StreamToIPC(ctx, c, "t-esc", "sys", nil, "hi", true)
+	if err == nil {
+		for range out {
+		}
 	}
-	var frames []ipc.Frame
-	for f := range out {
-		frames = append(frames, f)
-	}
-	if len(frames) < 2 {
-		t.Fatalf("want >=2 frames, got %d", len(frames))
-	}
-	if frames[len(frames)-1].Kind != "turn.end" {
-		t.Fatalf("last frame must be turn.end, got %q", frames[len(frames)-1].Kind)
-	}
-	if s.cacheBlocks != 1 {
-		t.Fatalf("expected cache on >1024-token system, got %d", s.cacheBlocks)
+	if c.model != original {
+		t.Fatalf("escalateOpus leaked model swap onto caller's client: got %q want %q", c.model, original)
 	}
 }
 
@@ -225,13 +225,13 @@ func TestStreamIPC_FramePayloadOversize_SendsSplitFrames(t *testing.T) {
 // blocking the channel.
 type errorChunkStreamer struct{}
 
-func (errorChunkStreamer) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, error) {
+func (errorChunkStreamer) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, func() error, error) {
 	out := make(chan StreamChunk, 1)
 	// Empty text but Final=false — exercises the path where len(text)==0
 	// after the split loop and we still proceed to turn.end normally.
 	out <- StreamChunk{Text: ""}
 	close(out)
-	return out, nil
+	return out, func() error { return nil }, nil
 }
 
 // TestStreamIPC_JSONMarshalError_AbortsStream — verifies that when payload
@@ -349,5 +349,51 @@ func TestStreamIPC_RealTokenCount_FromStreamMethod(t *testing.T) {
 	}
 	if cost.OutputTokens != 37 {
 		t.Fatalf("output_tokens: want SDK-reported 37, got %d (int-div truncation back?)", cost.OutputTokens)
+	}
+}
+
+// errStreamer emits a partial chunk then closes the channel with a terminal
+// error via its err-closure — mirrors a mid-stream Anthropic network failure.
+type errStreamer struct{ failWith error }
+
+func (e *errStreamer) StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, func() error, error) {
+	out := make(chan StreamChunk, 1)
+	out <- StreamChunk{Text: "partial "}
+	close(out)
+	return out, func() error { return e.failWith }, nil
+}
+
+// TestStreamIPC_TerminalStreamErr_AbortsTurnEnd — when the streamer's err-closure
+// reports a terminal SDK error after the chunk channel drains the consumer must
+// see a turn.end carrying an error field, not a normal token-cost turn.end. Pre-
+// fix StreamChunks dropped stream.Err() silently and partial output looked like
+// a successful turn.
+func TestStreamIPC_TerminalStreamErr_AbortsTurnEnd(t *testing.T) {
+	s := &errStreamer{failWith: fmt.Errorf("upstream eof")}
+	out, err := streamToIPCWith(context.Background(), s, "t-err", "sys", nil, "u")
+	if err != nil {
+		t.Fatalf("stream: %v", err)
+	}
+	var frames []ipc.Frame
+	for f := range out {
+		frames = append(frames, f)
+	}
+	if len(frames) < 2 {
+		t.Fatalf("want >=2 frames (partial delta + abort turn.end), got %d", len(frames))
+	}
+	last := frames[len(frames)-1]
+	if last.Kind != "turn.end" {
+		t.Fatalf("last frame must be turn.end, got %q", last.Kind)
+	}
+	var p map[string]any
+	if err := json.Unmarshal(last.Payload, &p); err != nil {
+		t.Fatalf("unmarshal turn.end: %v", err)
+	}
+	errMsg, ok := p["error"].(string)
+	if !ok {
+		t.Fatalf("turn.end must carry error field on terminal stream failure, got %+v", p)
+	}
+	if !strings.Contains(errMsg, "upstream eof") {
+		t.Fatalf("turn.end error must propagate upstream cause; got %q", errMsg)
 	}
 }

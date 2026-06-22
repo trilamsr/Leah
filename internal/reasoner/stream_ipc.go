@@ -24,9 +24,11 @@ type StreamChunk struct {
 }
 
 // streamer is the narrow interface streamToIPCWith needs. *AnthropicClient
-// satisfies it via StreamChunks; tests inject a fake.
+// satisfies it via StreamChunks; tests inject a fake. The errFn closure is
+// inspected after the chunk channel drains so a mid-stream SDK error can
+// abort the turn instead of being silently truncated to a normal turn.end.
 type streamer interface {
-	StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, error)
+	StreamChunks(ctx context.Context, system string, history []anthropic.MessageParam, userText string, cache bool) (<-chan StreamChunk, func() error, error)
 }
 
 // StreamToIPC wraps an AnthropicClient and emits ipc.Frame events: one
@@ -52,7 +54,7 @@ const proseFrameOverhead = 1024
 // inject fakeStreamer instead of hitting the network.
 func streamToIPCWith(ctx context.Context, s streamer, turnID, system string, history []anthropic.MessageParam, userText string) (<-chan ipc.Frame, error) {
 	cache := ShouldCachePrompt(system)
-	chunks, err := s.StreamChunks(ctx, system, history, userText, cache)
+	chunks, streamErr, err := s.StreamChunks(ctx, system, history, userText, cache)
 	if err != nil {
 		return nil, fmt.Errorf("stream: %w", err)
 	}
@@ -113,6 +115,15 @@ func streamToIPCWith(ctx context.Context, s streamer, turnID, system string, his
 					return
 				}
 				text = text[n:]
+			}
+		}
+
+		// Surface terminal SDK error before emitting the normal turn.end so a
+		// mid-stream network failure doesn't masquerade as a successful turn.
+		if streamErr != nil {
+			if err := streamErr(); err != nil {
+				abort(fmt.Sprintf("anthropic stream: %v", err))
+				return
 			}
 		}
 
