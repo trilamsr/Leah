@@ -39,14 +39,15 @@ User-controlled fields only. The live API also returns generated fields (`url`, 
 gh api -X PATCH repos/trilamsr/Leah -f allow_auto_merge=true
 
 # Protect main: require the single CI check, no strict rebase, no admin enforcement.
-# `-f required_pull_request_reviews=null` / `-f restrictions=null` are mandatory:
-# the endpoint requires those keys present, and `-F field=` would send "" instead of null.
+# The endpoint requires `required_pull_request_reviews` and `restrictions` keys
+# present as JSON null — use `-F field=null` (typed, parses as null), NOT `-f`
+# (raw string, would send literal "null").
 gh api -X PUT repos/trilamsr/Leah/branches/main/protection \
   -F required_status_checks[strict]=false \
   -F 'required_status_checks[contexts][]=build + test + vet + lint' \
   -F enforce_admins=false \
-  -f required_pull_request_reviews=null \
-  -f restrictions=null
+  -F required_pull_request_reviews=null \
+  -F restrictions=null
 ```
 
 ## Why
