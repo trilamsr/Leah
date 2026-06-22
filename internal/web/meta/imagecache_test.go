@@ -70,17 +70,17 @@ func TestImageCache_GetTouchesLRU(t *testing.T) {
 	a := make([]byte, 1024)
 	b := make([]byte, 1024)
 	cc := make([]byte, 1024)
-	c.Put("https://x/a", "image/png", a)
-	c.Put("https://x/b", "image/png", b)
+	_, _ = c.Put("https://x/a", "image/png", a)
+	_, _ = c.Put("https://x/b", "image/png", b)
 	// At this point a got evicted by cap. Re-add a, touch b via Get, then add c.
-	c.Put("https://x/a", "image/png", a) // evicts b? no — b is newer than initial a was, but cap forces eviction of LRU = b? actually after first Put(b) we evicted a. order: [b]. Put(a) makes [b,a]; cap 1500 → must evict. b is LRU → evict b. So now [a].
+	_, _ = c.Put("https://x/a", "image/png", a) // evicts b? no — b is newer than initial a was, but cap forces eviction of LRU = b? actually after first Put(b) we evicted a. order: [b]. Put(a) makes [b,a]; cap 1500 → must evict. b is LRU → evict b. So now [a].
 	if _, ok := c.Get("https://x/b"); ok {
 		t.Fatal("setup: expected b evicted")
 	}
 	if _, ok := c.Get("https://x/a"); !ok {
 		t.Fatal("setup: expected a present")
 	}
-	c.Put("https://x/c", "image/png", cc) // [a,c] → evict a (LRU)
+	_, _ = c.Put("https://x/c", "image/png", cc) // [a,c] → evict a (LRU)
 	if _, ok := c.Get("https://x/a"); ok {
 		t.Error("a should be evicted after c add")
 	}

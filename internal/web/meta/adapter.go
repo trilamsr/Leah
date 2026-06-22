@@ -113,7 +113,7 @@ func newSafeClient() *http.Client {
 }
 
 func readCapped(body io.ReadCloser, max int64) ([]byte, error) {
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 	buf, err := io.ReadAll(io.LimitReader(body, max+1))
 	if err != nil {
 		return nil, err
@@ -262,7 +262,7 @@ func (a *ImageAdapter) Fetch(ctx context.Context, props json.RawMessage) (widget
 	}
 	mime := strings.ToLower(strings.TrimSpace(strings.SplitN(resp.Header.Get("Content-Type"), ";", 2)[0]))
 	if _, ok := allowedImageMIME[mime]; !ok {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return widget.Payload{}, fmt.Errorf("image: mime %q not allowed", mime)
 	}
 	body, err := readCapped(resp.Body, maxImageBytes)

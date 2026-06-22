@@ -32,7 +32,7 @@ func citationServer(t *testing.T) *httptest.Server {
 	}
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(data)
+		_, _ = w.Write(data)
 	}))
 }
 
@@ -112,7 +112,7 @@ func TestImageAdapter_Fetch_SmallInlineBase64(t *testing.T) {
 	body := newPNG(t, 2, 2)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 	a := newImageAdapterWithClient(t.TempDir(), srv.Client())
@@ -144,7 +144,7 @@ func TestImageAdapter_Fetch_LargeUsesPath(t *testing.T) {
 	}
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 	dir := t.TempDir()
@@ -175,7 +175,7 @@ func TestImageAdapter_Fetch_LargeUsesPath(t *testing.T) {
 func TestImageAdapter_RejectsBadMIME(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Write([]byte("bin"))
+		_, _ = w.Write([]byte("bin"))
 	}))
 	defer srv.Close()
 	a := newImageAdapterWithClient(t.TempDir(), srv.Client())
@@ -190,7 +190,7 @@ func TestImageAdapter_RejectsOversize(t *testing.T) {
 	big := make([]byte, 11*1024*1024)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
-		w.Write(big)
+		_, _ = w.Write(big)
 	}))
 	defer srv.Close()
 	a := newImageAdapterWithClient(t.TempDir(), srv.Client())
