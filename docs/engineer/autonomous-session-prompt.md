@@ -146,6 +146,17 @@ Begin BOOT. After boot, pick highest priority + dispatch design subagent.
 
 CLAUDE.md is the foundation, templates are the per-agent contract, this prompt is the session-level loop. Each layer adds rules the layer below cannot encode.
 
+## Recent shipped surfaces (2026-06-21)
+
+Surfaces landed since this prompt's last edit. Listed so next session's agent does not re-design them as new work — grep `git ls-tree origin/main` to confirm before scoping.
+
+- **`leah strategist`** — content-strategist MVP (`post`, `next`, `inbox`, `queue`, `doctor`) wired via Higgsfield image-generation API + local ffmpeg for video assembly. CLI surface only; no daemon involvement.
+- **`leah open` / `leah find` / `leah open "<title>"`** — universal opener glue: TMDB resolves a title (movie/show), then dispatches to the platform launcher (Netflix, Apple TV, etc.). `leah find` returns the same resolution without launching.
+- **`leah slack`** — Slack CLI integration (send / search). OAuth flow per `leah connect slack`.
+- **`leah specs` + `scripts/audit-stale-specs.sh`** — spec discovery + staleness audit; the runbook docs the operator-side cadence. Specs older than a wave that lack a tracking issue surface as findings.
+- **macOS native UI slice** — AF_UNIX IPC daemon socket + NSStatusItem menu-bar app + widget primitives (clock, weather, calendar peek). Surfaces are wired but the widget catalog is still small; treat new widget proposals as additive, not net-new architecture.
+- **6 agent-internal lessons in `.claude/notes/`** — scoping-verify-tree, agent-done-means-pushed, decider-scope-creep, subagent-force-push-forbidden, worktree-exceeds-janitor, agent-rebase-races-merge. Each is cited from the dispatch templates' `### Friction rules` section; do not restate the lesson body inline.
+
 ## When to update this prompt
 
 - New memory entry added → cite in RULES if load-bearing OR update template `<MEMORY-RULES>` defaults.

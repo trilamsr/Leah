@@ -8,6 +8,12 @@ Read-only triage subagent for leah. Decides: land / defer / reject. Files no cod
 
 These rules reach triage subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding.
 
+### Friction rules (← .claude/notes/ 2026-06-22)
+
+- **Grep target tree FIRST before scoping any backlog item as new work.** Memory drifts; only `git ls-tree origin/main` is truth. ([scoping_subagent_must_verify_against_tree.md](../../../.claude/notes/scoping_subagent_must_verify_against_tree.md))
+- **Hard fan-out cap — refuse on overflow.** Operator-stated PR count is the ceiling; expanding without confirmation burns the parallel budget. ([decider_scope_creep.md](../../../.claude/notes/decider_scope_creep.md))
+- **Never `git push --force` from a subagent.** Force-push authority is operator-only; classifier-block is correct, attempt is the defect. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
+
 ### Verify commit-existence before triaging (← feedback_dispatch_verification)
 
 - **Verify git history before treating any ticket as open work.** Linear status is NOT authoritative — tickets ship under different wave numbers or before the tracker updates. For ANY ticket triaged as `land`: first run `git log --oneline --all | grep -iE '<wave#|keyword>'` + check the target package/RPCs. Exists+compiles+tests pass → verdict is `reject` (already shipped), NOT `land`. (Session start found 41 shipped-but-Backlog tickets; W65/MAY-211 was merged but Backlog-tagged.)

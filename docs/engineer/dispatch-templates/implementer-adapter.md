@@ -8,6 +8,13 @@ Canonical prompt for fan-out work that wires a cross-cutting concern (metrics, a
 
 These rules reach subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding. Implementer base rules in `implementer.md` apply in full; adapter-fan-out-specific additions below.
 
+### Friction rules (← .claude/notes/ 2026-06-22)
+
+- **"Done" = commit + push + PR open, verified via `git log -1` + `gh pr view --json state` in the SAME turn.** Per-adapter dispatches that return "edits applied" without a pushed PR fail the gate. ([agent_done_means_pushed.md](../../../.claude/notes/agent_done_means_pushed.md))
+- **Never `git push --force` from a subagent.** Operator-only authority. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
+- **End-of-task: `git worktree remove --force` your own worktree.** Fan-out leaves N worktrees if each agent skips its own cleanup. ([worktree_exceeds_janitor_capacity.md](../../../.claude/notes/worktree_exceeds_janitor_capacity.md))
+- **During in-flight auto-merge: commit-on-top, never rebase-then-push.** Fan-out PRs sit with auto-merge armed for minutes; a late rebase-push races the merge and orphans the branch. ([agent_rebase_races_merge.md](../../../.claude/notes/agent_rebase_races_merge.md))
+
 ### CI/check gates (← feedback_check_gates)
 
 - **Local `make check` ≠ CI lint.** Run BOTH `./scripts/check.sh` AND `golangci-lint run --timeout=5m` before push. Adapter packages using `database/sql` are recurring errcheck offenders (`(*sql.Rows).Close()` returns error — wrap as `defer func() { _ = X.Close() }()`).
