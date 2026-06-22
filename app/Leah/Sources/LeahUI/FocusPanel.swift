@@ -5,8 +5,10 @@ import LeahIPC
 public final class FocusPanelController: NSObject {
   private var panel: NSPanel?
   private let client: IPCClient?
-  // Fired after every dismiss() — used by callers and tests to observe closure.
   private let onDismiss: (() -> Void)?
+  // Esc fires windowShouldClose then windowDidResignKey on the same gesture;
+  // both call dismiss(). Gate onDismiss so it fires once per summon→dismiss cycle.
+  private var dismissed: Bool = true
 
   public var isVisible: Bool { panel?.isVisible ?? false }
 
@@ -46,10 +48,13 @@ public final class FocusPanelController: NSObject {
     }
     panel?.center()
     panel?.makeKeyAndOrderFront(nil)
+    dismissed = false
   }
 
   @MainActor
   public func dismiss() {
+    if dismissed { return }
+    dismissed = true
     panel?.orderOut(nil)
     onDismiss?()
   }

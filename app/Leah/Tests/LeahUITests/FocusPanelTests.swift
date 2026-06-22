@@ -15,6 +15,22 @@ final class FocusPanelTests: XCTestCase {
     XCTAssertFalse(controller.isVisible, "panel must be hidden after Esc")
   }
 
+  // Esc triggers BOTH windowShouldClose AND windowDidResignKey on the same
+  // gesture — onDismiss must fire exactly once per summon→dismiss cycle.
+  @MainActor
+  func testDismissIsIdempotentWithinCycle() {
+    var count = 0
+    let controller = FocusPanelController(client: nil, onDismiss: { count += 1 })
+    controller.summon()
+    controller.dismiss()
+    controller.dismiss()
+    controller.dismiss()
+    XCTAssertEqual(count, 1, "onDismiss must fire exactly once per summon")
+    controller.summon()
+    controller.dismiss()
+    XCTAssertEqual(count, 2, "onDismiss must fire again after re-summon")
+  }
+
   @MainActor
   func testPanelHasNonActivatingStyleMask() {
     let panel = FocusPanelController.makePanel()
