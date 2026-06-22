@@ -32,7 +32,7 @@ func TestMarketAdapter_FetchAAPL(t *testing.T) {
 		gotFn = r.URL.Query().Get("function")
 		gotSym = r.URL.Query().Get("symbol")
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(fixture)
+		_, _ = w.Write(fixture)
 	}))
 	defer srv.Close()
 
@@ -98,7 +98,7 @@ func TestMarketAdapter_FetchHonorsCancel(t *testing.T) {
 func TestMarketAdapter_EtagDeterministic(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
+		_, _ = w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
 	}))
 	defer srv.Close()
 	a := markets.NewAdapter(markets.Options{Endpoint: srv.URL, APIKey: "k"})
@@ -118,7 +118,7 @@ func TestMarketAdapter_EtagDeterministic(t *testing.T) {
 func TestMarketAdapter_RateLimitDenies(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
+		_, _ = w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
 	}))
 	defer srv.Close()
 	a := markets.NewAdapter(markets.Options{Endpoint: srv.URL, APIKey: "k", RateLimit: 2})
@@ -135,7 +135,7 @@ func TestMarketAdapter_RateLimitDenies(t *testing.T) {
 func TestMarketAdapter_ValidateRunsBeforeRateLimit(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
+		_, _ = w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
 	}))
 	defer srv.Close()
 	a := markets.NewAdapter(markets.Options{Endpoint: srv.URL, APIKey: "k", RateLimit: 1})
@@ -153,7 +153,7 @@ func TestMarketAdapter_RefreshReusesPrevEtagWithinMinute(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
+		_, _ = w.Write([]byte(`{"Global Quote":{"01. symbol":"AAPL","05. price":"1","09. change":"0","10. change percent":"0%","07. latest trading day":"2026-06-22"}}`))
 	}))
 	defer srv.Close()
 	a := markets.NewAdapter(markets.Options{Endpoint: srv.URL, APIKey: "k"})

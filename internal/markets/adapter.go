@@ -142,7 +142,7 @@ func (a *Adapter) fetchOne(ctx context.Context, sym string) (Quote, error) {
 	if err != nil {
 		return Quote{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return Quote{}, fmt.Errorf("markets: upstream %s: %d", sym, resp.StatusCode)
 	}
@@ -174,8 +174,9 @@ func etag(syms []string, t time.Time) string {
 	cp := append([]string(nil), syms...)
 	sort.Strings(cp)
 	h := sha256.New()
-	io.WriteString(h, strings.Join(cp, ","))
-	io.WriteString(h, "|")
-	io.WriteString(h, t.Truncate(time.Minute).Format(time.RFC3339))
+	// sha256.Hash never returns an error from Write; ignoring keeps the helper pure.
+	_, _ = io.WriteString(h, strings.Join(cp, ","))
+	_, _ = io.WriteString(h, "|")
+	_, _ = io.WriteString(h, t.Truncate(time.Minute).Format(time.RFC3339))
 	return hex.EncodeToString(h.Sum(nil))
 }
