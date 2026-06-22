@@ -2,6 +2,8 @@
 # Code-sign, notarize, and staple Leah.app for distribution.
 #
 # Env vars (required for --sign/--notarize):
+#   LEAH_IDENTITY              Full codesign identity (e.g. "Developer ID Application: Maydow LLC (ABC123XYZ)")
+#                              Find via: security find-identity -v -p codesigning
 #   LEAH_TEAM_ID               Apple Developer Team ID (10-char alphanumeric)
 #   LEAH_APPLE_ID              Apple ID email for notarization
 #   LEAH_APP_SPECIFIC_PASSWORD App-specific password for notarytool
@@ -26,13 +28,15 @@ usage() {
   echo "usage: sign-and-notarize.sh [--build-only | --sign | --notarize | --staple | --all]"
   echo ""
   echo "  --build-only  swift build -c release (no signing)"
-  echo "  --sign        codesign with Hardened Runtime (requires LEAH_TEAM_ID)"
+  echo "  --sign        codesign with Hardened Runtime (requires LEAH_IDENTITY or LEAH_TEAM_ID)"
   echo "  --notarize    submit to Apple notary and wait (requires LEAH_KEYCHAIN_PROFILE)"
   echo "  --staple      staple notarization ticket to the .app"
   echo "  --all         build + sign + notarize + staple"
   echo ""
   echo "Env vars for --sign/--notarize:"
-  echo "  LEAH_TEAM_ID               Developer Team ID"
+  echo "  LEAH_IDENTITY              Full codesign identity (e.g. \"Developer ID Application: Maydow LLC (ABC123XYZ)\")"
+  echo "                             Find via: security find-identity -v -p codesigning"
+  echo "  LEAH_TEAM_ID               Developer Team ID (used only when LEAH_IDENTITY is unset)"
   echo "  LEAH_APPLE_ID              Apple ID email"
   echo "  LEAH_APP_SPECIFIC_PASSWORD App-specific password"
   echo "  LEAH_KEYCHAIN_PROFILE      notarytool credentials profile name"
@@ -67,7 +71,7 @@ cmd_build() {
 
 cmd_sign() {
   require_env
-  local identity="Developer ID Application: ${LEAH_TEAM_ID}"
+  local identity="${LEAH_IDENTITY:-Developer ID Application: ${LEAH_TEAM_ID}}"
   echo "==> codesign $APP_PATH"
   codesign --force --options runtime --timestamp \
     --entitlements "$ENTITLEMENTS" \

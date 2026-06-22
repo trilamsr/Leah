@@ -28,12 +28,15 @@ Covers Developer ID code-signing, Apple notarization, and stapling for distribut
 
 | Variable | Purpose |
 |---|---|
-| `LEAH_TEAM_ID` | 10-char Apple Developer Team ID |
+| `LEAH_IDENTITY` | Full codesign identity string — `"Developer ID Application: Maydow LLC (ABC123XYZ)"`. Find it: `security find-identity -v -p codesigning`. Preferred over constructing from `LEAH_TEAM_ID`. |
+| `LEAH_TEAM_ID` | 10-char Apple Developer Team ID. Used as fallback identity (`"Developer ID Application: ${LEAH_TEAM_ID}"`) when `LEAH_IDENTITY` is unset; also required for `notarytool`. |
 | `LEAH_APPLE_ID` | Apple ID email |
 | `LEAH_APP_SPECIFIC_PASSWORD` | App-specific password for notarytool |
 | `LEAH_KEYCHAIN_PROFILE` | Profile name passed to `notarytool --keychain-profile` |
 
 Export these in your shell or a local `.env` file (never commit credentials).
+
+> **Cert name format** — Apple Developer ID cert names always follow `"Developer ID Application: <Company Name> (<TEAM_ID>)"`. The Team ID alone (e.g. `"Developer ID Application: ABC123XYZ"`) is not a valid codesign identity and causes `codesign: No identity found`. Set `LEAH_IDENTITY` to the exact string shown by `security find-identity -v -p codesigning`.
 
 ## Invocation
 
@@ -68,13 +71,13 @@ APP_PATH=/path/to/Leah.app ENTITLEMENTS=/path/to/Leah.entitlements \
 ## What the script does
 
 1. `--build-only` — runs `swift build -c release` in `app/Leah/`; produces `.build/release/Leah.app`.
-2. `--sign` — `codesign --force --options runtime --timestamp --entitlements ... --sign "Developer ID Application: <TEAM_ID>" Leah.app`.
+2. `--sign` — `codesign --force --options runtime --timestamp --entitlements ... --sign "$LEAH_IDENTITY" Leah.app` where `LEAH_IDENTITY` defaults to `"Developer ID Application: ${LEAH_TEAM_ID}"` if unset.
 3. `--notarize` — zips the app with `ditto`, submits to Apple notary via `xcrun notarytool submit --wait`.
 4. `--staple` — `xcrun stapler staple Leah.app` attaches the notarization ticket so Gatekeeper passes offline.
 
 ## Troubleshooting
 
-**`codesign: No identity found`** — the Developer ID Application cert is not in the login Keychain. Re-run the Xcode cert generation step or import the cert from the Apple Developer portal.
+**`codesign: No identity found`** — either the cert is not in the login Keychain, or `LEAH_IDENTITY` does not match the cert's exact name. Run `security find-identity -v -p codesigning` and copy the full string (e.g. `"Developer ID Application: Maydow LLC (ABC123XYZ)"`) into `LEAH_IDENTITY`. Re-run the Xcode cert generation step if no Developer ID cert appears at all.
 
 **`notarytool: invalid credentials`** — re-run `xcrun notarytool store-credentials` with correct values; confirm the profile name matches `LEAH_KEYCHAIN_PROFILE`.
 
