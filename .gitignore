@@ -4,6 +4,7 @@
 /leah-daemon
 /leah-eval
 /leah-hud
+cmd/*/leah*
 *.test
 *.out
 
