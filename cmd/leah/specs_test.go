@@ -41,14 +41,15 @@ func TestRunSpecs_StaleOnlyFilters(t *testing.T) {
 		t.Fatalf("runSpecs exit=%d, want 0; out=%q", code, buf.String())
 	}
 	out := strings.TrimSpace(buf.String())
-	// The real tree carries ≥1 STALE row (placeholder specs for
-	// signed-distribution + local-self-update). Empty output here means the
-	// filter dropped everything — including legitimate STALE rows — so refuse
-	// to pass on empty. Update this assertion only when those specs ship.
-	if out == "" {
-		t.Fatalf("--stale-only produced empty output; expected ≥1 STALE row from real tree")
-	}
+	// Empty output is legitimate when the tree has zero STALE rows (the
+	// healthy steady state). The falsifiability comes from rejecting any
+	// non-STALE row that slipped through — if --stale-only emitted SHIPPED
+	// or PARTIAL, the filter is broken. Counter-evidence that the filter
+	// fires at all is covered by the unit-level test in audit-stale-specs.
 	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
 		if !strings.HasPrefix(line, "STALE\t") {
 			t.Fatalf("--stale-only leaked non-STALE row: %q", line)
 		}
