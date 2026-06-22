@@ -90,7 +90,11 @@ final class MarketTileViewTests: XCTestCase {
     XCTAssertGreaterThan(png.count, 0)
 
     let goldPixels = countGoldPixels(cg)
-    XCTAssertGreaterThan(goldPixels, 0, "expected gold pixels for positive delta accent")
+    XCTAssertGreaterThan(goldPixels, 0, "expected gold pixels for symbol-anchor hairline")
+    // Upper bound catches future regressions that tint price text or the ▲
+    // glyph gold; fixture has positive delta 1.82 → ▲ must render ivory per
+    // §10.1 line 1033. Only the 28×1.5 hairline rectangle renders gold.
+    XCTAssertLessThan(goldPixels, 800, "positive-delta ▲ + price must NOT be gold")
 
     let regions = floodFillRegions(cg)
     XCTAssertLessThanOrEqual(regions, 3, "canvas invariant: ≤3 gold flood-fill regions per render")

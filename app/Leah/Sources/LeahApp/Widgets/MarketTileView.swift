@@ -1,15 +1,6 @@
 import SwiftUI
 import Charts
 
-extension Color {
-  // Champagne gold #C9A961 — brand-mark / accent token; never as background.
-  public static let leahGold = Color(red: 201/255, green: 169/255, blue: 97/255)
-  // Oxblood alert #D75A66 (AA-pass) — negative deltas, adverse-event markers.
-  public static let leahRedAlert = Color(red: 215/255, green: 90/255, blue: 102/255)
-  // Ivory #F2EDE0 — body text default; chart non-accent series at 40% opacity.
-  public static let leahIvory = Color(red: 242/255, green: 237/255, blue: 224/255)
-}
-
 struct MarketTileSeriesPoint: Identifiable {
   let id: Int
   let y: Double
@@ -46,9 +37,9 @@ public struct MarketTileView: View {
     return trimmed.enumerated().map { MarketTileSeriesPoint(id: $0.offset, y: $0.element) }
   }
 
-  // Delta-positive accent goes gold (brand); negative goes oxblood (alert).
-  // Per § 10.1 v3.1: positive = ivory + ▲, gold reserved for symbol+price ID.
-  private var deltaColor: Color { delta < 0 ? .leahRedAlert : .leahGold }
+  // Spec § 10.1 line 1033: "Positive delta = ivory + ▲. No green, ever."
+  // Negative delta = oxblood. Gold lives on the symbol hairline only.
+  private var deltaColor: Color { delta < 0 ? .leahRedAlert : .leahIvory }
   private var deltaGlyph: String { delta < 0 ? "▼" : "▲" }
 
   public var body: some View {
@@ -66,8 +57,6 @@ public struct MarketTileView: View {
           .font(.system(size: 22, weight: .semibold, design: .monospaced))
           .foregroundColor(.leahIvory)
         HStack(spacing: 4) {
-          // Delta glyph carries the +/- accent — 1 connected region per § 10.0
-          // canvas invariant (gold for positive, oxblood for negative).
           Text(deltaGlyph)
             .foregroundColor(deltaColor)
           Text(changeText)
