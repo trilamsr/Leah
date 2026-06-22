@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SettingsPane: String, CaseIterable, Hashable {
-    case general, privacy, permissions, advanced, integrations, memory, about
+    case general, privacy, permissions, advanced, voice, appearance, integrations, memory, about
 
     public var title: String {
         switch self {
@@ -9,6 +9,8 @@ public enum SettingsPane: String, CaseIterable, Hashable {
         case .privacy:      return "Privacy"
         case .permissions:  return "Permissions"
         case .advanced:     return "Advanced"
+        case .voice:        return "Voice"
+        case .appearance:   return "Appearance"
         case .integrations: return "Integrations"
         case .memory:       return "Memory"
         case .about:        return "About"
@@ -21,9 +23,11 @@ public enum SettingsPane: String, CaseIterable, Hashable {
         case .privacy:      return "2"
         case .permissions:  return "3"
         case .advanced:     return "4"
-        case .integrations: return "5"
-        case .memory:       return "6"
-        case .about:        return "7"
+        case .voice:        return "5"
+        case .appearance:   return "6"
+        case .integrations: return "7"
+        case .memory:       return "8"
+        case .about:        return "9"
         }
     }
 }
