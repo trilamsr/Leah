@@ -125,7 +125,7 @@ func (m *MailDir) writeNew(dir string, it Item) error {
 	if err != nil {
 		return fmt.Errorf("strategist store %s/%s: %w", dir, it.ID, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := io.WriteString(f, serialize(it)); err != nil {
 		return fmt.Errorf("strategist store write %s: %w", path, err)
 	}
@@ -207,7 +207,7 @@ func readItem(path string) (Item, error) {
 	if err != nil {
 		return Item{}, fmt.Errorf("strategist store open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	// First line must be "---".
