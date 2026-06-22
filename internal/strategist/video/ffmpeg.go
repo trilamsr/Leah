@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // DefaultFFmpegRunner shells out to the local ffmpeg binary. Argv is
@@ -28,7 +29,9 @@ func NewDefaultFFmpegRunner() *DefaultFFmpegRunner {
 			// WHY: CommandContext kills the child on ctx cancel so a
 			// stuck encode doesn't outlive the Compose call.
 			c := exec.CommandContext(ctx, name, args...)
-			c.WaitDelay = 2 // seconds; ensure Kill if the child ignores SIGTERM
+			// WHY: WaitDelay is time.Duration (ns). Force SIGKILL 2s after
+			// SIGTERM if the encoder ignores the polite signal.
+			c.WaitDelay = 2 * time.Second
 			return c.Run()
 		},
 	}
@@ -73,30 +76,28 @@ func (r *DefaultFFmpegRunner) BurnCaption(ctx context.Context, in, out, text, ra
 }
 
 // dims returns the target (width, height) for the named aspect ratio.
-// 1080p short side keeps file sizes reasonable for social uploads.
+// Compose validates ratio before this is reached — the 9:16 branch is
+// the safe default for the only other caller (direct BurnCaption tests).
 func dims(ratio string) (int, int) {
-	switch ratio {
-	case Ratio16x9:
+	if ratio == Ratio16x9 {
 		return 1920, 1080
-	default:
-		// WHY: 9:16 is the default; any unknown value falls through
-		// here rather than failing — Compose already validated ratio
-		// against the two constants in practice.
-		return 1080, 1920
 	}
+	return 1080, 1920
 }
 
-// sanitizeCaption strips the metachars ffmpeg drawtext treats specially
-// in single-quoted expressions: `;` (filtergraph separator), `:` (option
-// separator), `'` (quote terminator), `\` (escape), backtick + newlines
-// (shell habits that often slip in from operator copy-paste). The result
-// is safe to interpolate inside text='...' without an injection vector.
+// sanitizeCaption strips every metachar ffmpeg's drawtext+filtergraph
+// parser treats specially inside `text='...'`: `;` (graph separator),
+// `,` (chain separator), `:` (option separator), `'` (quote terminator),
+// `\` (escape), `[` `]` (filter label brackets), `%` `{` `}` (drawtext
+// expansion — `%{pts}` would leak timing/frame metadata), backtick,
+// newlines, control chars. Stripping at the source closes every
+// argv-injection vector — no escaping logic to get wrong downstream.
 func sanitizeCaption(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {
 		switch r {
-		case ';', ':', '\'', '\\', '`', '\n', '\r', '\t':
+		case ';', ',', ':', '\'', '\\', '`', '[', ']', '%', '{', '}', '\n', '\r', '\t':
 			b.WriteRune(' ')
 		default:
 			if r < 0x20 {

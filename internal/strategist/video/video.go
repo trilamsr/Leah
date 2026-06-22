@@ -128,6 +128,12 @@ func (o *Orchestrator) Compose(ctx context.Context, ref ItemRef, req ClipRequest
 	if req.Ratio == "" {
 		req.Ratio = Ratio9x16
 	}
+	// WHY: reject unknown ratios up front rather than silently falling
+	// back inside ffmpeg dims() — caller bug should surface here, not in
+	// a misframed clip ten seconds later.
+	if req.Ratio != Ratio9x16 && req.Ratio != Ratio16x9 {
+		return "", fmt.Errorf("video: unknown ratio %q (want %q or %q)", req.Ratio, Ratio9x16, Ratio16x9)
+	}
 	// WHY: pre-flight LookPath catches the "operator forgot brew install
 	// ffmpeg" path BEFORE charging a Higgsfield call. doctor surfaces the
 	// same gap.

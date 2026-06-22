@@ -193,17 +193,39 @@ func TestOrchestrator_PollTimeout_ReturnsErrTimeout(t *testing.T) {
 	ff := &fakeFFmpeg{available: true}
 	fe := &fakeFetcher{}
 	fs := &fakeFS{}
+	// WHY: deterministic clock — each call advances by 1s so the deadline
+	// (100ms) is exceeded on the second now() check regardless of CI load.
+	base := time.Unix(1_700_000_000, 0)
+	calls := 0
+	clock := func() time.Time {
+		ts := base.Add(time.Duration(calls) * time.Second)
+		calls++
+		return ts
+	}
 	o := New(Config{
 		Adapter: a, FFmpeg: ff, Fetcher: fe, FS: fs,
-		PollInterval: time.Millisecond,
-		PollDeadline: 5 * time.Millisecond,
-		Now:          time.Now,
+		PollInterval: time.Microsecond,
+		PollDeadline: 100 * time.Millisecond,
+		Now:          clock,
 	})
 	_, err := o.Compose(context.Background(), ItemRef{ID: "x"}, ClipRequest{
 		Prompt: "p", Seconds: 5, Ratio: Ratio9x16,
 	})
 	if !errors.Is(err, ErrTimeout) {
 		t.Fatalf("err = %v, want ErrTimeout", err)
+	}
+}
+
+func TestOrchestrator_UnknownRatio_RejectedUpFront(t *testing.T) {
+	o, a, _, _, _ := happyOrchestrator(t)
+	_, err := o.Compose(context.Background(), ItemRef{ID: "x"}, ClipRequest{
+		Prompt: "p", Seconds: 5, Ratio: "4:3",
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown ratio") {
+		t.Fatalf("err = %v, want unknown-ratio rejection", err)
+	}
+	if a.submitCalls != 0 {
+		t.Fatalf("submit called %d times before validation", a.submitCalls)
 	}
 }
 
@@ -321,6 +343,9 @@ func TestSanitizeCaption_StripsFiltergraphMeta(t *testing.T) {
 		{"line1\nline2", "line1 line2"},
 		{"back`tick", "back tick"},
 		{"  hi  ", "hi"},
+		// drawtext expansion: %{pts} would leak presentation timestamp.
+		{"frame %{pts} time", "frame pts time"},
+		{"a,b[c]d", "a b c d"},
 	}
 	for _, tc := range cases {
 		got := sanitizeCaption(tc.in)
