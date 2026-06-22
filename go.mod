@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.49.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/oklog/ulid/v2 v2.1.1
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
