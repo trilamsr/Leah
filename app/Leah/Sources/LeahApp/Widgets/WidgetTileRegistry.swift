@@ -17,4 +17,21 @@ public final class WidgetTileRegistry {
           let build = builders[kind] else { return nil }
     return build(envelope)
   }
+
+  public func registerWave2Defaults() {
+    register(kind: .flights) { e in
+      guard let p: FlightsPayload = decode(e.props) else { return AnyView(EmptyView()) }
+      return AnyView(FlightsTileView(payload: p))
+    }
+    register(kind: .maps) { e in
+      guard let p: MapsPayload = decode(e.props) else { return AnyView(EmptyView()) }
+      return AnyView(MapsTileView(payload: p))
+    }
+  }
+}
+
+private func decode<T: Decodable>(_ props: [String: AnyCodable]) -> T? {
+  let wrapped = props.mapValues { $0 }
+  guard let data = try? JSONEncoder().encode(wrapped) else { return nil }
+  return try? JSONDecoder().decode(T.self, from: data)
 }

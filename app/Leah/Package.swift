@@ -20,7 +20,8 @@ let package = Package(
     .testTarget(
       name: "LeahAppTests",
       dependencies: ["LeahApp"],
-      path: "Tests/LeahAppTests"
+      path: "Tests/LeahAppTests",
+      resources: [.process("Fixtures")]
     ),
     .target(
       name: "LeahAuth",
