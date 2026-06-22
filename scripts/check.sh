@@ -31,6 +31,8 @@ golangci-lint run --timeout=5m ./...    >"$LOG/lint"     2>&1 & PIDS+=($!); NAME
 # guard are load-bearing — dropping either prunes live agent work.
 "$SCRIPT_DIR/leah-worktree-janitor_test.sh" >"$LOG/janitor"  2>&1 & PIDS+=($!); NAMES+=(janitor)
 "$SCRIPT_DIR/check-handoff-continuity_test.sh" >"$LOG/handoff" 2>&1 & PIDS+=($!); NAMES+=(handoff)
+# MAY-13: stale-APPROVE guard tests pin the timestamp comparison + fixture routing.
+"$SCRIPT_DIR/check-amend-after-approve_test.sh" >"$LOG/amend"  2>&1 & PIDS+=($!); NAMES+=(amend)
 
 FAILED=0
 for i in "${!PIDS[@]}"; do
