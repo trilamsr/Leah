@@ -25,7 +25,9 @@ NEWEST=$(ls -1 "$HANDOFF_DIR"/*-session-handoff.md 2>/dev/null | sort | tail -1)
 
 TX="${CLAUDE_TRANSCRIPT:-}"
 [ -n "$TX" ] || exit 0
-[ -r "$TX" ] || exit 0
+# -f filters out directories; -r requires read perm. Both needed — `[ -r dir ]`
+# passes on a directory but `grep -F dir` errors and we'd fail closed.
+[ -f "$TX" ] && [ -r "$TX" ] || exit 0
 
 BASENAME=$(basename "$NEWEST")
 if grep -qF "$BASENAME" "$TX"; then

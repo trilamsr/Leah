@@ -77,7 +77,6 @@ case_only_newest_checked() {
   local dir; dir=$(mkfixture)
   local tx
   : > "$dir/.claude/session-handoffs/2026-06-19T09-session-handoff.md"
-  sleep 1
   : > "$dir/.claude/session-handoffs/2026-06-21T08-session-handoff.md"
   tx=$(mktemp)
   printf 'opened 2026-06-19T09-session-handoff.md\n' > "$tx"
@@ -100,12 +99,26 @@ case_unreadable_transcript_passes() {
   rm -rf "$dir"
 }
 
+# Transcript path points at a directory — `[ -r dir ]` is true, but grep
+# on a directory errors. Must fail open, not closed. Reviewer-found.
+case_directory_transcript_passes() {
+  local dir txd; dir=$(mkfixture)
+  : > "$dir/.claude/session-handoffs/2026-06-21T08-session-handoff.md"
+  txd=$(mktemp -d)
+  CLAUDE_TRANSCRIPT="$txd" "$GATE" --root "$dir" >/dev/null 2>&1
+  local rc=$?
+  if [ "$rc" -eq 0 ]; then pass "directory transcript exits 0 (fail-open)"
+  else fail "directory transcript should exit 0 (got $rc)"; fi
+  rm -rf "$txd"; rm -rf "$dir"
+}
+
 case_no_prior_passes
 case_no_transcript_passes
 case_handoff_read_passes
 case_handoff_unread_fails
 case_only_newest_checked
 case_unreadable_transcript_passes
+case_directory_transcript_passes
 
 echo "---"
 echo "passed: $PASS  failed: $FAIL"
