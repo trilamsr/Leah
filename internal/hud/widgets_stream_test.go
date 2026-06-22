@@ -3,6 +3,7 @@ package hud
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -123,6 +124,43 @@ func TestWidgetStream_FrameCarriesFreshnessHookForB5(t *testing.T) {
 	}
 }
 
+func TestWidgetsStream_TileListServedToClient(t *testing.T) {
+	// Yellow-flag follow-up to #321: widgets.js used to hardcode the tile id
+	// list, which silently drifted if the server tile set changed. Server now
+	// emits a widget.init event whose data is the JSON-encoded tile id slice in
+	// declaration order; client reads it on connect instead of hardcoding.
+	want := []string{"weather", "market-AAPL", "news", "calendar"}
+	tiles := make([]TileRenderer, 0, len(want))
+	for _, id := range want {
+		id := id
+		tiles = append(tiles, TileRenderer{
+			ID:  id,
+			TTL: time.Hour,
+			Render: func(_ context.Context) string {
+				return fmt.Sprintf(`<div class="widget">%s</div>`, id)
+			},
+		})
+	}
+	s := NewStream(tiles)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	go s.Run(ctx)
+
+	srv := httptest.NewServer(http.HandlerFunc(s.HandleSSE))
+	defer srv.Close()
+
+	got := readInitTiles(t, srv.URL, 500*time.Millisecond)
+	if len(got) != len(want) {
+		t.Fatalf("init tile count = %d, want %d (got=%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("init tile[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestWidgetStream_SetsSSEHeaders(t *testing.T) {
 	s := NewStream([]TileRenderer{{ID: "x", TTL: time.Hour, Render: func(_ context.Context) string { return "<div></div>" }}})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -200,6 +238,49 @@ func readFrames(t *testing.T, url string, want int, timeout time.Duration) []pus
 		}
 	}
 	return frames
+}
+
+func readInitTiles(t *testing.T, url string, timeout time.Duration) []string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req.Header.Set("Accept", "text/event-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var ev string
+	var data strings.Builder
+	r := bufio.NewReader(resp.Body)
+	for {
+		line, err := r.ReadString('\n')
+		if line != "" {
+			line = strings.TrimRight(line, "\n")
+			switch {
+			case strings.HasPrefix(line, "event: "):
+				ev = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				data.WriteString(strings.TrimPrefix(line, "data: "))
+			case line == "":
+				if ev == "widget.init" && data.Len() > 0 {
+					var ids []string
+					if jerr := json.Unmarshal([]byte(data.String()), &ids); jerr != nil {
+						t.Fatalf("init payload not JSON array: %v (%q)", jerr, data.String())
+					}
+					return ids
+				}
+				ev = ""
+				data.Reset()
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return nil
 }
 
 func parseFrame(s string) (id, html string) {

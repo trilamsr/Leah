@@ -115,8 +115,19 @@ func (s *Stream) Subscribe(ctx context.Context) <-chan Frame {
 	return ch
 }
 
+// TileIDs returns the canonical tile id list in declaration order. Single
+// source of truth so widgets.js doesn't hardcode (and silently drift from) it.
+func (s *Stream) TileIDs() []string {
+	ids := make([]string, len(s.tiles))
+	for i, t := range s.tiles {
+		ids[i] = t.ID
+	}
+	return ids
+}
+
 // HandleSSE serves a long-lived text/event-stream that emits widget.refresh
-// events. The client (widgets.js) consumes this instead of polling.
+// events. The first event is widget.init carrying the tile id list so the
+// client can mark every tile offline on disconnect without hardcoding the set.
 func (s *Stream) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -128,6 +139,12 @@ func (s *Stream) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	ch := s.Subscribe(ctx)
+	if init, err := json.Marshal(s.TileIDs()); err == nil {
+		if _, err := fmt.Fprintf(w, "event: widget.init\ndata: %s\n\n", init); err != nil {
+			return
+		}
+		fl.Flush()
+	}
 	keepalive := time.NewTicker(20 * time.Second)
 	defer keepalive.Stop()
 	for {
