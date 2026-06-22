@@ -1,0 +1,10 @@
+{
+  "widget": "code",
+  "id": "code-hud-push",
+  "size": "medium",
+  "props": {
+    "language": "go",
+    "filename": "internal/hud/refresh.go",
+    "source": "func (h *HUD) Push(ev Event) error {\n  if h.closed.Load() { return ErrClosed }\n  select {\n  case h.q <- ev: return nil\n  default: return ErrBackpressure\n  }\n}\n"
+  }
+}
