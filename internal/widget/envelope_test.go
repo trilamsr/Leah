@@ -27,13 +27,29 @@ func TestEnvelopeRejectsUnknownWidgetKind(t *testing.T) {
 }
 
 func TestEnvelopeCap256KB(t *testing.T) {
-	big := make([]byte, 257*1024)
-	for i := range big {
-		big[i] = 'x'
-	}
-	e := Envelope{Widget: "code", ID: "a", Size: "medium", Props: big}
+	// Spec §10.7: 256 KB cap covers the full serialized envelope, not just props.
+	props := []byte(`{"src":"` + strings.Repeat("x", 257*1024) + `"}`)
+	e := Envelope{Widget: "code", ID: "a", Size: "medium", Props: props}
 	if err := e.Validate(); err == nil || !strings.Contains(err.Error(), "256") {
 		t.Fatalf("expected 256 KB cap error; got %v", err)
+	}
+}
+
+func TestEnvelopeCapCountsMetadata(t *testing.T) {
+	// Props alone fits under cap, but metadata + props together exceed → reject.
+	props := []byte(`{"src":"` + strings.Repeat("x", MaxEnvelopeBytes-50) + `"}`)
+	if len(props) >= MaxEnvelopeBytes {
+		t.Fatalf("test setup: props %d should be < cap %d", len(props), MaxEnvelopeBytes)
+	}
+	e := Envelope{
+		Widget:  "code",
+		ID:      "abc",
+		Size:    "large",
+		Actions: []Action{{Label: "Refresh", Callback: "leah://action/refresh"}},
+		Props:   props,
+	}
+	if err := e.Validate(); err == nil || !strings.Contains(err.Error(), "256") {
+		t.Fatalf("expected total-envelope cap error; got %v", err)
 	}
 }
 

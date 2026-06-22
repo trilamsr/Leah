@@ -78,8 +78,12 @@ func (e *Envelope) Validate() error {
 			return fmt.Errorf("action[%d] callback %q must match %s", i, a.Callback, callbackPattern)
 		}
 	}
-	if len(e.Props) > MaxEnvelopeBytes {
-		return fmt.Errorf("props %d bytes exceeds 256 KB cap", len(e.Props))
+	b, err := json.Marshal(e)
+	if err != nil {
+		return fmt.Errorf("marshal envelope: %w", err)
+	}
+	if len(b) > MaxEnvelopeBytes {
+		return fmt.Errorf("envelope %d bytes exceeds 256 KB cap", len(b))
 	}
 	return nil
 }
