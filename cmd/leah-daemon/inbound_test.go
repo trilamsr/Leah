@@ -15,6 +15,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/inbound"
 	"github.com/trilam/leah/internal/recommend"
+	"github.com/trilam/leah/internal/testutil"
 )
 
 // fakeDialer satisfies discord.WebSocketDialer with a frame-replaying conn so
@@ -27,13 +28,15 @@ type fakeDialer struct {
 
 func (d *fakeDialer) Dial(_ context.Context, _, _ string) (discord.WebSocketConn, error) {
 	d.dialed.Add(1)
-	return &fakeConn{frames: d.frames}, nil
+	return &fakeConn{frames: d.frames, done: make(chan struct{})}, nil
 }
 
 type fakeConn struct {
-	frames [][]byte
-	i      int
-	closed atomic.Bool
+	frames   [][]byte
+	i        int
+	closed   atomic.Bool
+	done     chan struct{}
+	doneOnce sync.Once
 }
 
 func (c *fakeConn) ReadMessage() ([]byte, error) {
@@ -41,10 +44,9 @@ func (c *fakeConn) ReadMessage() ([]byte, error) {
 		return nil, context.Canceled
 	}
 	if c.i >= len(c.frames) {
-		// Block-then-EOF: real gateway never sends EOF synchronously after the
-		// last frame; busy-returning here would spin the read loop. Sleep
-		// briefly so the dispatch goroutine drains before the test cancels.
-		time.Sleep(10 * time.Millisecond)
+		// Real gateway never sends EOF synchronously after the last frame —
+		// block until Close so the dispatch goroutine drains without spinning.
+		<-c.done
 		return nil, context.Canceled
 	}
 	f := c.frames[c.i]
@@ -52,7 +54,11 @@ func (c *fakeConn) ReadMessage() ([]byte, error) {
 	return f, nil
 }
 
-func (c *fakeConn) Close() error { c.closed.Store(true); return nil }
+func (c *fakeConn) Close() error {
+	c.closed.Store(true)
+	c.doneOnce.Do(func() { close(c.done) })
+	return nil
+}
 
 func writeTokenFile(t *testing.T, sd, integration, token string) string {
 	t.Helper()
@@ -215,19 +221,15 @@ func TestStartInboundDiscordWiresRouter(t *testing.T) {
 	}
 	defer stop()
 
-	// Allow the dialer to run, the read+dispatch loops to drain the frame, and
-	// the router to dispatch into the engine. 200ms is a generous bound — the
-	// dispatch path is in-memory.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if dialer.dialed.Load() > 0 {
-			if _, ok := pending.Peek("discord", "C1"); !ok {
-				return // single-use Take fired — wiring proven
-			}
+	// Single-use Take firing on the staged pending entry proves the full
+	// dialer → read → dispatch → router → engine wiring.
+	testutil.Eventually(t, 2*time.Second, 10*time.Millisecond, func() bool {
+		if dialer.dialed.Load() == 0 {
+			return false
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("router never consumed pending entry: dialed=%d", dialer.dialed.Load())
+		_, ok := pending.Peek("discord", "C1")
+		return !ok
+	})
 }
 
 // recordingAttestor captures the scopes presented to it so tests can assert
@@ -303,17 +305,12 @@ func TestStartInboundDiscordSelfBuildAttestsSelfBuildScope(t *testing.T) {
 	}
 	defer stop()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if got := att.Scopes(); len(got) > 0 {
-			if got[0] != attestation.ScopeSelfBuild {
-				t.Fatalf("scope downgrade: got %q want %q (spec §4.2 — remote origin must NOT downgrade gate)", got[0], attestation.ScopeSelfBuild)
-			}
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	testutil.Eventually(t, 2*time.Second, 10*time.Millisecond, func() bool {
+		return len(att.Scopes()) > 0
+	})
+	if got := att.Scopes()[0]; got != attestation.ScopeSelfBuild {
+		t.Fatalf("scope downgrade: got %q want %q (spec §4.2 — remote origin must NOT downgrade gate)", got, attestation.ScopeSelfBuild)
 	}
-	t.Fatalf("attestor never called: dialed=%d", dialer.dialed.Load())
 }
 
 // TestStartInboundDiscordDefaultsFailClosed: with no attestor injected, the
