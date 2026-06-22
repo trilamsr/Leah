@@ -53,3 +53,20 @@ func TestReadFrameRejectsTruncatedBody(t *testing.T) {
 		t.Fatal("expected truncated-body error, got nil")
 	}
 }
+
+func TestFrameKindsWidgetMountUpdateStaleErrorDismissToast(t *testing.T) {
+	for _, k := range []string{"widget.mount", "widget.update", "widget.stale", "widget.error", "widget.dismiss", "widget.unmount", "notification.toast"} {
+		f := Frame{Kind: k, TurnID: "t1", Seq: 1}
+		b, err := json.Marshal(f)
+		if err != nil {
+			t.Fatalf("%s marshal: %v", k, err)
+		}
+		var got Frame
+		if err := json.Unmarshal(b, &got); err != nil {
+			t.Fatalf("%s unmarshal: %v", k, err)
+		}
+		if got.Kind != k {
+			t.Fatalf("kind round-trip: want %q got %q", k, got.Kind)
+		}
+	}
+}
