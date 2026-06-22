@@ -147,6 +147,58 @@ func TestStreamChunksDoesNotMutateHistory(t *testing.T) {
 	}
 }
 
+// TestStreamChunks_HistoryCitationsDeepCopied — TextBlockParam.Citations is a
+// slice header; if cloneHistoryForCache only re-wrote OfText without cloning
+// Citations, a post-call mutation of the caller's Citations[0] would leak into
+// the streamer goroutine's captured msgs (data race + correctness bug). Lock
+// the invariant: cloned history must be independent of the caller's Citations
+// backing array.
+func TestStreamChunks_HistoryCitationsDeepCopied(t *testing.T) {
+	cite := anthropic.TextCitationParamUnion{
+		OfPageLocation: &anthropic.CitationPageLocationParam{
+			CitedText:       "original",
+			DocumentIndex:   1,
+			StartPageNumber: 1,
+			EndPageNumber:   2,
+		},
+	}
+	tb := anthropic.TextBlockParam{
+		Text:      "user-turn-1",
+		Citations: []anthropic.TextCitationParamUnion{cite},
+	}
+	history := []anthropic.MessageParam{
+		{Content: []anthropic.ContentBlockParamUnion{{OfText: &tb}}, Role: "user"},
+	}
+
+	cloned := cloneHistoryForCache(history)
+
+	// Mutate caller-side Citations after clone. A correct deep-copy means
+	// cloned[] sees the ORIGINAL citation, not the post-clone mutation.
+	history[0].Content[0].OfText.Citations[0] = anthropic.TextCitationParamUnion{
+		OfPageLocation: &anthropic.CitationPageLocationParam{
+			CitedText:       "MUTATED",
+			DocumentIndex:   99,
+			StartPageNumber: 99,
+			EndPageNumber:   99,
+		},
+	}
+
+	if len(cloned) != 1 || len(cloned[0].Content) != 1 || cloned[0].Content[0].OfText == nil {
+		t.Fatalf("clone shape lost")
+	}
+	got := cloned[0].Content[0].OfText.Citations
+	if len(got) != 1 {
+		t.Fatalf("cloned Citations len: got %d want 1", len(got))
+	}
+	if got[0].OfPageLocation == nil {
+		t.Fatalf("cloned Citations element variant lost")
+	}
+	if got[0].OfPageLocation.CitedText != "original" {
+		t.Fatalf("Citations backing array aliased: cloned saw caller mutation %q (want %q)",
+			got[0].OfPageLocation.CitedText, "original")
+	}
+}
+
 func TestStreamToIPCModelSelector(t *testing.T) {
 	s := &fakeStreamer{chunks: []string{"ok"}}
 	system := strings.Repeat("s ", 3000) // > 1024 tokens ⇒ cache
