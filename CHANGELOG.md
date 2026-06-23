@@ -1,0 +1,5 @@
+# Changelog
+
+## v3.3.0 (2026-06-23)
+
+Phase 3 ship criterion met. TTS subsystem landed (ElevenLabs Flash v2.5 cloud primary + Apple Ava Premium local fallback, `tts.cloud.frame` + `tts.local` IPC fan-out, daemon-side privacy classifier). Wake-word adapter shipped with `wake-leah.mlmodel` bundled under `Resources/Models/`, VAD-gate + per-app suppression list ON by default. Push-to-talk landed on Fn (internal) and right-⌘ (external). Minimal-mode runtime toggle wired to Settings → Appearance — strips grain, italic, gold-accents at runtime. Touch ID gate added for memory purge + telemetry-toggle per §17.13. Push-source IPC fan-out completed (knowledge + memory + integrations push deltas to HUD). KG-backed citations join the answer-engine streaming path. MCP publish ships read-only (queries only, no mutations). Sparkle auto-appcast generator landed with EdDSA verify + rollback channel — appcast hosted on GitHub Pages, EdDSA signing-key custody per §17.19. §4.7 dashboard surface implemented (Memory + agenda + briefs + news + knowledge views over existing widget adapters). §17.12 marketing-hero asset slots finalized (4 hero PNGs + SVG/PDF mark).
