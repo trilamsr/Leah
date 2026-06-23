@@ -17,7 +17,6 @@ type stubDiscovery struct {
 	mu      sync.Mutex
 	records map[DeviceID]peerRecord
 	subs    []chan Peer
-	closed  bool
 }
 
 var stubRegistry = &stubDiscovery{records: map[DeviceID]peerRecord{}}
