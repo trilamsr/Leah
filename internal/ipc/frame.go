@@ -58,6 +58,15 @@ const (
 	KindVoiceTTSChunk = "voice.tts.chunk"
 	KindVoiceBarge    = "voice.barge"
 	KindVoiceEnd      = "voice.end"
+
+	// Vision kinds — §4.6. KindVisionSnap is a one-shot screenshot Ask;
+	// KindVisionStreamStart / KindVisionStreamFrame drive live-screen and
+	// live-camera capture; KindVisionConsentRequired is the daemon→HUD
+	// nudge when the first per-session cloud upload needs operator approval.
+	KindVisionSnap            = "vision.snap"
+	KindVisionStreamStart     = "vision.stream.start"
+	KindVisionStreamFrame     = "vision.stream.frame"
+	KindVisionConsentRequired = "vision.consent.required"
 )
 
 // Frame is the wire format. Seq is signed int64 so negative values can be
