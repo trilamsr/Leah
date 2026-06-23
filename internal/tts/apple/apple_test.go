@@ -19,8 +19,7 @@ func TestSynth_NameIsAppleAva(t *testing.T) {
 	}
 }
 
-// Speak emits a tts.local frame carrying text + voice + turn_id; no audio
-// bytes traverse IPC because the HUD owns AVSpeechSynthesizer.
+// Speak emits tts.local{text,voice,turn_id}; no audio bytes traverse IPC.
 func TestSynth_SpeakEmitsLocalFrame(t *testing.T) {
 	var got ipc.Frame
 	emit := func(f ipc.Frame) { got = f }
@@ -56,8 +55,20 @@ func TestSynth_SpeakEmitsLocalFrame(t *testing.T) {
 	}
 }
 
-// Cancel emits tts.cancel-local with matching turn_id so the HUD stops the
-// in-flight AVSpeechSynthesizer utterance.
+// PreWarm emits tts.local.prewarm so the HUD pre-loads the Ava voice model.
+func TestSynth_PreWarmEmitsFrame(t *testing.T) {
+	var got ipc.Frame
+	emit := func(f ipc.Frame) { got = f }
+	s := apple.New(emit)
+	if err := s.PreWarm(context.Background()); err != nil {
+		t.Fatalf("prewarm: %v", err)
+	}
+	if got.Kind != "tts.local.prewarm" {
+		t.Fatalf("kind: %q", got.Kind)
+	}
+}
+
+// Cancel emits tts.cancel-local{turn_id} so the HUD stops the in-flight utterance.
 func TestSynth_CancelEmitsCancelFrame(t *testing.T) {
 	var got ipc.Frame
 	emit := func(f ipc.Frame) { got = f }
@@ -73,8 +84,7 @@ func TestSynth_CancelEmitsCancelFrame(t *testing.T) {
 	}
 }
 
-// Nil emit is a constructor-time error rather than a silent drop — wiring bug
-// surfaces at daemon boot, not at first utterance.
+// Nil emit fails fast at every entry point — wiring bug cannot silently drop frames.
 func TestSynth_NilEmitRejected(t *testing.T) {
 	s := apple.New(nil)
 	if _, err := s.Speak(context.Background(), "hi", tts.DefaultVoice); err == nil {
@@ -82,5 +92,8 @@ func TestSynth_NilEmitRejected(t *testing.T) {
 	}
 	if err := s.Cancel(context.Background(), "turn-1"); err == nil {
 		t.Fatalf("expected cancel error for nil emit")
+	}
+	if err := s.PreWarm(context.Background()); err == nil {
+		t.Fatalf("expected prewarm error for nil emit")
 	}
 }
