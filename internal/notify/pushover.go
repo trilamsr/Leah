@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 const defaultPushoverAPI = "https://api.pushover.net/1/messages.json"
@@ -25,11 +26,13 @@ type Pushover struct {
 }
 
 // NewPushover returns a Pushover wired to the environment + default API URL.
+// HTTP client has explicit 10s timeout — daemon error path can't block on
+// slow DNS / Pushover endpoint.
 func NewPushover() *Pushover {
 	return &Pushover{
 		User:   os.Getenv("LEAH_PUSHOVER_USER"),
 		Token:  os.Getenv("LEAH_PUSHOVER_TOKEN"),
-		HTTP:   http.DefaultClient,
+		HTTP:   &http.Client{Timeout: 10 * time.Second},
 		APIURL: defaultPushoverAPI,
 	}
 }

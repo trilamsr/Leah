@@ -42,8 +42,7 @@ func dialReady(t *testing.T, sock string) net.Conn {
 }
 
 func TestServerEcho(t *testing.T) {
-	dir := t.TempDir()
-	sock := filepath.Join(dir, "leah.sock")
+	sock := shortSock(t)
 	handler := func(ctx context.Context, req Frame) (<-chan Frame, error) {
 		out := make(chan Frame, 1)
 		out <- Frame{Kind: "prose.delta", TurnID: req.TurnID, Seq: 1, Payload: json.RawMessage(`{"text":"echo"}`)}
@@ -72,8 +71,7 @@ func TestServerEcho(t *testing.T) {
 // First request returns (nil, nil); second must still be read and answered —
 // without the nil guard the server blocks on `range nil` forever.
 func TestServerNilChan(t *testing.T) {
-	dir := t.TempDir()
-	sock := filepath.Join(dir, "leah.sock")
+	sock := shortSock(t)
 	calls := 0
 	handler := func(ctx context.Context, req Frame) (<-chan Frame, error) {
 		calls++
@@ -111,8 +109,7 @@ func TestServerNilChan(t *testing.T) {
 // Handler error must surface as an error frame; subsequent peer reads
 // still work (or, on write failure, the conn closes cleanly).
 func TestServerHandlerErr(t *testing.T) {
-	dir := t.TempDir()
-	sock := filepath.Join(dir, "leah.sock")
+	sock := shortSock(t)
 	handler := func(ctx context.Context, req Frame) (<-chan Frame, error) {
 		return nil, errors.New("boom")
 	}
