@@ -114,3 +114,29 @@ func TestOutcomeSinkDropsOnOverflow(t *testing.T) {
 		t.Errorf("want most outcomes dropped on overflow, delivered %d", delivered)
 	}
 }
+
+// TestOutcomeSinkEmitCloseRace asserts concurrent Emit + Close never panics
+// on send-to-closed-channel. The select in Emit can pick the `s.ch <- o`
+// branch even after Close has begun, and a concurrent close(s.ch) then
+// panics the sending goroutine. Run under -race to surface the data race
+// on s.ch as well.
+func TestOutcomeSinkEmitCloseRace(t *testing.T) {
+	for iter := 0; iter < 50; iter++ {
+		sink := NewOutcomeSink(4, func(_ Outcome) {})
+		var wg sync.WaitGroup
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 500; j++ {
+					sink.Emit(OutcomeSuccess)
+				}
+			}()
+		}
+		// Race Close against the in-flight emitters.
+		sink.Close()
+		wg.Wait()
+		// Emit after Close must also be safe (no panic).
+		sink.Emit(OutcomeSuccess)
+	}
+}
