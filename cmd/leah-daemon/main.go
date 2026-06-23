@@ -199,6 +199,7 @@ func main() {
 	// nil — handler emits tts.speak.err until providers ship).
 	ttsClass := tts.NewBlockwordClassifier()
 	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, nil, nil, ttsClass)).Serve(ctx) }()
+	startMCPPublish(ctx, os.Stderr)
 
 	evalDone := make(chan struct{})
 	close(evalDone) // default: noop close-on-exit when LEAH_EVAL is unset
