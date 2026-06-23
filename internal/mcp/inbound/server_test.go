@@ -102,6 +102,26 @@ func TestServe_BudgetExhausted_LeahAsk(t *testing.T) {
 	}
 }
 
+func TestServe_RateLimited_AfterFiveBadTokens(t *testing.T) {
+	srv := New(NewTokenStore(InMemory()))
+	tp := newPipe()
+	for i := 0; i < 6; i++ {
+		tp.Push(Frame{ID: int64(i), Method: "tools/call", Token: "bogus", Params: mustJSON(map[string]any{"name": "leah.memory.search"})})
+	}
+	_ = tp.Close()
+	if err := srv.Serve(context.Background(), tp); err != nil {
+		t.Fatalf("Serve: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		if c := tp.Sent(i).Error.Code; c != "unauthorized" {
+			t.Fatalf("frame %d: want unauthorized, got %s", i, c)
+		}
+	}
+	if c := tp.Sent(5).Error.Code; c != "rate.limited" {
+		t.Fatalf("frame 5: want rate.limited, got %s", c)
+	}
+}
+
 func TestServe_RegisterDuplicate_Errors(t *testing.T) {
 	srv := New(NewTokenStore(InMemory()))
 	tool := MCPTool{Name: "x", Handler: func(_ context.Context, _ json.RawMessage) (any, error) { return nil, nil }}

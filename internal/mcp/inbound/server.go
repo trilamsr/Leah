@@ -174,7 +174,10 @@ func (s *Server) dispatch(ctx context.Context, f Frame) Frame {
 		if s.SourceFn != nil {
 			src = s.SourceFn()
 		}
-		_ = s.tokens.RecordFailure(ctx, src)
+		if rerr := s.tokens.RecordFailure(ctx, src); errors.Is(rerr, ErrRateLimited) {
+			resp.Error = &FrameError{Code: "rate.limited", Message: "too many failures"}
+			return resp
+		}
 		resp.Error = &FrameError{Code: "unauthorized", Message: "token rejected"}
 		return resp
 	}
