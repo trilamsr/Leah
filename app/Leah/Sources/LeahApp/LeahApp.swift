@@ -21,7 +21,7 @@ struct LeahApp: App {
   private let hud = AmbientHUDWindow()
   private let paletteObserver: PaletteObserver
   private let dashboard: DashboardWindow
-  private let dashboardHotkey: CommandDHotkey
+  private let dashboardHotkey: DashboardHotkey
 
   @MainActor
   init() {
@@ -55,16 +55,11 @@ struct LeahApp: App {
     let registry = WidgetTileRegistry()
     registry.registerWave2Defaults()
     let resolver = DashboardTileResolver { slot in
-      let env = WidgetEnvelope(
-        widget: slot.rawValue,
-        id: "dashboard-\(slot.rawValue)",
-        size: "M"
-      )
-      return registry.view(for: env) ?? AnyView(Color.clear)
+      AnyView(DashboardSlotPlaceholder(slot: slot, registry: registry))
     }
     let dash = DashboardWindow(resolver: resolver)
     dashboard = dash
-    dashboardHotkey = CommandDHotkey { Task { @MainActor in dash.toggle() } }
+    dashboardHotkey = DashboardHotkey { Task { @MainActor in dash.toggle() } }
     dashboardHotkey.register()
   }
 
@@ -74,7 +69,7 @@ struct LeahApp: App {
 }
 
 @MainActor
-final class CommandDHotkey {
+final class DashboardHotkey {
   private var ref: EventHotKeyRef?
   private let handler: () -> Void
 
@@ -94,7 +89,7 @@ final class CommandDHotkey {
           nil, MemoryLayout<EventHotKeyID>.size, nil, &hid
         )
         if hid.signature == OSType(0x4C454148) && hid.id == 2 {
-          let mgr = Unmanaged<CommandDHotkey>.fromOpaque(userData!).takeUnretainedValue()
+          let mgr = Unmanaged<DashboardHotkey>.fromOpaque(userData!).takeUnretainedValue()
           mgr.handler()
         }
         return noErr
@@ -107,7 +102,7 @@ final class CommandDHotkey {
     let id = EventHotKeyID(signature: OSType(0x4C454148), id: 2)
     RegisterEventHotKey(
       UInt32(kVK_ANSI_D),
-      UInt32(cmdKey),
+      UInt32(cmdKey | shiftKey),
       id,
       GetApplicationEventTarget(),
       0,
@@ -117,5 +112,24 @@ final class CommandDHotkey {
   }
 
   deinit { if let r = ref { UnregisterEventHotKey(r) } }
+}
+
+struct DashboardSlotPlaceholder: View {
+  let slot: DashboardTileSlot
+  let registry: WidgetTileRegistry
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(slot.rawValue.capitalized)
+        .font(.system(size: 13, weight: .medium))
+        .foregroundColor(LeahPalette.ivory)
+      Text("coming in Phase 4")
+        .font(.system(size: 11))
+        .foregroundColor(LeahPalette.textMuted)
+      Spacer(minLength: 0)
+    }
+    .padding(16)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
 }
 

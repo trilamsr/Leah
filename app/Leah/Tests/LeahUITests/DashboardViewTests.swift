@@ -6,15 +6,13 @@ import AppKit
 final class DashboardViewTests: XCTestCase {
   @MainActor
   func testReusesWidgetTileRegistry() {
-    var resolved: [DashboardTileSlot] = []
-    let resolver = DashboardTileResolver { slot in
-      resolved.append(slot)
-      return AnyView(Text(slot.rawValue))
-    }
-    _ = DashboardView(resolver: resolver)
-    let req = DashboardView.requiredSlots
-    for s in req { _ = resolver.view(for: s) }
-    XCTAssertEqual(Set(resolved), Set(req), "DashboardView must source tiles from the resolver, not embed views")
+    let resolver = DashboardTileResolver { slot in AnyView(Text(slot.rawValue)) }
+    let host = NSHostingView(rootView: DashboardView(resolver: resolver))
+    host.frame = NSRect(x: 0, y: 0, width: 1180, height: 760)
+    host.layoutSubtreeIfNeeded()
+    let want = Set(DashboardView.requiredSlots)
+    let got = Set(resolver.callCount.keys.filter { resolver.callCount[$0, default: 0] > 0 })
+    XCTAssertEqual(got, want, "DashboardView body must call resolver.view(for:) for every required slot")
   }
 
   @MainActor
@@ -22,9 +20,9 @@ final class DashboardViewTests: XCTestCase {
     let fm = FileManager.default
     let here = URL(fileURLWithPath: #filePath)
     let pkgRoot = here
-      .deletingLastPathComponent()  // LeahUITests
-      .deletingLastPathComponent()  // Tests
-      .deletingLastPathComponent()  // Leah
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
     let sources = pkgRoot.appendingPathComponent("Sources")
     let dashboardDir = sources.appendingPathComponent("LeahUI/Dashboard").path
     var offenders: [String] = []
@@ -50,15 +48,17 @@ final class DashboardViewTests: XCTestCase {
   }
 
   @MainActor
-  func testGoldAccentsBudget() {
-    XCTAssertLessThanOrEqual(DashboardView.goldAccentBudget, 3)
+  func testRequiredSlotsMatchSpec() {
+    XCTAssertEqual(DashboardView.requiredSlots, [.memory, .agenda, .briefs, .news, .knowledge])
   }
 
   @MainActor
-  func testDashboardWindowIsBorderlessAndFullScreen() {
+  func testDashboardWindowIsResizableWith1180x760Default() {
     let win = DashboardWindow.makeWindow()
-    XCTAssertTrue(win.styleMask.contains(NSWindow.StyleMask.borderless))
-    XCTAssertFalse(win.styleMask.contains(NSWindow.StyleMask.titled))
-    XCTAssertTrue(win.collectionBehavior.contains(NSWindow.CollectionBehavior.fullScreenPrimary))
+    XCTAssertTrue(win.styleMask.contains(NSWindow.StyleMask.titled))
+    XCTAssertTrue(win.styleMask.contains(NSWindow.StyleMask.resizable))
+    XCTAssertTrue(win.styleMask.contains(NSWindow.StyleMask.closable))
+    XCTAssertEqual(DashboardWindow.defaultSize, NSSize(width: 1180, height: 760))
+    XCTAssertEqual(win.frameAutosaveName, DashboardWindow.frameAutosaveName)
   }
 }

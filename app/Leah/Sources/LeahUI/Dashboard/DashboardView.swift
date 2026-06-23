@@ -2,16 +2,21 @@ import SwiftUI
 import AppKit
 
 public enum DashboardTileSlot: String, CaseIterable, Hashable, Sendable {
-  case market, weather, calendar, briefs
+  case memory, agenda, briefs, news, knowledge
 }
 
 public final class DashboardTileResolver {
   public typealias Resolve = (DashboardTileSlot) -> AnyView
 
   private let resolve: Resolve
+  public private(set) var callCount: [DashboardTileSlot: Int] = [:]
+
   public init(_ resolve: @escaping Resolve) { self.resolve = resolve }
 
-  public func view(for slot: DashboardTileSlot) -> AnyView { resolve(slot) }
+  public func view(for slot: DashboardTileSlot) -> AnyView {
+    callCount[slot, default: 0] += 1
+    return resolve(slot)
+  }
 
   public static var placeholder: DashboardTileResolver {
     DashboardTileResolver { _ in AnyView(Color.clear) }
@@ -20,8 +25,7 @@ public final class DashboardTileResolver {
 
 public struct DashboardView: View {
   public static let columnCount: Int = 2
-  public static let goldAccentBudget: Int = 3
-  public static let requiredSlots: [DashboardTileSlot] = [.market, .weather, .calendar, .briefs]
+  public static let requiredSlots: [DashboardTileSlot] = [.memory, .agenda, .briefs, .news, .knowledge]
 
   private let resolver: DashboardTileResolver
 
@@ -72,6 +76,5 @@ enum DashboardPalette {
   static let obsidian0  = Color(red: 0x08/255, green: 0x09/255, blue: 0x0C/255)
   static let obsidian2  = Color(red: 0x16/255, green: 0x19/255, blue: 0x22/255)
   static let ivory      = Color(red: 242/255,   green: 237/255,  blue: 224/255)
-  static let gold       = Color(red: 201/255,   green: 169/255,  blue: 97/255)
   static let hairline   = Color.white.opacity(0.20)
 }
