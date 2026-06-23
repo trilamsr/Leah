@@ -6,6 +6,15 @@ import SwiftUI
 public struct AdvancedPane: View {
     @AppStorage("leah.opus.nextReply") private var nextReply = false
     @AppStorage("leah.opus.sessionWide") private var sessionWide = false
+    @AppStorage(AdvancedPane.useRollbackChannelKey) private var useRollbackChannel = false
+
+    // Pinned to LeahUpdate's UpdateChannelPolicy — flipping this toggle widens
+    // Sparkle's allowed-channel set to include "rollback", which surfaces the
+    // last-known-good build when a freshly notarized release regresses.
+    public static let useRollbackChannelKey = "leah.update.useRollbackChannel"
+    public static func useRollbackChannelEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: useRollbackChannelKey)
+    }
 
     public init() {}
 
@@ -28,6 +37,14 @@ public struct AdvancedPane: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Use Opus 4.8 for this session").foregroundColor(.white)
                     Text("Persists until daemon restart or you toggle off.")
+                        .font(.system(size: 11)).foregroundColor(.gray)
+                }
+            }
+            Divider()
+            Toggle(isOn: $useRollbackChannel) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Use rollback channel for updates").foregroundColor(.white)
+                    Text("Surfaces the previous known-good build if the current release regressed.")
                         .font(.system(size: 11)).foregroundColor(.gray)
                 }
             }
