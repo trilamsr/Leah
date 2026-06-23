@@ -19,7 +19,7 @@ func TestMCPPublishWired_GatedOn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	startMCPPublishAt(ctx, os.Stderr, sock)
+	startMCPPublishAt(ctx, nil, nil, os.Stderr, sock)
 
 	if !waitFor(sock, true, 2*time.Second) {
 		t.Fatalf("publish socket not created at %s", sock)
@@ -39,7 +39,7 @@ func TestMCPPublishWired_GatedOff(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	startMCPPublishAt(ctx, os.Stderr, sock)
+	startMCPPublishAt(ctx, nil, nil, os.Stderr, sock)
 
 	time.Sleep(150 * time.Millisecond)
 	if _, err := os.Stat(sock); err == nil {

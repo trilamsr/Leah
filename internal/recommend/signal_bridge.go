@@ -59,7 +59,7 @@ func StartSignalBridge(ctx context.Context, bus EventSubscriber, engine *MemoryE
 		cancel: cancel,
 		done:   make(chan struct{}),
 	}
-	go br.run(subCtx, engine, opts.OnError)
+	obs.SafeGo(nil, nil, "recommend-signal-bridge", func() { br.run(subCtx, engine, opts.OnError) })
 	return br, nil
 }
 

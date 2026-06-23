@@ -16,6 +16,7 @@ import "C"
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"runtime"
 	"runtime/cgo"
 	"strings"
@@ -69,7 +70,14 @@ func startPump(_ Config) error {
 	ready := make(chan struct{})
 	go func() {
 		// Pin to one OS thread — CFRunLoop is per-thread, NSWorkspace observers
-		// only fire on the thread that registered them.
+		// only fire on the thread that registered them. Inline recover (no
+		// obs.SafeGo) because we cannot unlock the OS thread from another
+		// goroutine; the recover must fire on this same locked thread.
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Default().Error("osevent-darwin panic", "panic", r)
+			}
+		}()
 		runtime.LockOSThread()
 		close(ready)
 		C.leahOSEventStart(C.uintptr_t(p.handle))
