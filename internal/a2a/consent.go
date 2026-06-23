@@ -87,10 +87,16 @@ func (s *ConsentStore) Deny(ctx context.Context, peer PeerID, kind ConsentKind) 
 }
 
 // Check returns nil when (peer, kind) has a live consent row. ScopeOnce
-// consents are atomically consumed — the row is deleted on the first
-// successful Check so reuse fails the gate.
+// consents are atomically consumed inside a transaction — concurrent Checks
+// against the same once-row see exactly one success and one ErrConsentNotGranted.
 func (s *ConsentStore) Check(ctx context.Context, peer PeerID, kind ConsentKind) error {
-	row := s.DB.QueryRowContext(ctx, `
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("a2a: consent tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	row := tx.QueryRowContext(ctx, `
 		SELECT id, scope, expires_at FROM a2a_consent
 		WHERE peer_id = ? AND kind = ?
 	`, string(peer), string(kind))
@@ -105,15 +111,33 @@ func (s *ConsentStore) Check(ctx context.Context, peer PeerID, kind ConsentKind)
 	}
 	now := s.now().Unix()
 	if expires.Valid && now > expires.Int64 {
-		// Stale — clean up so the operator gets re-prompted next time.
-		_, _ = s.DB.ExecContext(ctx, `DELETE FROM a2a_consent WHERE id = ?`, id)
+		if _, err := tx.ExecContext(ctx, `DELETE FROM a2a_consent WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("a2a: gc stale-consent: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("a2a: commit gc: %w", err)
+		}
 		return ErrConsentNotGranted
 	}
 	if ConsentScope(scope) == ScopeOnce {
-		// One-shot — consume the row.
-		if _, err := s.DB.ExecContext(ctx, `DELETE FROM a2a_consent WHERE id = ?`, id); err != nil {
+		// Atomic one-shot: DELETE WHERE scope='once' so a concurrent racer
+		// either wins (rows=1, commit succeeds) or loses (rows=0, treat as
+		// not-granted). The scope check makes the predicate idempotent.
+		res, err := tx.ExecContext(ctx,
+			`DELETE FROM a2a_consent WHERE id = ? AND scope = 'once'`, id)
+		if err != nil {
 			return fmt.Errorf("a2a: consume once-consent: %w", err)
 		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("a2a: consume once-consent rows: %w", err)
+		}
+		if n == 0 {
+			return ErrConsentNotGranted
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("a2a: consent commit: %w", err)
 	}
 	return nil
 }

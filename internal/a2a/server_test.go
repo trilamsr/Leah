@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"net"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +21,9 @@ func newTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
+	// Pin to a single connection — multi-conn shared in-memory SQLite hands
+	// each goroutine a fresh empty DB, hiding cross-goroutine writes.
+	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 	if _, err := db.Exec(`
 		CREATE TABLE a2a_peer (
@@ -257,6 +262,46 @@ func TestConsentOnceConsumed(t *testing.T) {
 	}
 	if err := consent.Check(ctx, peer, ConsentAsk); !errors.Is(err, ErrConsentNotGranted) {
 		t.Fatalf("expected ErrConsentNotGranted on second check, got %v", err)
+	}
+}
+
+// TestConsentOnceRaceExactlyOneWinner exercises the §5.7 atomicity gate.
+func TestConsentOnceRaceExactlyOneWinner(t *testing.T) {
+	db := newTestDB(t)
+	consent := NewConsentStore(db)
+	ctx := context.Background()
+	for trial := 0; trial < 20; trial++ {
+		peer := PeerID("race")
+		if err := consent.Grant(ctx, peer, ConsentAsk, ScopeOnce); err != nil {
+			t.Fatalf("grant: %v", err)
+		}
+		var wins, denies int32
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				err := consent.Check(ctx, peer, ConsentAsk)
+				switch {
+				case err == nil:
+					atomic.AddInt32(&wins, 1)
+				case errors.Is(err, ErrConsentNotGranted):
+					atomic.AddInt32(&denies, 1)
+				default:
+					t.Errorf("unexpected err: %v", err)
+				}
+			}()
+		}
+		close(start)
+		wg.Wait()
+		if wins != 1 {
+			t.Fatalf("trial %d: wins=%d want 1 (denies=%d)", trial, wins, denies)
+		}
+		if denies != 7 {
+			t.Fatalf("trial %d: denies=%d want 7", trial, denies)
+		}
 	}
 }
 

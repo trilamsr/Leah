@@ -7,32 +7,38 @@ import (
 	"testing"
 )
 
-// TestEncodeDecodeRoundtrip asserts payload+kind+id survive CBOR.
+// TestEncodeDecodeRoundtrip asserts payload+kind+id+depth survive CBOR.
 func TestEncodeDecodeRoundtrip(t *testing.T) {
-	in := Frame{
-		ID:      NewID(),
-		Kind:    KindAskRequest,
-		Payload: []byte("hello world"),
-	}
-	b, err := Encode(in)
-	if err != nil {
-		t.Fatalf("encode: %v", err)
-	}
-	got, err := Decode(b)
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if got.V != ProtocolVersion {
-		t.Fatalf("V: got %d want %d", got.V, ProtocolVersion)
-	}
-	if got.ID != in.ID {
-		t.Fatalf("ID: got %q want %q", got.ID, in.ID)
-	}
-	if got.Kind != in.Kind {
-		t.Fatalf("Kind: got %q want %q", got.Kind, in.Kind)
-	}
-	if !bytes.Equal(got.Payload, in.Payload) {
-		t.Fatalf("Payload: got %x want %x", got.Payload, in.Payload)
+	for _, depth := range []int{0, 1, 2} {
+		in := Frame{
+			ID:      NewID(),
+			Kind:    KindTaskOffer,
+			Depth:   depth,
+			Payload: []byte("hello world"),
+		}
+		b, err := Encode(in)
+		if err != nil {
+			t.Fatalf("encode depth=%d: %v", depth, err)
+		}
+		got, err := Decode(b)
+		if err != nil {
+			t.Fatalf("decode depth=%d: %v", depth, err)
+		}
+		if got.V != ProtocolVersion {
+			t.Fatalf("V: got %d want %d", got.V, ProtocolVersion)
+		}
+		if got.ID != in.ID {
+			t.Fatalf("ID: got %q want %q", got.ID, in.ID)
+		}
+		if got.Kind != in.Kind {
+			t.Fatalf("Kind: got %q want %q", got.Kind, in.Kind)
+		}
+		if got.Depth != in.Depth {
+			t.Fatalf("Depth: got %d want %d", got.Depth, in.Depth)
+		}
+		if !bytes.Equal(got.Payload, in.Payload) {
+			t.Fatalf("Payload: got %x want %x", got.Payload, in.Payload)
+		}
 	}
 }
 
