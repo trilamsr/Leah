@@ -42,13 +42,22 @@ const (
 	// the HUD; emits KindTTSCloudFrame chunks (ElevenLabs path), a single
 	// KindTTSAppleSpeak trigger (Apple Ava — HUD plays locally), and
 	// terminal KindTTSSpeakDone / KindTTSSpeakErr / KindTTSCancelOK.
-	KindTTSSpeak       = "tts.speak"
-	KindTTSCancel      = "tts.cancel"
-	KindTTSCloudFrame  = "tts.cloud.frame"
-	KindTTSAppleSpeak  = "tts.apple.speak"
-	KindTTSSpeakDone   = "tts.speak.done"
-	KindTTSSpeakErr    = "tts.speak.err"
-	KindTTSCancelOK    = "tts.cancel.ok"
+	KindTTSSpeak      = "tts.speak"
+	KindTTSCancel     = "tts.cancel"
+	KindTTSCloudFrame = "tts.cloud.frame"
+	KindTTSAppleSpeak = "tts.apple.speak"
+	KindTTSSpeakDone  = "tts.speak.done"
+	KindTTSSpeakErr   = "tts.speak.err"
+	KindTTSCancelOK   = "tts.cancel.ok"
+
+	// Voice duplex kinds — §1.3.2. Daemon receives KindVoiceStart / KindVoiceBarge /
+	// KindVoiceEnd from the HUD; emits KindVoicePartial transcript updates and
+	// KindVoiceTTSChunk audio frames between them.
+	KindVoiceStart    = "voice.start"
+	KindVoicePartial  = "voice.partial"
+	KindVoiceTTSChunk = "voice.tts.chunk"
+	KindVoiceBarge    = "voice.barge"
+	KindVoiceEnd      = "voice.end"
 )
 
 // Frame is the wire format. Seq is signed int64 so negative values can be

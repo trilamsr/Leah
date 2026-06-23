@@ -16,6 +16,7 @@ import (
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/tts"
+	"github.com/trilam/leah/internal/voice/duplex"
 )
 
 // errVerifyFailed is returned by pingFn when the API key is rejected.
@@ -40,7 +41,7 @@ type fetchFn func(ctx context.Context, query string, k int) ([]knowledge.Chunk, 
 type enrichFn func(ctx context.Context, citationURL string) (*knowledge.CitationEnrichment, error)
 
 // newIPCHandler is the production constructor wired into main.go.
-func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier) ipc.Handler {
+func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier, voiceSess duplex.DuplexSession) ipc.Handler {
 	return newIPCHandlerWithClassifyEnrich(db,
 		liveStreamFn(sonnet),
 		liveOpusStreamFn(sonnet),
@@ -51,6 +52,7 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 		time.Now(),
 		ring,
 		ttsCloud, ttsLocal, ttsClass,
+		voiceSess,
 	)
 }
 
@@ -59,19 +61,19 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 func newIPCHandlerForTest(db *sql.DB, s streamFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
 	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil)
+		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil, nil)
 }
 
 // newIPCHandlerWithPingForTest is kept for existing verify-key tests.
 func newIPCHandlerWithPingForTest(db *sql.DB, s streamFn, ping pingFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify, ping, nil, nil, time.Time{}, nil, nil, nil, nil)
+	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify, ping, nil, nil, time.Time{}, nil, nil, nil, nil, nil)
 }
 
 // newIPCHandlerWithDiag is kept for the diag_test.go test fixture.
 func newIPCHandlerWithDiag(db *sql.DB, s streamFn, ping pingFn, startTime time.Time) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify, ping, nil, nil, startTime, nil, nil, nil, nil)
+	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify, ping, nil, nil, startTime, nil, nil, nil, nil, nil)
 }
 
 // newIPCHandlerWithClassify is the pre-enrichment injection point — kept so
@@ -89,7 +91,7 @@ func newIPCHandlerWithClassify(
 	ttsClass tts.Classifier,
 ) ipc.Handler {
 	return newIPCHandlerWithClassifyEnrich(db, sonnetStream, opusStream, classify, ping, fetch, nil,
-		startTime, ring, ttsCloud, ttsLocal, ttsClass)
+		startTime, ring, ttsCloud, ttsLocal, ttsClass, nil)
 }
 
 // newIPCHandlerWithClassifyEnrich is the full injection point — all production
@@ -105,6 +107,7 @@ func newIPCHandlerWithClassifyEnrich(
 	ring *obs.ErrorRing,
 	ttsCloud, ttsLocal tts.Provider,
 	ttsClass tts.Classifier,
+	voiceSess duplex.DuplexSession,
 ) ipc.Handler {
 	reg := newTTSRegistry()
 	return func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
@@ -131,6 +134,12 @@ func newIPCHandlerWithClassifyEnrich(
 			return handleTTSSpeak(ctx, req, ttsCloud, ttsLocal, ttsClass, reg)
 		case ipc.KindTTSCancel:
 			return handleTTSCancel(ctx, req, reg)
+		case ipc.KindVoiceStart:
+			return handleVoiceStart(ctx, req, voiceSess)
+		case ipc.KindVoiceBarge:
+			return handleVoiceBarge(ctx, req, voiceSess)
+		case ipc.KindVoiceEnd:
+			return handleVoiceEnd(ctx, req, voiceSess)
 		default:
 			return errFrame(req, fmt.Sprintf("unknown kind: %q", req.Kind)), nil
 		}

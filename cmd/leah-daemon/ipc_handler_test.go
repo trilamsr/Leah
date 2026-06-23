@@ -275,7 +275,7 @@ func TestIPCHandlerCitationWidgetEnriches(t *testing.T) {
 	}
 
 	h := newIPCHandlerWithClassifyEnrich(db, sonnetStream, sonnetStream, citationClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil)
+		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil, nil)
 
 	in := ipc.Frame{Kind: "ask", TurnID: "c1", Payload: json.RawMessage(`{"text":"summarise https://arxiv.org/abs/2406.12345"}`)}
 	out, err := h(context.Background(), in)
@@ -324,7 +324,7 @@ func TestIPCHandlerCitationGracefulDegradeOnEnrichErr(t *testing.T) {
 		return nil, errors.New("kg unavailable")
 	}
 	h := newIPCHandlerWithClassifyEnrich(db, noStream, noStream, citationClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil)
+		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil, nil)
 
 	in := ipc.Frame{Kind: "ask", TurnID: "c2", Payload: json.RawMessage(`{"text":"summarise X"}`)}
 	out, err := h(context.Background(), in)
@@ -369,7 +369,7 @@ func TestIPCHandlerCitationCtxCancelPropagates(t *testing.T) {
 		return nil, ctx.Err()
 	}
 	h := newIPCHandlerWithClassifyEnrich(db, noStream, noStream, citationClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil)
+		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
