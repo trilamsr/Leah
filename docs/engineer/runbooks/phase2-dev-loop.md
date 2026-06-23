@@ -84,6 +84,12 @@ Three macOS permission gates can block scripts:
 
 The script is macOS-only — on Linux it prints a `skip:` line and exits 0 so the same CI workflow can host it without branching. Invariant 1 SKIPs without `ANTHROPIC_API_KEY`, invariant 7 SKIPs without `LEAH_EMBED_MODEL_PATH` (or `LEAH_MODEL_DIR`). On failure the script exits with the first failing step number and prints `STEP=N` to stderr; daemon log is at `/tmp/leah-phase2-e2e.log`. `make phase2-smoke-stop` force-cleans state if a run aborts.
 
+## Run Phase 3 e2e
+
+`bash scripts/dev/phase3-smoke.sh` asserts the ten Phase 3 invariants in a single macOS-only run: tts classifier routes public→ElevenLabs and sensitive→Apple Ava per §17.17, `tts.speak`/`tts.cancel` IPC frame kinds wired with ctx-cancel propagation, push-source kinds `push.{mail,contacts,focus,activeapp}` reaching the HUD, KG citation enrichment filling the source `Domain`, MCP publish socket gated by `LEAH_MCP_PUBLISH=1` (default off), minimal-mode toggle stripping gold from the rendered HUD, Touch ID purge fails-closed without typed `PURGE`, Sparkle EdDSA verify rejecting bad-sig payload, dashboard surface reusing `WidgetTileRegistry`, and `scripts/check-spec-parity.sh` clean.
+
+Same OS guard as Phase 2 — non-darwin prints `skip:` and exits 0. `LEAH_E2E_STUB=1` (default under `CI=1`) stubs the audio device + biometric prompt + screenshot pixel-probe so CI does not need Screen-Recording, Audio, or LocalAuthentication entitlements. On assertion failure the script's exit code is the first failing step number and `STEP=N` is written to stderr; `trap EXIT` tears down state (`~/.leah-state-phase3-e2e/`, `/tmp/leah-phase3-e2e.pid`) even when the gate fails. `bash scripts/dev/phase3-smoke.sh --cleanup-only` force-cleans state if a run aborts; `--check-os-guard` reports the host-OS branch without running the gates; `--self-test-trap` proves the cleanup trap fires under forced failure.
+
 ## Troubleshooting
 
 `socket did not appear` — daemon failed to start; check `/tmp/leah-dev.log`. Common cause: port conflict or missing `ANTHROPIC_API_KEY`.
