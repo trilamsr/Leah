@@ -9,19 +9,20 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/sync/crdt"
+	"github.com/trilam/leah/internal/sync/discovery"
 	_ "modernc.org/sqlite"
 )
 
-// fakePeer implements crdt.Peer for tests with no network surface.
+// fakePeer implements discovery.Peer for tests with no network surface.
 type fakePeer struct {
-	id     crdt.DeviceID
-	status crdt.PeerStatus
+	id     discovery.DeviceID
+	status discovery.PeerStatus
 }
 
-func (p *fakePeer) ID() crdt.DeviceID        { return p.id }
-func (p *fakePeer) Endpoint() netip.AddrPort { return netip.AddrPort{} }
-func (p *fakePeer) LastSeenAt() time.Time    { return time.Unix(0, 0) }
-func (p *fakePeer) Status() crdt.PeerStatus  { return p.status }
+func (p *fakePeer) ID() discovery.DeviceID       { return p.id }
+func (p *fakePeer) Endpoint() netip.AddrPort     { return netip.AddrPort{} }
+func (p *fakePeer) LastSeenAt() time.Time        { return time.Unix(0, 0) }
+func (p *fakePeer) Status() discovery.PeerStatus { return p.status }
 
 // fakeCRDT lets tests assert on Coord wiring without touching SQLite for the
 // non-outbox path (outbox tests below use a real DB).
@@ -41,10 +42,10 @@ func (f *fakeCRDT) EmitLog(_ context.Context, _ crdt.Lamport, _ int) ([]crdt.Log
 }
 func (f *fakeCRDT) GCTombstones(_ context.Context, _ time.Time) (int, error) { return 0, nil }
 
-type fakePairer struct{ peer crdt.Peer }
+type fakePairer struct{ peer discovery.Peer }
 
-func (p *fakePairer) Pair(_ context.Context, _ string) (crdt.Peer, error) { return p.peer, nil }
-func (p *fakePairer) Disconnect(_ context.Context, _ crdt.Peer) error     { return nil }
+func (p *fakePairer) Pair(_ context.Context, _ string) (discovery.Peer, error) { return p.peer, nil }
+func (p *fakePairer) Disconnect(_ context.Context, _ discovery.Peer) error     { return nil }
 
 // Pause must short-circuit ApplyRemote without touching the CRDT log — otherwise the
 // kill-switch is racy and a paused peer can still mutate state (§2.6).

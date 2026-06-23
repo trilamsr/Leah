@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/trilam/leah/internal/sync/discovery"
 	_ "modernc.org/sqlite"
 )
 
@@ -33,7 +34,7 @@ func (t *testStore) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, 
 	return t.db.BeginTx(ctx, opts)
 }
 
-func newLog(t *testing.T, self DeviceID) (*Log, *sql.DB) {
+func newLog(t *testing.T, self discovery.DeviceID) (*Log, *sql.DB) {
 	t.Helper()
 	dsn := "file:" + filepath.Join(t.TempDir(), "sync.db") + "?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)"
 	db, err := sql.Open("sqlite", dsn)
@@ -49,7 +50,7 @@ func newLog(t *testing.T, self DeviceID) (*Log, *sql.DB) {
 }
 
 // Replaying the same LogEntry twice must leave on-disk state unchanged and
-// surface as Skipped, not Applied (§2.3 "tombstones are honored idempotently").
+// surface as Skipped, not Applied.
 func TestApplyLog_IdempotentReplay(t *testing.T) {
 	l, _ := newLog(t, "self")
 	ctx := context.Background()
@@ -72,8 +73,7 @@ func TestApplyLog_IdempotentReplay(t *testing.T) {
 	}
 }
 
-// A tombstone replay (OpDelete) must be idempotent: re-applying does not create
-// a second sync_tombstone row, and the clock advances only if Lamport advances.
+// A tombstone replay (OpDelete) must be idempotent.
 func TestApplyLog_TombstoneIdempotent(t *testing.T) {
 	l, db := newLog(t, "self")
 	ctx := context.Background()
@@ -96,12 +96,10 @@ func TestApplyLog_TombstoneIdempotent(t *testing.T) {
 }
 
 // When a remote write loses LWW resolution against an existing higher-lamport
-// local write, ApplyLog reports Conflict. The remote clock still records on disk
-// (so a future peer learns about it) but Applied does not increment.
+// local write, ApplyLog reports Conflict.
 func TestApplyLog_LWWConflict(t *testing.T) {
 	l, _ := newLog(t, "self")
 	ctx := context.Background()
-	// Local higher-lamport write from node-z wins.
 	local := LogEntry{Table: "settings", RowID: 1, Node: "node-z", Lamport: 10, Op: OpUpdate, Payload: []byte("L")}
 	if _, err := l.ApplyLog(ctx, []LogEntry{local}); err != nil {
 		t.Fatalf("local: %v", err)
@@ -117,7 +115,7 @@ func TestApplyLog_LWWConflict(t *testing.T) {
 }
 
 // EmitLog returns rows with lamport > since, sorted (lamport ASC, node ASC),
-// and marks tombstoned rows as OpDelete so a fresh peer learns the deletion.
+// and marks tombstoned rows as OpDelete.
 func TestEmitLog_OrderingAndTombstoneMark(t *testing.T) {
 	l, _ := newLog(t, "self")
 	ctx := context.Background()
@@ -139,7 +137,6 @@ func TestEmitLog_OrderingAndTombstoneMark(t *testing.T) {
 	if out[0].Lamport >= out[1].Lamport {
 		t.Fatalf("not sorted asc: %+v", out)
 	}
-	// The lamport=3 OpDelete must surface as OpDelete on emit.
 	for _, e := range out {
 		if e.RowID == 2 && e.Op != OpDelete {
 			t.Fatalf("rowid=2 emitted as %s, want OpDelete", e.Op)

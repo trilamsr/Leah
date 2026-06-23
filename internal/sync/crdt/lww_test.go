@@ -3,6 +3,8 @@ package crdt
 import (
 	"bytes"
 	"testing"
+
+	"github.com/trilam/leah/internal/sync/discovery"
 )
 
 // Resolve must order on (lamport DESC, device lex ASC) — the spec invariant in §2.3.
@@ -13,7 +15,7 @@ func TestResolve_LamportThenDeviceLex(t *testing.T) {
 		local, remote LWWValue
 		wantPayload   []byte
 		wantLamport   Lamport
-		wantDevice    DeviceID
+		wantDevice    discovery.DeviceID
 	}{
 		{
 			name:        "higher lamport wins regardless of device",
@@ -57,7 +59,6 @@ func TestResolve_LamportThenDeviceLex(t *testing.T) {
 }
 
 // Resolve must be order-independent — swapping local/remote yields the same winner.
-// Otherwise two peers replaying the same pair land on different values.
 func TestResolve_Commutative(t *testing.T) {
 	a := LWWValue{Payload: []byte("A"), Lamport: 7, Device: "aaaa"}
 	b := LWWValue{Payload: []byte("B"), Lamport: 7, Device: "bbbb"}

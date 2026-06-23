@@ -7,13 +7,15 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	"github.com/trilam/leah/internal/sync/discovery"
 )
 
 // LogEntry is one row on the add-only replicated log (§2.4.1).
 type LogEntry struct {
 	Table   string
 	RowID   int64
-	Node    DeviceID
+	Node    discovery.DeviceID
 	Lamport Lamport
 	Op      Op
 	Payload []byte
@@ -42,12 +44,12 @@ type Store interface {
 // and provides idempotent replay against the (table_name, row_id, node_uuid) PK.
 type Log struct {
 	store Store
-	self  DeviceID
+	self  discovery.DeviceID
 }
 
 // NewLog binds a Log to a sqlstore and the local DeviceID. The DeviceID is used
 // as the deterministic tiebreaker in Resolve and as deleted_by on emitted tombstones.
-func NewLog(store Store, self DeviceID) *Log {
+func NewLog(store Store, self discovery.DeviceID) *Log {
 	return &Log{store: store, self: self}
 }
 
@@ -109,7 +111,7 @@ func (l *Log) applyOne(ctx context.Context, tx *sql.Tx, e LogEntry) (bool, bool,
 		}
 	}
 
-	// Cross-node LWW: is there a competing write with a higher (lamport, device)?
+	// Cross-node LWW: does another node hold a competing higher (lamport, device)?
 	conflict, err := l.lwwConflict(ctx, tx, e)
 	if err != nil {
 		return false, false, err
@@ -151,7 +153,7 @@ func (l *Log) lwwConflict(ctx context.Context, tx *sql.Tx, e LogEntry) (bool, er
 		if err := rows.Scan(&nodeStr, &lam); err != nil {
 			return false, fmt.Errorf("scan row: %w", err)
 		}
-		competitor := LWWValue{Payload: []byte{0}, Lamport: Lamport(lam), Device: DeviceID(nodeStr)}
+		competitor := LWWValue{Payload: []byte{0}, Lamport: Lamport(lam), Device: discovery.DeviceID(nodeStr)}
 		if winner := Resolve(competitor, incoming); winner.Device != e.Node {
 			return true, rows.Err()
 		}
@@ -189,7 +191,7 @@ func (l *Log) EmitLog(ctx context.Context, since Lamport, limit int) ([]LogEntry
 		if err := cur.Scan(&e.Table, &e.RowID, &node, &lam); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
-		e.Node = DeviceID(node)
+		e.Node = discovery.DeviceID(node)
 		e.Lamport = Lamport(lam)
 		e.Op = OpUpdate // default; tombstone lookup below promotes to OpDelete
 		out = append(out, e)

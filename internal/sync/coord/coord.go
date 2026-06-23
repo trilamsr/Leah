@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/trilam/leah/internal/sync/crdt"
+	"github.com/trilam/leah/internal/sync/discovery"
 )
 
 // SyncEventKind enumerates lifecycle events surfaced via Subscribe (§2.4.1).
@@ -23,24 +24,24 @@ const (
 // SyncEvent is one observable transition for HUD toasts + Settings ledger (§2.4.1).
 type SyncEvent struct {
 	Kind  SyncEventKind
-	Peer  crdt.Peer
+	Peer  discovery.Peer
 	Stats crdt.DeltaStats
 }
 
 // SyncCoordinator is the daemon-side multi-device sync surface (§2.4.1).
 type SyncCoordinator interface {
-	Pair(ctx context.Context, otp string) (crdt.Peer, error)
-	Unpair(ctx context.Context, p crdt.Peer) error
-	Pause(ctx context.Context, p crdt.Peer) error
-	Resume(ctx context.Context, p crdt.Peer) error
+	Pair(ctx context.Context, otp string) (discovery.Peer, error)
+	Unpair(ctx context.Context, p discovery.Peer) error
+	Pause(ctx context.Context, p discovery.Peer) error
+	Resume(ctx context.Context, p discovery.Peer) error
 	Subscribe() <-chan SyncEvent
 }
 
 // Pairer is the T10-side transport hook the coordinator delegates the OTP +
 // mTLS handshake to. Coord owns CRDT semantics; transport owns network.
 type Pairer interface {
-	Pair(ctx context.Context, otp string) (crdt.Peer, error)
-	Disconnect(ctx context.Context, p crdt.Peer) error
+	Pair(ctx context.Context, otp string) (discovery.Peer, error)
+	Disconnect(ctx context.Context, p discovery.Peer) error
 }
 
 // Coord is the default SyncCoordinator. It composes:
@@ -57,8 +58,8 @@ type Coord struct {
 	outbox *Outbox
 
 	mu     sync.RWMutex
-	paused map[crdt.DeviceID]bool
-	peers  map[crdt.DeviceID]crdt.Peer
+	paused map[discovery.DeviceID]bool
+	peers  map[discovery.DeviceID]discovery.Peer
 
 	subsMu sync.RWMutex
 	subs   []chan SyncEvent
@@ -70,14 +71,14 @@ func NewCoord(p Pairer, log crdt.CRDT, outbox *Outbox) *Coord {
 		pairer: p,
 		log:    log,
 		outbox: outbox,
-		paused: map[crdt.DeviceID]bool{},
-		peers:  map[crdt.DeviceID]crdt.Peer{},
+		paused: map[discovery.DeviceID]bool{},
+		peers:  map[discovery.DeviceID]discovery.Peer{},
 	}
 }
 
 // Pair delegates the OTP handshake to the transport then records the new peer so
 // future Pause/Resume/Unpair are O(1) lookups.
-func (c *Coord) Pair(ctx context.Context, otp string) (crdt.Peer, error) {
+func (c *Coord) Pair(ctx context.Context, otp string) (discovery.Peer, error) {
 	if c.pairer == nil {
 		return nil, errors.New("no pairer wired")
 	}
@@ -95,7 +96,7 @@ func (c *Coord) Pair(ctx context.Context, otp string) (crdt.Peer, error) {
 
 // Unpair tears down the transport session and forgets the peer. The shared keychain
 // secret nuke (§2.6) lives in the transport layer, not here.
-func (c *Coord) Unpair(ctx context.Context, p crdt.Peer) error {
+func (c *Coord) Unpair(ctx context.Context, p discovery.Peer) error {
 	if c.pairer != nil {
 		if err := c.pairer.Disconnect(ctx, p); err != nil {
 			return fmt.Errorf("disconnect: %w", err)
@@ -111,7 +112,7 @@ func (c *Coord) Unpair(ctx context.Context, p crdt.Peer) error {
 
 // Pause flips the per-peer kill switch. Subsequent ApplyRemote + EmitFor calls
 // return ErrPaused without touching the log or outbox.
-func (c *Coord) Pause(ctx context.Context, p crdt.Peer) error {
+func (c *Coord) Pause(ctx context.Context, p discovery.Peer) error {
 	c.mu.Lock()
 	c.paused[p.ID()] = true
 	c.mu.Unlock()
@@ -120,7 +121,7 @@ func (c *Coord) Pause(ctx context.Context, p crdt.Peer) error {
 
 // Resume clears the kill switch. The next delta from this peer replays from the
 // last lamport recorded in sync_clock (§2.6).
-func (c *Coord) Resume(ctx context.Context, p crdt.Peer) error {
+func (c *Coord) Resume(ctx context.Context, p discovery.Peer) error {
 	c.mu.Lock()
 	delete(c.paused, p.ID())
 	c.mu.Unlock()
@@ -132,7 +133,7 @@ var ErrPaused = errors.New("peer paused")
 
 // ApplyRemote routes a remote batch through the CRDT log and surfaces the
 // resulting stats as either EventDeltaApplied or EventConflict (§2.4.1).
-func (c *Coord) ApplyRemote(ctx context.Context, p crdt.Peer, entries []crdt.LogEntry) (crdt.DeltaStats, error) {
+func (c *Coord) ApplyRemote(ctx context.Context, p discovery.Peer, entries []crdt.LogEntry) (crdt.DeltaStats, error) {
 	c.mu.RLock()
 	paused := c.paused[p.ID()]
 	c.mu.RUnlock()
@@ -154,7 +155,7 @@ func (c *Coord) ApplyRemote(ctx context.Context, p crdt.Peer, entries []crdt.Log
 // EmitFor queues outbound deltas for a peer. Returns ErrPaused if the kill switch
 // is engaged so the caller does not silently drop the deltas — the next Resume
 // will pick them up on a fresh EmitLog call.
-func (c *Coord) EmitFor(ctx context.Context, p crdt.Peer, since crdt.Lamport, limit int) error {
+func (c *Coord) EmitFor(ctx context.Context, p discovery.Peer, since crdt.Lamport, limit int) error {
 	c.mu.RLock()
 	paused := c.paused[p.ID()]
 	c.mu.RUnlock()

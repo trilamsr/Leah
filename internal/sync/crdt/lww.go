@@ -1,6 +1,11 @@
+// Package crdt models the replicated data layer for multi-device sync (phase4 §2.3).
 package crdt
 
-import "bytes"
+import (
+	"bytes"
+
+	"github.com/trilam/leah/internal/sync/discovery"
+)
 
 // Lamport is a logical clock value (§2.3). Wall-clock skew is intentionally absent —
 // LWW resolves on declared lamport then DeviceID lex tiebreak so a 5-min clock drift
@@ -20,7 +25,7 @@ const (
 type LWWValue struct {
 	Payload []byte
 	Lamport Lamport
-	Device  DeviceID
+	Device  discovery.DeviceID
 }
 
 // Resolve picks the winner between local + remote LWW writes (§2.3).
@@ -44,8 +49,6 @@ func Resolve(local, remote LWWValue) LWWValue {
 	case remote.Lamport < local.Lamport:
 		return local
 	}
-	// Lamport tie — lex order on DeviceID. Lower string wins so the choice is
-	// stable regardless of which side called Resolve.
 	if string(remote.Device) < string(local.Device) {
 		return remote
 	}

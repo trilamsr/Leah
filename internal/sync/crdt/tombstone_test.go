@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// GCTombstones removes only rows whose deleted_at < cutoff; younger tombstones stay
-// so a peer still learns about deletions on resume (§2.3).
+// GCTombstones removes only rows whose deleted_at < cutoff; younger tombstones stay.
 func TestGCTombstones_RetainsYoung(t *testing.T) {
 	l, db := newLog(t, "self")
 	ctx := context.Background()

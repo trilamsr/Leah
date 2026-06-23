@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/sync/crdt"
+	"github.com/trilam/leah/internal/sync/discovery"
 )
 
 // OutboxMaxBytes caps the on-disk outbox at 50 MB (§2.7 "Outbox > 50 MB"). Once the
@@ -35,7 +36,7 @@ func NewOutbox(store crdt.Store) *Outbox { return &Outbox{store: store} }
 // If the total outbox size after this enqueue would exceed OutboxMaxBytes, the
 // oldest already-sent (sent_at NOT NULL) rows are dropped until the projected
 // size fits. Unsent rows are preserved — losing those would lose a delta forever.
-func (o *Outbox) Enqueue(ctx context.Context, peer crdt.DeviceID, entries []crdt.LogEntry) error {
+func (o *Outbox) Enqueue(ctx context.Context, peer discovery.DeviceID, entries []crdt.LogEntry) error {
 	if peer == "" {
 		return errors.New("empty peer id")
 	}
