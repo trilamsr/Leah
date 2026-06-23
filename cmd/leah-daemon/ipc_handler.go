@@ -108,7 +108,17 @@ func newIPCHandlerWithClassifyEnrich(
 ) ipc.Handler {
 	reg := newTTSRegistry()
 	return func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
+		// turn_id required for correlation across multiplexed conns.
+		if req.TurnID == "" && req.Kind != "diag.state" {
+			return errFrame(req, "turn_id required"), nil
+		}
+		// seq must be non-negative — Phase 3 spec §10.7 says monotonic per turn.
+		if req.Seq < 0 {
+			return errFrame(req, fmt.Sprintf("seq must be >= 0, got %d", req.Seq)), nil
+		}
 		switch req.Kind {
+		case "ask":
+			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch, enrich)
 		case "verify-key":
 			return handleVerifyKey(ctx, req, ping)
 		case "diag.state":
@@ -116,15 +126,24 @@ func newIPCHandlerWithClassifyEnrich(
 			if ring != nil {
 				last = ring.Last()
 			}
-			return ipc.HandleState(ctx, startTime, last)
+			return ipc.HandleState(ctx, startTime, last, req.TurnID)
 		case ipc.KindTTSSpeak:
 			return handleTTSSpeak(ctx, req, ttsCloud, ttsLocal, ttsClass, reg)
 		case ipc.KindTTSCancel:
 			return handleTTSCancel(ctx, req, reg)
 		default:
-			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch, enrich)
+			return errFrame(req, fmt.Sprintf("unknown kind: %q", req.Kind)), nil
 		}
 	}
+}
+
+// errFrame builds a one-shot error frame echoing the request turn_id.
+func errFrame(req ipc.Frame, msg string) <-chan ipc.Frame {
+	out := make(chan ipc.Frame, 1)
+	payload, _ := json.Marshal(map[string]string{"error": msg})
+	out <- ipc.Frame{Kind: "error", TurnID: req.TurnID, Seq: 1, Payload: payload}
+	close(out)
+	return out
 }
 
 // handleAsk classifies the query (Haiku router), routes widget intents to
@@ -251,7 +270,7 @@ func liveStreamFn(c *reasoner.AnthropicClient) streamFn {
 		out := make(chan ipc.Frame, 16)
 		go func() {
 			defer close(out)
-			var seq uint64
+			var seq int64
 			for d := range deltas {
 				if d.Text == "" {
 					continue

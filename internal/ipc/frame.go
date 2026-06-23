@@ -34,10 +34,13 @@ const (
 	KindTTSCancelOK    = "tts.cancel.ok"
 )
 
+// Frame is the wire format. Seq is signed int64 so negative values can be
+// rejected explicitly at handler boundary (uint64 silently coerced them to
+// huge positives and the bad-faith client never saw a structured error).
 type Frame struct {
 	Kind    string          `json:"kind"`
 	TurnID  string          `json:"turn_id"`
-	Seq     uint64          `json:"seq"`
+	Seq     int64           `json:"seq"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 

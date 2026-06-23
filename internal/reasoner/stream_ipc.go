@@ -59,7 +59,7 @@ func streamToIPCWith(ctx context.Context, s streamer, turnID, system string, his
 	out := make(chan ipc.Frame, 8)
 	go func() {
 		defer close(out)
-		var seq uint64
+		var seq int64
 		var inTokFinal, outTokFinal int
 		var haveFinal bool
 		maxText := ipc.MaxFrameBytes - proseFrameOverhead

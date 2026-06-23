@@ -5,7 +5,8 @@ public struct CitationTileView: View {
 
   public let envelope: WidgetEnvelope
 
-  public static let titleFont: Font = .system(.body, design: .serif).italic()
+  // Body serif (not italic) — Tiempos/serif italic is Dashboard-only per spec §10.1+decision #28.
+  public static let titleFont: Font = .system(.body, design: .serif)
   public static let goldSurfaceCount = 1
 
   public init(envelope: WidgetEnvelope) { self.envelope = envelope }

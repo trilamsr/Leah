@@ -5,7 +5,7 @@ import AVFoundation
 // Permission calls ONLY from button action (not init) — AppKit gotcha.
 public struct MicStep: View {
   let onContinue: () -> Void
-  @AppStorage("leah.wakeword.enabled") private var wakeWordEnabled = false
+  @AppStorage("leah.voice.wakeWord") private var wakeWordEnabled = false
   @State private var granted = false
 
   public init(onContinue: @escaping () -> Void) { self.onContinue = onContinue }

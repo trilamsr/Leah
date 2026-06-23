@@ -105,7 +105,7 @@ func handleTTSSpeak(
 		defer func() { _ = stream.Close() }()
 
 		buf := make([]byte, 4096)
-		var seq uint64 = 1
+		var seq int64 = 1
 		for {
 			n, rerr := stream.Read(buf)
 			if n > 0 {
@@ -160,7 +160,7 @@ func ttsErrChan(req ipc.Frame, msg string) <-chan ipc.Frame {
 	return out
 }
 
-func emitTTSErr(ctx context.Context, out chan<- ipc.Frame, turnID string, seq uint64, err error) {
+func emitTTSErr(ctx context.Context, out chan<- ipc.Frame, turnID string, seq int64, err error) {
 	payload, _ := json.Marshal(map[string]string{"error": err.Error()})
 	select {
 	case <-ctx.Done():

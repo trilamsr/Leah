@@ -30,7 +30,10 @@ struct LeahApp: App {
     observer.attach()
     paletteObserver = observer
     // Wizard runs BEFORE hotkey registration — trust signal at first launch.
-    wizard.presentIfNeeded()
+    // Defer to next runloop tick — NSApp is mid-launch in App.init; window
+    // would otherwise spawn but never gain focus (round 2 hunt 2026-06-23).
+    let wiz = wizard
+    DispatchQueue.main.async { wiz.presentIfNeeded() }
 
     let client = IPCClient()
     let fp = FocusPanelController(client: client)
@@ -78,16 +81,17 @@ final class DashboardHotkey {
       eventClass: OSType(kEventClassKeyboard),
       eventKind: OSType(kEventHotKeyPressed)
     )
-    InstallEventHandler(
+    let installStatus = InstallEventHandler(
       GetApplicationEventTarget(),
       { _, evt, userData in
+        guard let ud = userData else { return OSStatus(eventParameterNotFoundErr) }
         var hid = EventHotKeyID()
         GetEventParameter(
           evt, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
           nil, MemoryLayout<EventHotKeyID>.size, nil, &hid
         )
         if hid.signature == OSType(0x4C454148) && hid.id == 2 {
-          let mgr = Unmanaged<DashboardHotkey>.fromOpaque(userData!).takeUnretainedValue()
+          let mgr = Unmanaged<DashboardHotkey>.fromOpaque(ud).takeUnretainedValue()
           mgr.handler()
         }
         return noErr
@@ -96,9 +100,12 @@ final class DashboardHotkey {
       Unmanaged.passUnretained(self).toOpaque(),
       nil
     )
+    if installStatus != noErr {
+      NSLog("DashboardHotkey: InstallEventHandler failed status=%d", installStatus)
+    }
     var r: EventHotKeyRef?
     let id = EventHotKeyID(signature: OSType(0x4C454148), id: 2)
-    RegisterEventHotKey(
+    let registerStatus = RegisterEventHotKey(
       UInt32(kVK_ANSI_D),
       UInt32(cmdKey | shiftKey),
       id,
@@ -106,6 +113,9 @@ final class DashboardHotkey {
       0,
       &r
     )
+    if registerStatus != noErr {
+      NSLog("DashboardHotkey: RegisterEventHotKey failed status=%d (⌘⇧D already taken)", registerStatus)
+    }
     ref = r
   }
 

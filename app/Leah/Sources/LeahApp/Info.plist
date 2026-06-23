@@ -7,7 +7,10 @@
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
-  <key>LSUIElement</key><true/>
+  <!-- LSUIElement=false: wizard + dashboard need primary-app windows. Switch to
+       background-only at runtime via setActivationPolicy(.accessory) after
+       wizard closes (round 2 hunt 2026-06-23). -->
+  <key>LSUIElement</key><false/>
   <key>NSMicrophoneUsageDescription</key><string>Leah needs the microphone for dictation.</string>
   <key>NSCalendarsUsageDescription</key><string>Leah reads your calendar to answer scheduling questions.</string>
   <key>NSAppleEventsUsageDescription</key><string>Leah uses AppleScript where EventKit doesn't suffice.</string>
