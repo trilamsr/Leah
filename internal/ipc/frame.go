@@ -68,9 +68,9 @@ const (
 	KindVisionStreamFrame     = "vision.stream.frame"
 	KindVisionConsentRequired = "vision.consent.required"
 
-	// Sync kinds — §10.7 sync.* (Bonjour + OTP pair). PeerList drains the
-	// current discovery snapshot; PairStart runs the OTP handshake against
-	// the matching peer; PairAck commits the sync_peer row.
+	// Sync kinds — HUD enumerates LAN peers via KindSyncPeerList,
+	// drives the OTP handshake with KindSyncPairStart, and finalizes the
+	// pairing (sync_peer row insert) with KindSyncPairAck.
 	KindSyncPeerList  = "sync.peer.list"
 	KindSyncPairStart = "sync.pair.start"
 	KindSyncPairAck   = "sync.pair.ack"
