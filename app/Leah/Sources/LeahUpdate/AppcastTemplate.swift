@@ -8,19 +8,22 @@ public enum AppcastTemplate {
         public let length: Int
         public let eddsaSignature: String
         public let pubDate: Date
+        public let channel: String
 
         public init(
             version: String,
             downloadURL: String,
             length: Int,
             eddsaSignature: String,
-            pubDate: Date = Date()
+            pubDate: Date = Date(),
+            channel: String = "stable"
         ) {
             self.version = version
             self.downloadURL = downloadURL
             self.length = length
             self.eddsaSignature = eddsaSignature
             self.pubDate = pubDate
+            self.channel = channel
         }
     }
 
@@ -44,10 +47,12 @@ public enum AppcastTemplate {
         let url = xmlAttr(i.downloadURL)
         let ver = xmlAttr(i.version)
         let sig = xmlAttr(i.eddsaSignature)
+        let ch = xmlAttr(i.channel)
         return """
         <item>
           <title>Leah \(ver)</title>
           <pubDate>\(rfc822.string(from: i.pubDate))</pubDate>
+          <sparkle:channel>\(ch)</sparkle:channel>
           <enclosure
             url="\(url)"
             sparkle:version="\(ver)"

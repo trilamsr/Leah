@@ -1,15 +1,29 @@
 import Foundation
 import Sparkle
 
+// Delegate carries the channel allow-list into SPUUpdater so that flipping
+// "Use rollback channel" in Settings → Advanced widens the filter to include
+// items tagged <sparkle:channel>rollback</sparkle:channel>.
+public final class ChannelDelegate: NSObject, SPUUpdaterDelegate {
+    public var policy: UpdateChannelPolicy
+    public init(policy: UpdateChannelPolicy) { self.policy = policy }
+    public func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        Set(policy.allowedChannels)
+    }
+}
+
 public final class Updater {
     public let feedURL: String
     private let controller: SPUStandardUpdaterController
+    private let delegate: ChannelDelegate
 
-    public init(feedURL: String) {
+    public init(feedURL: String, channelPolicy: UpdateChannelPolicy = UpdateChannelPolicy(useRollback: false)) {
         self.feedURL = feedURL
+        let d = ChannelDelegate(policy: channelPolicy)
+        self.delegate = d
         self.controller = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: d,
             userDriverDelegate: nil
         )
         if let url = URL(string: feedURL) {
@@ -20,6 +34,10 @@ public final class Updater {
         }
         self.controller.updater.automaticallyChecksForUpdates = true
         self.controller.updater.updateCheckInterval = 86_400
+    }
+
+    public func setChannelPolicy(_ p: UpdateChannelPolicy) {
+        delegate.policy = p
     }
 
     public func checkForUpdates() {
