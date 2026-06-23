@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -35,15 +36,22 @@ var modelPrices = map[string]pricePair{
 }
 
 // priceFor returns the per-token rates for model, defaulting to Sonnet
-// rates with an obs counter for unknown models.
+// rates for unknown models. Snapshot suffixes (claude-sonnet-4-6-2026-...)
+// resolve via longest-prefix match — map iteration alone is non-deterministic.
 func priceFor(model string) pricePair {
 	if p, ok := modelPrices[model]; ok {
 		return p
 	}
-	// Strip snapshot suffix (claude-sonnet-4-6-2026-01-15 → claude-sonnet-4-6).
-	for prefix, p := range modelPrices {
+	// Longest-prefix wins — sort keys by descending length so
+	// "claude-opus-4-7" beats "claude-opus-4" on a "claude-opus-4-7-..." input.
+	prefixes := make([]string, 0, len(modelPrices))
+	for k := range modelPrices {
+		prefixes = append(prefixes, k)
+	}
+	sort.Slice(prefixes, func(i, j int) bool { return len(prefixes[i]) > len(prefixes[j]) })
+	for _, prefix := range prefixes {
 		if strings.HasPrefix(model, prefix) {
-			return p
+			return modelPrices[prefix]
 		}
 	}
 	return modelPrices["claude-sonnet-4-6"]

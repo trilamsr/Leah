@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -143,7 +142,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 			// Recoverable read errors (e.g. malformed JSON) — KEEP the conn
 			// alive so HUD can recover after sending a bad frame. Frame-size
 			// cap is unrecoverable (header desync) so we close on that path.
-			if strings.Contains(err.Error(), "exceeds cap") {
+			if errors.Is(err, ErrFrameSizeExceeded) {
 				return
 			}
 			continue

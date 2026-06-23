@@ -87,6 +87,16 @@ func streamToIPCWith(ctx context.Context, s streamer, turnID, system string, his
 		}
 
 		for ch := range chunks {
+			// SSE-mid-flight error: surface to caller + bail. Carries the
+			// partial token counts that were actually billed so the cost
+			// frame reflects real spend (not a char-based estimate).
+			if ch.Err != nil {
+				inTokFinal = ch.InputTokens
+				outTokFinal = ch.OutputTokens
+				haveFinal = true
+				abort(fmt.Sprintf("stream error: %v", ch.Err))
+				return
+			}
 			if ch.Final {
 				inTokFinal = ch.InputTokens
 				outTokFinal = ch.OutputTokens
