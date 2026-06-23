@@ -116,6 +116,50 @@ func TestObserve_WritesRow(t *testing.T) {
 	}
 }
 
+func TestNextBatch_TransitionsQueuedToSurfaced(t *testing.T) {
+	db, cleanup := newTestDB(t)
+	defer cleanup()
+	r := New(db)
+	r.insertCandidate(t, Recommendation{Kind: "pin-widget", Confidence: 0.9, Score: 0.9})
+	batch, err := r.NextBatch(context.Background(), SurfaceNotification, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(batch) != 1 {
+		t.Fatalf("want 1 returned row, got %d", len(batch))
+	}
+	var state string
+	var surfacedAt sql.NullInt64
+	if err := db.QueryRow(`SELECT state, surfaced_at FROM learn_recommendation WHERE id=?`, batch[0].ID).Scan(&state, &surfacedAt); err != nil {
+		t.Fatal(err)
+	}
+	if state != "surfaced" {
+		t.Fatalf("post-NextBatch state: want 'surfaced', got %q", state)
+	}
+	if !surfacedAt.Valid {
+		t.Fatalf("surfaced_at must be set after NextBatch returns the row")
+	}
+}
+
+func TestNextBatch_SecondCallHitsPacingCap(t *testing.T) {
+	db, cleanup := newTestDB(t)
+	defer cleanup()
+	r := New(db)
+	r.insertCandidate(t, Recommendation{Kind: "pin-widget", Confidence: 0.9, Score: 0.9})
+	r.insertCandidate(t, Recommendation{Kind: "pin-widget", Confidence: 0.9, Score: 0.8})
+	first, err := r.NextBatch(context.Background(), SurfaceNotification, 1)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first call: got %d rows, err=%v", len(first), err)
+	}
+	second, err := r.NextBatch(context.Background(), SurfaceNotification, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("second call within the hour must burn pacing slot from the first; got %d rows", len(second))
+	}
+}
+
 func TestRecord_TransitionsState(t *testing.T) {
 	db, cleanup := newTestDB(t)
 	defer cleanup()

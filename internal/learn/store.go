@@ -6,14 +6,16 @@ import (
 	"time"
 )
 
-type store struct{ db *sql.DB }
+// dbq abstracts *sql.DB and *sql.Tx so the pacing read + surfaced UPDATE
+// can run in one tx without duplicating the query shape.
+type dbq interface {
+	QueryRowContext(ctx context.Context, q string, args ...any) *sql.Row
+	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
+}
 
-func newStore(db *sql.DB) *store { return &store{db: db} }
-
-// surfacedSince — 'queued' excluded so only surfaced/terminal rows burn pacing.
-func (s *store) surfacedSince(ctx context.Context, since time.Time) (int, error) {
+func txSurfacedSince(ctx context.Context, q dbq, since time.Time) (int, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx,
+	err := q.QueryRowContext(ctx,
 		`SELECT count(*) FROM learn_recommendation
 		 WHERE surfaced_at >= ?
 		 AND state IN ('surfaced','accepted','dismissed','ignored','applied')`,
@@ -21,8 +23,8 @@ func (s *store) surfacedSince(ctx context.Context, since time.Time) (int, error)
 	return n, err
 }
 
-func (s *store) topQueued(ctx context.Context, now time.Time, n int) ([]Recommendation, error) {
-	rows, err := s.db.QueryContext(ctx,
+func txTopQueued(ctx context.Context, q dbq, now time.Time, n int) ([]Recommendation, error) {
+	rows, err := q.QueryContext(ctx,
 		`SELECT id, kind, body, score, confidence, action_ref, expires_at
 		 FROM learn_recommendation
 		 WHERE state='queued' AND confidence >= ? AND expires_at > ?
