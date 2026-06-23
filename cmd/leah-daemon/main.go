@@ -31,6 +31,8 @@ import (
 	"github.com/trilam/leah/internal/recommend"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/tts"
+	"github.com/trilam/leah/internal/tts/apple"
+	"github.com/trilam/leah/internal/tts/elevenlabs"
 	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/watchdog"
 )
@@ -194,11 +196,11 @@ func main() {
 	}
 	// store.DB() already has conversation_turn from the schema migration above.
 	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
-	// TTS providers (Task 2 + Task 3 wire concrete elevenlabs/apple
-	// implementations; for now the classifier is live but providers are
-	// nil — handler emits tts.speak.err until providers ship).
 	ttsClass := tts.NewBlockwordClassifier()
-	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, nil, nil, ttsClass)).Serve(ctx) }()
+	ttsCloud, ttsLocal := buildTTSProviders()
+	go func() {
+		_ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, ttsCloud, ttsLocal, ttsClass)).Serve(ctx)
+	}()
 	startMCPPublish(ctx, os.Stderr)
 
 	evalDone := make(chan struct{})
@@ -242,3 +244,16 @@ func main() {
 type evalAskerFunc func(context.Context, string) (string, error)
 
 func (f evalAskerFunc) Ask(ctx context.Context, q string) (string, error) { return f(ctx, q) }
+
+// buildTTSProviders constructs the §17.17 cloud + local pair. Missing
+// LEAH_ELEVENLABS_API_KEY degrades to Apple-only — operator can still ask
+// Leah out loud for sensitive content; cloud arrives once they `leah connect`.
+// Apple's emit fn is a no-op: handleTTSSpeak short-circuits on Name()=="apple-ava"
+// and emits the IPC frame itself, so the provider-side emit would only duplicate.
+func buildTTSProviders() (cloud, local tts.Provider) {
+	if c, err := elevenlabs.FromEnv(nil); err == nil {
+		cloud = c
+	}
+	local = apple.New(func(ipc.Frame) {})
+	return cloud, local
+}
