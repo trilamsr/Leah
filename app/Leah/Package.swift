@@ -84,5 +84,15 @@ let package = Package(
       dependencies: ["LeahAudio"],
       path: "Tests/LeahAudioTests"
     ),
+    .target(
+      name: "LeahWake",
+      path: "Sources/LeahWake",
+      resources: [.copy("Models/wake-leah.mlmodel")]
+    ),
+    .testTarget(
+      name: "LeahWakeTests",
+      dependencies: ["LeahWake"],
+      path: "Tests/LeahWakeTests"
+    ),
   ]
 )
