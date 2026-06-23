@@ -100,6 +100,30 @@ func TestSession_TurnTimeoutEmitsTTSEnd(t *testing.T) {
 	}
 }
 
+// Lifecycle: session end clears the arbiter so any post-session VAD frame
+// (stale mic callback) does not fire a stale halt.
+func TestSession_EndClearsArbiter(t *testing.T) {
+	s := NewSession(fakeSTT{}, fakeTTS{}, fakeAsk, nil).(*session)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events, err := s.Start(ctx, DuplexOpts{MaxTurn: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.arb.ttsStarted()
+	s.End()
+	for range events {
+	}
+	fired := make(chan struct{}, 1)
+	s.arb.onHalt = func() { fired <- struct{}{} }
+	s.arb.micVoiceDetected()
+	select {
+	case <-fired:
+		t.Fatal("post-end VAD frame fired halt; session.loop must clear arbiter on exit")
+	default:
+	}
+}
+
 func TestSession_NilBudgetIsValid(t *testing.T) {
 	s := NewSession(fakeSTT{}, fakeTTS{}, fakeAsk, nil)
 	if s == nil {

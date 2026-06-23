@@ -92,6 +92,7 @@ func (s *session) Start(ctx context.Context, opts DuplexOpts) (<-chan DuplexEven
 // through ctx and the loop drains to a single TTSEnd before close.
 func (s *session) loop(ctx context.Context, opts DuplexOpts) {
 	defer close(s.out)
+	defer s.arb.ttsEnded()
 	var deadline <-chan time.Time
 	if opts.MaxTurn > 0 {
 		deadline = time.After(opts.MaxTurn)
