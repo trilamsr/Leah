@@ -10,9 +10,6 @@ import (
 	"github.com/trilam/leah/internal/voice/stt"
 )
 
-// session wraps the ONNX Runtime advanced session. The model's BPE decoder
-// is a follow-up in T01.b; this milestone wires the inference call and the
-// session lifecycle so T02's duplex coordinator can drive a live runner.
 type session struct {
 	s *ort.DynamicAdvancedSession
 }
@@ -93,8 +90,3 @@ func pcmToFloat32(window []stt.AudioFrame) []float32 {
 	}
 	return out
 }
-
-// decodeTokens is the Whisper BPE detokenizer call site. The vocab table
-// lands in T01.b; this milestone surfaces the runner harness so T02 can
-// plug in without waiting on the decoder.
-func decodeTokens(_ []int32) string { return "" }
