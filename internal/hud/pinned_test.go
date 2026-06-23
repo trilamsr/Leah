@@ -31,28 +31,26 @@ func TestWatcher_DebouncesBurstWithin200ms(t *testing.T) {
 	go func() { _ = w.Run(ctx, func(e hud.PinnedChanged) { events <- e }) }()
 
 	// Give the watcher time to start.
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond) // allow-sleep: wall-clock spacing so fsnotify Run goroutine is parked on Events chan before the burst
 
 	entries := []hud.PinnedEntry{{ID: "w1", Type: "market", Props: json.RawMessage(`{}`), Refresh: 60}}
 	for range 3 {
 		writePins(t, pinPath, entries)
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) // allow-sleep: wall-clock burst spacing — each write must land inside the prior 200ms debounce window to prove the timer resets
 	}
 
-	// Wait long enough for the 200 ms debounce to fire.
-	deadline := time.After(800 * time.Millisecond)
-	var got int
-loop:
-	for {
-		select {
-		case <-events:
-			got++
-		case <-deadline:
-			break loop
-		}
+	// First event must arrive within the 200 ms debounce after the final
+	// write — anything longer is a stall, not a flake-mask budget.
+	select {
+	case <-events:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("debounce: no PinnedChanged within 500ms of final write")
 	}
-	if got != 1 {
-		t.Fatalf("debounce: got %d PinnedChanged, want 1", got)
+	// A second event within the same window would mean coalescing failed.
+	select {
+	case <-events:
+		t.Fatalf("debounce: got 2+ PinnedChanged, want 1 (coalescing broken)")
+	case <-time.After(300 * time.Millisecond):
 	}
 }
 
