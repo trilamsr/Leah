@@ -75,9 +75,10 @@ const (
 	KindSyncPairStart = "sync.pair.start"
 	KindSyncPairAck   = "sync.pair.ack"
 
-	// Recommend kinds — §3.4 closed-loop coach. List paces NextBatch; Apply
-	// and Dismiss feed outcome telemetry; AntiAdd / AntiList drive the
-	// operator's anti-rule registry.
+	// Recommend kinds — Settings RecommendationsPane (T07) bridge into
+	// internal/learn.Recommender. List/Apply/Dismiss drive the queued→surfaced
+	// →accepted lifecycle; AntiAdd / AntiList expose the operator-source
+	// anti-rule surface so a kind dismissed by the user never re-surfaces.
 	KindRecommendList     = "recommend.list"
 	KindRecommendApply    = "recommend.apply"
 	KindRecommendDismiss  = "recommend.dismiss"
