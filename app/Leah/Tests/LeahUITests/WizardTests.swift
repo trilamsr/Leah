@@ -93,6 +93,21 @@ final class WizardTests: XCTestCase {
     XCTAssertLessThan(elapsed, 1.0, "missing-socket path must not block")
   }
 
+  // perf review item #26 — wake-word toggle defaults OFF; warn copy must name the
+  // measured battery cost so the operator opts in knowingly.
+  func testMicStepWakeWordDefaultIsOff() {
+    UserDefaults.standard.removeObject(forKey: "leah.voice.wakeWord")
+    XCTAssertFalse(UserDefaults.standard.bool(forKey: "leah.voice.wakeWord"))
+  }
+
+  func testMicStepWakeWordCopyNamesBatteryCost() {
+    XCTAssertTrue(MicStep.wakeWordCaption.contains("2-4%"),
+                  "wake-word caption must name measured battery cost; got: \(MicStep.wakeWordCaption)")
+    XCTAssertTrue(MicStep.wakeWordCaption.lowercased().contains("battery"))
+    XCTAssertTrue(MicStep.wakeWordCaption.contains("Settings"),
+                  "caption must point to Settings for later enable")
+  }
+
   // Welcome utterance must carry IPA pronunciation attribute on "Leah" to prevent
   // mispronunciation as "Lee" (dropped final syllable).
   func testWelcomeUtteranceHasLeahIPAAttribute() {

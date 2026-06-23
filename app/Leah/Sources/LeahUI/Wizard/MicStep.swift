@@ -4,6 +4,11 @@ import AVFoundation
 // Step 4: Mic permission per spec §8.4. Wake-word toggle UNCHECKED by default (operator decision #2).
 // Permission calls ONLY from button action (not init) — AppKit gotcha.
 public struct MicStep: View {
+  // perf review item #26: hard-warn copy names the measured cost so the operator
+  // opts in knowingly. Local hotword sustains ~1-5% CPU continuous on M1.
+  public static let wakeWordCaption =
+    "Adds ~2-4% to daily battery drain. Can enable later in Settings → Voice."
+
   let onContinue: () -> Void
   @AppStorage("leah.voice.wakeWord") private var wakeWordEnabled = false
   @State private var granted = false
@@ -32,7 +37,7 @@ public struct MicStep: View {
           Text("Enable always-listening wake word")
             .font(.system(size: 13))
             .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
-          Text("Uses more battery. You can change this in Settings.")
+          Text(Self.wakeWordCaption)
             .font(.system(size: 11))
             .foregroundColor(Color(red: 138/255, green: 132/255, blue: 120/255))
         }
