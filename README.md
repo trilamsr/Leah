@@ -32,10 +32,10 @@ export LEAH_PUSHOVER_USER=...                      # optional, phone push
 export LEAH_PUSHOVER_TOKEN=...
 export LEAH_HEALTHCHECK_URL=https://hc-ping.com/<uuid>  # optional, daemon heartbeat
 # Phase 3 — voice/TTS:
-export ELEVENLABS_API_KEY=...                      # optional, cloud TTS primary
+export LEAH_ELEVENLABS_API_KEY=...                 # optional, cloud TTS primary
 # Phase 3 — features off by default:
 export LEAH_MCP_PUBLISH=0                          # 1 enables peer-agent MCP publish
-export LEAH_BANDIT=0                               # 1 enables bandit recommender
+export LEAH_RECOMMEND_BANDIT=0                     # 1 enables bandit recommender
 
 source ~/.zshrc
 
@@ -49,7 +49,7 @@ leah status          # last 20 audit rows
 | Credential | Where to get |
 |---|---|
 | `ANTHROPIC_API_KEY` | https://console.anthropic.com → API Keys |
-| `ELEVENLABS_API_KEY` | https://elevenlabs.io → API |
+| `LEAH_ELEVENLABS_API_KEY` | https://elevenlabs.io → API |
 | `LEAH_PUSHOVER_*` | https://pushover.net → register + app token |
 | `LEAH_HEALTHCHECK_URL` | https://healthchecks.io → run `scripts/healthcheck-setup.sh` |
 
@@ -60,7 +60,7 @@ Closed-loop core, observe → remember → decide → act, with a native macOS H
 - **Native macOS HUD** — SwiftUI app (`app/Leah/`) with NSPanel hotkey, NSStatusItem, Settings panes, widget tile registry. AF_UNIX socket transport between daemon and HUD via length-prefixed JSON frames (`internal/ipc/frame.go`).
 - **Voice** — Wake-word (`wake-leah.mlmodel` + VAD gate + per-app suppression, opt-in), push-to-talk (Fn / right-⌘), TTS subsystem (ElevenLabs Flash v2.5 cloud primary, Apple Ava Premium fallback) with daemon-side privacy classifier. §17.17.
 - **CLI surface** — ~50 subcommands. Daily drivers: `ask`, `ship`, `review`, `call`, `brief`, `find`, `recall`, `connect <integration>`, `ctx`, `status`, `cost`, `retro`, `self-build`, `self-build-status`, `news`, `paper`, `quote`, `watch`, `slack`, `open`, `inbound`, `purge`. `leah` with no args prints the full list.
-- **Memory** — `contact`, `project`, `decision`, `mistake`. SQLite at `~/.leah-state/memory.db` schema v4. Touch ID gate on `leah purge` per §17.13.
+- **Memory** — `contact`, `project`, `decision`, `mistake`. SQLite at `~/.leah-state/memory.db` (`internal/memory/`). Typed-attestation gate on `leah purge` CLI; Touch ID gate on Settings → Memory → Purge in the native app per §17.13.
 - **Context manager** — `leah ctx new/switch/show/history/list`; single-active-context; per-switch audit row.
 - **Self-build dispatcher** — `leah self-build "<intent>"` files a `[SELF-BUILD]` issue against `trilamsr/Leah` (repo hard-locked); regatta picks up → PR → `leah review` independent subagent verdict → operator merges. Automerge banned on self-build.
 - **Independent reviewer** — `leah review <repo> <pr#>` runs an Anthropic subagent with a separate prompt + model (`LEAH_REVIEWER_MODEL`); validates agent-id against the canonical allowlist.
@@ -69,13 +69,13 @@ Closed-loop core, observe → remember → decide → act, with a native macOS H
 - **Push-source substrate** — `internal/macos/{mail,contacts,focus,activeapp}/push.go` plus knowledge/memory deltas fan out to HUD via IPC `push.*` frames.
 - **Knowledge graph** — KG-backed citations join the answer-engine streaming path (`internal/knowledge/` → source repo file/line OR Linear issue ID).
 - **MCP publish** — `internal/mcp/server.go` publishes Leah's tools to peer agents read-only, gated behind `LEAH_MCP_PUBLISH=1`.
-- **Eval pipeline** — `internal/eval/` runs the canonical trace set on pre-commit + nightly; delta table written to `~/Library/Application Support/Leah/eval-deltas/<ISO date>.json`.
-- **Bandit recommender** — Beta-posteriors wired into `engine.go` ranker behind `LEAH_BANDIT=1`.
+- **Eval pipeline** — `internal/eval/` runs the canonical trace set on pre-commit + nightly; delta table persisted by `internal/eval/store.go`.
+- **Bandit recommender** — Beta-posteriors wired into the `internal/recommend/` ranker behind `LEAH_RECOMMEND_BANDIT=1`.
 - **Sparkle updates** — auto-appcast generation, EdDSA verify on install, Settings → About → "Rollback last update". Key custody runbook: `docs/engineer/runbooks/sparkle-key-custody.md`.
 - **Daemon weekly tick** — Sunday-9am cron fires resolver back-fill, pattern detect → `skill-candidates.md`, retro generate → `retro-YYYY-WW.md`, operatormodel profile rebuild.
 - **Operator model** — `operatormodel.UpdateProfile` rebuilds time-of-day / cadence / context-transition signals from last 30 days; `Recommend()` ranks candidates.
 - **Observability** — `internal/obs` slog daily-rotated JSONL logs, in-process metrics, `SafeGo`/`SafeRun` panic-recovery into `~/.leah-state/panics/`.
-- **Adapters shipped** — Gmail, Google Calendar, Slack, Discord, Linear, Jira, Confluence, Notion, Maps, Flights, iMessage, FaceTime, MSTeams. First-launch auth via `leah connect <integration>` (browser OAuth device-code default; MCP fallback when integration is MCP-only).
+- **Adapters shipped** — Gmail, Google Calendar, Slack, Discord, Linear, Jira, Atlassian, Confluence, Notion, Maps, Flights, iMessage, FaceTime, MSTeams, TMDB. First-launch auth via `leah connect <integration>` (browser OAuth device-code default; MCP fallback when integration is MCP-only).
 - **Backup** — `restic` to local USB + Backblaze B2; `leah backup` + restore drills.
 
 State lives in `$LEAH_STATE_DIR` (default `~/.leah-state/`): `audit.jsonl`, `memory.db`, `panics/`, `retro-*.md`, weekly tick outputs.
