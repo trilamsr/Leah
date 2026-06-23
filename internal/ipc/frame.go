@@ -95,9 +95,9 @@ const (
 	KindPluginUninstall = "plugin.uninstall"
 	KindPluginLogs      = "plugin.logs"
 
-	// A2A kinds — §14 agent-to-agent. PeerList snapshots paired peers;
-	// PairStart drives the §5.4 hello handshake; PeerPause toggles delivery;
-	// PeerUnpair revokes the trust record.
+	// A2A kinds — T14.b ConnectionsPane. peer.list snapshots paired
+	// agents; pair.start kicks the inbound OTP handshake; peer.pause toggles
+	// the §5.4.1 paused bit; peer.unpair drops a peer via A2AServer.Revoke.
 	KindA2APeerList   = "a2a.peer.list"
 	KindA2APairStart  = "a2a.pair.start"
 	KindA2APeerPause  = "a2a.peer.pause"
