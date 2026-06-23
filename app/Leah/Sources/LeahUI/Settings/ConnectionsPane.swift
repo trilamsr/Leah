@@ -1,6 +1,9 @@
 import SwiftUI
 import EventKit
 
+// IntegrationRow is the outbound-integration row model (Calendar/Mail/Files).
+// Kept under the old name so existing tests + import sites continue to work
+// while the surrounding pane becomes "Connections" per phase4 §5.10.
 public struct IntegrationRow {
     public enum Kind: String, CaseIterable, Equatable {
         case calendar, mail, files
@@ -15,25 +18,58 @@ public struct IntegrationRow {
     }
 }
 
-public struct IntegrationsPane: View {
+extension IntegrationRow.Kind: Identifiable {
+    public var id: String { rawValue }
+}
+
+// ConnectionsPane composes the three §5.10 sections: outbound integrations
+// (existing v1 surface), inbound MCP tokens, A2A peers (T14). A2A is a
+// placeholder here — the live pane lands with the T14 protocol PR.
+public struct ConnectionsPane: View {
+    public init() {}
+
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                section("Outbound integrations") { OutboundIntegrationsSection() }
+                section("Inbound MCP")            { InboundMCPSection() }
+                section("A2A peers")              { a2aPlaceholder }
+            }
+            .padding(24)
+        }
+    }
+
+    private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+            content()
+        }
+    }
+
+    private var a2aPlaceholder: some View {
+        Text("Paired peers will land with A2A protocol (coming soon).")
+            .font(.system(size: 12))
+            .foregroundColor(.gray)
+    }
+}
+
+// OutboundIntegrationsSection preserves the v1 calendar/mail/files row block
+// so the existing EventKit wiring keeps working under the new pane title.
+struct OutboundIntegrationsSection: View {
     @State private var calendarState: ConnectionState = .none
     @State private var mailState:     ConnectionState = .none
     @State private var filesState:    ConnectionState = .none
     @State private var pendingDisconnect: IntegrationRow.Kind?
     private let store = EKEventStore()
 
-    public init() {}
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
             row(.calendar, state: calendarState)
             Divider()
             row(.mail, state: mailState)
             Divider()
             row(.files, state: filesState)
-            Spacer()
         }
-        .padding(24)
         .onAppear { refresh() }
         .alert(item: $pendingDisconnect) { kind in
             Alert(
@@ -88,6 +124,7 @@ public struct IntegrationsPane: View {
     }
 }
 
-extension IntegrationRow.Kind: Identifiable {
-    public var id: String { rawValue }
-}
+// IntegrationsPane is the v1 type-alias kept so any out-of-pane import (e.g.
+// the menubar wizard) keeps compiling while callers migrate. Remove after
+// the T17 supervisor wave when sibling code is repointed.
+public typealias IntegrationsPane = ConnectionsPane

@@ -63,7 +63,7 @@ struct SettingsView: View {
                 case .advanced:     AdvancedPane()
                 case .voice:        VoicePane()
                 case .appearance:   AppearancePane()
-                case .integrations: IntegrationsPane()
+                case .connections:  ConnectionsPane()
                 case .memory:          MemoryPane()
                 case .recommendations: RecommendationsPane()
                 case .about:           AboutPane()
