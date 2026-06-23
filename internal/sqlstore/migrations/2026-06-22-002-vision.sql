@@ -14,5 +14,5 @@ CREATE TABLE vision_consent (
     mode        TEXT NOT NULL,
     granted_at  INTEGER NOT NULL,
     expires_at  INTEGER,
-    scope       TEXT NOT NULL
+    scope       TEXT NOT NULL CHECK(scope IN ('this_session','until_quit','persistent'))
 );

@@ -7,16 +7,18 @@ CREATE TABLE a2a_peer (
     scopes       TEXT NOT NULL
 );
 
--- a2a_consent precedes a2a_call: §5.6 declares the FK direction.
--- Shape inferred from spec §5.7 ("Decision persisted in a2a_consent");
--- scope CHECK mirrors vision_consent.scope ('once'|'session'|'always').
+-- a2a_consent precedes a2a_call per §5.6 FK direction. Shape inferred:
+-- spec §5.6 declares the FK only; §5.7 declares the prompt options
+-- [Once] [This session] [Always] and singular "Decision persisted" — so
+-- one row per (peer, kind), scope tracks the operator's button choice.
 CREATE TABLE a2a_consent (
     id           INTEGER PRIMARY KEY,
     peer_id      TEXT NOT NULL REFERENCES a2a_peer(id) ON DELETE CASCADE,
     kind         TEXT NOT NULL,
     scope        TEXT NOT NULL CHECK(scope IN ('once','session','always')),
     granted_at   INTEGER NOT NULL,
-    expires_at   INTEGER
+    expires_at   INTEGER,
+    UNIQUE(peer_id, kind)
 );
 
 CREATE TABLE a2a_call (
