@@ -10,8 +10,8 @@ import (
 
 type stubProvider struct{ name string }
 
-func (s *stubProvider) Name() string                            { return s.name }
-func (s *stubProvider) PreWarm(_ context.Context) error         { return nil }
+func (s *stubProvider) Name() string                    { return s.name }
+func (s *stubProvider) PreWarm(_ context.Context) error { return nil }
 func (s *stubProvider) Speak(_ context.Context, _, _ string) (tts.AudioStream, error) {
 	return &stubStream{}, nil
 }
@@ -32,7 +32,7 @@ func TestProvider_StubSpeak(t *testing.T) {
 	if err != nil {
 		t.Fatalf("speak: %v", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	if stream.MIME() != "audio/mpeg" {
 		t.Fatalf("mime: %q", stream.MIME())
 	}
@@ -45,8 +45,7 @@ func TestDefaultVoice_Canon(t *testing.T) {
 	}
 }
 
-// Route constants — RouteCloud is the zero value so unset routing defaults
-// to cloud (intentional — local is opt-in via classifier hit).
+// RouteCloud is the zero value — unset routing defaults to cloud.
 func TestRoute_ZeroValueIsCloud(t *testing.T) {
 	var r tts.Route
 	if r != tts.RouteCloud {
