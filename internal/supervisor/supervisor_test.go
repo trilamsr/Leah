@@ -55,7 +55,7 @@ func newTestSupervisor(t *testing.T, v attest.Verifier) (*Supervisor, *fakeClock
 func TestSupervisor_RegisterStartsProcess(t *testing.T) {
 	sv, _ := newTestSupervisor(t, stubVerifier{attest.Attestation{State: attest.Verified}})
 	r := &fakeRunner{}
-	h := sv.Register(ProcessSpec{Name: "voice-stt"}, r)
+	h := sv.Register(ProcessSpec{Name: "voice-stt", Runner: r})
 	if err := sv.Start(context.Background(), h); err != nil {
 		t.Fatal(err)
 	}
@@ -73,10 +73,11 @@ func TestSupervisor_RestartOnCrashEmitsEvent(t *testing.T) {
 	r := &fakeRunner{}
 	h := sv.Register(ProcessSpec{
 		Name:       "voice-stt",
+		Runner:     r,
 		Restart:    CrashOnly,
 		BackoffMin: 200 * time.Millisecond,
 		BackoffMax: 30 * time.Second,
-	}, r)
+	})
 	if err := sv.Start(context.Background(), h); err != nil {
 		t.Fatal(err)
 	}
@@ -99,10 +100,11 @@ func TestSupervisor_FailedAttestBlocksRestart(t *testing.T) {
 	r := &fakeRunner{}
 	h := sv.Register(ProcessSpec{
 		Name:       "voice-stt",
+		Runner:     r,
 		Restart:    CrashOnly,
 		BackoffMin: 200 * time.Millisecond,
 		BackoffMax: 30 * time.Second,
-	}, r)
+	})
 	if err := sv.Start(context.Background(), h); err != nil {
 		t.Fatal(err)
 	}
@@ -120,11 +122,12 @@ func TestSupervisor_CircuitBreakerDisables(t *testing.T) {
 	r := &fakeRunner{}
 	h := sv.Register(ProcessSpec{
 		Name:       "vision-live",
+		Runner:     r,
 		Restart:    CrashOnly,
 		BackoffMin: 10 * time.Millisecond,
 		BackoffMax: time.Second,
 		Circuit:    CircuitPolicy{MaxCrashes: 3, Window: time.Minute},
-	}, r)
+	})
 	_ = sv.Start(context.Background(), h)
 
 	for i := 0; i < 3; i++ {
@@ -142,10 +145,27 @@ func TestSupervisor_CircuitBreakerDisables(t *testing.T) {
 	}
 }
 
+func TestSupervisor_CloseDoesNotRacePanicWithEmit(t *testing.T) {
+	sv, _ := newTestSupervisor(t, stubVerifier{attest.Attestation{State: attest.Verified}})
+	r := &fakeRunner{}
+	h := sv.Register(ProcessSpec{Name: "p", Runner: r, Restart: CrashOnly, BackoffMin: time.Millisecond, BackoffMax: time.Second})
+	_ = sv.Start(context.Background(), h)
+	_ = sv.Subscribe()
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 200; i++ {
+			sv.notifyCrash(h, errors.New("e"))
+		}
+		close(done)
+	}()
+	_ = sv.Close()
+	<-done
+}
+
 func TestSupervisor_NeverPolicyDoesNotRestart(t *testing.T) {
 	sv, clk := newTestSupervisor(t, stubVerifier{attest.Attestation{State: attest.Verified}})
 	r := &fakeRunner{}
-	h := sv.Register(ProcessSpec{Name: "p", Restart: Never, BackoffMin: time.Millisecond, BackoffMax: time.Second}, r)
+	h := sv.Register(ProcessSpec{Name: "p", Runner: r, Restart: Never, BackoffMin: time.Millisecond, BackoffMax: time.Second})
 	_ = sv.Start(context.Background(), h)
 	sv.notifyCrash(h, errors.New("die"))
 	clk.advance(time.Hour)

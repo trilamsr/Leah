@@ -44,6 +44,7 @@ type ResourceLimits struct {
 
 type ProcessSpec struct {
 	Name         string
+	Runner       Runner
 	Args, Env    []string
 	StartTimeout time.Duration
 	StopTimeout  time.Duration
@@ -133,14 +134,14 @@ func New(cfg Config) *Supervisor {
 	}
 }
 
-func (s *Supervisor) Register(spec ProcessSpec, r Runner) ProcessHandle {
+func (s *Supervisor) Register(spec ProcessSpec) ProcessHandle {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextID++
 	h := ProcessHandle(s.nextID)
 	s.procs[h] = &procState{
 		spec:    spec,
-		runner:  r,
+		runner:  spec.Runner,
 		state:   Starting,
 		backoff: newBackoff(orDefault(spec.BackoffMin, 200*time.Millisecond), orDefault(spec.BackoffMax, 30*time.Second)),
 		circuit: newCircuit(spec.Circuit),
@@ -231,6 +232,9 @@ func (s *Supervisor) Subscribe() <-chan SupervisorEvent {
 	return ch
 }
 
+// Close stops new emissions; subscribers see no further events. Channels are not closed because
+// emit() runs concurrently — closing here would race-panic; the channels age out via GC once
+// callers stop referencing them.
 func (s *Supervisor) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -238,9 +242,6 @@ func (s *Supervisor) Close() error {
 		return nil
 	}
 	s.closed = true
-	for _, ch := range s.subs {
-		close(ch)
-	}
 	s.subs = nil
 	return nil
 }
