@@ -25,12 +25,21 @@ public enum Keychain {
       kSecAttrService as String: service,
       kSecAttrAccount as String: account,
     ]
-    SecItemDelete(query as CFDictionary)
+    // Try update first; if no item exists, fall back to add. Atomic — a
+    // kill between SecItemDelete + SecItemAdd previously wiped the prior
+    // key without persisting the new one (round 9 keychain audit).
+    let updateAttrs: [String: Any] = [
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+    ]
+    let updateStatus = SecItemUpdate(query as CFDictionary, updateAttrs as CFDictionary)
+    if updateStatus == errSecSuccess { return }
+    if updateStatus != errSecItemNotFound { throw KeychainError.status(updateStatus) }
     var insert = query
     insert[kSecValueData as String] = data
     insert[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
-    let s = SecItemAdd(insert as CFDictionary, nil)
-    guard s == errSecSuccess else { throw KeychainError.status(s) }
+    let addStatus = SecItemAdd(insert as CFDictionary, nil)
+    guard addStatus == errSecSuccess else { throw KeychainError.status(addStatus) }
   }
 
   public static func read() throws -> String? {
@@ -61,10 +70,20 @@ public enum Keychain {
 
   // Returns an undo closure valid for undoWindow seconds. Calling it after the
   // window restores nothing (the previous key is no longer recoverable).
+  // If save(newKey) fails after reading previous, restore previous before
+  // re-throwing so failed rotation never wipes the prior key.
   public static func rotate(newKey: String, undoWindow: TimeInterval = 60) throws -> () -> Void {
     let previous = try read()
     let deadline = Date().addingTimeInterval(undoWindow)
-    try save(newKey)
+    do {
+      try save(newKey)
+    } catch {
+      // Restore prior key best-effort if save() partially completed.
+      if let prev = previous {
+        try? save(prev)
+      }
+      throw error
+    }
     return {
       guard Date() < deadline, let prev = previous else { return }
       try? Keychain.save(prev)

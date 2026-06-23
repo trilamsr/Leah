@@ -21,6 +21,10 @@ type StreamChunk struct {
 	Final        bool
 	InputTokens  int
 	OutputTokens int
+	// Err set when SSE stream drops mid-flight. Receivers surface the error
+	// to the caller and skip the turn.end cost frame (partial tokens are
+	// still reported so caller can charge what was actually billed).
+	Err error
 }
 
 // streamer is the narrow interface streamToIPCWith needs. *AnthropicClient

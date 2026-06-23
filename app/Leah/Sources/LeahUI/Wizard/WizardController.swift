@@ -44,8 +44,20 @@ public final class WizardController: ObservableObject {
     case .hotkey:      currentStep = .mic
     case .mic:         currentStep = .integration
     case .integration: currentStep = .ready
-    case .ready:       currentStep = .done; window?.close()
+    case .ready:
+      currentStep = .done
+      finish()
     case .done:        break
     }
+  }
+
+  /// finish closes the wizard window, releases the reference, and flips the
+  /// app back to .accessory mode (Info.plist contract — LSUIElement=false
+  /// gives us focus for onboarding, accessory after).
+  @MainActor
+  public func finish() {
+    window?.close()
+    window = nil
+    NSApp.setActivationPolicy(.accessory)
   }
 }

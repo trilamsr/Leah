@@ -223,6 +223,15 @@ func (c *AnthropicClient) StreamChunks(ctx context.Context, system string, histo
 				outTok = int(v.Usage.OutputTokens)
 			}
 		}
+		// Surface SSE stream errors — mirrors Stream() at line 283. Without
+		// this, a mid-flight drop ships truncated tokens as a clean Final.
+		if streamErr := stream.Err(); streamErr != nil {
+			select {
+			case <-ctx.Done():
+			case out <- StreamChunk{Err: streamErr, InputTokens: inTok, OutputTokens: outTok}:
+			}
+			return
+		}
 		select {
 		case <-ctx.Done():
 		case out <- StreamChunk{Final: true, InputTokens: inTok, OutputTokens: outTok}:
