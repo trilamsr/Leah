@@ -114,5 +114,14 @@ let package = Package(
       dependencies: ["LeahVision", "LeahIPC"],
       path: "Tests/LeahVisionTests"
     ),
+    .target(
+      name: "LeahPluginSDK",
+      path: "Sources/LeahPluginSDK"
+    ),
+    .testTarget(
+      name: "LeahPluginSDKTests",
+      dependencies: ["LeahPluginSDK"],
+      path: "Tests/LeahPluginSDKTests"
+    ),
   ]
 )
