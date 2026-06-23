@@ -52,10 +52,8 @@ struct LeahApp: App {
     ) { _ in Task { @MainActor in sw.show() } }
     hud.mount()
 
-    let registry = WidgetTileRegistry()
-    registry.registerWave2Defaults()
     let resolver = DashboardTileResolver { slot in
-      AnyView(DashboardSlotPlaceholder(slot: slot, registry: registry))
+      AnyView(DashboardSlotPlaceholder(slot: slot))
     }
     let dash = DashboardWindow(resolver: resolver)
     dashboard = dash
@@ -116,7 +114,6 @@ final class DashboardHotkey {
 
 struct DashboardSlotPlaceholder: View {
   let slot: DashboardTileSlot
-  let registry: WidgetTileRegistry
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {

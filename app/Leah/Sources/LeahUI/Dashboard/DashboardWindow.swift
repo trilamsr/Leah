@@ -46,7 +46,6 @@ public final class DashboardWindow: NSWindowController, NSWindowDelegate {
       window?.performClose(nil)
     } else {
       showWindow(nil)
-      window?.makeKeyAndOrderFront(nil)
       NSApp?.activate(ignoringOtherApps: true)
     }
   }
