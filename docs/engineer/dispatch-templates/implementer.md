@@ -14,6 +14,7 @@ These rules reach subagents via this template; the operator-personal `feedback_*
 - **Hard fan-out cap — refuse on overflow.** Expanding an operator-stated PR count without confirmation burns the parallel budget; cap is the contract. ([decider_scope_creep.md](../../../.claude/notes/decider_scope_creep.md))
 - **Never `git push --force` from a subagent.** Force-push authority is operator-only. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
 - **End-of-task: `git worktree remove --force` your own worktree.** Janitor (MAY-16) is not yet armed in launchd; manual prune prevents the 19-tree backlog. ([worktree_exceeds_janitor_capacity.md](../../../.claude/notes/worktree_exceeds_janitor_capacity.md))
+- **Sub-delegating fix work — `caveman:cavecrew-builder` has no Bash.** When this implementer needs to fan a bounded edit to a sub-subagent (via the Agent tool), do NOT pick `caveman:cavecrew-builder` for any fix that requires running tests, `git push`, or `gh pr ...` — its tool list is `Read, Edit, Write, Grep, Glob` only, so it cannot verify or ship. Use `general-purpose` (tools: *) instead. cavecrew-builder is correct only for pure-edit work where the parent will verify + push afterward. Cross-ref operator-personal `feedback_cavecrew_builder_no_bash.md`.
 
 ### CI/check gates (← feedback_check_gates)
 
