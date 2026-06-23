@@ -130,7 +130,7 @@ func TestNextBatch_TransitionsQueuedToSurfaced(t *testing.T) {
 	}
 	var state string
 	var surfacedAt sql.NullInt64
-	if err := db.QueryRow(`SELECT state, surfaced_at FROM learn_recommendation WHERE id=?`, batch[0].ID).Scan(&state, &surfacedAt); err != nil {
+	if err := db.QueryRow(`SELECT state, surfaced_at FROM learn_recommendation WHERE id=?`, int64(batch[0].ID)).Scan(&state, &surfacedAt); err != nil {
 		t.Fatal(err)
 	}
 	if state != "surfaced" {
@@ -169,7 +169,7 @@ func TestRecord_TransitionsState(t *testing.T) {
 	if err := db.QueryRow(`SELECT id FROM learn_recommendation LIMIT 1`).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Record(context.Background(), id, Outcome{Kind: Accepted}); err != nil {
+	if err := r.Record(context.Background(), RecommendationID(id), Outcome{Kind: Accepted}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	var state string

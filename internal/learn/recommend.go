@@ -9,7 +9,9 @@ import (
 type Recommender interface {
 	Observe(ctx context.Context, ev Observation) error
 	NextBatch(ctx context.Context, surface Surface, maxN int) ([]Recommendation, error)
-	Record(ctx context.Context, id int64, out Outcome) error
+	Record(ctx context.Context, id RecommendationID, out Outcome) error
+	AntiAdd(ctx context.Context, kind RecommendKind, reason string) error
+	AntiList(ctx context.Context) ([]AntiRule, error)
 }
 
 type recommender struct {
@@ -64,7 +66,7 @@ func (r *recommender) NextBatch(ctx context.Context, surface Surface, maxN int) 
 	for i := range rows {
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE learn_recommendation SET state='surfaced', surfaced_at=? WHERE id=?`,
-			now.Unix(), rows[i].ID); err != nil {
+			now.Unix(), int64(rows[i].ID)); err != nil {
 			return nil, err
 		}
 		rows[i].SurfacedAt = now
@@ -75,7 +77,7 @@ func (r *recommender) NextBatch(ctx context.Context, surface Surface, maxN int) 
 	return rows, nil
 }
 
-func (r *recommender) Record(ctx context.Context, id int64, out Outcome) error {
+func (r *recommender) Record(ctx context.Context, id RecommendationID, out Outcome) error {
 	state := "ignored"
 	switch out.Kind {
 	case Accepted:
@@ -86,6 +88,15 @@ func (r *recommender) Record(ctx context.Context, id int64, out Outcome) error {
 		state = "applied"
 	}
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE learn_recommendation SET state=? WHERE id=?`, state, id)
+		`UPDATE learn_recommendation SET state=? WHERE id=?`, state, int64(id))
 	return err
+}
+
+// AntiAdd registers an operator-source anti-rule (spec/auto sources route through antilist.go).
+func (r *recommender) AntiAdd(ctx context.Context, kind RecommendKind, reason string) error {
+	return newAntiList(r.db, r.now).Add(ctx, kind, reason, AntiOperator)
+}
+
+func (r *recommender) AntiList(ctx context.Context) ([]AntiRule, error) {
+	return newAntiList(r.db, r.now).List(ctx)
 }
