@@ -14,9 +14,8 @@ import (
 )
 
 // VisionMode is the operator preference for a single Ask. VisionAuto lets the
-// router escalate to Sonnet when local OCR confidence would not answer the
-// prompt; today shouldEscalate is a stub that always returns true (escalate
-// when permitted) — pending the heuristic in T04.b.
+// router escalate to Sonnet when prompt intent + frame size suggest local OCR
+// would not answer the prompt — heuristic lives in escalate.go.
 type VisionMode int
 
 const (
@@ -84,7 +83,7 @@ func New(ocr vision.OCREngine, sonnet SonnetClient, consent ConsentStore, meter 
 }
 
 func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mode VisionMode) (<-chan ReasonerEvent, error) {
-	useSonnet := mode == VisionSonnet || (mode == VisionAuto && r.shouldEscalate(frame))
+	useSonnet := mode == VisionSonnet || (mode == VisionAuto && shouldEscalate(frame, prompt))
 	if !useSonnet {
 		out := make(chan ReasonerEvent, 1)
 		close(out)
@@ -130,8 +129,3 @@ func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mod
 func (r *router) OCR(ctx context.Context, frame vision.Image) ([]vision.TextBlock, error) {
 	return r.ocr.Recognize(ctx, frame)
 }
-
-// shouldEscalate is the VisionAuto heuristic stub — today escalates whenever
-// the cloud path is reachable. Real heuristic (OCR-confidence threshold,
-// prompt-intent classifier) lands in T04.b once the HUD wires Ask end-to-end.
-func (r *router) shouldEscalate(_ vision.Image) bool { return true }
