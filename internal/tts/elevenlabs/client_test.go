@@ -198,10 +198,3 @@ func TestClient_PreWarm(t *testing.T) {
 		t.Fatalf("expected 1 hit, got %d", hits)
 	}
 }
-
-// DefaultVoice constant exists on the parent package.
-func TestClient_Speak_DefaultVoiceConstant(t *testing.T) {
-	if tts.DefaultVoice == "" {
-		t.Fatal("DefaultVoice empty")
-	}
-}

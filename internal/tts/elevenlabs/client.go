@@ -47,7 +47,7 @@ func (c *Client) Name() string { return "elevenlabs" }
 // PreWarm fires a tiny synthesis to /dev/null at daemon boot — amortizes the
 // first-utterance TTFB (decision-log #81).
 func (c *Client) PreWarm(ctx context.Context) error {
-	stream, err := c.Speak(ctx, ".", c.voiceID)
+	stream, err := c.Speak(ctx, ".", "")
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (c *Client) Speak(ctx context.Context, text, voice string) (tts.AudioStream
 		return nil, fmt.Errorf("elevenlabs: do: %w", err)
 	}
 	if resp.StatusCode/100 != 2 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		_ = resp.Body.Close()
 		return nil, fmt.Errorf("elevenlabs: status %d: %s", resp.StatusCode, body)
 	}
