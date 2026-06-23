@@ -267,6 +267,14 @@ func (s *SQLiteEventStore) Dropped() uint64 {
 
 func (s *SQLiteEventStore) writeLoop(batchN int, batchInt time.Duration) {
 	defer s.wg.Done()
+	// Same-package: cannot SafeGo via obs.SafeGo without recursive import.
+	// A panic here loses all observability — log to slog directly so the
+	// daemon at least sees the failure even if the events ring is the bug.
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("events writeLoop panic", "panic", r)
+		}
+	}()
 	buf := make([]Event, 0, batchN)
 	tick := time.NewTicker(batchInt)
 	defer tick.Stop()
