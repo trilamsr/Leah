@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const notionVersion = "2022-06-28"
@@ -23,7 +24,7 @@ type HTTPTransport struct {
 
 func NewHTTPTransport(hc *http.Client, baseURL string) *HTTPTransport {
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	return &HTTPTransport{hc: hc, baseURL: strings.TrimRight(baseURL, "/")}
 }

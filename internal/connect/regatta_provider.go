@@ -161,7 +161,7 @@ func (p *RegattaProvider) waitHealthy(ctx context.Context) error {
 	}
 	client := p.HTTPClient
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Timeout: 2 * time.Second}
 	}
 	deadline := time.Now().Add(budget)
 	for {

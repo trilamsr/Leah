@@ -25,7 +25,7 @@ var defaultHTTPClient = sync.OnceValue(func() *http.Client {
 type OpenAITTS struct {
 	APIKey string
 	Exec   Executor
-	// HTTPClient overridable for tests. nil → http.DefaultClient.
+	// HTTPClient overridable for tests. nil → 30s-timeout singleton.
 	HTTPClient *http.Client
 	// Voice defaults to "nova" (closest to Kokoro af_bella).
 	Voice string

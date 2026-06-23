@@ -25,6 +25,10 @@ var (
 	ErrUnknownProvider   = errors.New("connect: unknown provider")
 )
 
+// oauthHTTPClient bounds OAuth device-code + poll round trips so a hung IdP
+// can't park the connect wizard indefinitely.
+var oauthHTTPClient = &http.Client{Timeout: 10 * time.Second}
+
 type Attestor interface {
 	Attest(ctx context.Context, scope string) error
 }
@@ -146,7 +150,7 @@ func requestDeviceCode(ctx context.Context, cfg deviceCodeConfig) (*deviceCodeRe
 		return nil, fmt.Errorf("%w: build request: %v", ErrDeviceAuth, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := oauthHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrDeviceAuth, err)
 	}
@@ -175,7 +179,7 @@ func pollToken(ctx context.Context, cfg deviceCodeConfig, deviceCode string) (*o
 		return nil, false, fmt.Errorf("%w: build request: %v", ErrTokenExchange, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := oauthHTTPClient.Do(req)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w: %v", ErrTokenExchange, err)
 	}
