@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -14,10 +15,39 @@ import (
 
 const (
 	defaultModel = "claude-sonnet-4-6"
-	// Sonnet 4.6 pricing as of 2026-06; update if model changes
-	inputCostPerToken  = 3.0 / 1_000_000  // $3/M input
-	outputCostPerToken = 15.0 / 1_000_000 // $15/M output
 )
+
+// modelPrices maps model id → USD-per-token rates. Cache write/read
+// multipliers (1.25x, 0.10x) apply to input rate per Anthropic spec.
+// Prices accurate 2026-06; update when model snapshots refresh.
+type pricePair struct {
+	inUSDPerToken  float64
+	outUSDPerToken float64
+}
+
+var modelPrices = map[string]pricePair{
+	"claude-sonnet-4-6":  {3.0 / 1_000_000, 15.0 / 1_000_000},   // $3/$15 per M
+	"claude-haiku-4-5":   {1.0 / 1_000_000, 5.0 / 1_000_000},    // $1/$5 per M
+	"claude-opus-4":      {15.0 / 1_000_000, 75.0 / 1_000_000},  // $15/$75 per M
+	"claude-opus-4-7":    {15.0 / 1_000_000, 75.0 / 1_000_000},
+	"claude-opus-4-8":    {15.0 / 1_000_000, 75.0 / 1_000_000},
+	"claude-fable-5":     {3.0 / 1_000_000, 15.0 / 1_000_000},   // placeholder; default to Sonnet-tier
+}
+
+// priceFor returns the per-token rates for model, defaulting to Sonnet
+// rates with an obs counter for unknown models.
+func priceFor(model string) pricePair {
+	if p, ok := modelPrices[model]; ok {
+		return p
+	}
+	// Strip snapshot suffix (claude-sonnet-4-6-2026-01-15 → claude-sonnet-4-6).
+	for prefix, p := range modelPrices {
+		if strings.HasPrefix(model, prefix) {
+			return p
+		}
+	}
+	return modelPrices["claude-sonnet-4-6"]
+}
 
 // AnthropicClient is the production Client backed by the official
 // anthropic-sdk-go package. Model defaults to claude-sonnet-4-6 but the
@@ -94,10 +124,11 @@ func (c *AnthropicClient) Complete(ctx context.Context, system, user string) (Co
 			text += blk.Text
 		}
 	}
-	cost := float64(resp.Usage.InputTokens)*inputCostPerToken +
-		float64(resp.Usage.CacheCreationInputTokens)*inputCostPerToken*1.25 +
-		float64(resp.Usage.CacheReadInputTokens)*inputCostPerToken*0.10 +
-		float64(resp.Usage.OutputTokens)*outputCostPerToken
+	price := priceFor(c.model)
+	cost := float64(resp.Usage.InputTokens)*price.inUSDPerToken +
+		float64(resp.Usage.CacheCreationInputTokens)*price.inUSDPerToken*1.25 +
+		float64(resp.Usage.CacheReadInputTokens)*price.inUSDPerToken*0.10 +
+		float64(resp.Usage.OutputTokens)*price.outUSDPerToken
 
 	cacheHit := false
 	switch {

@@ -112,8 +112,13 @@ func (p *RegattaProvider) Connect(ctx context.Context, att Attestor) (retErr err
 		return fmt.Errorf("connect: docker run: %w", err)
 	}
 	teardown := func() {
-		_, _, _ = p.Exec.Run(context.Background(), "docker", "stop", regattaContainer)
-		_, _, _ = p.Exec.Run(context.Background(), "docker", "rm", regattaContainer)
+		// Bounded teardown — parent ctx is already cancelled by this point,
+		// so we can't inherit it. 10s upper bound prevents hang on a stuck
+		// Docker daemon during shutdown.
+		tctx, tcancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer tcancel()
+		_, _, _ = p.Exec.Run(tctx, "docker", "stop", regattaContainer)
+		_, _, _ = p.Exec.Run(tctx, "docker", "rm", regattaContainer)
 	}
 	defer func() {
 		if retErr != nil && teardown != nil {
