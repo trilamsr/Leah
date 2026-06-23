@@ -8,6 +8,7 @@ package router
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/trilam/leah/internal/vision"
 )
@@ -69,6 +70,10 @@ type router struct {
 	consent ConsentStore
 	meter   VisionMeter
 	prompt  func(mode string) bool
+	// gateMu serializes the consent check-prompt-grant sequence so two
+	// concurrent VisionSonnet Asks can't both observe !Granted and each fire
+	// the operator prompt — §4.6 mandates first-time-per-session, singular.
+	gateMu sync.Mutex
 }
 
 // New wires a Router. prompt may be nil — Ask then treats absent consent as
@@ -85,12 +90,15 @@ func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mod
 		close(out)
 		return out, nil
 	}
+	r.gateMu.Lock()
 	if !r.consent.Granted("screenshot") {
 		if r.prompt == nil || !r.prompt("screenshot") {
+			r.gateMu.Unlock()
 			return nil, ErrConsentDenied
 		}
 		r.consent.Grant("screenshot", ScopeThisSession)
 	}
+	r.gateMu.Unlock()
 	if r.meter != nil {
 		if err := r.meter.Charge(ctx, BucketCloudVisionBytes, int64(len(frame.Pixels))); err != nil {
 			out := make(chan ReasonerEvent, 1)

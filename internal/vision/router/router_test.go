@@ -3,6 +3,8 @@ package router
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/trilam/leah/internal/vision"
@@ -20,11 +22,11 @@ func (f *fakeOCR) Recognize(_ context.Context, _ vision.Image) ([]vision.TextBlo
 type fakeSonnet struct {
 	chunks []string
 	err    error
-	calls  int
+	calls  atomic.Int32
 }
 
 func (f *fakeSonnet) StreamVision(_ context.Context, _ vision.Image, _ string) (<-chan string, error) {
-	f.calls++
+	f.calls.Add(1)
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -73,8 +75,8 @@ func TestAsk_LocalMode_NoSonnetCallNoConsent(t *testing.T) {
 		t.Fatalf("Ask: %v", err)
 	}
 	drain(t, ch)
-	if sonnet.calls != 0 {
-		t.Fatalf("VisionLocal must not call Sonnet; got %d", sonnet.calls)
+	if sonnet.calls.Load() != 0 {
+		t.Fatalf("VisionLocal must not call Sonnet; got %d", sonnet.calls.Load())
 	}
 }
 
@@ -91,7 +93,7 @@ func TestAsk_SonnetWithoutConsent_PromptsAndDenies(t *testing.T) {
 	if !errors.Is(err, ErrConsentDenied) {
 		t.Fatalf("expected ErrConsentDenied, got %v", err)
 	}
-	if sonnet.calls != 0 {
+	if sonnet.calls.Load() != 0 {
 		t.Fatal("denied consent must not call Sonnet")
 	}
 }
@@ -149,7 +151,7 @@ func TestAsk_BudgetOverCap_DegradesToLocal(t *testing.T) {
 		t.Fatalf("Ask: %v", err)
 	}
 	got := drain(t, ch)
-	if sonnet.calls != 0 {
+	if sonnet.calls.Load() != 0 {
 		t.Fatal("over-cap must skip Sonnet")
 	}
 	if len(got) != 1 || !got[0].IsFinal || got[0].Err == nil {
@@ -169,6 +171,39 @@ func TestAsk_SonnetStreamError_PropagatesAsTerminalEvent(t *testing.T) {
 	got := drain(t, ch)
 	if len(got) != 1 || !got[0].IsFinal || got[0].Err == nil {
 		t.Fatalf("expected terminal error event; got %+v", got)
+	}
+}
+
+func TestAsk_ConcurrentSonnetAsks_PromptFiresOnce(t *testing.T) {
+	sonnet := &fakeSonnet{chunks: []string{"ok"}}
+	consent := newMemConsent()
+	var prompts int32
+	// gate blocks the prompt callback so every racing Ask piles up on the
+	// gateMu — without the mutex they'd all observe !Granted and each fire.
+	release := make(chan struct{})
+	r := New(&fakeOCR{}, sonnet, consent, nil, func(string) bool {
+		atomic.AddInt32(&prompts, 1)
+		<-release
+		return true
+	})
+	const N = 8
+	var wg sync.WaitGroup
+	wg.Add(N)
+	for i := 0; i < N; i++ {
+		go func() {
+			defer wg.Done()
+			ch, err := r.Ask(context.Background(), newTestImage(), "p", VisionSonnet)
+			if err != nil {
+				t.Errorf("Ask: %v", err)
+				return
+			}
+			drain(t, ch)
+		}()
+	}
+	close(release)
+	wg.Wait()
+	if got := atomic.LoadInt32(&prompts); got != 1 {
+		t.Fatalf("prompt must fire exactly once under concurrent Asks; got %d", got)
 	}
 }
 

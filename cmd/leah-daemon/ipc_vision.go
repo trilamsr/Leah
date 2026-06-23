@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/trilam/leah/internal/ipc"
@@ -46,7 +47,7 @@ func handleVisionSnap(ctx context.Context, req ipc.Frame, r router.Router) (<-ch
 
 	events, err := r.Ask(ctx, img, p.Prompt, router.VisionMode(p.Mode))
 	if err != nil {
-		if err == router.ErrConsentDenied {
+		if errors.Is(err, router.ErrConsentDenied) {
 			out := make(chan ipc.Frame, 1)
 			out <- ipc.Frame{
 				Kind:    ipc.KindVisionConsentRequired,
@@ -57,7 +58,10 @@ func handleVisionSnap(ctx context.Context, req ipc.Frame, r router.Router) (<-ch
 			close(out)
 			return out, nil
 		}
-		return nil, fmt.Errorf("vision router Ask: %w", err)
+		// Frame any other Ask error so the HUD sees a terminal error rather
+		// than the AF_UNIX conn dropping — server.go closes on handler-error
+		// return per spec §10.7, which would orphan the turn on the HUD side.
+		return visionErr(req, fmt.Sprintf("vision router: %v", err)), nil
 	}
 
 	out := make(chan ipc.Frame, 8)
