@@ -21,15 +21,15 @@ public final class SnapTool: @unchecked Sendable {
 
     private let ipc: VisionIPC
     private let turnId: String
-    private var streamCont: AsyncStream<StreamFrame>.Continuation?
-
-    public lazy var streamFrames: AsyncStream<StreamFrame> = AsyncStream { cont in
-        self.streamCont = cont
-    }
+    public let streamFrames: AsyncStream<StreamFrame>
+    private let streamCont: AsyncStream<StreamFrame>.Continuation
 
     public init(ipc: VisionIPC, turnId: String = UUID().uuidString) {
         self.ipc = ipc
         self.turnId = turnId
+        var cont: AsyncStream<StreamFrame>.Continuation!
+        self.streamFrames = AsyncStream { cont = $0 }
+        self.streamCont = cont
     }
 
     public func snap(prompt: String, mode: VisionMode, rect: SnapRect?) async throws {
@@ -47,10 +47,10 @@ public final class SnapTool: @unchecked Sendable {
     }
 
     public func ingest(streamFrame: StreamFrame) {
-        streamCont?.yield(streamFrame)
+        streamCont.yield(streamFrame)
     }
 
     public func finish() {
-        streamCont?.finish()
+        streamCont.finish()
     }
 }

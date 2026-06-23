@@ -45,6 +45,22 @@ final class ConsentSheetTests: XCTestCase {
         XCTAssertFalse(ledger.granted(mode: "screenshot"))
     }
 
+    func testRequestReturnsTrueOnSendOnce() async throws {
+        let ledger = SessionConsentLedger()
+        let gate = ConsentGate(ledger: ledger) { _ in .sendOnce }
+        let ok = await gate.request(mode: "screenshot")
+        XCTAssertTrue(ok)
+        XCTAssertFalse(ledger.granted(mode: "screenshot"))
+    }
+
+    func testRequestReturnsTrueOnAlwaysThisSession() async throws {
+        let ledger = SessionConsentLedger()
+        let gate = ConsentGate(ledger: ledger) { _ in .alwaysThisSession }
+        let ok = await gate.request(mode: "live_screen")
+        XCTAssertTrue(ok)
+        XCTAssertTrue(ledger.granted(mode: "live_screen"))
+    }
+
     func testCopyForModeMatchesSpec() {
         XCTAssertEqual(ConsentSheet.title(forMode: "screenshot"), "Send this screenshot to Claude?")
         XCTAssertEqual(ConsentSheet.title(forMode: "live_screen"), "Stream your screen to Claude?")

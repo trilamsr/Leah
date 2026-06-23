@@ -1,6 +1,29 @@
 import Foundation
 import SwiftUI
 
+public enum SelectionGeometry {
+    public static let minSide: CGFloat = 4
+
+    public static func rect(anchor: CGPoint, current: CGPoint) -> CGRect {
+        CGRect(
+            x: min(anchor.x, current.x),
+            y: min(anchor.y, current.y),
+            width: abs(current.x - anchor.x),
+            height: abs(current.y - anchor.y)
+        )
+    }
+
+    public static func snap(from rect: CGRect) -> SnapRect? {
+        guard rect.width > minSide, rect.height > minSide else { return nil }
+        return SnapRect(
+            x: Int(rect.minX),
+            y: Int(rect.minY),
+            width: Int(rect.width),
+            height: Int(rect.height)
+        )
+    }
+}
+
 public struct SelectionOverlay: View {
     @State private var anchor: CGPoint?
     @State private var current: CGPoint?
@@ -33,15 +56,10 @@ public struct SelectionOverlay: View {
                         current = value.location
                     }
                     .onEnded { _ in
-                        guard let rect = currentRect, rect.width > 4, rect.height > 4 else {
+                        guard let rect = currentRect, let snap = SelectionGeometry.snap(from: rect) else {
                             onCancel(); return
                         }
-                        onCommit(SnapRect(
-                            x: Int(rect.minX),
-                            y: Int(rect.minY),
-                            width: Int(rect.width),
-                            height: Int(rect.height)
-                        ))
+                        onCommit(snap)
                     }
             )
             .onExitCommand { onCancel() }
@@ -50,11 +68,6 @@ public struct SelectionOverlay: View {
 
     private var currentRect: CGRect? {
         guard let a = anchor, let c = current else { return nil }
-        return CGRect(
-            x: min(a.x, c.x),
-            y: min(a.y, c.y),
-            width: abs(c.x - a.x),
-            height: abs(c.y - a.y)
-        )
+        return SelectionGeometry.rect(anchor: a, current: c)
     }
 }

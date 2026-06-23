@@ -44,6 +44,31 @@ final class SnapToolTests: XCTestCase {
         XCTAssertEqual(seen.count, 1)
         XCTAssertEqual(seen[0].summary, "hello")
     }
+
+    func testIngestBeforeSubscriptionBuffers() async throws {
+        let ipc = MockVisionIPC()
+        let tool = SnapTool(ipc: ipc, turnId: "t4")
+        tool.ingest(streamFrame: StreamFrame(thumbBase64: "x", summary: "first"))
+        tool.ingest(streamFrame: StreamFrame(thumbBase64: "y", summary: "second"))
+        tool.finish()
+        var seen: [StreamFrame] = []
+        for await frame in tool.streamFrames { seen.append(frame) }
+        XCTAssertEqual(seen.map { $0.summary }, ["first", "second"])
+    }
+
+    func testSelectionGeometryNormalizesDragDirection() {
+        let r1 = SelectionGeometry.rect(anchor: CGPoint(x: 100, y: 200), current: CGPoint(x: 50, y: 80))
+        XCTAssertEqual(r1, CGRect(x: 50, y: 80, width: 50, height: 120))
+        let r2 = SelectionGeometry.rect(anchor: CGPoint(x: 10, y: 10), current: CGPoint(x: 60, y: 70))
+        XCTAssertEqual(r2, CGRect(x: 10, y: 10, width: 50, height: 60))
+    }
+
+    func testSelectionGeometryRejectsTinyRects() {
+        XCTAssertNil(SelectionGeometry.snap(from: CGRect(x: 0, y: 0, width: 3, height: 100)))
+        XCTAssertNil(SelectionGeometry.snap(from: CGRect(x: 0, y: 0, width: 100, height: 3)))
+        let ok = SelectionGeometry.snap(from: CGRect(x: 5, y: 6, width: 50, height: 60))
+        XCTAssertEqual(ok, SnapRect(x: 5, y: 6, width: 50, height: 60))
+    }
 }
 
 actor MockVisionIPC: VisionIPC {
