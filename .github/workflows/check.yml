@@ -38,6 +38,9 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Marketing assets
+        run: bash scripts/check-marketing-assets.sh
+
       - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
