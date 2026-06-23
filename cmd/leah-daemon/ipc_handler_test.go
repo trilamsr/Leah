@@ -244,6 +244,147 @@ func TestIPCHandlerClassifiesWidget(t *testing.T) {
 	}
 }
 
+// Citation widget intent must call EnrichCitation exactly once and attach the
+// resulting enrichment (entity_key, arxiv_id, domain) to the widget.mount
+// payload. Enrichment failure / nil return must still emit widget.mount —
+// graceful degradation, not a user-visible error.
+func TestIPCHandlerCitationWidgetEnriches(t *testing.T) {
+	db := newTestTurnDB(t)
+	sonnetStream := func(_ context.Context, _, _ string) (<-chan ipc.Frame, error) {
+		t.Fatal("Sonnet stream must not be called for citation widget intent")
+		return nil, nil
+	}
+	const arxivURL = "https://arxiv.org/abs/2406.12345"
+	citationClassify := func(_ context.Context, _ string) reasoner.Intent {
+		return reasoner.Intent{Kind: "widget", Widget: "citation", URL: arxivURL, Confidence: 0.95}
+	}
+	var enrichCalls int32
+	enrich := func(_ context.Context, gotURL string) (*knowledge.CitationEnrichment, error) {
+		enrichCalls++
+		if gotURL != arxivURL {
+			t.Errorf("enrich url: got %q, want %q", gotURL, arxivURL)
+		}
+		return &knowledge.CitationEnrichment{
+			URL:        arxivURL,
+			Domain:     "arxiv.org",
+			ArxivID:    "2406.12345",
+			EntityKind: knowledge.KindProject,
+			EntityKey:  "arxiv:2406.12345",
+			Display:    "Attention Tweaks",
+		}, nil
+	}
+
+	h := newIPCHandlerWithClassifyEnrich(db, sonnetStream, sonnetStream, citationClassify,
+		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil)
+
+	in := ipc.Frame{Kind: "ask", TurnID: "c1", Payload: json.RawMessage(`{"text":"summarise https://arxiv.org/abs/2406.12345"}`)}
+	out, err := h(context.Background(), in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	var frames []ipc.Frame
+	for f := range out {
+		frames = append(frames, f)
+	}
+	if len(frames) != 1 || frames[0].Kind != "widget.mount" {
+		t.Fatalf("frames: %+v", frames)
+	}
+	if enrichCalls != 1 {
+		t.Fatalf("enrich called %d times, want exactly 1", enrichCalls)
+	}
+	var wp struct {
+		WidgetType string                        `json:"widget_type"`
+		URL        string                        `json:"url"`
+		Enrichment *knowledge.CitationEnrichment `json:"enrichment"`
+	}
+	if err := json.Unmarshal(frames[0].Payload, &wp); err != nil {
+		t.Fatalf("unmarshal widget.mount: %v", err)
+	}
+	if wp.WidgetType != "citation" {
+		t.Errorf("widget_type: %q", wp.WidgetType)
+	}
+	if wp.URL != arxivURL {
+		t.Errorf("url: %q", wp.URL)
+	}
+	if wp.Enrichment == nil || wp.Enrichment.EntityKey != "arxiv:2406.12345" || wp.Enrichment.ArxivID != "2406.12345" {
+		t.Errorf("enrichment: %+v", wp.Enrichment)
+	}
+}
+
+// Enrichment failure must not block widget.mount — the tile renders without
+// the enrichment block (graceful degradation).
+func TestIPCHandlerCitationGracefulDegradeOnEnrichErr(t *testing.T) {
+	db := newTestTurnDB(t)
+	noStream := func(_ context.Context, _, _ string) (<-chan ipc.Frame, error) { return nil, nil }
+	const arxivURL = "https://arxiv.org/abs/2406.12345"
+	citationClassify := func(_ context.Context, _ string) reasoner.Intent {
+		return reasoner.Intent{Kind: "widget", Widget: "citation", URL: arxivURL}
+	}
+	enrich := func(_ context.Context, _ string) (*knowledge.CitationEnrichment, error) {
+		return nil, errors.New("kg unavailable")
+	}
+	h := newIPCHandlerWithClassifyEnrich(db, noStream, noStream, citationClassify,
+		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil)
+
+	in := ipc.Frame{Kind: "ask", TurnID: "c2", Payload: json.RawMessage(`{"text":"summarise X"}`)}
+	out, err := h(context.Background(), in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	var frames []ipc.Frame
+	for f := range out {
+		frames = append(frames, f)
+	}
+	if len(frames) != 1 || frames[0].Kind != "widget.mount" {
+		t.Fatalf("frames: %+v", frames)
+	}
+	var wp struct {
+		WidgetType string                        `json:"widget_type"`
+		URL        string                        `json:"url"`
+		Enrichment *knowledge.CitationEnrichment `json:"enrichment"`
+	}
+	if err := json.Unmarshal(frames[0].Payload, &wp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if wp.WidgetType != "citation" || wp.URL != arxivURL {
+		t.Errorf("payload: %+v", wp)
+	}
+	if wp.Enrichment != nil {
+		t.Errorf("enrichment must be nil on error, got %+v", wp.Enrichment)
+	}
+}
+
+// Citation widget intent must propagate context cancellation to the enricher.
+func TestIPCHandlerCitationCtxCancelPropagates(t *testing.T) {
+	db := newTestTurnDB(t)
+	noStream := func(_ context.Context, _, _ string) (<-chan ipc.Frame, error) { return nil, nil }
+	citationClassify := func(_ context.Context, _ string) reasoner.Intent {
+		return reasoner.Intent{Kind: "widget", Widget: "citation", URL: "https://arxiv.org/abs/2406.12345"}
+	}
+	gotCancelled := false
+	enrich := func(ctx context.Context, _ string) (*knowledge.CitationEnrichment, error) {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			gotCancelled = true
+		}
+		return nil, ctx.Err()
+	}
+	h := newIPCHandlerWithClassifyEnrich(db, noStream, noStream, citationClassify,
+		func(_ context.Context, _ string) error { return nil }, nil, enrich, time.Time{}, nil, nil, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	in := ipc.Frame{Kind: "ask", TurnID: "c3", Payload: json.RawMessage(`{"text":"x"}`)}
+	out, err := h(ctx, in)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	for range out {
+	}
+	if !gotCancelled {
+		t.Fatal("enricher did not observe cancelled ctx")
+	}
+}
+
 // escalate_opus: true in the ask payload must route to the opus streamFn.
 func TestIPCHandlerHonorsOpusEscalation(t *testing.T) {
 	db := newTestTurnDB(t)
