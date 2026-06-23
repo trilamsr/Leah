@@ -194,11 +194,82 @@ case_offline_no_prune() {
   rm -rf "$root"
 }
 
+# ---- T6: squash-merged branch (tip not in origin/main ancestry, branch
+# still on remote) → pruned via `gh pr list --state merged --head`.
+# GitHub's squash-merge produces a new commit on main whose ancestry does
+# NOT include the PR-branch tip; if "Automatically delete head branches"
+# is off, the remote ref also lingers. Both pre-existing predicates
+# (`branch -r --merged` + `ls-remote` absence) miss this — the gh PR
+# query is the only signal that the work actually shipped.
+case_squash_merged_pruned() {
+  local root; root=$(mkrepo)
+  local clone="$root/clone"
+  mkagent "$clone" squashed push
+
+  # Stub `gh`: report a merged PR for feat/squashed, nothing for others.
+  # The script must call gh with `--head <short-branch>`; we key on that.
+  local bin="$root/bin"
+  mkdir -p "$bin"
+  cat > "$bin/gh" <<'STUB'
+#!/usr/bin/env bash
+# Match: gh pr list --state merged --head <branch> --json ... --limit 1
+head=""
+for ((i=1; i<=$#; i++)); do
+  if [ "${!i}" = "--head" ]; then
+    j=$((i+1))
+    head="${!j}"
+  fi
+done
+if [ "$head" = "feat/squashed" ]; then
+  echo '[{"number":999}]'
+else
+  echo '[]'
+fi
+STUB
+  chmod +x "$bin/gh"
+
+  local rc=0
+  (cd "$clone" && PATH="$bin:$PATH" bash "$JANITOR") >"$root/run.log" 2>&1 || rc=$?
+
+  if [ -d "$clone/.claude/worktrees/agent-squashed" ]; then
+    cat "$root/run.log"
+    fail "squash-merged worktree should be pruned (gh-pr-merged signal)"
+  else
+    pass "squash-merged worktree pruned via gh pr list"
+  fi
+  rm -rf "$root"
+}
+
+# ---- T7: gh binary absent → live worktree still preserved (no crash).
+# The launchd sweep must survive on hosts without gh installed; falling
+# through to the original two predicates is the correct behavior.
+case_no_gh_live_preserved() {
+  local root; root=$(mkrepo)
+  local clone="$root/clone"
+  mkagent "$clone" nogh push
+
+  local rc=0
+  (cd "$clone" && PATH="/usr/bin:/bin" bash "$JANITOR") >"$root/run.log" 2>&1 || rc=$?
+
+  if [ "$rc" -ne 0 ]; then
+    cat "$root/run.log"
+    fail "no-gh run should exit 0 (got $rc)"
+  elif [ -d "$clone/.claude/worktrees/agent-nogh" ]; then
+    pass "no-gh live worktree preserved"
+  else
+    cat "$root/run.log"
+    fail "no-gh run must not prune a live branch"
+  fi
+  rm -rf "$root"
+}
+
 case_merged_pruned
 case_deleted_pruned
 case_live_preserved
 case_non_agent_ignored
 case_offline_no_prune
+case_squash_merged_pruned
+case_no_gh_live_preserved
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
