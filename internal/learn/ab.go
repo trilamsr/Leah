@@ -95,7 +95,9 @@ func (k *abKernel) Lock(ctx context.Context, expID int64) error {
 	}
 	lbA := wilsonLowerBound(wA, iA)
 	lbB := wilsonLowerBound(wB, iB)
-	if lbA == lbB {
+	// Epsilon tie — float == is brittle; two arms with imperceptibly close
+	// Wilson LBs should stay 50/50 per §3.7, not silently lock to one side.
+	if math.Abs(lbA-lbB) < 1e-9 {
 		return ErrABNotReady
 	}
 	winner := armA

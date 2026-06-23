@@ -141,3 +141,79 @@ func TestAntiList_AutoIgnoresOldDismissed(t *testing.T) {
 		t.Fatal("Dismissed outside the 30 d window must not auto-add")
 	}
 }
+
+func TestAntiList_OperatorRemovesAutoRule(t *testing.T) {
+	db, cleanup := newAntiDB(t)
+	defer cleanup()
+	a := newAntiList(db, time.Now)
+	ctx := context.Background()
+	if err := a.Add(ctx, "pin-widget", "auto", AntiAuto); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Remove(ctx, "pin-widget", AntiAuto); err != nil {
+		t.Fatalf("operator-routed Remove(AntiAuto) must drop the auto row; got %v", err)
+	}
+	blocked, _ := a.IsBlocked(ctx, "pin-widget")
+	if blocked {
+		t.Fatal("post-Remove must not block")
+	}
+}
+
+func TestAntiList_AutoSweepRePromotesAfterRemove(t *testing.T) {
+	db, cleanup := newAntiDB(t)
+	defer cleanup()
+	frozen := time.Unix(1_700_000_000, 0)
+	a := newAntiList(db, func() time.Time { return frozen })
+	ctx := context.Background()
+
+	for i := 0; i < AutoDismissThreshold; i++ {
+		if _, err := db.Exec(
+			`INSERT INTO learn_recommendation(kind, body, action_ref, score, confidence, decay_id, expires_at, state, surfaced_at)
+			 VALUES('pin-widget','t','n',0.5,0.5,1,?,?, ?)`,
+			frozen.Add(time.Hour).Unix(), "dismissed", frozen.Add(-time.Duration(i)*time.Hour).Unix()); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	if err := a.AutoSweep(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Remove(ctx, "pin-widget", AntiAuto); err != nil {
+		t.Fatal(err)
+	}
+	// Dismissals still in the rolling window — next sweep must re-promote.
+	if err := a.AutoSweep(ctx); err != nil {
+		t.Fatal(err)
+	}
+	blocked, _ := a.IsBlocked(ctx, "pin-widget")
+	if !blocked {
+		t.Fatal("AutoSweep must re-promote a kind whose Dismissed window remains hot after manual removal")
+	}
+}
+
+func TestAntiList_AutoSweepIsIdempotent(t *testing.T) {
+	db, cleanup := newAntiDB(t)
+	defer cleanup()
+	frozen := time.Unix(1_700_000_000, 0)
+	a := newAntiList(db, func() time.Time { return frozen })
+	ctx := context.Background()
+	for i := 0; i < AutoDismissThreshold; i++ {
+		if _, err := db.Exec(
+			`INSERT INTO learn_recommendation(kind, body, action_ref, score, confidence, decay_id, expires_at, state, surfaced_at)
+			 VALUES('pin-widget','t','n',0.5,0.5,1,?,?, ?)`,
+			frozen.Add(time.Hour).Unix(), "dismissed", frozen.Add(-time.Duration(i)*time.Hour).Unix()); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	for i := 0; i < 3; i++ {
+		if err := a.AutoSweep(ctx); err != nil {
+			t.Fatalf("AutoSweep iter %d: %v", i, err)
+		}
+	}
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM anti_recommend WHERE kind='pin-widget' AND source='auto'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("AutoSweep must coalesce — want 1 auto row, got %d", n)
+	}
+}
