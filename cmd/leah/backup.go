@@ -35,6 +35,7 @@ func runBackup(parent context.Context, args []string) int {
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 

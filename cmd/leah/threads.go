@@ -56,6 +56,7 @@ func runThreadsWith(ctx context.Context, opts threadsOpts, args []string, w io.W
 		windowS = fs.String("within", "720h", "adapter scan window (default 30d)")
 	)
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 	if *tool != "" {

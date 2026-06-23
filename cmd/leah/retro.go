@@ -17,6 +17,7 @@ func runRetro(args []string) int {
 	fs := flag.NewFlagSet("retro", flag.ContinueOnError)
 	week := fs.String("week", "", "ISO week YYYY-WW (defaults to current)")
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 

@@ -37,6 +37,7 @@ func runListen(ctx context.Context, reg *obs.Registry, args []string) int {
 	modelDir := fs.String("model-dir", "models", "directory containing ggml-*.bin model files")
 	repo := fs.String("repo", "", "repo to use when transcript classifies as ship/review")
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 

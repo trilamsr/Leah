@@ -643,6 +643,10 @@ func stateDirE() (string, error) {
 func stateDir() string {
 	d, err := stateDirE()
 	if err != nil {
+		// Log to stderr BEFORE panic so user sees the context instead of
+		// just an unfiltered stack trace. Panic still propagates to unwind
+		// defers (writeInterruptedAudit, snapshotCLIMetrics) per design.
+		_, _ = fmt.Fprintf(os.Stderr, "leah: fatal: state dir init failed: %v\n", err)
 		panic(err)
 	}
 	return d

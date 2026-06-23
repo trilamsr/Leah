@@ -54,6 +54,7 @@ func runCtxNewFromWorkspace(args []string) int {
 	fs := flag.NewFlagSet("workspace new", flag.ContinueOnError)
 	desc := fs.String("desc", "", "human-readable description")
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 	if fs.NArg() < 1 {
@@ -69,6 +70,7 @@ func runCtxSwitchFromWorkspace(args []string) int {
 	fs := flag.NewFlagSet("workspace switch", flag.ContinueOnError)
 	reason := fs.String("reason", "cli", "free-form reason recorded in switch log")
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 	if fs.NArg() < 1 {

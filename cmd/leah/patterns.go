@@ -17,6 +17,7 @@ func runPatterns(args []string) int {
 	weekly := fs.Bool("weekly", false, "use 7-day window instead of default 30-day")
 	minCount := fs.Int("min-count", patterns.DefaultMinCount, "min cluster size to emit")
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 
