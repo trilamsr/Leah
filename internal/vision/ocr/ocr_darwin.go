@@ -3,6 +3,7 @@
 package ocr
 
 /*
+#cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Vision -framework CoreGraphics -framework CoreImage -framework Foundation
 #include <stdlib.h>
 typedef struct { const char* text; int x; int y; int w; int h; double conf; } OCRHit;
