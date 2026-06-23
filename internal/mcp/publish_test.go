@@ -9,33 +9,46 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/trilam/leah/internal/testutil"
 )
 
 func newPublishTest(t *testing.T) (sock string, cancel context.CancelFunc, errCh <-chan error) {
 	t.Helper()
-	dir := t.TempDir()
-	sock = filepath.Join(dir, "leah-mcp.sock")
+	sock = shortTempSocket(t)
 	ctx, c := context.WithCancel(context.Background())
 	ch := make(chan error, 1)
 	go func() { ch <- ServePublish(ctx, sock) }()
-	waitForSocket(t, sock)
+	waitForSocket(t, sock, ch)
 	return sock, c, ch
 }
 
-func waitForSocket(t *testing.T, path string) {
+// macOS limits AF_UNIX sun_path to 104 bytes; t.TempDir() can blow past that.
+func shortTempSocket(t *testing.T) string {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, err := os.Stat(path); err == nil {
-			c, err := net.Dial("unix", path)
-			if err == nil {
-				_ = c.Close()
-				return
-			}
-		}
-		time.Sleep(20 * time.Millisecond)
+	dir, err := os.MkdirTemp("", "leahmcp-*")
+	if err != nil {
+		t.Fatalf("mkdtemp: %v", err)
 	}
-	t.Fatalf("socket %s did not become ready", path)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, "p.sock")
+}
+
+func waitForSocket(t *testing.T, path string, errCh <-chan error) {
+	t.Helper()
+	testutil.Eventually(t, 2*time.Second, 20*time.Millisecond, func() bool {
+		select {
+		case e := <-errCh:
+			t.Fatalf("serve returned early: %v", e)
+		default:
+		}
+		c, err := net.Dial("unix", path)
+		if err != nil {
+			return false
+		}
+		_ = c.Close()
+		return true
+	})
 }
 
 type rpcRequest struct {
@@ -77,8 +90,7 @@ func roundTrip(t *testing.T, sock string, req rpcRequest) rpcResponse {
 
 func TestPublish_GateOffByDefault(t *testing.T) {
 	t.Setenv("LEAH_MCP_PUBLISH", "")
-	dir := t.TempDir()
-	sock := filepath.Join(dir, "leah-mcp.sock")
+	sock := shortTempSocket(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	err := ServePublish(ctx, sock)
