@@ -44,7 +44,9 @@ func EnrichCitation(ctx context.Context, g *Graph, citationURL string) (*Citatio
 		return nil, nil
 	}
 	enr := &CitationEnrichment{URL: citationURL, Domain: strings.ToLower(u.Host)}
-	if strings.HasSuffix(enr.Domain, "arxiv.org") {
+	// Exact host or subdomain only — bare HasSuffix would accept
+	// hostile look-alikes like evil-arxiv.org and spoof an ID.
+	if enr.Domain == "arxiv.org" || strings.HasSuffix(enr.Domain, ".arxiv.org") {
 		if m := arxivPath.FindString(strings.ToLower(u.Path)); m != "" {
 			enr.ArxivID = m
 		}

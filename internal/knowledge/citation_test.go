@@ -83,6 +83,17 @@ func TestEnrichCitation_CtxCancel(t *testing.T) {
 	}
 }
 
+func TestEnrichCitation_LookalikeHostRejected(t *testing.T) {
+	g := newCitationGraph(t)
+	enr, err := EnrichCitation(context.Background(), g, "https://evil-arxiv.org/abs/2406.12345")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if enr != nil {
+		t.Fatalf("want nil, got %+v", enr)
+	}
+}
+
 func TestEnrichCitation_ArxivIDFromBareURL(t *testing.T) {
 	g := newCitationGraph(t)
 	// No entity persisted — bare arxiv URL still produces a non-nil
