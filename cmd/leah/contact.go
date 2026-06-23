@@ -32,12 +32,14 @@ func runContact(args []string) int {
 
 	switch args[0] {
 	case "add":
-		fs := flag.NewFlagSet("contact add", flag.ExitOnError)
+		fs := flag.NewFlagSet("contact add", flag.ContinueOnError)
 		name := fs.String("name", "", "contact display name (required)")
 		email := fs.String("email", "", "contact email")
 		notes := fs.String("notes", "", "free-form notes")
 		jsonOut := fs.Bool("json", false, "emit json")
-		_ = fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
 		if *name == "" {
 			_, _ = fmt.Fprintln(os.Stderr, "leah contact add: --name required")
 			return 2

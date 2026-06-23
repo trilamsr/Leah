@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const apiBase = "https://slack.com/api"
@@ -20,7 +21,7 @@ type HTTPTransport struct {
 
 func NewHTTPTransport(hc *http.Client, base string) *HTTPTransport {
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	if base == "" {
 		base = apiBase

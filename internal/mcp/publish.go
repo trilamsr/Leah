@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -73,7 +74,10 @@ func ServePublish(ctx context.Context, sockPath string) error {
 	if os.Getenv(envPublishGate) != "1" {
 		return ErrPublishDisabled
 	}
-	if err := os.MkdirAll(filepath.Dir(sockPath), 0o755); err != nil {
+	// 0o700 dir + 0o600 socket — multi-user mac box protection. Matches
+	// internal/ipc/server.go convention; world-connectable MCP would
+	// expose `tools/list` to any local user.
+	if err := os.MkdirAll(filepath.Dir(sockPath), 0o700); err != nil {
 		return err
 	}
 	// Stale socket from a prior crash blocks bind; remove only if it's a
@@ -84,6 +88,10 @@ func ServePublish(ctx context.Context, sockPath string) error {
 	ln, err := net.Listen("unix", sockPath)
 	if err != nil {
 		return err
+	}
+	if err := os.Chmod(sockPath, 0o600); err != nil {
+		_ = ln.Close()
+		return fmt.Errorf("chmod socket: %w", err)
 	}
 	defer func() {
 		_ = ln.Close()

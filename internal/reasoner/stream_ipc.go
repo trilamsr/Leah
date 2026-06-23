@@ -21,6 +21,10 @@ type StreamChunk struct {
 	Final        bool
 	InputTokens  int
 	OutputTokens int
+	// Err set when SSE stream drops mid-flight. Receivers surface the error
+	// to the caller and skip the turn.end cost frame (partial tokens are
+	// still reported so caller can charge what was actually billed).
+	Err error
 }
 
 // streamer is the narrow interface streamToIPCWith needs. *AnthropicClient
@@ -59,7 +63,7 @@ func streamToIPCWith(ctx context.Context, s streamer, turnID, system string, his
 	out := make(chan ipc.Frame, 8)
 	go func() {
 		defer close(out)
-		var seq uint64
+		var seq int64
 		var inTokFinal, outTokFinal int
 		var haveFinal bool
 		maxText := ipc.MaxFrameBytes - proseFrameOverhead
@@ -83,6 +87,14 @@ func streamToIPCWith(ctx context.Context, s streamer, turnID, system string, his
 		}
 
 		for ch := range chunks {
+			// SSE-mid-flight error: surface to caller + bail. abort() emits
+			// an error frame and we return immediately — no turn.end / cost
+			// frame on this path. Partial-token accounting reserved for a
+			// future cost-on-error reconciliation pass.
+			if ch.Err != nil {
+				abort(fmt.Sprintf("stream error: %v", ch.Err))
+				return
+			}
 			if ch.Final {
 				inTokFinal = ch.InputTokens
 				outTokFinal = ch.OutputTokens

@@ -133,7 +133,9 @@ func main() {
 	}
 
 	startActiveAppPush(ctx, lg, registry, activeapp.DefaultBlocklist)
-	go runPushSources(ctx, lg, registry, nil, func(kind string, _ []byte) { lg.Debug("push frame", "kind", kind) })
+	obs.SafeGo(lg, registry, "pushsource-runtime", func() {
+		runPushSources(ctx, lg, registry, nil, func(kind string, _ []byte) { lg.Debug("push frame", "kind", kind) })
+	})
 
 	bus := obs.NewBroadcaster()
 	obs.SetDefaultBroadcaster(bus)
@@ -164,8 +166,10 @@ func main() {
 		}
 	}
 	if cm, err := costmonth.OpenAt(filepath.Join(sd, "cost-month.json"), cmCap, time.Now()); err == nil {
-		go cm.RunRolloverLoop(ctx, time.Minute, func(err error) {
-			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: costmonth rollover: %v\n", err)
+		obs.SafeGo(lg, registry, "costmonth-rollover", func() {
+			cm.RunRolloverLoop(ctx, time.Minute, func(err error) {
+				_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: costmonth rollover: %v\n", err)
+			})
 		})
 	} else {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: costmonth open non-fatal: %v\n", err)
@@ -198,10 +202,10 @@ func main() {
 	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
 	ttsClass := tts.NewBlockwordClassifier()
 	ttsCloud, ttsLocal := buildTTSProviders()
-	go func() {
+	obs.SafeGo(lg, registry, "ipc-server", func() {
 		_ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, ttsCloud, ttsLocal, ttsClass)).Serve(ctx)
-	}()
-	startMCPPublish(ctx, os.Stderr)
+	})
+	startMCPPublish(ctx, lg, registry, os.Stderr)
 
 	evalDone := make(chan struct{})
 	close(evalDone) // default: noop close-on-exit when LEAH_EVAL is unset
@@ -224,11 +228,11 @@ func main() {
 				Store:       evalStore,
 				Interval:    evalInterval,
 			}
-			go func() {
+			obs.SafeGo(lg, registry, "eval-scheduler", func() {
 				defer close(evalDone)
 				defer func() { _ = evalStore.Close() }()
 				sched.Run(ctx)
-			}()
+			})
 		} else {
 			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: eval store open non-fatal: %v\n", err)
 		}

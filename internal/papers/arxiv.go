@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // DefaultArxivEndpoint is the public Atom-API endpoint. https avoids the
@@ -53,7 +54,8 @@ func (f *ArxivFetcher) FetchMetadata(ctx context.Context, id string) (Paper, err
 	}
 	client := f.Client
 	if client == nil {
-		client = http.DefaultClient
+		// Arxiv can be slow; 30s ceiling beats DefaultClient's no-timeout.
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
 
 	u, err := url.Parse(endpoint)

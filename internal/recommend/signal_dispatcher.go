@@ -86,14 +86,14 @@ func (d *SignalDispatcher) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	d.cancel = cancel
 	d.wg.Add(1)
-	go d.pump(runCtx, sub)
+	obs.SafeGo(nil, d.reg, "recommend-pump", func() { d.pump(runCtx, sub) })
 	if d.reg != nil {
 		d.wg.Add(1)
 		interval := d.tick
 		if interval <= 0 {
 			interval = DropMonitorInterval
 		}
-		go d.monitorDrops(runCtx, interval)
+		obs.SafeGo(nil, d.reg, "recommend-drop-monitor", func() { d.monitorDrops(runCtx, interval) })
 	}
 	return nil
 }

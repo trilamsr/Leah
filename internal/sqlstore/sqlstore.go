@@ -15,8 +15,10 @@ const schemaMetaSQL = `CREATE TABLE IF NOT EXISTS schema_meta (
 );`
 
 // OpenWAL opens a writable WAL SQLite DB with a single-writer pool; extraPragmas append as `_pragma=<p>`.
+// foreign_keys=ON is default — 5 packages (memory/recommend/knowledge/eval/obs)
+// declare FK constraints that were silently ignored without this (R6 audit).
 func OpenWAL(path string, extraPragmas ...string) (*sql.DB, error) {
-	frags := []string{"_pragma=journal_mode(WAL)", "_pragma=busy_timeout(5000)"}
+	frags := []string{"_pragma=journal_mode(WAL)", "_pragma=busy_timeout(5000)", "_pragma=foreign_keys(1)"}
 	for _, p := range extraPragmas {
 		frags = append(frags, "_pragma="+p)
 	}

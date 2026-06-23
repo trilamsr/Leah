@@ -59,6 +59,7 @@ func runReviewQueueWith(ctx context.Context, exec ghclient.Executor, args []stri
 		asJSON = fs.Bool("json", false, "machine-readable output")
 	)
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 

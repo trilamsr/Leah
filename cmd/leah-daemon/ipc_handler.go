@@ -108,23 +108,42 @@ func newIPCHandlerWithClassifyEnrich(
 ) ipc.Handler {
 	reg := newTTSRegistry()
 	return func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
+		// turn_id required for correlation across multiplexed conns.
+		if req.TurnID == "" && req.Kind != ipc.KindDiag {
+			return errFrame(req, "turn_id required"), nil
+		}
+		// seq must be non-negative — Phase 3 spec §10.7 says monotonic per turn.
+		if req.Seq < 0 {
+			return errFrame(req, fmt.Sprintf("seq must be >= 0, got %d", req.Seq)), nil
+		}
 		switch req.Kind {
-		case "verify-key":
+		case ipc.KindAsk:
+			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch, enrich)
+		case ipc.KindVerifyKey:
 			return handleVerifyKey(ctx, req, ping)
-		case "diag.state":
+		case ipc.KindDiag:
 			var last string
 			if ring != nil {
 				last = ring.Last()
 			}
-			return ipc.HandleState(ctx, startTime, last)
+			return ipc.HandleState(ctx, startTime, last, req.TurnID)
 		case ipc.KindTTSSpeak:
 			return handleTTSSpeak(ctx, req, ttsCloud, ttsLocal, ttsClass, reg)
 		case ipc.KindTTSCancel:
 			return handleTTSCancel(ctx, req, reg)
 		default:
-			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch, enrich)
+			return errFrame(req, fmt.Sprintf("unknown kind: %q", req.Kind)), nil
 		}
 	}
+}
+
+// errFrame builds a one-shot error frame echoing the request turn_id.
+func errFrame(req ipc.Frame, msg string) <-chan ipc.Frame {
+	out := make(chan ipc.Frame, 1)
+	payload, _ := json.Marshal(map[string]string{"error": msg})
+	out <- ipc.Frame{Kind: ipc.KindError, TurnID: req.TurnID, Seq: 1, Payload: payload}
+	close(out)
+	return out
 }
 
 // handleAsk classifies the query (Haiku router), routes widget intents to
@@ -143,7 +162,16 @@ func handleAsk(
 		Text         string `json:"text"`
 		EscalateOpus bool   `json:"escalate_opus"`
 	}
-	_ = json.Unmarshal(req.Payload, &p)
+	// nil/null/missing payload coerce to empty p; non-empty must parse.
+	if len(req.Payload) > 0 && string(req.Payload) != "null" {
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errFrame(req, fmt.Sprintf("bad payload: %v", err)), nil
+		}
+	}
+	// Reject empty text BEFORE hitting reasoner — avoid burning API tokens.
+	if strings.TrimSpace(p.Text) == "" {
+		return errFrame(req, "text required"), nil
+	}
 
 	// Haiku classify: widget intent emits widget.mount and skips Sonnet.
 	if classify != nil {
@@ -166,7 +194,7 @@ func handleAsk(
 		// No reasoner available (API key missing at boot): emit error frame.
 		out := make(chan ipc.Frame, 1)
 		payload, _ := json.Marshal(map[string]string{"error": "reasoner unavailable"})
-		out <- ipc.Frame{Kind: "error", TurnID: req.TurnID, Seq: 1, Payload: payload}
+		out <- ipc.Frame{Kind: ipc.KindError, TurnID: req.TurnID, Seq: 1, Payload: payload}
 		close(out)
 		return out, nil
 	}
@@ -251,7 +279,7 @@ func liveStreamFn(c *reasoner.AnthropicClient) streamFn {
 		out := make(chan ipc.Frame, 16)
 		go func() {
 			defer close(out)
-			var seq uint64
+			var seq int64
 			for d := range deltas {
 				if d.Text == "" {
 					continue

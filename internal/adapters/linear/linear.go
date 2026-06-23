@@ -197,7 +197,7 @@ type HTTPTransport struct {
 
 func NewHTTPTransport(hc *http.Client, endpoint string) *HTTPTransport {
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	if endpoint == "" {
 		endpoint = Endpoint

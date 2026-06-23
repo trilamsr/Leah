@@ -59,7 +59,7 @@ func StartSignalBridge(ctx context.Context, bus EventSubscriber, engine *MemoryE
 		cancel: cancel,
 		done:   make(chan struct{}),
 	}
-	go br.run(subCtx, engine, opts.OnError)
+	obs.SafeGo(nil, nil, "recommend-signal-bridge", func() { br.run(subCtx, engine, opts.OnError) })
 	return br, nil
 }
 
@@ -102,10 +102,13 @@ func (b *SignalBridge) Stop() {
 // Wait blocks until the bridge exits or timeout elapses. Used by tests that
 // trigger exit via the parent context rather than Stop().
 func (b *SignalBridge) Wait(timeout time.Duration) error {
+	// time.After leaks the timer until expiry; NewTimer + Stop is GC-friendly.
+	t := time.NewTimer(timeout)
+	defer t.Stop()
 	select {
 	case <-b.done:
 		return nil
-	case <-time.After(timeout):
+	case <-t.C:
 		return errors.New("recommend: SignalBridge.Wait timeout")
 	}
 }

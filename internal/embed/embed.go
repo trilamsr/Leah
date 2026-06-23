@@ -429,8 +429,10 @@ func (s *Store) Put(ctx context.Context, items []Item) error {
 	if err != nil {
 		return fmt.Errorf("embed.Put: begin: %w", err)
 	}
+	// Umbrella rollback — survives Commit (no-op) + a future-added error
+	// return that forgets explicit cleanup (R6 SQLite audit).
+	defer func() { _ = tx.Rollback() }()
 	if err := ensureTable(ctx, tx, table); err != nil {
-		_ = tx.Rollback()
 		return fmt.Errorf("embed.Put: %w", err)
 	}
 	stmt, err := tx.PrepareContext(ctx, fmt.Sprintf(`
@@ -440,7 +442,6 @@ func (s *Store) Put(ctx context.Context, items []Item) error {
 		  model=excluded.model, dim=excluded.dim, vector=excluded.vector,
 		  content=excluded.content, updated_at=excluded.updated_at`, table))
 	if err != nil {
-		_ = tx.Rollback()
 		return fmt.Errorf("embed.Put: prepare: %w", err)
 	}
 	defer func() { _ = stmt.Close() }()
@@ -449,7 +450,6 @@ func (s *Store) Put(ctx context.Context, items []Item) error {
 			it.ID, it.Type, s.gen.Name(), s.gen.Dim(),
 			encodeVector(vecs[i]), it.Content, now,
 		); err != nil {
-			_ = tx.Rollback()
 			return fmt.Errorf("embed.Put: exec %s/%s: %w", it.Type, it.ID, err)
 		}
 	}

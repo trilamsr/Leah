@@ -22,7 +22,7 @@ type httpService struct {
 
 func newHTTPService(hc *http.Client, baseURL, calendarID string) *httpService {
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	if baseURL == "" {
 		baseURL = defaultBaseURL

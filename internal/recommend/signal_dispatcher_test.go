@@ -176,7 +176,16 @@ func TestSignalDispatcher_WithKinds_RejectsFeedbackLoopKind(t *testing.T) {
 
 func TestSignalDispatcher_DropMonitor_EmitsCounterDelta(t *testing.T) {
 	logger, _ := newAuditLogger(t)
-	cap := &captureEngine{MemoryEngine: NewMemoryEngine(logger)}
+	// blockingEngine wraps captureEngine to halt the pump goroutine until
+	// the test releases it — without this, the pump drains the subscriber
+	// buffer faster than Emit can fill it (under -race load especially),
+	// and b.Dropped() stays 0 forever. Pre-existing flake: obs#13083 +
+	// obs#14713 documented it before R6 SafeGo wrap re-surfaced it.
+	gate := make(chan struct{})
+	cap := &blockingEngine{
+		captureEngine: &captureEngine{MemoryEngine: NewMemoryEngine(logger)},
+		gate:          gate,
+	}
 	b := obs.NewBroadcaster()
 	reg := obs.NewRegistry()
 	d := NewSignalDispatcher(cap, b, nil).WithRegistry(reg)
@@ -188,7 +197,7 @@ func TestSignalDispatcher_DropMonitor_EmitsCounterDelta(t *testing.T) {
 	}
 	defer d.Stop()
 
-	// Saturate the 16-deep subscriber buffer to force drops.
+	// Saturate the 16-deep subscriber buffer with pump blocked → forced drops.
 	for i := 0; i < 64; i++ {
 		b.Emit(obs.Event{Kind: "voice.speak", TS: time.Now().UTC()})
 	}
@@ -196,12 +205,28 @@ func TestSignalDispatcher_DropMonitor_EmitsCounterDelta(t *testing.T) {
 		return b.Dropped() > 0
 	})
 	want := b.Dropped()
-	// Behavioral assert: the monitor's next tick folds the drop delta into the
-	// counter. Deadline is a generous ceiling so a starved ticker can't blow
-	// it; the asserted quantity is the counter value, not elapsed time.
+	// Release pump so it eventually drains; monitor ticker folds dropped
+	// delta into the counter on its next tick.
+	close(gate)
 	testutil.Eventually(t, 5*time.Second, time.Millisecond, func() bool {
 		return counterTotal(t, reg, "leah_signal_dispatcher_dropped_total") >= int64(want)
 	})
+}
+
+// blockingEngine blocks OnSignal until gate is closed; lets the test pin
+// the pump goroutine while saturating the broadcaster buffer.
+type blockingEngine struct {
+	*captureEngine
+	gate chan struct{}
+}
+
+func (e *blockingEngine) OnSignal(ctx context.Context, sig Signal) ([]Recommendation, error) {
+	select {
+	case <-e.gate:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return e.captureEngine.OnSignal(ctx, sig)
 }
 
 // counterTotal sums all label-set values of name via Snapshot's JSON.

@@ -103,7 +103,7 @@ func New(cfg Config) (*Adapter, error) {
 	}
 	hc := cfg.HTTPClient
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 10 * time.Second}
 	}
 	base := cfg.BaseURL
 	if base == "" {

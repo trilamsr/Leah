@@ -13,10 +13,13 @@ import (
 
 // runPatterns renders skill-candidates markdown to stdout.
 func runPatterns(args []string) int {
-	fs := flag.NewFlagSet("patterns", flag.ExitOnError)
+	fs := flag.NewFlagSet("patterns", flag.ContinueOnError)
 	weekly := fs.Bool("weekly", false, "use 7-day window instead of default 30-day")
 	minCount := fs.Int("min-count", patterns.DefaultMinCount, "min cluster size to emit")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		fs.Usage()
+		return 2
+	}
 
 	window := 30 * 24 * time.Hour
 	if *weekly {

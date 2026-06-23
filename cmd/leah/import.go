@@ -43,6 +43,7 @@ func runImport(_ context.Context, args []string, errW io.Writer) int {
 	overwrite := fs.Bool("overwrite", false, "wipe non-empty state dir before extract (BR=4 attested)")
 	fs.SetOutput(errW)
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 	rest := fs.Args()

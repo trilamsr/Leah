@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/trilam/leah/internal/obs"
 )
 
 const ScopeSubscribe = "discord:subscribe"
@@ -92,8 +94,8 @@ func (a *Adapter) Subscribe(ctx context.Context, channelIDs []string, handler fu
 	}
 
 	queue := make(chan pendingMessage, inboundQueueDepth)
-	go a.dispatchLoop(ctx, queue, handler)
-	go a.readLoop(ctx, conn, wanted, queue)
+	obs.SafeGo(nil, nil, "discord-dispatch", func() { a.dispatchLoop(ctx, queue, handler) })
+	obs.SafeGo(nil, nil, "discord-read", func() { a.readLoop(ctx, conn, wanted, queue) })
 
 	a.record(AuditRow{Kind: "discord_subscribe", Success: true})
 	return nil

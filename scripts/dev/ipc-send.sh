@@ -52,7 +52,7 @@ import (
 type frame struct {
 	Kind    string          `json:"kind"`
 	TurnID  string          `json:"turn_id"`
-	Seq     uint64          `json:"seq"`
+	Seq     int64           `json:"seq"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 

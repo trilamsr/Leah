@@ -11,7 +11,7 @@ import (
 // HandleState surfaces in the last_error payload field.
 func TestDiagStateExposesLastError(t *testing.T) {
 	const want = "disk: no space left"
-	out, err := HandleState(context.Background(), time.Now(), want)
+	out, err := HandleState(context.Background(), time.Now(), want, "test-turn")
 	if err != nil {
 		t.Fatalf("HandleState: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestDiagStateExposesLastError(t *testing.T) {
 // TestIPCDiagStateResponds asserts HandleState returns exactly one
 // diag.state.response frame with all six payload fields present.
 func TestIPCDiagStateResponds(t *testing.T) {
-	out, err := HandleState(context.Background(), time.Now().Add(-5*time.Second), "")
+	out, err := HandleState(context.Background(), time.Now().Add(-5*time.Second), "", "t")
 	if err != nil {
 		t.Fatalf("HandleState: %v", err)
 	}

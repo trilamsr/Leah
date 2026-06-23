@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // apiBase is a placeholder — Higgsfield's real path is operator-discovered at
@@ -23,7 +24,7 @@ type HTTPTransport struct {
 
 func NewHTTPTransport(hc *http.Client, base string) *HTTPTransport {
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	if base == "" {
 		base = apiBase

@@ -2,6 +2,8 @@ module github.com/trilam/leah
 
 go 1.25.0
 
+toolchain go1.26.4
+
 require (
 	github.com/anthropics/anthropic-sdk-go v1.49.0
 	github.com/fsnotify/fsnotify v1.10.1
@@ -11,7 +13,8 @@ require (
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	golang.org/x/oauth2 v0.30.0
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.21.0
+	golang.org/x/text v0.38.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.52.0
 )

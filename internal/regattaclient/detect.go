@@ -142,7 +142,9 @@ func probeDocker(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
-	resp, err := http.DefaultClient.Do(req)
+	// Local probe — explicit 2s timeout instead of DefaultClient's keep-alive pool.
+	hc := &http.Client{Timeout: 2 * time.Second}
+	resp, err := hc.Do(req)
 	if err != nil {
 		return false
 	}

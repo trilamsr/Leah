@@ -19,14 +19,20 @@ public final class WizardController: ObservableObject {
   @MainActor
   public func presentIfNeeded() {
     guard shouldPresent() else { return }
+    // SwiftUI App with only Settings scene runs as .accessory — wizard window
+    // would orphan with no focus. Flip to .regular for the wizard's lifetime,
+    // restore on close. Activate so window appears front.
+    NSApp.setActivationPolicy(.regular)
+    NSApp.activate(ignoringOtherApps: true)
     let view = WizardView(controller: self)
     let host = NSHostingController(rootView: view)
     let w = NSWindow(contentViewController: host)
     w.setContentSize(NSSize(width: 720, height: 520))
     w.styleMask = [.titled, .closable]
-    w.title = "Welcome to Leah"
+    w.title = "Leah"
     w.center()
     w.makeKeyAndOrderFront(nil)
+    w.orderFrontRegardless()
     window = w
   }
 
@@ -38,8 +44,20 @@ public final class WizardController: ObservableObject {
     case .hotkey:      currentStep = .mic
     case .mic:         currentStep = .integration
     case .integration: currentStep = .ready
-    case .ready:       currentStep = .done; window?.close()
+    case .ready:
+      currentStep = .done
+      finish()
     case .done:        break
     }
+  }
+
+  /// finish closes the wizard window, releases the reference, and flips the
+  /// app back to .accessory mode (Info.plist contract — LSUIElement=false
+  /// gives us focus for onboarding, accessory after).
+  @MainActor
+  public func finish() {
+    window?.close()
+    window = nil
+    NSApp.setActivationPolicy(.accessory)
   }
 }

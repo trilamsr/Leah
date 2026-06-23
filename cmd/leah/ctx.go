@@ -34,10 +34,12 @@ func runCtx(args []string) int {
 
 	switch args[0] {
 	case "new":
-		fs := flag.NewFlagSet("ctx new", flag.ExitOnError)
+		fs := flag.NewFlagSet("ctx new", flag.ContinueOnError)
 		name := fs.String("name", "", "context name (lowercase, dash-allowed, 1-32 chars)")
 		desc := fs.String("description", "", "human-readable description")
-		_ = fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
 		if *name == "" {
 			_, _ = fmt.Fprintln(os.Stderr, "leah ctx new: --name required")
 			return 2
@@ -49,10 +51,12 @@ func runCtx(args []string) int {
 		_ = a.Append(audit.Entry{Kind: "ctx.new", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
 		fmt.Printf("created context %q\n", *name)
 	case "switch":
-		fs := flag.NewFlagSet("ctx switch", flag.ExitOnError)
+		fs := flag.NewFlagSet("ctx switch", flag.ContinueOnError)
 		name := fs.String("name", "", "target context name")
 		reason := fs.String("reason", "cli", "free-form reason recorded in switch log")
-		_ = fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
 		if *name == "" {
 			_, _ = fmt.Fprintln(os.Stderr, "leah ctx switch: --name required")
 			return 2
@@ -79,10 +83,12 @@ func runCtx(args []string) int {
 		fmt.Printf("description: %s\n", c.Description)
 		fmt.Printf("created:     %s\n", c.CreatedAt.Format("2006-01-02T15:04:05Z"))
 	case "history":
-		fs := flag.NewFlagSet("ctx history", flag.ExitOnError)
+		fs := flag.NewFlagSet("ctx history", flag.ContinueOnError)
 		limit := fs.Int("limit", 20, "max rows to show")
 		jsonOut := fs.Bool("json", false, "emit json")
-		_ = fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
 		hist, err := mgr.History(*limit)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx history: %v\n", err)

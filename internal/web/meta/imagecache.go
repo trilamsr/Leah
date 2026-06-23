@@ -28,7 +28,8 @@ type ImageCache struct {
 }
 
 func NewImageCache(dir string, capBytes int64) (*ImageCache, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// 0o700 dir + 0o600 file — multi-user mac box protection.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("imagecache: mkdir: %w", err)
 	}
 	return &ImageCache{
@@ -67,7 +68,7 @@ func (c *ImageCache) Put(url, mime string, body []byte) (string, error) {
 		c.order.MoveToFront(el)
 		return el.Value.(*cacheEntry).path, nil
 	}
-	if err := os.WriteFile(path, body, 0o644); err != nil {
+	if err := os.WriteFile(path, body, 0o600); err != nil {
 		return "", fmt.Errorf("imagecache: write: %w", err)
 	}
 	size := int64(len(body))

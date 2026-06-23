@@ -25,6 +25,10 @@ var (
 	ErrUnknownProvider   = errors.New("connect: unknown provider")
 )
 
+// oauthHTTPClient bounds OAuth device-code + poll round trips so a hung IdP
+// can't park the connect wizard indefinitely.
+var oauthHTTPClient = &http.Client{Timeout: 10 * time.Second}
+
 type Attestor interface {
 	Attest(ctx context.Context, scope string) error
 }
@@ -60,8 +64,9 @@ func Authorize(ctx context.Context, p Provider, att Attestor, prompt PromptFn) (
 	return tok, nil
 }
 
-// WriteToken serializes tok at path with 0600. Post-write Chmod re-asserts
-// the mode against hostile umask / pre-existing world-readable file.
+// WriteToken serializes tok at path with 0600. Atomic write via tmp+rename
+// closes the race where a pre-existing world-readable file at `path` keeps
+// its prior mode between WriteFile and Chmod (round 9 keychain audit).
 func WriteToken(path string, tok *oauth2.Token) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("connect: mkdir token dir: %w", err)
@@ -70,11 +75,26 @@ func WriteToken(path string, tok *oauth2.Token) error {
 	if err != nil {
 		return fmt.Errorf("connect: marshal token: %w", err)
 	}
-	if err := os.WriteFile(path, buf, 0o600); err != nil {
+	// O_CREATE|O_EXCL+0o600 forces a fresh inode with the right mode from
+	// the start; rename() then atomically swaps it over any prior file.
+	tmp := path + ".tmp"
+	_ = os.Remove(tmp)
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("connect: open token tmp: %w", err)
+	}
+	if _, err := f.Write(buf); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return fmt.Errorf("connect: write token: %w", err)
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		return fmt.Errorf("connect: chmod token: %w", err)
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("connect: close token tmp: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("connect: rename token: %w", err)
 	}
 	return nil
 }
@@ -146,7 +166,7 @@ func requestDeviceCode(ctx context.Context, cfg deviceCodeConfig) (*deviceCodeRe
 		return nil, fmt.Errorf("%w: build request: %v", ErrDeviceAuth, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := oauthHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrDeviceAuth, err)
 	}
@@ -175,7 +195,7 @@ func pollToken(ctx context.Context, cfg deviceCodeConfig, deviceCode string) (*o
 		return nil, false, fmt.Errorf("%w: build request: %v", ErrTokenExchange, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := oauthHTTPClient.Do(req)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w: %v", ErrTokenExchange, err)
 	}

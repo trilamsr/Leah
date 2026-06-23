@@ -21,10 +21,11 @@ public final class HotkeyManager {
       eventClass: OSType(kEventClassKeyboard),
       eventKind: OSType(kEventHotKeyPressed)
     )
-    InstallEventHandler(
+    let installStatus = InstallEventHandler(
       GetApplicationEventTarget(),
       { _, _, userData in
-        let mgr = Unmanaged<HotkeyManager>.fromOpaque(userData!).takeUnretainedValue()
+        guard let ud = userData else { return OSStatus(eventParameterNotFoundErr) }
+        let mgr = Unmanaged<HotkeyManager>.fromOpaque(ud).takeUnretainedValue()
         mgr.handler()
         return noErr
       },
@@ -32,9 +33,12 @@ public final class HotkeyManager {
       Unmanaged.passUnretained(self).toOpaque(),
       nil
     )
+    if installStatus != noErr {
+      NSLog("HotkeyManager: InstallEventHandler failed status=%d (Accessibility permission likely missing)", installStatus)
+    }
     var ref: EventHotKeyRef?
     let id = EventHotKeyID(signature: OSType(0x4C454148), id: 1) // 'LEAH'
-    RegisterEventHotKey(
+    let registerStatus = RegisterEventHotKey(
       HotkeyManager.optionSpaceKeyCode,
       HotkeyManager.optionFlag,
       id,
@@ -42,6 +46,9 @@ public final class HotkeyManager {
       0,
       &ref
     )
+    if registerStatus != noErr {
+      NSLog("HotkeyManager: RegisterEventHotKey failed status=%d (hotkey already taken by another app)", registerStatus)
+    }
     hotKeyRef = ref
   }
 

@@ -51,9 +51,10 @@ func runWorkspace(args []string) int {
 // to runCtx's --name flag form. Operator ergonomics: `workspace new acme`
 // reads more naturally than `workspace new --name acme`.
 func runCtxNewFromWorkspace(args []string) int {
-	fs := flag.NewFlagSet("workspace new", flag.ExitOnError)
+	fs := flag.NewFlagSet("workspace new", flag.ContinueOnError)
 	desc := fs.String("desc", "", "human-readable description")
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 	if fs.NArg() < 1 {
@@ -66,9 +67,10 @@ func runCtxNewFromWorkspace(args []string) int {
 // runCtxSwitchFromWorkspace adapts positional `leah workspace switch <name>`
 // to runCtx's --name flag form.
 func runCtxSwitchFromWorkspace(args []string) int {
-	fs := flag.NewFlagSet("workspace switch", flag.ExitOnError)
+	fs := flag.NewFlagSet("workspace switch", flag.ContinueOnError)
 	reason := fs.String("reason", "cli", "free-form reason recorded in switch log")
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 	if fs.NArg() < 1 {
@@ -94,10 +96,12 @@ func runWorkspacePersona(args []string) int {
 
 	switch args[0] {
 	case "show":
-		fs := flag.NewFlagSet("workspace persona show", flag.ExitOnError)
+		fs := flag.NewFlagSet("workspace persona show", flag.ContinueOnError)
 		ws := fs.String("workspace", "", "target workspace (default: active)")
 		jsonOut := fs.Bool("json", false, "emit json")
-		_ = fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
 		name := *ws
 		if name == "" {
 			name = activeWorkspace()
@@ -120,12 +124,14 @@ func runWorkspacePersona(args []string) int {
 		fmt.Printf("signature: %s\n", p.Signature)
 		fmt.Printf("voice_id:  %s\n", p.VoiceID)
 	case "set":
-		fs := flag.NewFlagSet("workspace persona set", flag.ExitOnError)
+		fs := flag.NewFlagSet("workspace persona set", flag.ContinueOnError)
 		ws := fs.String("workspace", "", "target workspace (default: active)")
 		tone := fs.String("tone", "", "persona tone (e.g. 'formal, concise')")
 		signature := fs.String("signature", "", "outbound signature (e.g. '— Tri (Acme)')")
 		voiceID := fs.String("voice-id", "", "TTS voice identifier")
-		_ = fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
 		name := *ws
 		if name == "" {
 			name = activeWorkspace()

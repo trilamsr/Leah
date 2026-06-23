@@ -31,12 +31,15 @@ import (
 // One audit row per invocation: kind=voice.input, BR=0, detail=truncated
 // transcript + classified verb.
 func runListen(ctx context.Context, reg *obs.Registry, args []string) int {
-	fs := flag.NewFlagSet("listen", flag.ExitOnError)
+	fs := flag.NewFlagSet("listen", flag.ContinueOnError)
 	duration := fs.Duration("duration", 0, "max recording length (e.g. 30s); 0 = silence-detector only")
 	model := fs.String("model", "ggml-large-v3-turbo-q5_0.bin", "whisper.cpp model filename in --model-dir")
 	modelDir := fs.String("model-dir", "models", "directory containing ggml-*.bin model files")
 	repo := fs.String("repo", "", "repo to use when transcript classifies as ship/review")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		fs.Usage()
+		return 2
+	}
 
 	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
 

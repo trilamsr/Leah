@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/trilam/leah/internal/adapters/jira"
 	"github.com/trilam/leah/internal/adapters/linear"
@@ -48,7 +49,7 @@ func runShipTool(ctx context.Context, tool, title string) int {
 
 // newToolWriter binds one tool flag to its producer-verified write RPC; Confluence has none.
 func newToolWriter(tool string) (dispatcher.ToolWriter, error) {
-	hc := http.DefaultClient
+	hc := &http.Client{Timeout: 15 * time.Second}
 	ts := staticTokenForName(tool)
 	switch tool {
 	case "slack":

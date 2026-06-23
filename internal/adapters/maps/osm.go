@@ -52,7 +52,7 @@ func NewOSM(cfg OSMConfig) (*OSM, error) {
 	}
 	hc := cfg.HTTPClient
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	gb, rb := osmGeocodeBase, osmRouteBase
 	if cfg.BaseURL != "" {

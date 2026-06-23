@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/trilam/leah/internal/adapters/discord"
 	"github.com/trilam/leah/internal/adapters/whatsapp"
@@ -73,7 +74,7 @@ func newWhatsAppNotifier() *notify.WhatsAppNotify {
 	a, err := whatsapp.New(whatsapp.Config{
 		Attestor:           noopAttestor{},
 		TokenSource:        waToken{token: fileToken{path}, phoneID: phoneID},
-		HTTP:               http.DefaultClient,
+		HTTP:               &http.Client{Timeout: 15 * time.Second},
 		RecipientAllowlist: []string{to},
 	})
 	if err != nil {

@@ -2,8 +2,10 @@ package ipc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -126,7 +128,24 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	for {
 		req, err := ReadFrame(conn)
 		if err != nil {
-			return
+			// Best-effort structured reject — covers oversized (frame size cap)
+			// + malformed JSON + truncated body. EOF means clean conn close;
+			// don't write to a half-shut conn. The error frame lets HUD
+			// distinguish "your frame was bad" from "daemon died".
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				return
+			}
+			payload, _ := json.Marshal(map[string]string{"error": err.Error()})
+			if werr := WriteFrame(conn, Frame{Kind: "error", Seq: 0, Payload: payload}); werr != nil {
+				return
+			}
+			// Recoverable read errors (e.g. malformed JSON) — KEEP the conn
+			// alive so HUD can recover after sending a bad frame. Frame-size
+			// cap is unrecoverable (header desync) so we close on that path.
+			if errors.Is(err, ErrFrameSizeExceeded) {
+				return
+			}
+			continue
 		}
 		out, err := s.handler(ctx, req)
 		if err != nil {

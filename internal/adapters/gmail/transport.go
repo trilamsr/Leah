@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 const (
@@ -26,7 +27,7 @@ func NewHTTPTransport(hc *http.Client, baseURL string) Transport {
 
 func newHTTPTransport(hc *http.Client, baseURL string) *httpTransport {
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	if baseURL == "" {
 		baseURL = defaultBaseURL

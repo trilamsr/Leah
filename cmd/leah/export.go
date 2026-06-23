@@ -78,6 +78,7 @@ func runExport(_ context.Context, args []string, errW io.Writer) int {
 	out := fs.String("out", "", "output path (default ./leah-export-<ts>.tar.gz.enc)")
 	fs.SetOutput(errW)
 	if err := fs.Parse(args); err != nil {
+		fs.Usage()
 		return 2
 	}
 	if !*all {

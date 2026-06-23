@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const apiBase = "https://api.themoviedb.org/3"
@@ -20,7 +21,7 @@ type HTTPTransport struct {
 
 func NewHTTPTransport(hc *http.Client, base string) *HTTPTransport {
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	if base == "" {
 		base = apiBase

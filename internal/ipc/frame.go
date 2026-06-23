@@ -6,13 +6,30 @@ package ipc
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 )
 
 const MaxFrameBytes = 256 * 1024
 
+// ErrFrameSizeExceeded reports a frame larger than MaxFrameBytes. Server
+// closes the conn on this error (header desync is unrecoverable). Use
+// errors.Is to detect rather than string-matching the message.
+var ErrFrameSizeExceeded = errors.New("ipc: frame size exceeds cap")
+
 const (
+	// Conversational frames per spec §10.7.
+	KindAsk             = "ask"
+	KindDiag            = "diag.state"
+	KindDiagResponse    = "diag.state.response"
+	KindError           = "error"
+	KindProseDelta      = "prose.delta"
+	KindProseEnd        = "prose.end"
+	KindTurnEnd         = "turn.end"
+	KindVerifyKey       = "verify-key"
+	KindVerifyKeyResult = "verify-key.result"
+
 	KindWidgetMount       = "widget.mount"
 	KindWidgetUpdate      = "widget.update"
 	KindWidgetStale       = "widget.stale"
@@ -34,10 +51,13 @@ const (
 	KindTTSCancelOK    = "tts.cancel.ok"
 )
 
+// Frame is the wire format. Seq is signed int64 so negative values can be
+// rejected explicitly at handler boundary (uint64 silently coerced them to
+// huge positives and the bad-faith client never saw a structured error).
 type Frame struct {
 	Kind    string          `json:"kind"`
 	TurnID  string          `json:"turn_id"`
-	Seq     uint64          `json:"seq"`
+	Seq     int64           `json:"seq"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
@@ -47,7 +67,7 @@ func WriteFrame(w io.Writer, f Frame) error {
 		return fmt.Errorf("marshal frame: %w", err)
 	}
 	if len(body) > MaxFrameBytes {
-		return fmt.Errorf("frame size %d exceeds cap %d", len(body), MaxFrameBytes)
+		return fmt.Errorf("%w: %d > %d", ErrFrameSizeExceeded, len(body), MaxFrameBytes)
 	}
 	var hdr [4]byte
 	binary.BigEndian.PutUint32(hdr[:], uint32(len(body)))
@@ -67,7 +87,7 @@ func ReadFrame(r io.Reader) (Frame, error) {
 	}
 	n := binary.BigEndian.Uint32(hdr[:])
 	if n > MaxFrameBytes {
-		return Frame{}, fmt.Errorf("frame size %d exceeds cap %d", n, MaxFrameBytes)
+		return Frame{}, fmt.Errorf("%w: %d > %d", ErrFrameSizeExceeded, n, MaxFrameBytes)
 	}
 	body := make([]byte, n)
 	if _, err := io.ReadFull(r, body); err != nil {
