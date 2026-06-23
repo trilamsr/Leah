@@ -7,7 +7,7 @@ import LocalAuthentication
 /// can't single-handedly authorize.
 public final class TouchIDGuard {
     private let stubMode: (available: Bool, succeeds: Bool)?
-    private(set) public var evaluatePolicyCalls = 0
+    internal private(set) var evaluatePolicyCalls = 0
 
     public init() {
         self.stubMode = nil
@@ -40,6 +40,26 @@ public final class TouchIDGuard {
         evaluatePolicyCalls += 1
         return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             ctx.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { ok, _ in
+                cont.resume(returning: ok)
+            }
+        }
+    }
+
+    /// Biometrics-first; falls through to system password (`.deviceOwnerAuthentication`)
+    /// when biometrics are unavailable. Spec §17.13 telemetry-toggle path.
+    public func confirmWithPasswordFallback(reason: String) async -> Bool {
+        if let s = stubMode {
+            evaluatePolicyCalls += 1
+            return s.succeeds
+        }
+        let ctx = LAContext()
+        var err: NSError?
+        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
+            return false
+        }
+        evaluatePolicyCalls += 1
+        return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { ok, _ in
                 cont.resume(returning: ok)
             }
         }

@@ -1,6 +1,5 @@
 import SwiftUI
 import LeahAuth
-import LocalAuthentication
 
 public enum TelemetryToggleOutcome: Equatable {
     case applied
@@ -10,21 +9,10 @@ public enum TelemetryToggleOutcome: Equatable {
 public protocol TelemetryGating {
     var biometricsAvailable: Bool { get }
     func evaluate(reason: String) async -> Bool
+    func evaluateWithPasswordFallback(reason: String) async -> Bool
 }
 
-public final class TelemetryGate: TelemetryGating {
-    private let guard_: TouchIDGuard
-    public init(guard_: TouchIDGuard = TouchIDGuard()) { self.guard_ = guard_ }
-
-    public var biometricsAvailable: Bool {
-        var err: NSError?
-        return LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &err)
-    }
-
-    public func evaluate(reason: String) async -> Bool {
-        await guard_.confirm(reason: reason)
-    }
-}
+extension BiometricsGate: TelemetryGating {}
 
 @MainActor
 public final class PrivacyPaneModel: ObservableObject {
@@ -36,16 +24,20 @@ public final class PrivacyPaneModel: ObservableObject {
         self.gate = gate
     }
 
-    /// Apply a telemetry toggle. Touch ID gates the change when biometrics are
-    /// available; on denial the value is NOT mutated. When biometrics are
-    /// unavailable the toggle still applies (typed-friction equivalent here is
-    /// the off-default + visible reveal of the toggle).
+    /// Touch ID when available; system-password (`.deviceOwnerAuthentication`)
+    /// fallback when not (spec §17.13). On denial the optimistic flip is reverted
+    /// — the @Published republish drives a SwiftUI redraw so the Toggle's visual
+    /// state snaps back to the source-of-truth.
     public func applyToggle(_ next: Bool) async -> TelemetryToggleOutcome {
-        if gate.biometricsAvailable {
-            let ok = await gate.evaluate(reason: "Change telemetry setting")
-            guard ok else { return .biometricDenied }
-        }
+        let prior = telemetry
         telemetry = next
+        let ok: Bool = gate.biometricsAvailable
+            ? await gate.evaluate(reason: "Change telemetry setting")
+            : await gate.evaluateWithPasswordFallback(reason: "Change telemetry setting")
+        guard ok else {
+            telemetry = prior
+            return .biometricDenied
+        }
         return .applied
     }
 }
@@ -54,7 +46,7 @@ public struct PrivacyPane: View {
     @StateObject private var model: PrivacyPaneModel
     @State private var status = ""
 
-    public init(gate: TelemetryGating = TelemetryGate()) {
+    public init(gate: TelemetryGating = BiometricsGate()) {
         _model = StateObject(wrappedValue: PrivacyPaneModel(gate: gate))
     }
 
@@ -65,11 +57,9 @@ public struct PrivacyPane: View {
                 set: { next in
                     Task {
                         let outcome = await model.applyToggle(next)
-                        if outcome == .biometricDenied {
-                            status = "Touch ID denied — telemetry unchanged."
-                        } else {
-                            status = ""
-                        }
+                        status = (outcome == .biometricDenied)
+                            ? "Authentication denied — telemetry unchanged."
+                            : ""
                     }
                 }
             )) {

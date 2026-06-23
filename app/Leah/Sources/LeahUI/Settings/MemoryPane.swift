@@ -1,6 +1,5 @@
 import SwiftUI
 import LeahAuth
-import LocalAuthentication
 
 public struct MemoryStats: Equatable {
     public let chunkCount: Int
@@ -32,19 +31,7 @@ public protocol TouchIDGating {
     func evaluate(reason: String) async -> Bool
 }
 
-public final class TouchIDGate: TouchIDGating {
-    private let guard_: TouchIDGuard
-    public init(guard_: TouchIDGuard = TouchIDGuard()) { self.guard_ = guard_ }
-
-    public var biometricsAvailable: Bool {
-        var err: NSError?
-        return LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &err)
-    }
-
-    public func evaluate(reason: String) async -> Bool {
-        await guard_.confirm(reason: reason)
-    }
-}
+extension BiometricsGate: TouchIDGating {}
 
 @MainActor
 public final class MemoryPaneModel: ObservableObject {
@@ -72,7 +59,7 @@ public struct MemoryPane: View {
     @State private var status = ""
 
     public init(stats: MemoryStats = MemoryStats(chunkCount: 0, modelID: "voyage-3.5-lite", dim: 1024),
-                gate: TouchIDGating = TouchIDGate()) {
+                gate: TouchIDGating = BiometricsGate()) {
         _model = StateObject(wrappedValue: MemoryPaneModel(stats: stats, gate: gate))
     }
 

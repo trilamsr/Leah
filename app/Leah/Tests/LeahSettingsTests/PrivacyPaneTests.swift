@@ -28,20 +28,50 @@ final class PrivacyPaneTests: XCTestCase {
     }
 
     @MainActor
-    func testTelemetryToggleFallsThroughWhenBiometricsUnavailable() async {
+    func testTelemetry_FallsBackToDeviceOwnerAuth_WhenBiometricsUnavailable() async {
+        // Spec §17.13: machines without Touch ID get a system-password prompt,
+        // NOT a silent auto-apply.
         let gate = FakeTelemetryGate(authorized: false, available: false)
         let model = PrivacyPaneModel(gate: gate)
         let outcome = await model.applyToggle(true)
-        XCTAssertEqual(outcome, .applied, "no biometrics → toggle applies (off-default is the friction)")
+        XCTAssertEqual(outcome, .biometricDenied, "no biometrics + denied password → not applied")
+        XCTAssertFalse(model.telemetry, "denied auth → value unchanged")
+        XCTAssertEqual(gate.passwordEvaluateCalls, 1, "system-password fallback must fire when biometrics absent")
+    }
+
+    @MainActor
+    func testTelemetry_FallbackAuthorizes_WhenBiometricsUnavailableButPasswordOK() async {
+        let gate = FakeTelemetryGate(authorized: true, available: false)
+        let model = PrivacyPaneModel(gate: gate)
+        let outcome = await model.applyToggle(true)
+        XCTAssertEqual(outcome, .applied)
         XCTAssertTrue(model.telemetry)
-        XCTAssertEqual(gate.evaluateCalls, 0)
+        XCTAssertEqual(gate.passwordEvaluateCalls, 1)
+    }
+
+    @MainActor
+    func testTelemetry_TogglesBackOnDenial() async {
+        // UI revert: SwiftUI's Toggle caches the bool until @Published republishes
+        // the source-of-truth. The model must emit a redraw signal on denial so
+        // the visual snaps back.
+        let gate = FakeTelemetryGate(authorized: false, available: true)
+        let model = PrivacyPaneModel(telemetry: false, gate: gate)
+        var redraws = 0
+        let cancellable = model.objectWillChange.sink { _ in redraws += 1 }
+        defer { cancellable.cancel() }
+        _ = await model.applyToggle(true)
+        XCTAssertFalse(model.telemetry)
+        XCTAssertGreaterThanOrEqual(redraws, 1, "denial must publish a change so Toggle redraws to source-of-truth")
     }
 }
+
+import Combine
 
 final class FakeTelemetryGate: TelemetryGating {
     let authorized: Bool
     let available: Bool
     private(set) var evaluateCalls = 0
+    private(set) var passwordEvaluateCalls = 0
 
     init(authorized: Bool, available: Bool) {
         self.authorized = authorized
@@ -52,6 +82,11 @@ final class FakeTelemetryGate: TelemetryGating {
 
     func evaluate(reason: String) async -> Bool {
         evaluateCalls += 1
+        return authorized
+    }
+
+    func evaluateWithPasswordFallback(reason: String) async -> Bool {
+        passwordEvaluateCalls += 1
         return authorized
     }
 }
