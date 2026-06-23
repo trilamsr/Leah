@@ -1,6 +1,6 @@
 ---
 name: audit-session
-description: End-of-session audit + handoff for any agent operating in the leah repo. Use when the user says "audit session", "end session", "wrap up", "before we stop", "what did we miss", "before signing off", or any phrasing that asks Claude to validate the session's work before exit. Runs Phase 0 (cross-session handoff continuity check) + 9 main phases (PR audit, reviewer-comment audit, issue audit, doc audit, code audit, worktree cleanup, learning + memory, cost + budget, NEXT-SESSION HANDOFF) + A1/A2 (roadmap + autonomy-lever, with operator-redirect count) and writes a single consolidated handoff file the next session reads to pick up exactly where this one left off. Default = silent pass per phase; ONE operator hand-back at end. Auto-file ONLY mechanically-derivable trackers (parity, self-tag, REVISE-slip, self-approve-after-amend). Phase 5 carves out instrumentation fan-out PRs from the quality-unverified scan. Phase 7 cross-refs the learn-from-mistakes skill — surfaces unsaved learnings if pushback/rollback events fired without that skill activating.
+description: End-of-session audit + handoff for any agent operating in the leah repo. Use when the user says "audit session", "end session", "wrap up", "before we stop", "what did we miss", "before signing off", or any phrasing that asks Claude to validate the session's work before exit. Runs Phase 0 (cross-session handoff continuity check) + 9 main phases (PR audit, reviewer-comment audit, issue audit, doc audit, code audit + orphan scan, worktree cleanup, learning + memory, cost + budget, NEXT-SESSION HANDOFF) + A1/A2 (roadmap + autonomy-lever, with operator-redirect count) and writes a single consolidated handoff file the next session reads to pick up exactly where this one left off. Default = silent pass per phase; ONE operator hand-back at end. Auto-file ONLY mechanically-derivable trackers (parity, self-tag, REVISE-slip, self-approve-after-amend). Phase 5 carves out instrumentation fan-out PRs from the quality-unverified scan and runs an orphan-package scan (catches v3.3.0-style inert-ship: packages merged but never wired into the composition root). Phase 7 cross-refs the learn-from-mistakes skill — surfaces unsaved learnings if pushback/rollback events fired without that skill activating.
 ---
 
 # audit-session
@@ -35,7 +35,7 @@ Failure mode addressed: skill caller has been printing the consolidated hand-bac
 mkdir -p "$HANDOFF_DIR"
 ledger="$HANDOFF_DIR/phase-ledger.txt"
 : > "$ledger"
-for p in 0 1 2 3 4 5 6 7 8 9 A1 A2; do
+for p in 0 1 2 3 4 5 5_5 6 7 8 9 A1 A2; do
   printf 'phase%s=pending\n' "$p" >> "$ledger"
 done
 ```
@@ -248,6 +248,31 @@ git log --since "$SESSION_START" --author "$GIT_AUTHOR" \
 
 `mark_done 5`
 
+## Phase 5.5: orphan-package scan (inert-ship guard)
+
+Failure mode this catches: v3.3.0 shipped 3 packages (TTS providers, KG ingestor, MCP bridge) that compiled, passed tests, and merged — but were never imported from `cmd/leah-daemon` or `cmd/leah`. The release tagged inert. Phase 1 + Phase 5 quality-unverified scans missed it because the PRs themselves were green; the gap was at the composition-root boundary, not inside the package. Mechanical fix: every non-`cmd/` package must have at least one non-test importer in the module.
+
+```bash
+# Imports list — exclude test packages so test-only imports do not mask production-zero callers.
+go list -f '{{range .Imports}}{{.}}{{"\n"}}{{end}}' ./... 2>/dev/null \
+  | sort -u > /tmp/imported
+
+go list ./... 2>/dev/null | sort -u > /tmp/all-packages
+
+# Subtract imported from all, then drop cmd/ entrypoints (they are roots, not callees).
+orphans=$(comm -23 /tmp/all-packages /tmp/imported | grep -v "^github.com/trilam/leah/cmd/")
+if [ -n "$orphans" ]; then
+  {
+    echo "Orphan packages (zero non-test callers, not cmd/ entry):"
+    echo "$orphans"
+  } > "$HANDOFF_DIR/orphans.txt"
+fi
+```
+
+Surface in hand-back as `[ORPHAN-CANDIDATE] x N` where N is the orphan line count. Do NOT auto-file — some orphans are intentional (future-wired, dev-only entrypoints reachable via `go run`, test-only helpers consumed across module boundaries). Operator triages: wire it, delete it, or annotate it.
+
+`mark_done 5_5`
+
 ## Phase 6: Worktree + branch cleanup
 
 ```bash
@@ -413,6 +438,15 @@ if [ -s "$HANDOFF_DIR/gate-boundary-gaps.txt" ]; then
   echo "--- gate-boundary-gaps (Phase 4) ---"
   cat "$HANDOFF_DIR/gate-boundary-gaps.txt"
 fi
+
+# Phase 5.5 orphan candidates. First line of orphans.txt is the header banner;
+# subtract it from the count so [ORPHAN-CANDIDATE] x N reflects actual package count.
+orphan_count=0
+if [ -s "$HANDOFF_DIR/orphans.txt" ]; then
+  orphan_count=$(( $(wc -l < "$HANDOFF_DIR/orphans.txt" | tr -d ' ') - 1 ))
+  echo "--- orphan-candidates (Phase 5.5) ---"
+  cat "$HANDOFF_DIR/orphans.txt"
+fi
 ```
 
 After all 9 phases + A1/A2 run, emit ONE consolidated hand-back block (the `[GATE-BOUNDARY-GAP] x N` count below = `gbg_count`; the individual lines emitted above this block name each template that needs the patch):
@@ -430,6 +464,7 @@ FILED (auto):
 - [SELF-APPROVE-AFTER-AMEND] x N
 - [AUTONOMY-LEVER] x N
 - [GATE-BOUNDARY-GAP] x N (from Phase 4 — feedback_* rules missing from dispatch-templates; surfaced for manual patch, not auto-edited)
+- [ORPHAN-CANDIDATE] x N (from Phase 5.5 — packages with zero non-test, non-cmd importers; surfaced for triage, not auto-filed — catches the v3.3.0 inert-ship failure mode where shipped packages never reached the composition root)
 
 CANDIDATES (next-session promote):
 - CLAUDE.md: <slug>
