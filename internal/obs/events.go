@@ -319,6 +319,9 @@ func (s *SQLiteEventStore) flushBatch(events []Event) error {
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
+	// Umbrella rollback — Rollback after Commit is a no-op per database/sql
+	// contract. Forward-safe if a future error return forgets explicit roll.
+	defer func() { _ = tx.Rollback() }()
 	stmt, err := tx.Prepare(
 		`INSERT INTO events(ts, kind, actor, target, scope, latency_ms, outcome, ref_id, detail)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
