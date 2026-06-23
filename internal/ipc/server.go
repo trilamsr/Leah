@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -136,8 +137,16 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 				return
 			}
 			payload, _ := json.Marshal(map[string]string{"error": err.Error()})
-			_ = WriteFrame(conn, Frame{Kind: "error", Seq: 0, Payload: payload})
-			return
+			if werr := WriteFrame(conn, Frame{Kind: "error", Seq: 0, Payload: payload}); werr != nil {
+				return
+			}
+			// Recoverable read errors (e.g. malformed JSON) — KEEP the conn
+			// alive so HUD can recover after sending a bad frame. Frame-size
+			// cap is unrecoverable (header desync) so we close on that path.
+			if strings.Contains(err.Error(), "exceeds cap") {
+				return
+			}
+			continue
 		}
 		out, err := s.handler(ctx, req)
 		if err != nil {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"github.com/trilam/leah/internal/ipc"
@@ -60,16 +61,28 @@ func handleTTSSpeak(
 		Text  string `json:"text"`
 		Voice string `json:"voice"`
 	}
-	if err := json.Unmarshal(req.Payload, &p); err != nil {
-		return ttsErrChan(req, fmt.Sprintf("bad payload: %v", err)), nil
+	// nil/null/missing payload all coerce to empty p — uniform error.
+	if len(req.Payload) > 0 && string(req.Payload) != "null" {
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return ttsErrChan(req, fmt.Sprintf("bad payload: %v", err)), nil
+		}
+	}
+	if strings.TrimSpace(p.Text) == "" {
+		return ttsErrChan(req, "text required"), nil
 	}
 	if p.Voice == "" {
 		p.Voice = tts.DefaultVoice
 	}
 
+	// Route: classifier RouteLocal → Apple. Cloud path is preferred fallback,
+	// but if cloud is nil (no API key) → degrade to Apple universally so the
+	// operator still gets TTS instead of "not configured" for benign text.
 	prov := cloud
 	if cls != nil && cls.Route(p.Text) == tts.RouteLocal {
 		prov = local
+	}
+	if prov == nil {
+		prov = local // graceful degradation when cloud absent
 	}
 	if prov == nil {
 		return ttsErrChan(req, "tts provider not configured"), nil

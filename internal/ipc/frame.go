@@ -13,6 +13,15 @@ import (
 const MaxFrameBytes = 256 * 1024
 
 const (
+	// Conversational frames per spec §10.7.
+	KindAsk      = "ask"
+	KindDiag     = "diag.state"
+	KindError    = "error"
+	KindProseDelta = "prose.delta"
+	KindProseEnd   = "prose.end"
+	KindTurnEnd    = "turn.end"
+	KindVerifyKey  = "verify-key"
+
 	KindWidgetMount       = "widget.mount"
 	KindWidgetUpdate      = "widget.update"
 	KindWidgetStale       = "widget.stale"
