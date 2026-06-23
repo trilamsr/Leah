@@ -194,9 +194,10 @@ func main() {
 	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
 	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing)).Serve(ctx) }()
 
+	evalDone := make(chan struct{})
+	close(evalDone) // default: noop close-on-exit when LEAH_EVAL is unset
 	if os.Getenv("LEAH_EVAL") == "1" && sonnet != nil {
 		if evalStore, err := eval.OpenStore(filepath.Join(sd, "eval.db")); err == nil {
-			defer func() { _ = evalStore.Close() }()
 			evalInterval := time.Hour
 			if v := os.Getenv("LEAH_EVAL_INTERVAL_SECONDS"); v != "" {
 				if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -207,12 +208,18 @@ func main() {
 			if evalDir == "" {
 				evalDir = filepath.Join(sd, "eval-fixtures")
 			}
-			go (&eval.Scheduler{
+			evalDone = make(chan struct{})
+			sched := &eval.Scheduler{
 				Asker:       evalAskerFunc(func(ctx context.Context, q string) (string, error) { return sonnet.OneShot(ctx, "", q) }),
 				FixturesDir: evalDir,
 				Store:       evalStore,
 				Interval:    evalInterval,
-			}).Run(ctx)
+			}
+			go func() {
+				defer close(evalDone)
+				defer func() { _ = evalStore.Close() }()
+				sched.Run(ctx)
+			}()
 		} else {
 			_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: eval store open non-fatal: %v\n", err)
 		}
@@ -222,6 +229,7 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
 		os.Exit(1)
 	}
+	<-evalDone
 }
 
 type evalAskerFunc func(context.Context, string) (string, error)

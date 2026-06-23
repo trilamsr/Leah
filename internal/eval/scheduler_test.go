@@ -85,6 +85,18 @@ unknown_field: "smuggled"
 	}
 }
 
+func TestScheduler_LoadFixtures_RejectsEmptyExpected(t *testing.T) {
+	fixDir := t.TempDir()
+	writeFixture(t, fixDir, "empty.yaml", `
+id: empty-1
+question: "q"
+expected_contains: []
+`)
+	if _, err := loadFixtures(fixDir); err == nil {
+		t.Fatalf("expected error for empty expected_contains, got nil")
+	}
+}
+
 func TestScheduler_LoadFixtures_SkipsNonYaml(t *testing.T) {
 	fixDir := t.TempDir()
 	writeFixture(t, fixDir, "README.md", "not a fixture\n")

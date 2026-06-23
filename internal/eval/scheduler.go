@@ -1,8 +1,9 @@
-// Package eval scheduler — fixture-based scoring on a fixed cadence.
-// Default OFF; cmd/leah-daemon gates on LEAH_EVAL=1.
+// Package eval scheduler: fixture-based scoring on a fixed cadence.
+// Default off; cmd/leah-daemon gates on LEAH_EVAL=1.
 package eval
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -11,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v4"
+	"gopkg.in/yaml.v3"
 )
 
 type Fixture struct {
@@ -136,13 +137,16 @@ func loadFixtures(dir string) ([]Fixture, error) {
 			return nil, fmt.Errorf("read %s: %w", n, rerr)
 		}
 		var f Fixture
-		dec := yaml.NewDecoder(strings.NewReader(string(data)))
+		dec := yaml.NewDecoder(bytes.NewReader(data))
 		dec.KnownFields(true)
 		if derr := dec.Decode(&f); derr != nil {
 			return nil, fmt.Errorf("decode %s: %w", n, derr)
 		}
 		if f.ID == "" {
 			return nil, fmt.Errorf("fixture %s: missing id", n)
+		}
+		if len(f.ExpectedContains) == 0 {
+			return nil, fmt.Errorf("fixture %s: expected_contains is empty (would auto-pass)", n)
 		}
 		out = append(out, f)
 	}
