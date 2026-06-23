@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/testutil"
 	"github.com/trilam/leah/internal/tts"
 )
 
@@ -179,17 +180,7 @@ func TestHandleTTSCancel_PropagatesCtxCancel(t *testing.T) {
 		t.Fatalf("speak: %v", err)
 	}
 
-	// Wait for Speak() to register before cancelling.
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if reg.has("cancel-1") {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	if !reg.has("cancel-1") {
-		t.Fatal("cancel registration never appeared")
-	}
+	testutil.Eventually(t, time.Second, time.Millisecond, func() bool { return reg.has("cancel-1") })
 
 	cancelReq := ipc.Frame{Kind: ipc.KindTTSCancel, TurnID: "cancel-1", Seq: 1}
 	cancelCh, err := handleTTSCancel(context.Background(), cancelReq, reg)

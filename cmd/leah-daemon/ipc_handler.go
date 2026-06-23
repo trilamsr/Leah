@@ -15,6 +15,7 @@ import (
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/tts"
 )
 
 // errVerifyFailed is returned by pingFn when the API key is rejected.
@@ -35,7 +36,7 @@ type classifyFn func(ctx context.Context, text string) reasoner.Intent
 type fetchFn func(ctx context.Context, query string, k int) ([]knowledge.Chunk, error)
 
 // newIPCHandler is the production constructor wired into main.go.
-func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing) ipc.Handler {
+func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier) ipc.Handler {
 	return newIPCHandlerWithClassify(db,
 		liveStreamFn(sonnet),
 		liveOpusStreamFn(sonnet),
@@ -44,6 +45,7 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 		liveFetchFn(kg),
 		time.Now(),
 		ring,
+		ttsCloud, ttsLocal, ttsClass,
 	)
 }
 
@@ -52,19 +54,19 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 func newIPCHandlerForTest(db *sql.DB, s streamFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
 	return newIPCHandlerWithClassify(db, s, s, noClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, time.Time{}, nil)
+		func(_ context.Context, _ string) error { return nil }, nil, time.Time{}, nil, nil, nil, nil)
 }
 
 // newIPCHandlerWithPingForTest is kept for existing verify-key tests.
 func newIPCHandlerWithPingForTest(db *sql.DB, s streamFn, ping pingFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil, time.Time{}, nil)
+	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil, time.Time{}, nil, nil, nil, nil)
 }
 
 // newIPCHandlerWithDiag is kept for the diag_test.go test fixture.
 func newIPCHandlerWithDiag(db *sql.DB, s streamFn, ping pingFn, startTime time.Time) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil, startTime, nil)
+	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil, startTime, nil, nil, nil, nil)
 }
 
 // newIPCHandlerWithClassify is the full injection point — used by all tests.
@@ -76,7 +78,10 @@ func newIPCHandlerWithClassify(
 	fetch fetchFn,
 	startTime time.Time,
 	ring *obs.ErrorRing,
+	ttsCloud, ttsLocal tts.Provider,
+	ttsClass tts.Classifier,
 ) ipc.Handler {
+	reg := newTTSRegistry()
 	return func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
 		switch req.Kind {
 		case "verify-key":
@@ -87,6 +92,10 @@ func newIPCHandlerWithClassify(
 				last = ring.Last()
 			}
 			return ipc.HandleState(ctx, startTime, last)
+		case ipc.KindTTSSpeak:
+			return handleTTSSpeak(ctx, req, ttsCloud, ttsLocal, ttsClass, reg)
+		case ipc.KindTTSCancel:
+			return handleTTSCancel(ctx, req, reg)
 		default:
 			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch)
 		}

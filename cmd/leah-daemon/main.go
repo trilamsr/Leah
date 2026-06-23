@@ -29,6 +29,7 @@ import (
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/recommend"
 	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/tts"
 	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/watchdog"
 )
@@ -191,7 +192,11 @@ func main() {
 	}
 	// store.DB() already has conversation_turn from the schema migration above.
 	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
-	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing)).Serve(ctx) }()
+	// TTS providers (Task 2 + Task 3 wire concrete elevenlabs/apple
+	// implementations; for now the classifier is live but providers are
+	// nil — handler emits tts.speak.err until providers ship).
+	ttsClass := tts.NewBlockwordClassifier()
+	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, nil, nil, ttsClass)).Serve(ctx) }()
 
 	if err := loop.Run(ctx); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: %v\n", err)
