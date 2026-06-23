@@ -83,6 +83,13 @@ LENSES (apply in order)
    - Scan the diff additions for WHAT-narration explicitly; do not infer from the PR description.
    - Output `## Comment sweep` section listing offenders by `path:line` with severity tag, OR `## Comment sweep: clean` if zero. Silence = failure.
 10. **Citation resolve (HIGH severity)** — for brief / spec / dispatch-template diffs: every cited path resolves via `git ls-tree origin/main --name-only | grep -F <path>` (NOT worktree-local Read). Every numeric claim (file count, rule count, LoC) pairs with the exact command that produced it; reviewer re-runs the command. Every OSS prior-art cite names LICENSE-file URL + resolvable tag-ref. HIGH on any unresolved citation, mismatched numeric, or unverified license.
+11. **Orphan scan on phase-final review (HIGH severity)** — when reviewing a phase-boundary PR (Wave-final, ship-tag candidate, anything labeled "final-review" or "phase-N-complete"), enumerate built-but-unwired packages BEFORE APPROVE. Prior implicit responsibility ("reviewer assumed wiring landed because the impl PR passed") is now an explicit step. Run from the worktree:
+   ```
+   go list -deps ./cmd/... 2>/dev/null | sort -u > /tmp/reachable
+   go list ./... 2>/dev/null | sort -u > /tmp/all-packages
+   comm -23 /tmp/all-packages /tmp/reachable | grep -E '/internal/'
+   ```
+   Any package listed is unreachable from any `cmd/` entry — built but not wired. Each one BLOCKS APPROVE unless triaged as: (a) intentional library consumed by external tooling, (b) test-only helper imported via `_test.go` (verify by re-running with `-test` flag on `go list`), or (c) tracked in a follow-up issue with the issue # cited in the PR body. Untriaged orphan = HIGH finding, block-on-findings. v3.3.0 shipped with 3 wiring gaps because Wave 6 Task 20's final-review reviewer skipped this — see operator-personal `feedback_orphan_scan_before_tag.md` for the precipitating incident.
 
 STALE-BASE RECALL FAILURE (HARD GATE)
 - If `git diff origin/main..HEAD --stat` shows DELETIONS for files OUTSIDE the PR's declared scope (i.e. files that BELONG to sibling work but were not authored by this PR), AUTO-BLOCK regardless of code quality on the additions. Reviewer MUST verify:
@@ -156,6 +163,7 @@ PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `
 - [ ] `## Comment sweep` section emitted (offenders or `clean`)
 - [ ] `REVIEWER APPROVE/REVISE:` PR comment posted with the real subagent ID (not the author login), against the current head SHA
 - [ ] **TDD evidence**: PR body on `feat/*` carries a `## TDD evidence` heading PAIRED with a `FAIL`/`panic`/`RED→GREEN` token, OR an explicit `<!-- tdd-skip-justified: <reason ≥32 chars> -->` marker. Reviewer enforces inline — the CI gate that previously enforced this (`scripts/check-tdd-evidence.sh` + `pr-gates` job) was dropped in PR #287 in favor of reviewer audit.
+- [ ] **Orphan scan (phase-final only)**: when the PR is a phase-boundary or ship-tag candidate, the orphan-scan command in lens 10 ran clean OR every orphan is triaged (intentional library / test-only helper / cited follow-up issue #). v3.3.0 wiring-gap precedent.
 
 ## Recurring-failure traps
 
