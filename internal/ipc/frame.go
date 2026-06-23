@@ -85,9 +85,9 @@ const (
 	KindRecommendAntiAdd  = "recommend.anti.add"
 	KindRecommendAntiList = "recommend.anti.list"
 
-	// Plugin kinds — §15 plugin lifecycle. List snapshots host state;
-	// Install/Uninstall manage bundles; Enable/Disable toggle without
-	// uninstall; Logs tails plugin stdout for the PluginsPane.
+	// Plugin kinds — Settings PluginsPane drives plugin.Host through
+	// list/install/enable/disable/uninstall/logs; daemon echoes the same
+	// kind back with the result payload so HUD can route by request kind.
 	KindPluginList      = "plugin.list"
 	KindPluginInstall   = "plugin.install"
 	KindPluginEnable    = "plugin.enable"
