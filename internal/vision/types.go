@@ -2,6 +2,7 @@ package vision
 
 import (
 	"context"
+	"errors"
 	"image"
 	"time"
 )
@@ -11,6 +12,21 @@ type Image struct {
 	Width  int
 	Height int
 	MIME   string
+}
+
+var ErrUnsupportedMIME = errors.New("vision: unsupported MIME — want image/rgba or image/gray")
+
+// BytesPerPixel gates stride arithmetic in PHash + OCR; any unknown MIME
+// would silently mis-index Pixels and read garbage. Empty MIME = rgba default.
+func BytesPerPixel(mime string) (int, error) {
+	switch mime {
+	case "image/rgba", "":
+		return 4, nil
+	case "image/gray":
+		return 1, nil
+	default:
+		return 0, ErrUnsupportedMIME
+	}
 }
 
 type FrameSource int

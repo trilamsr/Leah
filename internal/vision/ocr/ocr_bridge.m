@@ -5,14 +5,16 @@ typedef struct { const char* text; int x; int y; int w; int h; double conf; } OC
 
 int leah_ocr_recognize(const unsigned char* px, int w, int h, int bpp, OCRHit** out_hits) {
     CGColorSpaceRef cs = (bpp == 1) ? CGColorSpaceCreateDeviceGray() : CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx = CGBitmapContextCreate((void*)px, w, h, 8, w*bpp, cs, (bpp == 1) ? kCGImageAlphaNone : kCGImageAlphaPremultipliedLast);
+    CGBitmapInfo bmi = (CGBitmapInfo)((bpp == 1) ? kCGImageAlphaNone : kCGImageAlphaPremultipliedLast);
+    CGContextRef ctx = CGBitmapContextCreate((void*)px, w, h, 8, w*bpp, cs, bmi);
     CGImageRef cgImg = CGBitmapContextCreateImage(ctx);
     VNRecognizeTextRequest* req = [[VNRecognizeTextRequest alloc] init];
     req.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
     req.usesLanguageCorrection = YES;
     VNImageRequestHandler* handler = [[VNImageRequestHandler alloc] initWithCGImage:cgImg options:@{}];
     NSError* err = nil;
-    [handler performRequests:@[req] error:&err];
+    BOOL ok = [handler performRequests:@[req] error:&err];
+    if (!ok || err != nil) { *out_hits = NULL; CGImageRelease(cgImg); CGContextRelease(ctx); CGColorSpaceRelease(cs); return -1; }
     NSArray<VNRecognizedTextObservation*>* results = req.results;
     int n = (int)results.count;
     if (n == 0) { *out_hits = NULL; CGImageRelease(cgImg); CGContextRelease(ctx); CGColorSpaceRelease(cs); return 0; }

@@ -13,6 +13,7 @@ import "C"
 
 import (
 	"context"
+	"errors"
 	"image"
 	"unsafe"
 
@@ -27,13 +28,16 @@ func (darwinEngine) Recognize(ctx context.Context, img vision.Image) ([]vision.T
 	if img.Width == 0 || img.Height == 0 || len(img.Pixels) == 0 {
 		return nil, nil
 	}
-	bpp := 4
-	if img.MIME == "image/gray" {
-		bpp = 1
+	bpp, err := vision.BytesPerPixel(img.MIME)
+	if err != nil {
+		return nil, err
 	}
 	var hits *C.OCRHit
 	n := int(C.leah_ocr_recognize((*C.uchar)(unsafe.Pointer(&img.Pixels[0])), C.int(img.Width), C.int(img.Height), C.int(bpp), &hits))
-	if n <= 0 {
+	if n < 0 {
+		return nil, errors.New("ocr: Vision.framework performRequests failed")
+	}
+	if n == 0 {
 		return nil, nil
 	}
 	defer C.leah_ocr_free(hits, C.int(n))

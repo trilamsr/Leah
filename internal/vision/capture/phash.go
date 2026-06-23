@@ -8,8 +8,13 @@ import (
 
 // PHash returns a 64-bit perceptual hash via 8x8 average-luminance threshold.
 // Used to cache OCR results within a 5-second window per spec §4.4.
+// Returns 0 (cache miss sentinel) for empty, sub-8px, or non-rgba/gray images.
 func PHash(img vision.Image) uint64 {
 	if img.Width == 0 || img.Height == 0 || len(img.Pixels) == 0 {
+		return 0
+	}
+	bpp, err := vision.BytesPerPixel(img.MIME)
+	if err != nil {
 		return 0
 	}
 	const N = 8
@@ -20,10 +25,6 @@ func PHash(img vision.Image) uint64 {
 	}
 	var cells [N * N]uint64
 	var total uint64
-	bpp := 4
-	if img.MIME == "image/gray" {
-		bpp = 1
-	}
 	for cy := 0; cy < N; cy++ {
 		for cx := 0; cx < N; cx++ {
 			var sum uint64

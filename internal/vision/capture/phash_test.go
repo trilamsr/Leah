@@ -29,3 +29,10 @@ func TestPHash_DifferentImagesDiffer(t *testing.T) {
 		t.Fatal("opposite images must have large hamming distance")
 	}
 }
+
+func TestPHash_UnsupportedMIMEReturnsZero(t *testing.T) {
+	img := vision.Image{Pixels: make([]byte, 64*64), Width: 64, Height: 64, MIME: "image/png"}
+	if PHash(img) != 0 {
+		t.Fatal("unsupported MIME must return 0 (cache miss sentinel)")
+	}
+}
