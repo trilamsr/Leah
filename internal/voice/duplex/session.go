@@ -1,8 +1,8 @@
 // Package duplex orchestrates STT (T01) + reasoner + TTS (Phase 3) into a
 // single streaming voice session with barge-in. Spec §1.3 mandates a single
 // DuplexSession that halts TTS within 80ms when mic VAD detects voice during
-// playback. Budget Charger is injected via constructor so the T08 runtime
-// can wire cloud.stt.seconds + cloud.tts.chars without further changes here.
+// playback. The T08 budget.Runtime is injected via constructor so cloud.stt.seconds
+// and cloud.tts.chars Charge calls land in the same store as CLI commands.
 package duplex
 
 import (
@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/tts"
 	"github.com/trilam/leah/internal/voice/stt"
 )
@@ -47,22 +48,6 @@ type DuplexOpts struct {
 // duplex package independent of model-client choice (Sonnet/Opus/Haiku).
 type AskFn func(ctx context.Context, prompt string) (<-chan string, error)
 
-// Bucket names the budget category for a Charger entry; the real enum lives
-// in T08 internal/budget. The string is the wire form so this package does
-// not import the budget package and stays disjoint.
-type Bucket string
-
-const (
-	BucketCloudSTTSeconds Bucket = "cloud.stt.seconds"
-	BucketCloudTTSChars   Bucket = "cloud.tts.chars"
-)
-
-// Charger is the deferred-wire interface for T08. A nil charger is a no-op —
-// production wires the real runtime once T08 lands.
-type Charger interface {
-	Charge(b Bucket, n int64) error
-}
-
 type DuplexSession interface {
 	Start(ctx context.Context, opts DuplexOpts) (<-chan DuplexEvent, error)
 	Interrupt()
@@ -73,15 +58,17 @@ type session struct {
 	stt     stt.STT
 	tts     tts.Provider
 	ask     AskFn
-	charger Charger
+	budget  budget.Runtime
 	arb     *bargeArbiter
 	cancel  context.CancelFunc
 	out     chan DuplexEvent
 	endOnce sync.Once
 }
 
-func NewSession(s stt.STT, t tts.Provider, ask AskFn, c Charger) DuplexSession {
-	return &session{stt: s, tts: t, ask: ask, charger: c, arb: newBargeArbiter()}
+// NewSession returns a session. A nil budget.Runtime disables charging — the
+// daemon main() wires the live runtime; tests pass nil.
+func NewSession(s stt.STT, t tts.Provider, ask AskFn, b budget.Runtime) DuplexSession {
+	return &session{stt: s, tts: t, ask: ask, budget: b, arb: newBargeArbiter()}
 }
 
 func (s *session) Start(ctx context.Context, opts DuplexOpts) (<-chan DuplexEvent, error) {

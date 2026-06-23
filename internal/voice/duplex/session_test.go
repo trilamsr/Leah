@@ -100,23 +100,10 @@ func TestSession_TurnTimeoutEmitsTTSEnd(t *testing.T) {
 	}
 }
 
-type recordingCharger struct {
-	buckets map[Bucket]int64
-}
-
-func (r *recordingCharger) Charge(b Bucket, n int64) error {
-	if r.buckets == nil {
-		r.buckets = map[Bucket]int64{}
-	}
-	r.buckets[b] += n
-	return nil
-}
-
-func TestSession_ChargerInjectionOptional(t *testing.T) {
-	rc := &recordingCharger{}
-	s := NewSession(fakeSTT{}, fakeTTS{}, fakeAsk, rc)
+func TestSession_NilBudgetIsValid(t *testing.T) {
+	s := NewSession(fakeSTT{}, fakeTTS{}, fakeAsk, nil)
 	if s == nil {
-		t.Fatal("nil session with charger")
+		t.Fatal("nil session with nil budget")
 	}
 }
 
