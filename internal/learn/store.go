@@ -37,10 +37,14 @@ func txTopQueued(ctx context.Context, q dbq, now time.Time, n int) ([]Recommenda
 	var out []Recommendation
 	for rows.Next() {
 		var r Recommendation
+		var id int64
+		var action string
 		var exp int64
-		if err := rows.Scan(&r.ID, &r.Kind, &r.Body, &r.Score, &r.Confidence, &r.ActionRef, &exp); err != nil {
+		if err := rows.Scan(&id, &r.Kind, &r.Body, &r.Score, &r.Confidence, &action, &exp); err != nil {
 			return nil, err
 		}
+		r.ID = RecommendationID(id)
+		r.Action = ActionRef(action)
 		r.ExpiresAt = time.Unix(exp, 0)
 		out = append(out, r)
 	}
