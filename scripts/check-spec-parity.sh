@@ -142,7 +142,8 @@ done < "$SPEC"
 
 # Phase 3 keyword guards — these terms MUST appear verbatim in the spec post-v3.3.0
 # ship. Catches doc drift where a Phase 3 deliverable lands but the spec body
-# never names it.
+# never names it. Scoped to Phase-3 specs only by filename so Phase-4+ specs
+# passed through this gate don't fail on Phase-3-specific tokens.
 REQUIRED_PHRASES=(
   'Phase 3 ship criterion'
   'wake-leah.mlmodel'
@@ -150,12 +151,16 @@ REQUIRED_PHRASES=(
   'tts.local'
 )
 
-for required in "${REQUIRED_PHRASES[@]}"; do
-  if ! grep -qF "$required" "$SPEC"; then
-    printf '%s: missing required phrase: %s\n' "$SPEC" "$required" >&2
-    exit_code=1
-  fi
-done
+shopt -s nocasematch
+if [[ "$SPEC" == *phase3* ]]; then
+  for required in "${REQUIRED_PHRASES[@]}"; do
+    if ! grep -qF "$required" "$SPEC"; then
+      printf '%s: missing required phrase: %s\n' "$SPEC" "$required" >&2
+      exit_code=1
+    fi
+  done
+fi
+shopt -u nocasematch
 
 if [[ "$exit_code" -eq 0 ]]; then
   echo "check-spec-parity: ok — $SPEC has no forbidden phrases outside the allow-list."
