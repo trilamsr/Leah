@@ -104,5 +104,15 @@ let package = Package(
       dependencies: ["LeahVoice", "LeahIPC"],
       path: "Tests/LeahVoiceTests"
     ),
+    .target(
+      name: "LeahVision",
+      dependencies: ["LeahIPC"],
+      path: "Sources/LeahVision"
+    ),
+    .testTarget(
+      name: "LeahVisionTests",
+      dependencies: ["LeahVision", "LeahIPC"],
+      path: "Tests/LeahVisionTests"
+    ),
   ]
 )
