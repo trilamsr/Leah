@@ -203,7 +203,7 @@ func main() {
 	ttsClass := tts.NewBlockwordClassifier()
 	ttsCloud, ttsLocal := buildTTSProviders()
 	obs.SafeGo(lg, registry, "ipc-server", func() {
-		_ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, ttsCloud, ttsLocal, ttsClass)).Serve(ctx)
+		_ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, ttsCloud, ttsLocal, ttsClass, nil)).Serve(ctx)
 	})
 	startMCPPublish(ctx, lg, registry, os.Stderr)
 
