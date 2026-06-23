@@ -18,7 +18,7 @@ public struct ListWidget: LeahWidget {
                     HStack(alignment: .top, spacing: 8) {
                         Text(ordered ? "\(i + 1)." : "·")
                             .font(.system(size: 13))
-                            .foregroundColor(Palette.champagneGold)
+                            .foregroundColor(Palette.accentGold)
                             .frame(minWidth: 16, alignment: .trailing)
                         Text(items[i])
                             .font(.system(size: 13))

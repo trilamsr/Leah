@@ -40,6 +40,6 @@ public struct StatWidget: LeahWidget {
     }
 
     private func trendColor(_ t: String) -> Color {
-        t.hasPrefix("-") ? Palette.oxblood : Palette.champagneGold
+        t.hasPrefix("-") ? Palette.oxblood : Palette.accentGold
     }
 }
