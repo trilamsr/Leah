@@ -11,6 +11,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -30,6 +31,8 @@ import (
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/recommend"
 	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/tts"
+	"github.com/trilam/leah/internal/tts/elevenlabs"
 	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/watchdog"
 )
@@ -192,7 +195,13 @@ func main() {
 	}
 	// store.DB() already has conversation_turn from the schema migration above.
 	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
-	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing)).Serve(ctx) }()
+	// Apple Ava (local) wires in Task 3; nil until then forces cloud route.
+	var ttsCloud tts.Provider
+	if k := os.Getenv("LEAH_ELEVENLABS_API_KEY"); k != "" {
+		ttsCloud = elevenlabs.New(k, os.Getenv("LEAH_ELEVENLABS_VOICE_ID"), http.DefaultClient)
+	}
+	ttsClass := tts.NewBlockwordClassifier()
+	go func() { _ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, ttsCloud, nil, ttsClass)).Serve(ctx) }()
 
 	evalDone := make(chan struct{})
 	close(evalDone) // default: noop close-on-exit when LEAH_EVAL is unset

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/testutil"
 	"github.com/trilam/leah/internal/tts"
 )
 
@@ -179,17 +180,7 @@ func TestHandleTTSCancel_PropagatesCtxCancel(t *testing.T) {
 		t.Fatalf("speak: %v", err)
 	}
 
-	// Wait for Speak() to register before cancelling.
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if reg.has("cancel-1") {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	if !reg.has("cancel-1") {
-		t.Fatal("cancel registration never appeared")
-	}
+	testutil.Eventually(t, time.Second, time.Millisecond, func() bool { return reg.has("cancel-1") })
 
 	cancelReq := ipc.Frame{Kind: ipc.KindTTSCancel, TurnID: "cancel-1", Seq: 1}
 	cancelCh, err := handleTTSCancel(context.Background(), cancelReq, reg)
@@ -225,6 +216,47 @@ func TestHandleTTSCancel_PropagatesCtxCancel(t *testing.T) {
 	// Registration must be cleared after cancel completes.
 	if reg.has("cancel-1") {
 		t.Fatal("registration must be removed after cancel")
+	}
+}
+
+// Apple-route Speak error must emit tts.speak.err — not swallowed.
+func TestHandleTTSSpeak_AppleProviderErrorPropagates(t *testing.T) {
+	cloud := &fakeProvider{name: "elevenlabs"}
+	local := &fakeProvider{name: "apple-ava", streamErr: errors.New("apple synth init failed")}
+	reg := newTTSRegistry()
+	cls := &fakeClassifier{route: tts.RouteLocal}
+	req := ipc.Frame{Kind: ipc.KindTTSSpeak, TurnID: "ae-1", Seq: 1, Payload: json.RawMessage(`{"text":"x"}`)}
+	ch, err := handleTTSSpeak(context.Background(), req, cloud, local, cls, reg)
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	frames := drain(ch)
+	if len(frames) != 1 || frames[0].Kind != ipc.KindTTSSpeakErr {
+		t.Fatalf("want one %q frame, got %+v", ipc.KindTTSSpeakErr, frames)
+	}
+}
+
+// Cancel-before-speak: pins the ordering contract — HUD MUST register
+// speak before issuing cancel; cancel arriving first is a no-op ack and
+// will NOT cancel the later speak.
+func TestHandleTTSCancel_BeforeSpeakDoesNotCancelLaterSpeak(t *testing.T) {
+	cloud := &fakeProvider{name: "elevenlabs", chunks: [][]byte{[]byte("x")}, mime: "audio/mpeg"}
+	local := &fakeProvider{name: "apple-ava"}
+	reg := newTTSRegistry()
+	cls := &fakeClassifier{route: tts.RouteCloud}
+
+	cancelReq := ipc.Frame{Kind: ipc.KindTTSCancel, TurnID: "order-1", Seq: 1}
+	cancelCh, _ := handleTTSCancel(context.Background(), cancelReq, reg)
+	_ = drain(cancelCh)
+
+	speakReq := ipc.Frame{Kind: ipc.KindTTSSpeak, TurnID: "order-1", Seq: 1, Payload: json.RawMessage(`{"text":"x"}`)}
+	ch, err := handleTTSSpeak(context.Background(), speakReq, cloud, local, cls, reg)
+	if err != nil {
+		t.Fatalf("speak: %v", err)
+	}
+	frames := drain(ch)
+	if frames[len(frames)-1].Kind != ipc.KindTTSSpeakDone {
+		t.Fatalf("speak must complete normally — early cancel for unregistered id is a no-op; got last frame %q", frames[len(frames)-1].Kind)
 	}
 }
 
