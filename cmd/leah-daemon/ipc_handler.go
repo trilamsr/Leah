@@ -35,14 +35,19 @@ type classifyFn func(ctx context.Context, text string) reasoner.Intent
 // fetchFn retrieves top-k knowledge chunks for a query; nil return is safe.
 type fetchFn func(ctx context.Context, query string, k int) ([]knowledge.Chunk, error)
 
+// enrichFn resolves a citation URL against the KG; (nil, nil) is "no match".
+// Errors degrade silently — the widget tile still mounts without enrichment.
+type enrichFn func(ctx context.Context, citationURL string) (*knowledge.CitationEnrichment, error)
+
 // newIPCHandler is the production constructor wired into main.go.
 func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier) ipc.Handler {
-	return newIPCHandlerWithClassify(db,
+	return newIPCHandlerWithClassifyEnrich(db,
 		liveStreamFn(sonnet),
 		liveOpusStreamFn(sonnet),
 		liveClassifyFn(),
 		livePingFn(),
 		liveFetchFn(kg),
+		liveEnrichFn(kg),
 		time.Now(),
 		ring,
 		ttsCloud, ttsLocal, ttsClass,
@@ -53,29 +58,49 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 // don't need to exercise classify or verify-key.
 func newIPCHandlerForTest(db *sql.DB, s streamFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassify(db, s, s, noClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, time.Time{}, nil, nil, nil, nil)
+	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify,
+		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil)
 }
 
 // newIPCHandlerWithPingForTest is kept for existing verify-key tests.
 func newIPCHandlerWithPingForTest(db *sql.DB, s streamFn, ping pingFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil, time.Time{}, nil, nil, nil, nil)
+	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify, ping, nil, nil, time.Time{}, nil, nil, nil, nil)
 }
 
 // newIPCHandlerWithDiag is kept for the diag_test.go test fixture.
 func newIPCHandlerWithDiag(db *sql.DB, s streamFn, ping pingFn, startTime time.Time) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassify(db, s, s, noClassify, ping, nil, startTime, nil, nil, nil, nil)
+	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify, ping, nil, nil, startTime, nil, nil, nil, nil)
 }
 
-// newIPCHandlerWithClassify is the full injection point — used by all tests.
+// newIPCHandlerWithClassify is the pre-enrichment injection point — kept so
+// existing tests continue to compile. Forwards to the enrichment-aware variant
+// with a nil enricher (citation widgets degrade to the bare URL tile).
 func newIPCHandlerWithClassify(
 	db *sql.DB,
 	sonnetStream, opusStream streamFn,
 	classify classifyFn,
 	ping pingFn,
 	fetch fetchFn,
+	startTime time.Time,
+	ring *obs.ErrorRing,
+	ttsCloud, ttsLocal tts.Provider,
+	ttsClass tts.Classifier,
+) ipc.Handler {
+	return newIPCHandlerWithClassifyEnrich(db, sonnetStream, opusStream, classify, ping, fetch, nil,
+		startTime, ring, ttsCloud, ttsLocal, ttsClass)
+}
+
+// newIPCHandlerWithClassifyEnrich is the full injection point — all production
+// and citation-enrichment tests route through here.
+func newIPCHandlerWithClassifyEnrich(
+	db *sql.DB,
+	sonnetStream, opusStream streamFn,
+	classify classifyFn,
+	ping pingFn,
+	fetch fetchFn,
+	enrich enrichFn,
 	startTime time.Time,
 	ring *obs.ErrorRing,
 	ttsCloud, ttsLocal tts.Provider,
@@ -97,7 +122,7 @@ func newIPCHandlerWithClassify(
 		case ipc.KindTTSCancel:
 			return handleTTSCancel(ctx, req, reg)
 		default:
-			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch)
+			return handleAsk(ctx, req, db, sonnetStream, opusStream, classify, fetch, enrich)
 		}
 	}
 }
@@ -112,6 +137,7 @@ func handleAsk(
 	sonnetStream, opusStream streamFn,
 	classify classifyFn,
 	fetch fetchFn,
+	enrich enrichFn,
 ) (<-chan ipc.Frame, error) {
 	var p struct {
 		Text         string `json:"text"`
@@ -123,9 +149,8 @@ func handleAsk(
 	if classify != nil {
 		intent := classify(ctx, p.Text)
 		if intent.Kind == "widget" {
-			payload, _ := json.Marshal(map[string]string{"widget_type": intent.Widget})
 			out := make(chan ipc.Frame, 1)
-			out <- ipc.Frame{Kind: "widget.mount", TurnID: req.TurnID, Seq: 1, Payload: payload}
+			out <- ipc.Frame{Kind: "widget.mount", TurnID: req.TurnID, Seq: 1, Payload: mountPayload(ctx, intent, enrich)}
 			close(out)
 			return out, nil
 		}
@@ -285,4 +310,38 @@ func liveFetchFn(kg *knowledge.Graph) fetchFn {
 		return nil
 	}
 	return kg.SearchRelevant
+}
+
+// liveEnrichFn curries the KG into knowledge.EnrichCitation. Returns nil when
+// the graph is absent so citation widgets degrade to bare-URL tiles instead
+// of failing the mount.
+func liveEnrichFn(kg *knowledge.Graph) enrichFn {
+	if kg == nil {
+		return nil
+	}
+	return func(ctx context.Context, citationURL string) (*knowledge.CitationEnrichment, error) {
+		return knowledge.EnrichCitation(ctx, kg, citationURL)
+	}
+}
+
+// mountPayload renders the widget.mount payload, calling EnrichCitation
+// exactly once for citation widgets. Enrichment failure or nil-result keeps
+// the mount alive — only the enrichment field is omitted.
+func mountPayload(ctx context.Context, intent reasoner.Intent, enrich enrichFn) json.RawMessage {
+	if intent.Widget != "citation" {
+		payload, _ := json.Marshal(map[string]string{"widget_type": intent.Widget})
+		return payload
+	}
+	out := struct {
+		WidgetType string                         `json:"widget_type"`
+		URL        string                         `json:"url,omitempty"`
+		Enrichment *knowledge.CitationEnrichment `json:"enrichment,omitempty"`
+	}{WidgetType: "citation", URL: intent.URL}
+	if enrich != nil && intent.URL != "" {
+		if enr, err := enrich(ctx, intent.URL); err == nil && enr != nil {
+			out.Enrichment = enr
+		}
+	}
+	payload, _ := json.Marshal(out)
+	return payload
 }

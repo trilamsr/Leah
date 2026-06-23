@@ -7,10 +7,12 @@ import (
 )
 
 // Intent is the classifier output: Kind ∈ {"chat","widget"},
-// Widget ∈ {"stat","table","list",""}, Confidence in 0..1.
+// Widget ∈ {"stat","table","list","citation",""}, Confidence in 0..1.
+// URL is set only for citation intent — the URL the user wants summarised.
 type Intent struct {
 	Kind       string  `json:"kind"`
 	Widget     string  `json:"widget"`
+	URL        string  `json:"url,omitempty"`
 	Confidence float64 `json:"confidence"`
 }
 
@@ -18,6 +20,8 @@ const classifySystem = `You are a router. Reply with ONE line of JSON:
 {"kind":"chat"} for conversational replies.
 {"kind":"widget","widget":"stat|table|list","confidence":0..1} when the user
 is asking for a metric (stat), tabular data (table), or an enumeration (list).
+{"kind":"widget","widget":"citation","url":"<url>","confidence":0..1} when
+the user pastes a URL they want summarised as a source tile.
 Never include prose, only the JSON line.`
 
 // oneShot is the interface the classifier calls — satisfied by AnthropicClient
