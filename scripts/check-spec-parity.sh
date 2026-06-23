@@ -140,6 +140,23 @@ while IFS= read -r line; do
   done
 done < "$SPEC"
 
+# Phase 3 keyword guards — these terms MUST appear verbatim in the spec post-v3.3.0
+# ship. Catches doc drift where a Phase 3 deliverable lands but the spec body
+# never names it.
+REQUIRED_PHRASES=(
+  'Phase 3 ship criterion'
+  'wake-leah.mlmodel'
+  'tts.cloud.frame'
+  'tts.local'
+)
+
+for required in "${REQUIRED_PHRASES[@]}"; do
+  if ! grep -qF "$required" "$SPEC"; then
+    printf '%s: missing required phrase: %s\n' "$SPEC" "$required" >&2
+    exit_code=1
+  fi
+done
+
 if [[ "$exit_code" -eq 0 ]]; then
   echo "check-spec-parity: ok — $SPEC has no forbidden phrases outside the allow-list."
 fi
