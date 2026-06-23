@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class FlightsTileViewTests: XCTestCase {
   private func loadFixture() throws -> FlightsPayload {
-    let url = try XCTUnwrap(Bundle.module.url(forResource: "flights-sfo-lis", withExtension: "json"))
+    let url = try XCTUnwrap(Bundle.module.url(forResource: "flights-sfo-lis", withExtension: "json", subdirectory: "Fixtures"))
     let data = try Data(contentsOf: url)
     return try JSONDecoder().decode(FlightsPayload.self, from: data)
   }

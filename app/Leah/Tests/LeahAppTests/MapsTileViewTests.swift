@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class MapsTileViewTests: XCTestCase {
   private func loadFixture() throws -> MapsPayload {
-    let url = try XCTUnwrap(Bundle.module.url(forResource: "maps-sf-geocode", withExtension: "json"))
+    let url = try XCTUnwrap(Bundle.module.url(forResource: "maps-sf-geocode", withExtension: "json", subdirectory: "Fixtures"))
     let data = try Data(contentsOf: url)
     return try JSONDecoder().decode(MapsPayload.self, from: data)
   }
