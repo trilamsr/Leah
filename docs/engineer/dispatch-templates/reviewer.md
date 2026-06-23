@@ -156,14 +156,14 @@ PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `
 
 ## Definition of done
 - [ ] auto-skip evaluated explicitly (skip or proceed, document choice; load-bearing carve-out respected)
-- [ ] all 10 lenses applied (or skip documented per lens)
+- [ ] all 11 lenses applied (or skip documented per lens)
 - [ ] verdict line present
 - [ ] Risk-tier+ findings have a disposition (inline-fix OR aggregate-tracking-issue row)
 - [ ] AT MOST ONE aggregate tracking issue filed for this PR review (with `kind:reviewer-finding` + matching `severity:*` label); LOW findings posted as PR comments only
 - [ ] `## Comment sweep` section emitted (offenders or `clean`)
 - [ ] `REVIEWER APPROVE/REVISE:` PR comment posted with the real subagent ID (not the author login), against the current head SHA
 - [ ] **TDD evidence**: PR body on `feat/*` carries a `## TDD evidence` heading PAIRED with a `FAIL`/`panic`/`RED→GREEN` token, OR an explicit `<!-- tdd-skip-justified: <reason ≥32 chars> -->` marker. Reviewer enforces inline — the CI gate that previously enforced this (`scripts/check-tdd-evidence.sh` + `pr-gates` job) was dropped in PR #287 in favor of reviewer audit.
-- [ ] **Orphan scan (phase-final only)**: when the PR is a phase-boundary or ship-tag candidate, the orphan-scan command in lens 10 ran clean OR every orphan is triaged (intentional library / test-only helper / cited follow-up issue #). v3.3.0 wiring-gap precedent.
+- [ ] **Orphan scan (phase-final only)**: when the PR is a phase-boundary or ship-tag candidate, the orphan-scan command in lens 11 ran clean OR every orphan is triaged (intentional library / test-only helper / cited follow-up issue #). v3.3.0 wiring-gap precedent.
 
 ## Recurring-failure traps
 
