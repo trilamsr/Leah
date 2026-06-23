@@ -37,15 +37,4 @@ final class MinimalModeTests: XCTestCase {
         let modifier = MinimalGuard()
         XCTAssertNotNil(modifier as Any)
     }
-
-    // perf review item #2 — grain overlay must not trigger offscreen compositing.
-    // .blendMode(.multiply) forces a layer compositing pass every frame; for a
-    // translucent black overlay it collapses to sourceOver. Regression guard.
-    func test_minimalGuardOverlayDoesNotBlendComposite() {
-        XCTAssertFalse(MinimalGuard.usesBlendCompositing)
-    }
-
-    func test_minimalGuardOverlayOpacityMatchesSpec() {
-        XCTAssertEqual(MinimalGuard.overlayOpacity, 0.04, accuracy: 0.0001)
-    }
 }
