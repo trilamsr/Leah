@@ -23,8 +23,7 @@ extension IntegrationRow.Kind: Identifiable {
 }
 
 // ConnectionsPane composes the three §5.10 sections: outbound integrations
-// (existing v1 surface), inbound MCP tokens, A2A peers (T14). A2A is a
-// placeholder here — the live pane lands with the T14 protocol PR.
+// (existing v1 surface), inbound MCP tokens, A2A peers.
 public struct ConnectionsPane: View {
     public init() {}
 
@@ -33,7 +32,7 @@ public struct ConnectionsPane: View {
             VStack(alignment: .leading, spacing: 24) {
                 section("Outbound integrations") { OutboundIntegrationsSection() }
                 section("Inbound MCP")            { InboundMCPSection() }
-                section("A2A peers")              { a2aPlaceholder }
+                section("A2A peers")              { A2APeersSection() }
             }
             .padding(24)
         }
@@ -44,12 +43,6 @@ public struct ConnectionsPane: View {
             Text(title).font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
             content()
         }
-    }
-
-    private var a2aPlaceholder: some View {
-        Text("Paired peers will land with A2A protocol (coming soon).")
-            .font(.system(size: 12))
-            .foregroundColor(.gray)
     }
 }
 
