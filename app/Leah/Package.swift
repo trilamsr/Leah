@@ -75,5 +75,14 @@ let package = Package(
       dependencies: ["LeahUI"],
       path: "Tests/LeahSettingsTests"
     ),
+    .target(
+      name: "LeahAudio",
+      path: "Sources/LeahAudio"
+    ),
+    .testTarget(
+      name: "LeahAudioTests",
+      dependencies: ["LeahAudio"],
+      path: "Tests/LeahAudioTests"
+    ),
   ]
 )
