@@ -2,6 +2,7 @@ package embed
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"path/filepath"
 	"testing"
@@ -139,7 +140,8 @@ func TestStorePutIdempotent(t *testing.T) {
 	}
 
 	var n int
-	if err := ms.DB().QueryRow(`SELECT COUNT(*) FROM embedding WHERE item_id=? AND item_type=?`,
+	if err := ms.DB().QueryRow(fmt.Sprintf(
+		`SELECT COUNT(*) FROM %s WHERE item_id=? AND item_type=?`, tableName(g.Name(), g.Dim())),
 		item.ID, item.Type).Scan(&n); err != nil {
 		t.Fatalf("count: %v", err)
 	}
