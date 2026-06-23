@@ -8,8 +8,8 @@ final class CitationTileViewTests: XCTestCase {
     WidgetEnvelope(widget: "citation", id: id, size: "small", refresh: nil, actions: nil, props: props)
   }
 
-  func testTitleUsesNewYorkItalicSerif() {
-    XCTAssertEqual(CitationTileView.titleFont, Font.system(.body, design: .serif).italic())
+  func testTitleUsesNewYorkSerif() {
+    XCTAssertEqual(CitationTileView.titleFont, Font.system(.body, design: .serif))
   }
 
   func testGoldAccentSurfaceLimitedToSourceDomain() {
