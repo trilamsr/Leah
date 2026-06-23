@@ -121,4 +121,19 @@ final class AmbientHUDViewTests: XCTestCase {
     XCTAssertEqual(frame.maxX, 1440 - 16)
     XCTAssertEqual(frame.minY, 16)
   }
+
+  // perf review item #29 — notification widget must overlay HUD's panel, never
+  // allocate its own NSPanel. Budget is one panel for HUD + transient toasts.
+  func testHUDPanelBudgetForHUDPlusOverlays() {
+    XCTAssertEqual(AmbientHUDWindow.maxPanelAllocations, 1)
+  }
+
+  func testHUDOverlayMountReusesSinglePanel() {
+    let hud = AmbientHUDWindow()
+    XCTAssertEqual(hud.allocatedPanelCount, 0)
+    hud.mount(overlay: { Color.clear })
+    XCTAssertEqual(hud.allocatedPanelCount, 1)
+    hud.unmount()
+    XCTAssertEqual(hud.allocatedPanelCount, 0)
+  }
 }

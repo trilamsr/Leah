@@ -11,6 +11,10 @@ public enum AmbientHUDAnchor: Equatable {
 public final class AmbientHUDWindow: NSObject {
   public static let defaultAnchor: AmbientHUDAnchor = .bottomRight
   public static let padding: CGFloat = 16
+  // Perf-review item #29: HUD + notification toasts share one NSPanel. Each
+  // extra NSPanel pulls ~4-8MB for the CALayer + a11y trees. Budget enforces
+  // a single allocation for the ambient surface family.
+  public static let maxPanelAllocations: Int = 1
 
   private var panel: NSPanel?
   private let data: AmbientHUDData
@@ -20,6 +24,8 @@ public final class AmbientHUDWindow: NSObject {
     self.data = data
     self.anchor = anchor
   }
+
+  public var allocatedPanelCount: Int { panel == nil ? 0 : 1 }
 
   public static func frame(for anchor: AmbientHUDAnchor, on screen: CGRect, padding: CGFloat) -> CGRect {
     let w = AmbientHUDView.size.width
@@ -57,9 +63,20 @@ public final class AmbientHUDWindow: NSObject {
 
   @MainActor
   public func mount() {
+    mount(overlay: { Color.clear })
+  }
+
+  // Transient overlays (notification toasts, etc.) compose into the HUD panel's
+  // root view via ZStack so the OS allocates one window, not one-per-surface.
+  @MainActor
+  public func mount<Overlay: View>(overlay: () -> Overlay) {
     if panel != nil { return }
     let p = AmbientHUDWindow.makePanel()
-    p.contentView = NSHostingView(rootView: AmbientHUDView(data: data))
+    let composed = ZStack(alignment: .topTrailing) {
+      AmbientHUDView(data: data)
+      overlay()
+    }
+    p.contentView = NSHostingView(rootView: composed)
     if let screen = NSScreen.main?.visibleFrame {
       p.setFrame(AmbientHUDWindow.frame(for: anchor, on: screen, padding: AmbientHUDWindow.padding), display: true)
     }
