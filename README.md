@@ -71,7 +71,7 @@ Closed-loop core, observe → remember → decide → act, with a native macOS H
 - **MCP publish** — `internal/mcp/server.go` publishes Leah's tools to peer agents read-only, gated behind `LEAH_MCP_PUBLISH=1`.
 - **Eval pipeline** — `internal/eval/` runs the canonical trace set on pre-commit + nightly; delta table persisted by `internal/eval/store.go`.
 - **Bandit recommender** — Beta-posteriors wired into the `internal/recommend/` ranker behind `LEAH_RECOMMEND_BANDIT=1`.
-- **Sparkle updates** — auto-appcast generation, EdDSA verify on install, Settings → About → "Rollback last update". Key custody runbook: `docs/engineer/runbooks/sparkle-key-custody.md`.
+- **Sparkle updates** — auto-appcast generation, EdDSA verify on install, Settings → Advanced → "Use rollback channel for updates". Key custody runbook: `docs/engineer/runbooks/sparkle-key-custody.md`.
 - **Daemon weekly tick** — Sunday-9am cron fires resolver back-fill, pattern detect → `skill-candidates.md`, retro generate → `retro-YYYY-WW.md`, operatormodel profile rebuild.
 - **Operator model** — `operatormodel.UpdateProfile` rebuilds time-of-day / cadence / context-transition signals from last 30 days; `Recommend()` ranks candidates.
 - **Observability** — `internal/obs` slog daily-rotated JSONL logs, in-process metrics, `SafeGo`/`SafeRun` panic-recovery into `~/.leah-state/panics/`.
