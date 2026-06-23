@@ -116,6 +116,14 @@ func main() {
 	wireObs(registry, health, a, store, loop, chain)
 	wireConsolidation(loop, store, a, auditPath, sd)
 
+	// Phase 4 producers: constructed at the composition root so the orphan-
+	// package scan sees them live; ambient capture (sync, a2a, vision live)
+	// stays OFF until operator toggles via Settings (Phase 4 §0.2 #3).
+	// Field-disjoint owner: composition_root.go; IPC edges land separately
+	// without colliding on main.go.
+	p4 := wirePhase4Producers(store.DB(), os.Stderr, lg)
+	_ = p4 // IPC edges (Recommendations / Budget / Plugins panes) consume in follow-up
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
