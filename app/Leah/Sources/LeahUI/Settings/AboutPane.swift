@@ -14,9 +14,15 @@ public enum AboutInfo {
 
 public struct AboutPane: View {
     private let onCheckForUpdates: () -> Void
+    @ObservedObject private var verification: VerificationModel
 
-    public init(onCheckForUpdates: @escaping () -> Void = {}) {
+    @MainActor
+    public init(
+        onCheckForUpdates: @escaping () -> Void = {},
+        verification: VerificationModel? = nil
+    ) {
         self.onCheckForUpdates = onCheckForUpdates
+        self.verification = verification ?? VerificationModel()
     }
 
     public var body: some View {
@@ -29,6 +35,12 @@ public struct AboutPane: View {
                 Text("Updates").foregroundColor(.gray).font(.system(size: 13))
                 Spacer()
                 Button("Check for updates") { onCheckForUpdates() }
+            }
+            Divider()
+            HStack(alignment: .top) {
+                Text("Verification").foregroundColor(.gray).font(.system(size: 13))
+                Spacer()
+                VerificationPanel(model: verification)
             }
             Divider()
             HStack {
