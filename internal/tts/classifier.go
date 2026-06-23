@@ -17,23 +17,29 @@ type BlockwordClassifier struct {
 	moneyRe     *regexp.Regexp
 	calendarRe  *regexp.Regexp
 	emailRe     *regexp.Regexp
+	emailAddrRe *regexp.Regexp
 	memoryWords []string
 }
 
 // NewBlockwordClassifier returns a classifier seeded with the default corpus.
 func NewBlockwordClassifier() *BlockwordClassifier {
 	return &BlockwordClassifier{
-		// Currency: $1,234.56 or $4237 or USD 100 — any of these flags finance.
-		moneyRe: regexp.MustCompile(`\$\d[\d,]*(\.\d+)?|USD\s*\d`),
-		// Calendar pattern: "meeting/call/standup/... at TIME [am|pm]".
-		calendarRe: regexp.MustCompile(`(?i)\b(meeting|call|standup|sync|1:1|interview)\b.*\b\d{1,2}(:\d{2})?\s*(am|pm)?\b`),
+		// Currency sigils ($ £ € ¥) or ISO codes (USD/EUR/GBP/JPY/CNY/CHF/CAD/AUD).
+		moneyRe: regexp.MustCompile(`(?i)[$£€¥]\d[\d,]*(\.\d+)?|\b(usd|eur|gbp|jpy|cny|chf|cad|aud)\s*\d`),
+		// Calendar pattern: event verb at TIME [am|pm].
+		calendarRe: regexp.MustCompile(`(?i)\b(meeting|call|standup|sync|1:1|interview|coffee|lunch|dinner|drinks|appointment|reservation)\b.*\b\d{1,2}(:\d{2})?\s*(am|pm)?\b`),
 		// Email cues: Re:/Fwd: subject lines or common signature footers.
 		emailRe: regexp.MustCompile(`(?i)\b(re|fwd|fw):\s|sent from my|best regards|sincerely`),
+		// Bare email address — anything containing one is treated as email body.
+		emailAddrRe: regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`),
 		// Memory blockwords: lowercase substrings of stored personal facts.
+		// Covers finance/contact + auth-secrets + medical per §2.7 "memory items".
 		memoryWords: []string{
 			"password", "ssn", "social security",
 			"credit card", "routing number", "account number",
 			"home address", "phone number",
+			"api key", "api token", "access token", "secret key", "private key",
+			"diagnosis", "prescription", "medication",
 		},
 	}
 }
@@ -52,7 +58,7 @@ func (c *BlockwordClassifier) Route(text string) Route {
 	if c.calendarRe.MatchString(text) {
 		return RouteLocal
 	}
-	if c.emailRe.MatchString(text) {
+	if c.emailRe.MatchString(text) || c.emailAddrRe.MatchString(text) {
 		return RouteLocal
 	}
 	return RouteCloud

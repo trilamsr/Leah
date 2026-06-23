@@ -9,22 +9,45 @@ import (
 
 func TestBlockwordClassifier_DefaultCorpus_FlagsCalendar(t *testing.T) {
 	c := tts.NewBlockwordClassifier()
-	if got := c.Route("Meeting with Sarah at 3pm Tuesday"); got != tts.RouteLocal {
-		t.Fatalf("calendar text must route LOCAL, got %v", got)
+	for _, txt := range []string{
+		"Meeting with Sarah at 3pm Tuesday",
+		"Coffee with Sarah at 3pm Tuesday",
+		"Lunch reservation at 12:30",
+		"Dinner at 7 with the team",
+		"Standup at 9am",
+	} {
+		if got := c.Route(txt); got != tts.RouteLocal {
+			t.Fatalf("calendar %q must route LOCAL, got %v", txt, got)
+		}
 	}
 }
 
 func TestBlockwordClassifier_DefaultCorpus_FlagsFinance(t *testing.T) {
 	c := tts.NewBlockwordClassifier()
-	if got := c.Route("Your Chase balance is $4,237.18"); got != tts.RouteLocal {
-		t.Fatalf("finance text must route LOCAL, got %v", got)
+	for _, txt := range []string{
+		"Your Chase balance is $4,237.18",
+		"Rent is £1,200 this month",
+		"That dinner was €85",
+		"Salary ¥4500000",
+		"Wire usd 500 to the vendor",
+		"Settled the invoice for EUR 230",
+	} {
+		if got := c.Route(txt); got != tts.RouteLocal {
+			t.Fatalf("finance %q must route LOCAL, got %v", txt, got)
+		}
 	}
 }
 
 func TestBlockwordClassifier_DefaultCorpus_FlagsEmail(t *testing.T) {
 	c := tts.NewBlockwordClassifier()
-	if got := c.Route("Re: project status — sent from my iPhone"); got != tts.RouteLocal {
-		t.Fatalf("email cues must route LOCAL, got %v", got)
+	for _, txt := range []string{
+		"Re: project status — sent from my iPhone",
+		"Please send the invoice to alice@acme.com",
+		"Loop in bob.smith+work@example.co.uk on this",
+	} {
+		if got := c.Route(txt); got != tts.RouteLocal {
+			t.Fatalf("email %q must route LOCAL, got %v", txt, got)
+		}
 	}
 }
 
@@ -34,6 +57,10 @@ func TestBlockwordClassifier_DefaultCorpus_FlagsMemoryWords(t *testing.T) {
 		"My password is hunter2",
 		"SSN on file",
 		"routing number changed",
+		"Rotate the API key in the vault",
+		"Lab diagnosis came back yesterday",
+		"Refill the prescription next week",
+		"New access token expires Friday",
 	} {
 		if got := c.Route(txt); got != tts.RouteLocal {
 			t.Fatalf("memory blockword %q must route LOCAL, got %v", txt, got)
@@ -61,7 +88,7 @@ func TestBlockwordClassifier_Budget_Under5ms(t *testing.T) {
 		t.Skip("race detector amplifies regex cost; benchmark separately")
 	}
 	c := tts.NewBlockwordClassifier()
-	long := make([]byte, 1024) // plausible widget text per §17.17
+	long := make([]byte, 8192) // worst-case widget text per plan §17.17
 	for i := range long {
 		long[i] = 'a'
 	}
