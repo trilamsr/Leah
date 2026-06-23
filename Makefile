@@ -1,4 +1,4 @@
-.PHONY: dev dev-stop verify-pr baseline check lint ensure-lint smoke install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation handoff-test check-amend-guard help
+.PHONY: dev dev-stop verify-pr baseline check lint ensure-lint smoke phase2-smoke phase2-smoke-stop install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation handoff-test check-amend-guard help
 
 # Pinned to match .github/workflows/check.yml. Bump both together.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -79,6 +79,16 @@ ensure-lint:
 # Run all per-adapter smoke tests (mock mode by default; LEAH_SMOKE_LIVE=1 for live)
 smoke:
 	@./scripts/smoke-all.sh
+
+# Phase 2 end-to-end smoke (macOS only — SKIPs cleanly elsewhere). Eight
+# invariants: widget.mount stream, pin persistence, 2-pin cap, toast frame
+# shape, dark/light toggle, fsnotify debounce, BGE backend wiring, spec parity.
+phase2-smoke:
+	@./scripts/smoke/phase2-e2e.sh
+
+# Force-tear down any state left by an aborted phase2-smoke run.
+phase2-smoke-stop:
+	@./scripts/smoke/phase2-e2e.sh --cleanup-only
 
 # Build leah+leah-daemon, symlink ~/bin/leah → ~/.leah-state/bin/leah-current.
 # Idempotent. See docs/engineer/specs/2026-06-10-local-self-update.md §3.
@@ -190,4 +200,4 @@ sign-and-notarize:
 	@bash scripts/sign-and-notarize.sh $(ARGS)
 
 help:
-	@echo "Targets: dev, dev-stop, verify-pr PR=<n>, baseline, check, lint, smoke, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run, sign-and-notarize [ARGS=--all]"
+	@echo "Targets: dev, dev-stop, verify-pr PR=<n>, baseline, check, lint, smoke, phase2-smoke, phase2-smoke-stop, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run, sign-and-notarize [ARGS=--all]"

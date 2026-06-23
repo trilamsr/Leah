@@ -78,6 +78,12 @@ Three macOS permission gates can block scripts:
 | `~/Library/Caches/Leah/leah.sock` | Unix socket the daemon binds |
 | `~/.leah-state-dev/` | Dev sandbox state directory |
 
+## Run Phase 2 e2e
+
+`make phase2-smoke` runs `scripts/smoke/phase2-e2e.sh`, the single-script end-to-end gate for Phase 2. It boots a fresh `leah-daemon` against a sandbox state dir (`~/.leah-state-e2e/`) and asserts the eight runtime invariants the plan lists: widget.mount streamed for a widget-shaped ask, pin persistence across daemon restart, the 2-pin cap (third Pin returns a `notification.toast`), toast frame shape (`level=info` and non-empty `text`), no crash across a dark/light `AppleInterfaceStyle` toggle, fsnotify 200 ms debounce coalescing a 3-write burst into one `PinnedChanged`, BGE backend selection routing to `embeddings_bge_small_en_v1_5_384`, and `scripts/check-spec-parity.sh` exit 0.
+
+The script is macOS-only — on Linux it prints a `skip:` line and exits 0 so the same CI workflow can host it without branching. Invariant 1 SKIPs without `ANTHROPIC_API_KEY`, invariant 7 SKIPs without `LEAH_EMBED_MODEL_PATH` (or `LEAH_MODEL_DIR`). On failure the script exits with the first failing step number and prints `STEP=N` to stderr; daemon log is at `/tmp/leah-phase2-e2e.log`. `make phase2-smoke-stop` force-cleans state if a run aborts.
+
 ## Troubleshooting
 
 `socket did not appear` — daemon failed to start; check `/tmp/leah-dev.log`. Common cause: port conflict or missing `ANTHROPIC_API_KEY`.
