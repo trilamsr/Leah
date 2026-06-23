@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 public enum DashboardTileSlot: String, CaseIterable, Hashable, Sendable {
-  case memory, agenda, briefs, news, knowledge
+  case memory, agenda, briefs, news, knowledge, coach, privacy, health
 }
 
 public final class DashboardTileResolver {
@@ -25,7 +25,7 @@ public final class DashboardTileResolver {
 
 public struct DashboardView: View {
   public static let columnCount: Int = 2
-  public static let requiredSlots: [DashboardTileSlot] = [.memory, .agenda, .briefs, .news, .knowledge]
+  public static let requiredSlots: [DashboardTileSlot] = [.memory, .agenda, .briefs, .news, .knowledge, .coach, .privacy, .health]
 
   private let resolver: DashboardTileResolver
 
