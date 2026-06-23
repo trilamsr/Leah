@@ -55,6 +55,9 @@
 - Pre-PR verify gate (Swift): `cd app/Leah && swift build 2>&1 | tail -5` clean AND `swift test --filter <module>Tests 2>&1 | tail -5` PASS
 - Resource bundles in Swift packages: use `.copy("Fixtures")` not `.process` when call sites pass `subdirectory:` (Phase 2 lesson)
 - Shared-seam files: when ≥ 2 tasks register defaults into the same shared table (e.g. `learn_decay` defaults, `budget_bucket` defaults, `anti_recommend` spec rows) — land a solo `registerXxxDefaults()` seam helper PR BEFORE fan-out (Phase 3 lesson)
+- Orphan-scan-before-tag: every wave-exit gate AND the v1.1 ship gate (T21) MUST run `scripts/dev/orphan-scan.sh` (or equivalent `grep -RIn "<pkg>\." cmd/ internal/ | grep -v _test.go`) over every Phase-4 `internal/<pkg>/` and assert ZERO Phase-4 packages have zero non-test callers — v3.3.0 shipped with 3 wiring gaps (TTS provider, KG citation route, MCP composition) because providers existed but the composition root never instantiated them. Catching this post-tag is too late (Phase 3 lesson)
+- Composition-root wiring is its own task, never implicit: providers/runtimes/handlers added in earlier waves do NOT self-register into `cmd/leah-daemon/main.go`. T19 (Wave 5) is the explicit composition-root wiring task — it must land BEFORE T20 (E2E smoke), because the smoke is meaningless if the daemon boot path never instantiates the surfaces under test (Phase 3 lesson — Wave 1 T02/T03/T04 in v3.3.0 shipped providers that the operator and an agent both assumed Task 4 wired; it didn't)
+- Cavecrew-builder dispatch has NO `Bash` tool — only `Read`, `Edit`, `Write`, `Grep`, `Glob`. Any fix that requires running tests, `go vet`, `golangci-lint`, `git` (status/diff/commit/push), `gh`, or `make` MUST dispatch to `general-purpose` (or `claude`) instead. Builder is correct for typo fixes, single-function rewrites, mechanical renames, comment removal — not for anything that has to run the verify gate or push (Phase 3 dispatch lesson)
 - Spec parity guard: `scripts/check-spec-parity.sh` MUST stay green; forbidden phrases (renamed terms, killed cosmetics) cannot enter code or tests
 - Existing IPC frame: `struct Frame { Kind, TurnID string; Seq uint64; Payload json.RawMessage }` — do NOT reuse Kind strings reserved by Phase 1/2/3 (`ask`, `verify-key`, `diag.state`, `widget.mount`, `widget.pin`, `widget.unpin`, `tts.speak`, `tts.cancel`, `wake.arm`, `wake.disarm`, `ptt.on`, `ptt.off`, `eval.run`, `kg.cite`)
 - Settings IA: the 9-pane lock from Phase 3 RELAXES in Phase 4 — three NEW panes (Sync, Recommendations, Plugins) are explicitly authorized by §2.9, §3.12, §7.10; Privacy gains a Budgets sub-pane (§8.9); About gains a Diagnostics row (§9.10); Integrations is RENAMED to Connections (§5.10)
@@ -119,13 +122,13 @@ W1-T05 lands all nine migrations as a single PR (single-owner per CLAUDE.md froz
 
 ---
 
-## Wave dependency matrix (20 tasks)
+## Wave dependency matrix (21 tasks)
 
 - **Wave 1** (perception substrate, parallel ≤ 6 — file-disjoint Go-side except T05 single-owner): T01 Whisper STT, T02 duplex coordinator + barge-in, T03 vision capture + OCR, T04 vision Sonnet route + consent, T05 nine migrations (single-owner, lands FIRST).
 - **Wave 2** (control plane, parallel ≤ 4 — file-disjoint): T06 learn observation + ranking + decay, T07 learn anti-list + A/B + Recommendations pane, T08 privacy budget runtime, T09 continuous attestation. Wave 2 starts after T05 merged.
 - **Wave 3** (multi-device sync, parallel ≤ 3 — file-disjoint): T10 Bonjour discovery + OTP pair, T11 CRDT model + sync coordinator, T12 iCloud Keychain key share + Sync pane. Wave 3 starts after T09 merged.
 - **Wave 4** (multi-agent + plugins, parallel ≤ 3 — file-disjoint): T13 inbound MCP server + tokens + Connections pane, T14 A2A protocol + peer handshake, T15 plugin SDK Go-side host + manifest validator, T16 plugin SDK + sample `weather-pro` plugin + Plugins pane. Wave 4 starts after T08 + T09 merged.
-- **Wave 5** (supervision + ship, ≤ 3 parallel then serialized E2E): T17 watchdog supervisor + leak detect + eviction, T18 Dashboard cards (Coach + Privacy + Health), T19 Phase 4 E2E smoke + dispatch-template referenced harness, T20 Phase 4 ship checklist + spec-parity + deletion of three superseded sketches + reviewer-and-merge pass. Wave 5 starts after W1–W4 land.
+- **Wave 5** (supervision + ship, ≤ 3 parallel then serialized composition-root → E2E → ship): T17 watchdog supervisor + leak detect + eviction, T18 Dashboard cards (Coach + Privacy + Health), T19 composition-root wiring of every Phase-4 surface into `cmd/leah-daemon/main.go` (single-owner serialized, lands BEFORE T20), T20 Phase 4 E2E smoke + dispatch-template referenced harness, T21 Phase 4 ship checklist + spec-parity + orphan-scan + deletion of three superseded sketches + reviewer-and-merge pass. Wave 5 starts after W1–W4 land; T19 → T20 → T21 strictly serialized.
 
 ---
 
@@ -3015,7 +3018,127 @@ sv.Register(supervisor.ProcessSpec{Name: "voice-stt", Restart: CrashOnly, Backof
 
 ---
 
-### Task 19: Phase 4 E2E smoke + dispatch-template harness (`scripts/dev/phase4-e2e.sh` + `internal/eval/phase4.go`)
+### Task 19: Wire all Phase 4 surfaces into composition root (`cmd/leah-daemon/main.go` + `scripts/dev/orphan-scan.sh`)
+
+**Files:**
+- Modify: `cmd/leah-daemon/main.go`
+- Create: `cmd/leah-daemon/main_phase4_test.go`
+- Create: `scripts/dev/orphan-scan.sh`
+
+**Why this exists:** v3.3.0 shipped with three wiring gaps (TTS providers, KG citation route, MCP composition) because Wave 1 producer PRs added `NewX()` constructors but the daemon's composition root (`cmd/leah-daemon/main.go`) never called them. The operator and an agent both assumed an earlier task did the wiring — neither did. Phase 4 makes wiring an EXPLICIT serialized task that runs after every producer wave merged and before T20 E2E and T21 ship. The implicit-composition-root assumption that "the last task wires everything" is hereby deleted from this plan.
+
+**What gets deleted:** the implicit assumption (carried in v3.3.0's plan) that producer tasks auto-register into `main.go`. From Phase 4 onward, every `internal/<pkg>.NewX()` constructor introduced by Waves 1-4 is explicitly instantiated and reachable from `main()` here, or the task is not done.
+
+**Interfaces:**
+- Consumes (constructors must be called and the returned handle reachable from `main()` boot path):
+  - `stt/whisper.NewRunner` (T01)
+  - `voice/duplex.NewSession` (T02)
+  - `vision/capture.NewScreen`, `vision/capture.NewCamera` (T03)
+  - `vision/ocr.New` (T03)
+  - `vision/router.New` (T04)
+  - `learn.NewRecommender` (T06)
+  - `learn.NewAntiList`, `learn.NewExperiment` (T07)
+  - `budget.New` (T08)
+  - `attest.NewVerifier` (T09)
+  - `sync/discovery.New`, `sync/pair.New` (T10)
+  - `sync/crdt.New`, `sync/coord.New` (T11)
+  - `keystore/icloud.New` (T12)
+  - `mcp/inbound.NewServer` (T13)
+  - `a2a.NewServer`, `a2a.NewClient` (T14)
+  - `plugin.NewHost` (T15)
+  - `supervisor.New` (T17) — supervisor is the registration substrate for the long-lived subsystems above
+- Produces: a single `bootPhase4(ctx, deps) error` helper in `cmd/leah-daemon/main.go` so the call graph is one symbol-grep away.
+
+- [ ] **Step 1: Failing test — orphan-scan asserts ZERO Phase-4 packages have zero non-test callers**
+
+`scripts/dev/orphan-scan.sh`:
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+PKGS=(
+  internal/voice/stt/whisper
+  internal/voice/duplex
+  internal/vision/capture
+  internal/vision/ocr
+  internal/vision/router
+  internal/learn
+  internal/budget
+  internal/attest
+  internal/sync/discovery
+  internal/sync/pair
+  internal/sync/crdt
+  internal/sync/coord
+  internal/keystore/icloud
+  internal/mcp/inbound
+  internal/a2a
+  internal/plugin
+  internal/supervisor
+)
+fail=0
+for p in "${PKGS[@]}"; do
+  base=$(basename "$p")
+  callers=$(grep -RIn --include='*.go' --exclude='*_test.go' -E "\\b${base}\\.[A-Z]" cmd/ internal/ | grep -v "^${p}/" | wc -l | tr -d ' ')
+  if [ "$callers" = "0" ]; then
+    echo "ORPHAN: $p has zero non-test callers"
+    fail=1
+  fi
+done
+exit $fail
+```
+
+Run BEFORE the wiring edit:
+```bash
+bash scripts/dev/orphan-scan.sh
+```
+
+Expected (red): every Phase-4 package whose constructor is not yet called from `main.go` prints `ORPHAN: ...` and the script exits non-zero. Capture the failing output verbatim in the PR body.
+
+Then add `cmd/leah-daemon/main_phase4_test.go`:
+```go
+//go:build phase4_wiring
+
+package main
+
+import "testing"
+
+func TestBootPhase4_AllConstructorsCalled(t *testing.T) {
+	// Compile-time fence: this test only builds if bootPhase4 exists and the
+	// package import graph reaches every Phase-4 internal/<pkg>. The body is
+	// intentionally empty; the assertion is the build itself.
+}
+```
+
+- [ ] **Step 2: Implement `bootPhase4`** — extend the existing `main()` boot path (do NOT fork it). Each constructor's returned handle is either registered with the supervisor, mounted on the IPC router, or stored on a `daemonDeps` struct passed to the existing handler loop. No `// TODO impl`. No stub stubs — if a subsystem genuinely cannot be instantiated at boot (e.g. `sync/coord` waits for pair), it gets a `supervisor.Register` entry with `RestartPolicy=Never` until awakened, not silent omission.
+
+- [ ] **Step 3: Re-run orphan-scan (green)**
+
+```bash
+bash scripts/dev/orphan-scan.sh
+echo "exit=$?"
+```
+
+Expected: no `ORPHAN:` lines, exit 0.
+
+- [ ] **Step 4: Verify gate**
+
+```bash
+gofmt -l cmd/leah-daemon/ | tee /tmp/fmt.log
+go vet ./cmd/leah-daemon/... 2>&1 | tail -5
+go build -tags=phase4_wiring ./cmd/leah-daemon/... 2>&1 | tail -5
+go test -tags=phase4_wiring ./cmd/leah-daemon/... -run TestBootPhase4 -count=1 2>&1 | tail -5
+```
+
+Expected: fmt empty, vet clean, build + test PASS.
+
+- [ ] **Step 5: Commit + PR + reviewer**
+
+PR body must include the red orphan-scan output captured at Step 1 (proves the wiring gaps were real) and the green output from Step 3 (proves they're closed). Dispatch to `general-purpose` (or `claude`) for any fix-up — `cavecrew-builder` has no `Bash` and cannot re-run the orphan-scan to verify the fix.
+
+This task is single-owner serialized and MUST merge before T20 (E2E smoke) is dispatched — the smoke is meaningless against a daemon that never instantiates the surfaces under test.
+
+---
+
+### Task 20: Phase 4 E2E smoke + dispatch-template harness (`scripts/dev/phase4-e2e.sh` + `internal/eval/phase4.go`)
 
 **Files:**
 - Create: `scripts/dev/phase4-e2e.sh`
@@ -3060,7 +3183,7 @@ Expected: all subtests PASS.
 
 ---
 
-### Task 20: Phase 4 ship checklist + spec-parity + deletion of superseded sketches + reviewer-and-merge pass
+### Task 21: Phase 4 ship checklist + spec-parity + orphan-scan + deletion of superseded sketches + reviewer-and-merge pass
 
 **Files:**
 - Create: `docs/superpowers/phase4-ship-checklist.md`
@@ -3071,11 +3194,12 @@ Expected: all subtests PASS.
 - Modify: `scripts/check-spec-parity.sh` — include Phase 4 spec
 - Modify: `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` — §19 set "Phase 4 status: SHIPPED"
 
-**Why this exists:** §14 mandates the deletion of the three thin sketches and §0 sets the v1.1 ship line as the wave-5 exit gate. T20 is the only single-owner serialized task in Wave 5.
+**Why this exists:** §14 mandates the deletion of the three thin sketches and §0 sets the v1.1 ship line as the wave-5 exit gate. T19 (composition-root) and T21 (this) are the two single-owner serialized tasks in Wave 5.
 
 **Ship checklist content:**
 - Every §11 deliverable green
 - `scripts/check-spec-parity.sh` clean against Phase 4 spec
+- `bash scripts/dev/orphan-scan.sh` exits 0 — ZERO Phase-4 packages with zero non-test callers (Phase 3 lesson: v3.3.0 shipped with 3 wiring gaps because this check ran after tag, not before)
 - Every PR in Phase 4 has a reviewer-transcript APPROVE (audit via `gh pr list --search "label:phase4 merged:>=2026-06-22" --json number,reviews`)
 - No AI signatures in any merged commit (`git log v1.0..HEAD --grep="Co-Authored-By\|Generated with" | head` empty)
 - Operator-mode regression: `make dev` boots, hotkey opens, voice + vision smoke pass, sync pair works on operator's 2-Mac LAN, weather-pro plugin loads, supervisor reports green
@@ -3161,16 +3285,16 @@ scripts/release/generate-appcast.sh v1.1.0
 - §3 Recommend pass-2 → T06 (lifecycle + decay), T07 (anti-list + A/B + pane), T18 (Coach card)
 - §4 Camera + vision → T03 (capture + OCR), T04 (Sonnet route + consent), T05 (migration), T08 (budget charge)
 - §5 Multi-agent A2A → T13 (inbound MCP + tokens + Connections rename), T14 (A2A protocol)
-- §6 Continuous attestation → T09 (verifier + About pane), T20 (Sparkle appcast)
+- §6 Continuous attestation → T09 (verifier + About pane), T21 (Sparkle appcast)
 - §7 Plugin SDK → T15 (host + sandbox + Go SDK), T16 (sample plugin + Swift SDK + Plugins pane)
 - §8 Privacy budgets → T08 (substrate + degradation + call-site wiring), T18 (Privacy card)
 - §9 Watchdog supervisor → T17 (supervisor + leak + eviction + Diagnostics row), T18 (Health card)
 - §10 Matrices → enforced as constraints, not standalone tasks
-- §11 Task index → 20 tasks land all 16 spec-indexed items (split: T07 from T06, T16 from T15, T18 from T17, T19+T20 from spec T16)
+- §11 Task index → 21 tasks land all 16 spec-indexed items (split: T07 from T06, T16 from T15, T18 from T17, T20+T21 from spec T16; T19 composition-root wiring carved out from the implicit assumption in v3.3.0's plan that producer tasks self-register — see Global Constraints "composition-root wiring is its own task")
 - §12 Open questions → resolved/tracked at gates: Q1 before T16 ships (plugin EdDSA custody), Q2 before T14 ships (peer display name), Q5 before T09 ships (Sparkle revocation URL)
-- §14 Deletion default → T20 deletes the three sketches
+- §14 Deletion default → T21 deletes the three sketches; T19 deletes the implicit-composition-root assumption from the plan
 
-**2. Placeholder scan:** No "TBD", "TODO impl", or "fill in details" markers. T03 capture native impl is honest about CG bridge deferring to follow-up commit on same branch (not a stub PR). T19 E2E auto-grants consent in test mode — flagged as test-only path via `LEAH_TEST_MODE=1` env gate.
+**2. Placeholder scan:** No "TBD", "TODO impl", or "fill in details" markers. T03 capture native impl is honest about CG bridge deferring to follow-up commit on same branch (not a stub PR). T20 E2E auto-grants consent in test mode — flagged as test-only path via `LEAH_TEST_MODE=1` env gate.
 
 **3. Type consistency check:**
 
@@ -3189,7 +3313,7 @@ Per-task `Files` blocks all use absolute paths from repo root; no relative refs.
 
 Plan complete and saved to `docs/superpowers/plans/2026-06-22-leah-macos-native-phase4.md`. Two execution options:
 
-**1. Subagent-Driven (recommended)** — main session dispatches one implementer subagent per task (Wave 1 = up to 5 parallel; Wave 2 = up to 4; Wave 3 = up to 3; Wave 4 = up to 3; Wave 5 = up to 2 then serialized T19+T20), reviewer subagent per PR via transcript channel, two-stage review.
+**1. Subagent-Driven (recommended)** — main session dispatches one implementer subagent per task (Wave 1 = up to 5 parallel; Wave 2 = up to 4; Wave 3 = up to 3; Wave 4 = up to 3; Wave 5 = T17+T18 parallel then strictly serialized T19 → T20 → T21), reviewer subagent per PR via transcript channel, two-stage review.
 
 **2. Inline Execution** — execute tasks in this session using `superpowers:executing-plans`, batch within each wave with checkpoint after each PR merges.
 
