@@ -15,7 +15,7 @@ type BGEGenerator struct{}
 
 // NewBGEGenerator always errors when cgo is disabled.
 func NewBGEGenerator(modelPath string) (*BGEGenerator, error) {
-	return nil, fmt.Errorf("embed: BGE requires cgo build (this binary was built CGO_ENABLED=0); rebuild with cgo or set LEAH_EMBED_BACKEND=hash|openai|voyage")
+	return nil, fmt.Errorf("embed: BGE requires cgo build (this binary was built CGO_ENABLED=0); rebuild with cgo or set LEAH_EMBED_BACKEND=hash|openai")
 }
 
 func (g *BGEGenerator) Name() string                                                    { return "bge-small-en-v1.5" }
