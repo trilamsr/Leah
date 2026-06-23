@@ -1,4 +1,5 @@
 import SwiftUI
+import LeahAuth
 import LocalAuthentication
 
 public struct MemoryStats: Equatable {
@@ -32,7 +33,8 @@ public protocol TouchIDGating {
 }
 
 public final class TouchIDGate: TouchIDGating {
-    public init() {}
+    private let guard_: TouchIDGuard
+    public init(guard_: TouchIDGuard = TouchIDGuard()) { self.guard_ = guard_ }
 
     public var biometricsAvailable: Bool {
         var err: NSError?
@@ -40,12 +42,7 @@ public final class TouchIDGate: TouchIDGating {
     }
 
     public func evaluate(reason: String) async -> Bool {
-        let ctx = LAContext()
-        return await withCheckedContinuation { cont in
-            ctx.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { ok, _ in
-                cont.resume(returning: ok)
-            }
-        }
+        await guard_.confirm(reason: reason)
     }
 }
 
