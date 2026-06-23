@@ -40,7 +40,12 @@ func main() { os.Exit(run()) }
 func run() int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	auditPath := filepath.Join(stateDir(), "audit.jsonl")
+	sd, err := stateDirE()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah: %v\n", err)
+		return 1
+	}
+	auditPath := filepath.Join(sd, "audit.jsonl")
 	return runAndFlush(ctx, auditPath, os.Args[1:])
 }
 
@@ -60,7 +65,11 @@ func snapshotCLIMetrics(reg *obs.Registry) {
 	if reg == nil {
 		return
 	}
-	_ = reg.Snapshot(filepath.Join(stateDir(), "metrics", "cli-latest.json"))
+	sd, err := stateDirE()
+	if err != nil {
+		return
+	}
+	_ = reg.Snapshot(filepath.Join(sd, "metrics", "cli-latest.json"))
 }
 
 // runCommand dispatches argv (without the program name) under a shared ctx.
@@ -391,7 +400,7 @@ func askArgsHash(s string) string {
 // are composed in PR → issue → thread order and prepended to the Reasoner
 // draft prompt so the model sees the referenced artifacts before drafting.
 func runShipArgs(ctx context.Context, args []string) int {
-	fs := flag.NewFlagSet("ship", flag.ExitOnError)
+	fs := flag.NewFlagSet("ship", flag.ContinueOnError)
 	fromPR := fs.Int("from-pr", 0, "prepend gh pr view + diff for PR #N from the same repo")
 	fromIssue := fs.Int("from-issue", 0, "prepend gh issue view + comments for issue #N from the same repo")
 	fromThread := fs.String("from-thread", "", "prepend last-N shell-history entries (e.g. 100c or 30m)")
@@ -612,15 +621,29 @@ func personaPrefixForActive() string {
 	return p.SystemPromptPrefix()
 }
 
-func stateDir() string {
+// stateDirE resolves and ensures the per-operator state directory. Returns
+// an error rather than calling os.Exit so the caller's defer chain
+// (writeInterruptedAudit, snapshotCLIMetrics) is not bypassed.
+func stateDirE() (string, error) {
 	d := os.Getenv("LEAH_STATE_DIR")
 	if d == "" {
 		home, _ := os.UserHomeDir()
 		d = filepath.Join(home, ".leah-state")
 	}
 	if err := os.MkdirAll(d, 0o700); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "mkdir state dir: %v\n", err)
-		os.Exit(1)
+		return "", fmt.Errorf("mkdir state dir: %w", err)
+	}
+	return d, nil
+}
+
+// stateDir is the legacy convenience wrapper. Panics on failure rather than
+// os.Exit so the run()-level defer chain (writeInterruptedAudit,
+// snapshotCLIMetrics) still fires before the process tears down. New code
+// should call stateDirE and propagate the error.
+func stateDir() string {
+	d, err := stateDirE()
+	if err != nil {
+		panic(err)
 	}
 	return d
 }

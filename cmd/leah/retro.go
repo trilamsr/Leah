@@ -14,9 +14,11 @@ import (
 
 // runRetro renders the weekly retro markdown to stdout.
 func runRetro(args []string) int {
-	fs := flag.NewFlagSet("retro", flag.ExitOnError)
+	fs := flag.NewFlagSet("retro", flag.ContinueOnError)
 	week := fs.String("week", "", "ISO week YYYY-WW (defaults to current)")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
 	store, err := selflearn.OpenMistakeStore(memoryPath())
 	if err != nil {

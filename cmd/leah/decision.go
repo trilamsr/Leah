@@ -33,13 +33,15 @@ func runDecision(args []string) int {
 
 	switch args[0] {
 	case "add":
-		fs := flag.NewFlagSet("decision add", flag.ExitOnError)
+		fs := flag.NewFlagSet("decision add", flag.ContinueOnError)
 		topic := fs.String("topic", "", "decision topic (required)")
 		choice := fs.String("choice", "", "choice picked (required)")
 		text := fs.String("text", "", "rationale; if omitted, read from stdin")
 		decidedAt := fs.String("decided-at", "", "RFC3339 timestamp; defaults to now")
 		jsonOut := fs.Bool("json", false, "emit json")
-		_ = fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
 		if *topic == "" || *choice == "" {
 			_, _ = fmt.Fprintln(os.Stderr, "leah decision add: --topic and --choice required")
 			return 2

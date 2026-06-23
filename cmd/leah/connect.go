@@ -103,11 +103,17 @@ func (connectAttestor) Attest(_ context.Context, scope string) error {
 	if v := os.Getenv("LEAH_CONNECT_AUTO_ATTEST"); v == "1" {
 		return nil
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "attest %s? [Y/n] ", scope)
+	_, _ = fmt.Fprintf(os.Stderr, "attest %s? [y/N] ", scope)
 	var resp string
 	_, _ = fmt.Fscanln(os.Stdin, &resp)
+	// Empty / EOF / closed stdin defaults to NO — granting consent on
+	// unanswered prompts (the prior "" → accept) would let a piped-from-
+	// /dev/null invocation silently attest scopes the operator never saw.
+	if resp == "" {
+		return errors.New("denied")
+	}
 	switch resp {
-	case "", "y", "Y", "yes", "YES":
+	case "y", "Y", "yes", "YES":
 		return nil
 	}
 	return errors.New("denied")

@@ -25,7 +25,7 @@ import (
 // Audit: every operation (snapshot / restore / verify) logs to audit.jsonl
 // with BlastRadius=2 (state-mutating but reversible — the source is read-only).
 func runBackup(parent context.Context, args []string) int {
-	fs := flag.NewFlagSet("backup", flag.ExitOnError)
+	fs := flag.NewFlagSet("backup", flag.ContinueOnError)
 	target := fs.String("target", "both", "snapshot target: local|b2|both")
 	restore := fs.Bool("restore", false, "restore latest snapshot instead of writing one")
 	restorePath := fs.String("restore-to", "", "restore destination (default ./leah-restore-<ts>)")

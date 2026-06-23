@@ -22,7 +22,7 @@ func runMistake(args []string) int {
 	}
 	switch args[0] {
 	case "add":
-		fs := flag.NewFlagSet("mistake add", flag.ExitOnError)
+		fs := flag.NewFlagSet("mistake add", flag.ContinueOnError)
 		// audit-id is the audit row's RFC3339 Timestamp; combined with the row's
 		// (Kind, ArgsHash) it forms the composite key (spec §2). For the
 		// personal-use CLI we keep this single flag and let the operator paste
@@ -32,7 +32,9 @@ func runMistake(args []string) int {
 		hash := fs.String("audit-hash", "", "args_hash of the audit row")
 		rootCause := fs.String("root-cause", "", "short tag, e.g. wrong-pr (required)")
 		prevention := fs.String("prevention", "", "free-form prevention note (required)")
-		_ = fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
 		if *auditID == "" || *rootCause == "" || *prevention == "" {
 			_, _ = fmt.Fprintln(os.Stderr, "leah mistake add: --audit-id, --root-cause, --prevention all required")
 			return 2
