@@ -81,7 +81,7 @@ Layers 1–4 ported from `docs/specs/2026-06-09-closed-loop-architecture.md`. La
 │  cmd/leah-daemon/pushsource_runtime.go — fans push.* IPC stream     │
 │  → `tts.speak` → classifier picks cloud (ElevenLabs Flash v2.5) or  │
 │    local (Apple Ava Premium) → `tts.cloud.frame` chunks or          │
-│    `tts.apple.speak` trigger → LeahAudio plays                      │
+│    `tts.apple.speak` / `tts.local{,.prewarm}` → LeahAudio plays     │
 │  → `push.{mail,contacts,focus,activeapp}` → HUD widgets subscribe   │
 └─────────────────────────────────────────────────────────────────────┘
                           ▲
@@ -139,7 +139,8 @@ The Phase-1 table above is unchanged. Phase 2 + 3 added the packages, targets, a
 | `tts` | 6 | `provider.go` chain (cloud → local fallback) + `classifier.go` (privacy gate; daemon-only) | Phase 3 §17.17 |
 | `tts/elevenlabs` | 6 | ElevenLabs Flash v2.5 SSE client; emits `tts.cloud.frame` chunks | Phase 3 §17.17 |
 | `tts/apple` | 6 | Apple Ava Premium voice trigger; emits a single `tts.apple.speak` IPC (HUD does playback) | Phase 3 §17.17 |
-| `embed` | 2/5 | Embedding backend selector — Voyage 3.5 lite (1024d remote) + BGE-small-en-v1.5 ONNX (384d local, CGo) + hash-bigram fallback (build-tag `nocgo`) | Phase 2 §retrieval |
+| `voice` | 6 | Wake-word + VAD + per-app suppression + listener + session loop + intents (`internal/voice/{wake,listener,loop,session,intents}`) | Phase 3 §wake + VAD |
+| `embed` | 2/5 | Embedding backend selector (`SelectGenerator`); accepts `LEAH_EMBED_BACKEND=hash|openai|bge`, default `hash` (deterministic 256d). `bge` loads BGE-small-en-v1.5 via ONNX Runtime (CGo only). Per-(model,dim) physical tables (`embeddings_bge_small_en_v1_5_384`, …) keep cloud↔local toggles re-embed-free. Voyage path scaffolded in table names only, no generator implemented | Phase 2 §retrieval |
 | `eval` | 3 | Closed-loop bootstrap traces + harness + LLM judge + scheduler + store (Phase-3 quality gate) | Phase 3 §eval |
 | `mcp` | 4 | Read-only MCP server: tool publish, A2A card, self-build A2A, redaction; mutations not exposed | Phase 3 §MCP publish |
 | `knowledge` | 2 | KG citation join over memory.db + embeddings; feeds streaming answer-engine | Phase 3 §KG citations |
@@ -166,7 +167,8 @@ The Phase-1 table above is unchanged. Phase 2 + 3 added the packages, targets, a
 | `notification.toast` | daemon → HUD | Phase-2 toast surface |
 | `tts.speak` / `tts.cancel` | HUD → daemon | Operator request |
 | `tts.cloud.frame` | daemon → HUD | ElevenLabs chunked audio frames (LeahAudio.Player) |
-| `tts.apple.speak` | daemon → HUD | Apple Ava local-synthesis trigger (LeahAudio.AppleSpeech) |
+| `tts.apple.speak` | daemon → HUD | Apple Ava local-synthesis trigger (LeahAudio.AppleSpeech); emitted by `cmd/leah-daemon/tts_handler.go` |
+| `tts.local` / `tts.local.prewarm` | daemon → HUD | Direct `internal/tts/apple` provider path: prewarm Ava voice model + speak (literals, not constants in `frame.go`) |
 | `tts.speak.done` / `tts.speak.err` / `tts.cancel.ok` | daemon → HUD | Terminal acks |
 | `push.mail` / `push.contacts` / `push.focus` / `push.activeapp` | daemon → HUD | Push-source fan-out (string-literal kinds emitted by `cmd/leah-daemon/pushsource_runtime.go`, not constants in `frame.go`) |
 
@@ -179,14 +181,14 @@ The Phase-1 table above is unchanged. Phase 2 + 3 added the packages, targets, a
 
 ### Storage — embedding namespace
 
-`memory.db` schema v6. The `embedding` table is **namespaced by `(model, dim)`** — `idx_embedding_model` enforces cross-model isolation so `voyage_3_5_lite_1024` + `bge_small_en_v1_5_384` + `hash_bigram_*` rows coexist without comparison drift. The `model` column carries the generator's `Name()`; rows with different `(model, dim)` are never mixed in cosine.
+`memory.db` schema v9 (latest additive marker: Phase 1 conversation auto-capture). Embedding storage landed in v5. Current writes route through `internal/embed.tableName(model, dim)` into **per-(model, dim) physical tables** lazily created by `ensureTable` — `embeddings_bge_small_en_v1_5_384`, `embeddings_hash_*`, etc. Each table carries its own `idx_<table>_model` index. The legacy v5 `embedding` table (single-table layout with `(model, dim)` columns + `idx_embedding_model`) is preserved but frozen; new writes never land there. Cloud↔local toggles therefore never trigger re-embedding.
 
 ### Per-feature env gates
 
 | Env | Default | Effect |
 |---|---|---|
-| `LEAH_EMBED_BACKEND` | auto | `voyage` / `bge` / `hash` — selects `internal/embed` provider; auto picks best available (CGo → BGE, else Voyage, else hash) |
-| `LEAH_BANDIT` | off | Arms the recommendation bandit in `internal/recommend` (UCB exploration) |
+| `LEAH_EMBED_BACKEND` | `hash` | `hash` / `openai` / `bge` — selects `internal/embed.SelectGenerator` provider. `bge` requires CGo + `LEAH_EMBED_MODEL_PATH` (or `LEAH_MODEL_DIR`). Unknown values error out — there is no auto-fallback |
+| `LEAH_RECOMMEND_BANDIT` | off | Arms the recommendation bandit in `internal/recommend` (UCB exploration) |
 | `LEAH_EVAL` | off | Enables `internal/eval` closed-loop quality harness + scheduler |
 | `LEAH_MCP_PUBLISH` | off | Mounts `internal/mcp` server on the daemon (read-only tools + A2A card) |
 
