@@ -47,7 +47,7 @@
 - WHY-not-WHAT comments. Default to no comment. Test/Fuzz/Benchmark godocs: 1 line max
 - Reviewer required per PR — independent reviewer subagent (agent-id `^(a[0-9a-f]{16}|cavecrew-reviewer-[a-z0-9-]+)$`) spawned immediately after `gh pr create`, verdict via transcript channel only
 - Author posting own APPROVE = self-approval regardless of channel — never `gh pr comment` from same-session reviewer
-- Deletion default: every PR states what got smaller. Phase 4 deletes the three superseded sketches in W5-T20:
+- Deletion default: every PR states what got smaller. Phase 4 deletes the three superseded sketches in W5-T21:
   - `docs/engineer/specs/2026-06-10-voice-frontier.md`
   - `docs/engineer/specs/2026-06-10-learn-recommend-apply.md`
   - `docs/engineer/specs/2026-06-10-mcp-a2a-publish.md`
@@ -1692,7 +1692,7 @@ gh pr create --title "vision(router): Sonnet route + consent gate"
 - Modify: `internal/sqlstore/migrate.go` — register the nine new files
 - Create: `internal/sqlstore/phase4_migrations_test.go`
 
-**Why this exists:** All nine Phase 4 migrations land in one PR because the migration registry is a frozen-enum file (per CLAUDE.md). Splitting across tasks invites stale-base regressions (Phase 2 lesson). Tasks T06–T19 reference but do not author migration files.
+**Why this exists:** All nine Phase 4 migrations land in one PR because the migration registry is a frozen-enum file (per CLAUDE.md). Splitting across tasks invites stale-base regressions (Phase 2 lesson). Tasks T06–T21 reference but do not author migration files.
 
 **Interfaces:**
 - Produces all schema from spec §1.4, §2.5, §3.8, §4.5, §5.6, §6.5, §7.6, §8.5, §9.6
@@ -2919,7 +2919,7 @@ func TestManifest_Parses(t *testing.T) {
 
 ## Wave 5 — Supervision + ship
 
-Starts after W1-W4 land. T17/T18 parallel; T19/T20 serialized.
+Starts after W1-W4 land. T17/T18 parallel; T19 → T20 → T21 serialized.
 
 ---
 
@@ -3146,7 +3146,7 @@ This task is single-owner serialized and MUST merge before T20 (E2E smoke) is di
 - Create: `internal/eval/phase4_test.go`
 - Create: `docs/engineer/dispatch-templates/phase4-e2e.md`
 
-**Why this exists:** §0 ship gate requires every wave's deliverable to demonstrate end-to-end on `make dev`. T19 builds an automated smoke that drives each Phase 4 surface and asserts the happy path. The dispatch-template doc lets future reviewers re-run the smoke without re-deriving prerequisites.
+**Why this exists:** §0 ship gate requires every wave's deliverable to demonstrate end-to-end on `make dev`. T20 builds an automated smoke that drives each Phase 4 surface and asserts the happy path. The dispatch-template doc lets future reviewers re-run the smoke without re-deriving prerequisites. T20 dispatches only after T19 (composition-root wiring) merges — the smoke is meaningless against a daemon that never instantiates the surfaces under test.
 
 **Smoke coverage:**
 - Voice: `voice.start` → fed canned PCM → `voice.partial` events → `voice.end` → row in `voice_session`
