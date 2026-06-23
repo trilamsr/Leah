@@ -9,7 +9,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(SettingsPane.allCases.contains(.advanced))
         XCTAssertTrue(SettingsPane.allCases.contains(.voice))
         XCTAssertTrue(SettingsPane.allCases.contains(.appearance))
-        XCTAssertTrue(SettingsPane.allCases.contains(.integrations))
+        XCTAssertTrue(SettingsPane.allCases.contains(.connections))
         XCTAssertTrue(SettingsPane.allCases.contains(.memory))
         XCTAssertTrue(SettingsPane.allCases.contains(.about))
     }
@@ -21,7 +21,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(SettingsPane.advanced.title, "Advanced")
         XCTAssertEqual(SettingsPane.voice.title, "Voice")
         XCTAssertEqual(SettingsPane.appearance.title, "Appearance")
-        XCTAssertEqual(SettingsPane.integrations.title, "Integrations")
+        XCTAssertEqual(SettingsPane.connections.title, "Connections")
         XCTAssertEqual(SettingsPane.memory.title, "Memory")
         XCTAssertEqual(SettingsPane.about.title, "About")
     }
