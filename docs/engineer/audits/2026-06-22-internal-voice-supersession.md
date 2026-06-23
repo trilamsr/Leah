@@ -72,3 +72,15 @@ A minimal targeted prune PR — independent of the substrate question — could 
 Total deletable if substrate is confirmed unused: ~2.7k LOC. PR is file-disjoint from Phase 3 Task 2/3/4 work (none of them touch `voice/session`, `voice/wake`, `voice/intents`).
 
 Recommend: file as a Phase 3 follow-up issue, blocked on confirmation from Phase 3 owner that the daemon-side voice loop will not be assembled out of `voice/session` + `voice/wake` + `voice/intents`. If the answer is "those were scaffolding for a different architecture that §17.17 supersedes," the delete is a single ~2.7k-LOC PR.
+
+## Phase 4 reuse note (added 2026-06-23 post-Phase-3 ship)
+
+**DO NOT delete autonomously.** Operator pushback 2026-06-23: "we can't reuse the code?". The 3 unwired subpackages are CANDIDATE PHASE 4 SUBSTRATE:
+
+- `internal/voice/session/` — session-based turn management. Phase 4 perception substrate (Whisper STT full-duplex per spec §0) likely needs this shape; `TurnInstrumentation` + `TurnTimer` are the load-bearing primitives.
+- `internal/voice/wake/` — earlier wake-word adapter. Phase 4 continuous wake-word (per Phase 4 spec §2 "continuous listener") may extend this rather than replace it.
+- `internal/voice/intents/` — intent classification scaffold. Phase 4 plugin SDK (per Phase 4 spec §10) needs tool-call routing; intent classification is the bottom-up shape of the same problem.
+
+**Re-evaluate at Phase 4 Wave 1 dispatch time.** Either (a) the Phase 4 implementer pulls these into the new packages and the substrate is reused, OR (b) Phase 4 ships a different shape and these become genuinely orphan — at that point, blanket-delete is safe + audit can be re-run.
+
+Until Phase 4 Wave 1 lands, ~2.7k LOC of working code with tests stays. Capital, not debt.
