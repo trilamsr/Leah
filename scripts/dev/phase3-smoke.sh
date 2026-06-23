@@ -166,9 +166,22 @@ for kind in push.mail push.contacts push.focus push.activeapp; do
     step_fail 3 "push kind $kind not emitted by $PUSH_RUNTIME"
   fi
 done
-if ! out="$(go test -C "$REPO" -count=1 -run 'TestPushSource' ./cmd/leah-daemon/ 2>&1)"; then
+# TestPushSource_* lives in the per-adapter packages; running ./... at the
+# parent dir picks up all four required adapters in one go.
+PUSH_PKGS="./internal/macos/mail/... ./internal/macos/contacts/... ./internal/macos/focus/... ./internal/macos/activeapp/..."
+if ! out="$(go test -C "$REPO" -count=1 -run 'TestPushSource' $PUSH_PKGS 2>&1)"; then
   echo "$out" >>"$LOG"
   step_fail 3 "push-source runtime test failed (see $LOG)"
+fi
+# Guard against the silent "no tests to run" pass — every adapter must contribute
+# at least one TestPushSource_* hit (verified by counting --- PASS lines in -v).
+if ! verbose="$(go test -C "$REPO" -count=1 -v -run 'TestPushSource_Run_EmitsTypedPayload' $PUSH_PKGS 2>&1)"; then
+  echo "$verbose" >>"$LOG"
+  step_fail 3 "TestPushSource_Run_EmitsTypedPayload failed (see $LOG)"
+fi
+hit_count="$(printf '%s\n' "$verbose" | grep -c -E '^--- PASS: TestPushSource_Run_EmitsTypedPayload' || true)"
+if [ "$hit_count" -lt 4 ]; then
+  step_fail 3 "TestPushSource_Run_EmitsTypedPayload ran in only $hit_count adapters (want 4: mail/contacts/focus/activeapp)"
 fi
 echo "phase3-smoke: (3) ok — push.{mail,contacts,focus,activeapp} frames reach the HUD"
 
@@ -180,9 +193,15 @@ fi
 echo "phase3-smoke: (4) ok — citation enrichment fills Domain on widget mount"
 
 # -- Invariant 5: MCP publish socket gates on LEAH_MCP_PUBLISH=1 ---------
-if ! out="$(LEAH_MCP_PUBLISH=  go test -C "$REPO" -count=1 -run 'TestPublish' ./internal/mcp/ 2>&1)"; then
+# TestPublish_GateOffByDefault asserts the unset-env branch refuses to bind;
+# TestPublish_InitializeRoundTrip asserts the LEAH_MCP_PUBLISH=1 branch binds.
+if ! out="$(LEAH_MCP_PUBLISH=  go test -C "$REPO" -count=1 -v -run 'TestPublish_GateOffByDefault|TestPublish_InitializeRoundTrip' ./internal/mcp/ 2>&1)"; then
   echo "$out" >>"$LOG"
-  step_fail 5 "mcp publish gate test failed (default-off branch, see $LOG)"
+  step_fail 5 "mcp publish gate test failed (see $LOG)"
+fi
+mcp_hits="$(printf '%s\n' "$out" | grep -c -E '^--- PASS: TestPublish_' || true)"
+if [ "$mcp_hits" -lt 2 ]; then
+  step_fail 5 "mcp publish gate matched $mcp_hits/2 required tests (off + on)"
 fi
 echo "phase3-smoke: (5) ok — MCP publish socket gated by LEAH_MCP_PUBLISH=1, default off"
 
@@ -213,25 +232,25 @@ else
 fi
 
 # -- Invariant 7: Touch ID purge fails-closed without typed PURGE --------
-PURGE_PKGS=(./internal/memory/... ./cmd/leah/... ./internal/touchid/...)
-PURGE_HIT=0
-for pkg in "${PURGE_PKGS[@]}"; do
-  if go test -C "$REPO" -count=1 -run 'TestPurge|TouchID|PurgeGate' "$pkg" >/dev/null 2>&1; then
-    PURGE_HIT=1
-    break
-  fi
-done
-if [ "$PURGE_HIT" -eq 0 ]; then
-  # Fallback: assert the typed-PURGE constant lives in the source so the gate
-  # cannot be silently weakened. The plan's invariant 7 is hardest to assert
-  # cross-platform; the constant check + Swift test guard the failure mode.
-  if ! grep -rqE 'PURGE|typed.?PURGE|"PURGE"' "$REPO/internal/memory/" "$REPO/cmd/leah/" 2>/dev/null; then
-    step_fail 7 "typed-PURGE token absent from memory/cmd sources — purge gate weakened"
-  fi
+# TestPurgeEverything_* lives in cmd/leah/purge_test.go and binds the typed
+# PURGE / attestation gate. Run with -v and count PASS lines so a future rename
+# that silently drops every test doesn't produce a green no-op.
+if ! verbose="$(go test -C "$REPO" -count=1 -v -run 'TestPurge' ./cmd/leah/ 2>&1)"; then
+  echo "$verbose" >>"$LOG"
+  step_fail 7 "TestPurge_* in cmd/leah failed (see $LOG)"
+fi
+purge_hits="$(printf '%s\n' "$verbose" | grep -c -E '^--- PASS: TestPurge' || true)"
+if [ "$purge_hits" -lt 1 ]; then
+  step_fail 7 "TestPurge_* matched zero tests in ./cmd/leah/ — purge gate weakened"
 fi
 echo "phase3-smoke: (7) ok — Touch ID purge fails-closed; typed PURGE still required"
 
 # -- Invariant 8: Sparkle EdDSA verify rejects bad-sig payload -----------
+# generate-appcast.sh is the only EdDSA-adjacent surface in this repo today —
+# Sparkle itself does cryptographic verify on the client at install time.
+# The script's fail-closed contract here is: empty sidecar .sig file → reject.
+# Inject a bad (empty) sig and assert generate-appcast.sh exits non-zero with
+# the expected error message; then a valid sig string passes.
 APPCAST="$REPO/scripts/release/generate-appcast.sh"
 APPCAST_TEST="$REPO/scripts/release/generate-appcast_test.sh"
 if [ ! -x "$APPCAST" ] || [ ! -x "$APPCAST_TEST" ]; then
@@ -239,17 +258,39 @@ if [ ! -x "$APPCAST" ] || [ ! -x "$APPCAST_TEST" ]; then
 fi
 if ! out="$(bash "$APPCAST_TEST" 2>&1)"; then
   echo "$out" >>"$LOG"
-  step_fail 8 "appcast EdDSA verify test failed (see $LOG)"
+  step_fail 8 "appcast contract test failed (see $LOG)"
 fi
-echo "phase3-smoke: (8) ok — Sparkle EdDSA verify rejects bad-sig payload"
+# Empty-sig fail-closed assertion (bad-sig surrogate — appcast must refuse).
+BAD_DIR="$(mktemp -d /tmp/leah-phase3-badsig-XXXXXX)"
+: > "$BAD_DIR/Leah-9.9.9.zip"
+: > "$BAD_DIR/Leah-9.9.9.zip.sig"   # empty sig
+bad_out="$("$APPCAST" "$BAD_DIR" 9.9.9 https://example.invalid 2>&1)"
+bad_rc=$?
+rm -rf "$BAD_DIR"
+if [ "$bad_rc" -eq 0 ]; then
+  step_fail 8 "appcast accepted empty sig (bad-sig surrogate not rejected)"
+fi
+if ! printf '%s' "$bad_out" | grep -q 'empty signature'; then
+  step_fail 8 "appcast rejected empty sig but error message changed (got: $bad_out)"
+fi
+echo "phase3-smoke: (8) ok — Sparkle EdDSA verify rejects bad-sig payload (empty-sig path)"
 
 # -- Invariant 9: dashboard surface renders + reuses WidgetTileRegistry --
-if ! grep -rqE 'WidgetTileRegistry' "$REPO/app/Leah/Tests/LeahAppTests/" 2>/dev/null; then
-  step_fail 9 "WidgetTileRegistry Swift tests missing — dashboard reuse not gated"
+# Run the SwiftPM WidgetTileRegistryTests directly — "renders without crash"
+# is gated by the Swift test suite (the registry resolves every Phase 3 kind
+# without throwing). swift test is available wherever app/Leah builds.
+if ! command -v swift >/dev/null 2>&1; then
+  step_fail 9 "swift toolchain missing — dashboard registry test cannot run"
 fi
-# Dashboard SwiftPM tests run on macOS via xcodebuild in a downstream step;
-# this gate guarantees the registry contract source-of-truth exists.
-echo "phase3-smoke: (9) ok — dashboard surface reuses WidgetTileRegistry"
+if ! out="$(cd "$REPO/app/Leah" && swift test --filter WidgetTileRegistryTests 2>&1)"; then
+  echo "$out" >>"$LOG"
+  step_fail 9 "WidgetTileRegistryTests failed (see $LOG)"
+fi
+if ! printf '%s' "$out" | grep -qE 'Test Suite .*WidgetTileRegistryTests.*passed'; then
+  echo "$out" >>"$LOG"
+  step_fail 9 "WidgetTileRegistryTests ran but did not report passed (see $LOG)"
+fi
+echo "phase3-smoke: (9) ok — dashboard surface reuses WidgetTileRegistry (Swift test passed)"
 
 # -- Invariant 10: spec-parity holds -------------------------------------
 SPEC="$REPO/docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md"
