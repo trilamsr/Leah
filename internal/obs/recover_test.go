@@ -1,26 +1,34 @@
 package obs
 
 import (
-	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
-// Asserts pool reuse: pooled captureStack stays well under the 64KB fresh-buffer regime.
+// Counts stackBufPool.New invocations directly — prior TotalAlloc-delta variant flaked because runtime.Stack(all=true) bleeds per-goroutine accounting into MemStats.
 func TestCaptureStack_PoolReusesBuffer(t *testing.T) {
-	captureStack() // warm pool
-	const iters = 50
-	runtime.GC()
-	var before, after runtime.MemStats
-	runtime.ReadMemStats(&before)
-	for i := 0; i < iters; i++ {
+	origNew := stackBufPool.New
+	t.Cleanup(func() { stackBufPool.New = origNew })
+	// Drain any pre-existing entries before swapping New so the counter only
+	// reflects calls made during this test.
+	stackBufPool.New = nil
+	for stackBufPool.Get() != nil {
+	}
+	var news int64
+	stackBufPool.New = func() any {
+		atomic.AddInt64(&news, 1)
+		b := make([]byte, 64*1024)
+		return &b
+	}
+	captureStack() // first call seeds the pool — exactly one New
+	for i := 0; i < 50; i++ {
 		_ = captureStack()
 	}
-	runtime.ReadMemStats(&after)
-	bytesPerCall := (after.TotalAlloc - before.TotalAlloc) / iters
-	if bytesPerCall > 32*1024 {
-		t.Fatalf("captureStack alloc = %d B/op, want <32KB (pool reuse expected; unpooled is ~66KB)", bytesPerCall)
+	// GC may evict pool entries between calls (worse under -race); bug guarded against is "pool never reuses" = news == 51.
+	if n := atomic.LoadInt64(&news); n > 30 {
+		t.Fatalf("stackBufPool.New called %d times across 51 captureStack calls; expected pool reuse", n)
 	}
 }
 
