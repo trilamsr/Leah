@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/testutil"
 	"github.com/trilam/leah/internal/tts"
 )
@@ -305,4 +306,72 @@ func drain(ch <-chan ipc.Frame) []ipc.Frame {
 		out = append(out, f)
 	}
 	return out
+}
+
+// buildTTSProviders MUST return a non-nil Apple provider even when the
+// ElevenLabs API key is absent — graceful degradation per spec §17.17,
+// not a daemon-boot crash.
+func TestBuildTTSProviders_GracefulApplyOnlyWithoutKey(t *testing.T) {
+	t.Setenv("LEAH_ELEVENLABS_API_KEY", "")
+	cloud, local := buildTTSProviders()
+	if cloud != nil {
+		t.Errorf("cloud provider must be nil when LEAH_ELEVENLABS_API_KEY is unset, got %T", cloud)
+	}
+	if local == nil {
+		t.Fatal("local provider must be non-nil even without ElevenLabs key (Apple fallback)")
+	}
+	if local.Name() != "apple-ava" {
+		t.Errorf("local provider name: got %q want %q", local.Name(), "apple-ava")
+	}
+}
+
+// With LEAH_ELEVENLABS_API_KEY present, both providers MUST construct.
+func TestBuildTTSProviders_BothWiredWhenKeyPresent(t *testing.T) {
+	t.Setenv("LEAH_ELEVENLABS_API_KEY", "sk-fake-test-key")
+	cloud, local := buildTTSProviders()
+	if cloud == nil {
+		t.Fatal("cloud provider must be non-nil when LEAH_ELEVENLABS_API_KEY is set")
+	}
+	if cloud.Name() != "elevenlabs" {
+		t.Errorf("cloud provider name: got %q want %q", cloud.Name(), "elevenlabs")
+	}
+	if local == nil || local.Name() != "apple-ava" {
+		t.Errorf("local provider must remain Apple Ava regardless of cloud state")
+	}
+}
+
+// End-to-end through the production newIPCHandler: tts.speak with sensitive
+// text (classifier routes to local) MUST emit tts.apple.speak, NOT
+// tts.speak.err. This is the assertion the TODO at main.go:197 left failing.
+func TestNewIPCHandler_TTSSpeakLocalRouteEndToEnd(t *testing.T) {
+	t.Setenv("LEAH_ELEVENLABS_API_KEY", "")
+	cloud, local := buildTTSProviders()
+
+	db := newTestTurnDB(t)
+	cls := tts.NewBlockwordClassifier()
+	h := newIPCHandlerWithClassify(db, nil, nil,
+		func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} },
+		func(_ context.Context, _ string) error { return nil },
+		nil, time.Time{}, nil, cloud, local, cls)
+
+	// "password" is in the BlockwordClassifier's memoryWords → RouteLocal.
+	payload, _ := json.Marshal(map[string]string{"text": "my password is hunter2", "voice": ""})
+	req := ipc.Frame{Kind: ipc.KindTTSSpeak, TurnID: "e2e-1", Seq: 1, Payload: payload}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	ch, err := h(ctx, req)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	frames := drain(ch)
+	if len(frames) == 0 {
+		t.Fatal("no frames emitted")
+	}
+	if frames[0].Kind == ipc.KindTTSSpeakErr {
+		t.Fatalf("composition root left TTS providers nil — got %q, want %q",
+			frames[0].Kind, ipc.KindTTSAppleSpeak)
+	}
+	if frames[0].Kind != ipc.KindTTSAppleSpeak {
+		t.Fatalf("first frame: got %q want %q", frames[0].Kind, ipc.KindTTSAppleSpeak)
+	}
 }
