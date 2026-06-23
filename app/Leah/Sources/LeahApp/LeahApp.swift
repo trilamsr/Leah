@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import LeahUI
 import LeahIPC
 
@@ -17,9 +18,14 @@ struct LeahApp: App {
   private let settingsObserver: NSObjectProtocol
   private let wizard = WizardController()
   private let hud = AmbientHUDWindow()
+  private let paletteObserver: PaletteObserver
 
   @MainActor
   init() {
+    let mode = PaletteObserver.modeFor(NSApp?.effectiveAppearance ?? NSAppearance(named: .darkAqua)!)
+    let observer = PaletteObserver(initial: mode)
+    observer.attach()
+    paletteObserver = observer
     // Wizard runs BEFORE hotkey registration — trust signal at first launch.
     wizard.presentIfNeeded()
 
