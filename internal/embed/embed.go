@@ -86,9 +86,17 @@ func SelectGenerator() (Generator, error) {
 	case "", "hash":
 		return NewHashGenerator(256), nil
 	case "openai":
-		return NewOpenAIGenerator()
+		g, err := NewOpenAIGenerator()
+		if err != nil {
+			return nil, err
+		}
+		return g, nil
 	case "bge":
-		return NewBGEGenerator(bgeModelPathFromEnv())
+		g, err := NewBGEGenerator(bgeModelPathFromEnv())
+		if err != nil {
+			return nil, err
+		}
+		return g, nil
 	default:
 		return nil, fmt.Errorf("embed: unknown LEAH_EMBED_BACKEND=%q (want hash|openai|bge)", os.Getenv("LEAH_EMBED_BACKEND"))
 	}
@@ -358,8 +366,51 @@ func NewStore(db *sql.DB, gen Generator) *Store {
 	return &Store{db: db, gen: gen}
 }
 
+// tableName computes the per-(model, dim) physical table name. Spec §17.15
+// keeps cloud↔local toggles re-embed-free by parking each backend's vectors
+// in its own table — `embeddings_voyage_3_5_lite_1024`,
+// `embeddings_bge_small_en_v1_5_384`, etc. The legacy `embedding` table
+// (schema v5) is preserved; new writes route here.
+func tableName(modelID string, dim int) string {
+	var b strings.Builder
+	b.Grow(len("embeddings_") + len(modelID) + 8)
+	b.WriteString("embeddings_")
+	for _, r := range strings.ToLower(modelID) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	fmt.Fprintf(&b, "_%d", dim)
+	return b.String()
+}
+
+// ensureTable lazy-creates the namespaced embedding table for (model, dim).
+// IF NOT EXISTS makes the call idempotent + cheap on the hot path.
+func ensureTable(ctx context.Context, tx *sql.Tx, table string) error {
+	ddl := fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %[1]s (
+		  item_id    TEXT NOT NULL,
+		  item_type  TEXT NOT NULL,
+		  model      TEXT NOT NULL,
+		  dim        INTEGER NOT NULL,
+		  vector     BLOB NOT NULL,
+		  content    TEXT NOT NULL,
+		  updated_at TEXT NOT NULL,
+		  PRIMARY KEY (item_id, item_type)
+		);
+		CREATE INDEX IF NOT EXISTS idx_%[1]s_model ON %[1]s(model, dim);`, table)
+	if _, err := tx.ExecContext(ctx, ddl); err != nil {
+		return fmt.Errorf("embed: create %s: %w", table, err)
+	}
+	return nil
+}
+
 // Put upserts an embedding row per input Item. Re-running with the same
-// (ID, Type) replaces the prior row in-place.
+// (ID, Type) replaces the prior row in-place. Rows land in the (model, dim)-
+// namespaced table so cloud↔local toggles do not cross-contaminate.
 func (s *Store) Put(ctx context.Context, items []Item) error {
 	if len(items) == 0 {
 		return nil
@@ -373,16 +424,21 @@ func (s *Store) Put(ctx context.Context, items []Item) error {
 		return fmt.Errorf("embed.Put: generate: %w", err)
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
+	table := tableName(s.gen.Name(), s.gen.Dim())
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("embed.Put: begin: %w", err)
 	}
-	stmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO embedding(item_id, item_type, model, dim, vector, content, updated_at)
+	if err := ensureTable(ctx, tx, table); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("embed.Put: %w", err)
+	}
+	stmt, err := tx.PrepareContext(ctx, fmt.Sprintf(`
+		INSERT INTO %[1]s(item_id, item_type, model, dim, vector, content, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(item_id, item_type) DO UPDATE SET
 		  model=excluded.model, dim=excluded.dim, vector=excluded.vector,
-		  content=excluded.content, updated_at=excluded.updated_at`)
+		  content=excluded.content, updated_at=excluded.updated_at`, table))
 	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("embed.Put: prepare: %w", err)
@@ -416,11 +472,18 @@ func (s *Store) Search(ctx context.Context, query string, k int) ([]Hit, error) 
 		return nil, fmt.Errorf("embed.Search: embed query: %w", err)
 	}
 	q := vecs[0]
-	rows, err := s.db.QueryContext(ctx, `
+	table := tableName(s.gen.Name(), s.gen.Dim())
+	// Search must not auto-create — read against an absent namespaced table
+	// is a clean "no hits" rather than a write side effect on read path.
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT item_id, item_type, content, vector
-		FROM embedding WHERE model=? AND dim=?`,
+		FROM %s WHERE model=? AND dim=?`, table),
 		s.gen.Name(), s.gen.Dim())
 	if err != nil {
+		// Missing namespaced table on first Search before any Put → empty.
+		if strings.Contains(err.Error(), "no such table") {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("embed.Search: query: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
