@@ -293,8 +293,8 @@ func TestIPCHandlerCitationWidgetEnriches(t *testing.T) {
 		t.Fatalf("enrich called %d times, want exactly 1", enrichCalls)
 	}
 	var wp struct {
-		WidgetType string                         `json:"widget_type"`
-		URL        string                         `json:"url"`
+		WidgetType string                        `json:"widget_type"`
+		URL        string                        `json:"url"`
 		Enrichment *knowledge.CitationEnrichment `json:"enrichment"`
 	}
 	if err := json.Unmarshal(frames[0].Payload, &wp); err != nil {
@@ -339,8 +339,8 @@ func TestIPCHandlerCitationGracefulDegradeOnEnrichErr(t *testing.T) {
 		t.Fatalf("frames: %+v", frames)
 	}
 	var wp struct {
-		WidgetType string                         `json:"widget_type"`
-		URL        string                         `json:"url"`
+		WidgetType string                        `json:"widget_type"`
+		URL        string                        `json:"url"`
 		Enrichment *knowledge.CitationEnrichment `json:"enrichment"`
 	}
 	if err := json.Unmarshal(frames[0].Payload, &wp); err != nil {

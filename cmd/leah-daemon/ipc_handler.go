@@ -333,8 +333,8 @@ func mountPayload(ctx context.Context, intent reasoner.Intent, enrich enrichFn) 
 		return payload
 	}
 	out := struct {
-		WidgetType string                         `json:"widget_type"`
-		URL        string                         `json:"url,omitempty"`
+		WidgetType string                        `json:"widget_type"`
+		URL        string                        `json:"url,omitempty"`
 		Enrichment *knowledge.CitationEnrichment `json:"enrichment,omitempty"`
 	}{WidgetType: "citation", URL: intent.URL}
 	if enrich != nil && intent.URL != "" {
