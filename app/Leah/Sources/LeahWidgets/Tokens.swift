@@ -15,3 +15,17 @@ public enum Palette {
     public static let textMuted    = Color(red: 0xB8/255, green: 0xB0/255, blue: 0xA0/255)
     public static let hairline     = Color.white.opacity(0.20)
 }
+
+extension Palette {
+    // mirrors AppearancePane.minimalModeEnabled() — duplicated key avoids
+    // a LeahWidgets→LeahUI dependency for a one-line UserDefaults read.
+    public static var minimalMode: Bool {
+        UserDefaults.standard.bool(forKey: "leah.appearance.minimalMode")
+    }
+
+    // tiles call accentGold instead of champagneGold so the toggle has
+    // render-time effect; clear collapses the ornamental gold accent.
+    public static var accentGold: Color {
+        minimalMode ? .clear : champagneGold
+    }
+}

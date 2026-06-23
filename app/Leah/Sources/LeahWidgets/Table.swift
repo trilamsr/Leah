@@ -25,7 +25,7 @@ public struct TableWidget: LeahWidget {
                     Text(headers[i])
                         .font(.system(size: 11, weight: .medium))
                         .tracking(0.5)
-                        .foregroundColor(Palette.champagneGold)
+                        .foregroundColor(Palette.accentGold)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
