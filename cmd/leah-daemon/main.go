@@ -131,6 +131,7 @@ func main() {
 	}
 
 	startActiveAppPush(ctx, lg, registry, activeapp.DefaultBlocklist)
+	go runPushSources(ctx, lg, registry, nil, func(kind string, _ []byte) { lg.Debug("push frame", "kind", kind) })
 
 	bus := obs.NewBroadcaster()
 	obs.SetDefaultBroadcaster(bus)
