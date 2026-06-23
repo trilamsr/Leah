@@ -20,6 +20,18 @@ const (
 	KindWidgetDismiss     = "widget.dismiss"
 	KindWidgetUnmount     = "widget.unmount"
 	KindNotificationToast = "notification.toast"
+
+	// TTS kinds — §17.17. Daemon receives KindTTSSpeak / KindTTSCancel from
+	// the HUD; emits KindTTSCloudFrame chunks (ElevenLabs path), a single
+	// KindTTSAppleSpeak trigger (Apple Ava — HUD plays locally), and
+	// terminal KindTTSSpeakDone / KindTTSSpeakErr / KindTTSCancelOK.
+	KindTTSSpeak       = "tts.speak"
+	KindTTSCancel      = "tts.cancel"
+	KindTTSCloudFrame  = "tts.cloud.frame"
+	KindTTSAppleSpeak  = "tts.apple.speak"
+	KindTTSSpeakDone   = "tts.speak.done"
+	KindTTSSpeakErr    = "tts.speak.err"
+	KindTTSCancelOK    = "tts.cancel.ok"
 )
 
 type Frame struct {
