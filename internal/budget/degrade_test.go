@@ -24,6 +24,8 @@ func TestDegradePath_SpecTable(t *testing.T) {
 		{"at_cap_peer_a2a", BucketPeerA2ATokens, 1.00, ActionBlock},
 		{"at_cap_llm", BucketCloudLLMTokens, 1.00, ActionBlock},
 		{"over_cap_embed", BucketCloudEmbedBytes, 1.5, ActionSwitchLocal},
+		{"over_cap_plugin_escalates_to_disable", BucketPluginNetworkBytes, 1.5, ActionDisable},
+		{"over_cap_peer_a2a", BucketPeerA2ATokens, 1.5, ActionBlock},
 		{"unknown_bucket", Bucket("cloud.unknown"), 1.0, ActionBlock},
 	}
 	for _, c := range cases {

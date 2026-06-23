@@ -458,9 +458,7 @@ func (r *runtime) Close() error {
 	return nil
 }
 
-// Closer is implemented by runtime so the daemon can shut down cleanly. The
-// Runtime interface deliberately omits Close — most callers don't own the
-// runtime lifecycle; the daemon wiring does.
+// Closer is implemented by runtime; the daemon owns the lifecycle, not most callers.
 type Closer interface {
 	Close() error
 }

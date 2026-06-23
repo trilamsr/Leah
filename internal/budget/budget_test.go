@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -293,12 +294,7 @@ func TestRuntime_ChargeP95Under400us(t *testing.T) {
 		}
 		samples[i] = time.Since(t0)
 	}
-	// Sort ascending, take p95.
-	for i := 1; i < N; i++ {
-		for j := i; j > 0 && samples[j-1] > samples[j]; j-- {
-			samples[j-1], samples[j] = samples[j], samples[j-1]
-		}
-	}
+	sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
 	p95 := samples[(N*95)/100]
 	if p95 > 400*time.Microsecond {
 		t.Errorf("Charge p95=%v exceeds 0.4 ms budget (§8.8)", p95)
