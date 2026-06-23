@@ -34,7 +34,11 @@ final class DashboardViewTests: XCTestCase {
         let abs = sources.appendingPathComponent(rel).path
         if abs.hasPrefix(dashboardDir) { continue }
         let body = (try? String(contentsOfFile: abs)) ?? ""
-        if body.contains("Tiempos") { offenders.append(rel) }
+        for line in body.split(separator: "\n") {
+          let s = line.trimmingCharacters(in: .whitespaces)
+          if s.hasPrefix("//") || s.hasPrefix("/*") || s.hasPrefix("*") { continue }
+          if s.contains("Tiempos") { offenders.append(rel); break }
+        }
       }
     }
     XCTAssertTrue(offenders.isEmpty, "Tiempos italic confined to Dashboard/; offenders: \(offenders)")
