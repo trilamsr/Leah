@@ -1,0 +1,4 @@
+{
+  "version": 1,
+  "kinds": ["stat", "market", "weather", "calendar", "flights", "maps", "image", "chart", "code", "citation", "diff"]
+}
