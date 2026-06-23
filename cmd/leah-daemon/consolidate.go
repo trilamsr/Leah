@@ -23,7 +23,7 @@ import (
 //     tracker gate that fires once per day at the task's expected hour —
 //     LEAH_BRIEF_HOUR for brief — so the global DailyHour can be lowered.
 //  2. adds the consolidation task gated on LEAH_CONSOLIDATION_HOUR (default
-//     3) with its own tracker.
+//  3. with its own tracker.
 //  3. drops the daemonloop-level DailyHour to the earliest hour (3) and
 //     shortens DailyInterval to 1h so the loop checks the gate hourly
 //     instead of locking out the second-fire-of-the-day on the first.

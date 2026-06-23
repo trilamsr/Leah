@@ -41,8 +41,8 @@ func (f *fakeProvider) Speak(ctx context.Context, text, _ string) (tts.AudioStre
 	}
 	if f.blockUntilCtxDone {
 		return &ctxBlockingStream{
-			ctx: ctx,
-			mime: f.mime,
+			ctx:    ctx,
+			mime:   f.mime,
 			onDone: func() { f.mu.Lock(); f.speakCtxErr = ctx.Err(); f.mu.Unlock() },
 		}, nil
 	}
