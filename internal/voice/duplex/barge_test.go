@@ -42,7 +42,6 @@ func TestBargeArbiter_OnlyFiresOncePerTTSWindow(t *testing.T) {
 	arb.micVoiceDetected()
 	arb.micVoiceDetected()
 	arb.micVoiceDetected()
-	time.Sleep(5 * time.Millisecond)
 	close(calls)
 	n := 0
 	for range calls {
@@ -50,5 +49,27 @@ func TestBargeArbiter_OnlyFiresOncePerTTSWindow(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("expected 1 halt per TTS window, got %d", n)
+	}
+}
+
+// Lifecycle: ttsEnded clears the active flag so a new utterance's first VAD
+// frame does not inherit the prior window's latched state.
+func TestBargeArbiter_TTSEndedReopensWindow(t *testing.T) {
+	arb := newBargeArbiter()
+	fires := make(chan struct{}, 4)
+	arb.onHalt = func() { fires <- struct{}{} }
+	arb.ttsStarted()
+	arb.micVoiceDetected()
+	arb.ttsEnded()
+	arb.micVoiceDetected()
+	arb.ttsStarted()
+	arb.micVoiceDetected()
+	close(fires)
+	n := 0
+	for range fires {
+		n++
+	}
+	if n != 2 {
+		t.Fatalf("expected 2 halts across 2 windows, got %d", n)
 	}
 }

@@ -24,6 +24,8 @@ public protocol VoiceCoordinator: AnyObject, Sendable {
     var levelStream: AsyncStream<Float> { get }
 }
 
+// Lazy AsyncStreams are initialized once and never reassigned; AsyncStream.Continuation
+// yield/finish are thread-safe, so concurrent ingest() callers do not race.
 public final class DefaultVoiceCoordinator: VoiceCoordinator, @unchecked Sendable {
     private let ipc: VoiceIPC
     private let turnId: String
