@@ -38,6 +38,7 @@ public struct GeneralPane: View {
             }
             if hotkeyConflict {
                 HotkeyConflictWarning()
+            }
             Divider()
             Group {
                 Text("Theme").font(.callout.weight(.medium)).foregroundColor(.gray)

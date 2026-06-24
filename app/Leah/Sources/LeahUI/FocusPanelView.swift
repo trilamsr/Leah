@@ -18,7 +18,7 @@ public struct FocusPanelView: View {
           .foregroundColor(Color(red: 201/255, green: 169/255, blue: 97/255))
         TextField("Ask Leah anything…", text: $input)
           .textFieldStyle(.plain)
-          .font(.title3)
+          .font(.system(size: 18))
           .onSubmit { send() }
       }
       Divider().background(Color.white.opacity(0.20))

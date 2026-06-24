@@ -10,7 +10,7 @@ public struct PlusButton: View {
   public var body: some View {
     Button(action: action) {
       Text("+")
-        .font(.title3.weight(.medium))
+        .font(.system(size: 18, weight: .semibold))
         .foregroundColor(.leahGold)
         .frame(width: 24, height: 24)
         .overlay(

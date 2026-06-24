@@ -144,7 +144,7 @@ public struct WeatherTileView: View {
               .foregroundColor(Self.textDim)
             Image(systemName: Self.iconName(for: day.condition))
               .foregroundColor(Self.goldMute)
-              .font(.body)
+              .font(.system(size: 16))
             Text(Self.tempLabel(value: day.high, units: payload.units))
               .font(.caption)
               .foregroundColor(Self.ivory)
