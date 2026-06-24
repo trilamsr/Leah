@@ -139,11 +139,13 @@ fi
 echo "phase4-e2e: (7) ok — plugin host present"
 
 # -- Invariant 8: dashboard cards surface --------------------------------
-# Dashboard cards live in the Swift HUD; we assert the Go side ships the
-# data-source surface the cards mount against (telemetry/dash package).
-if ! find "$REPO/internal" -type d -name dash -o -name dashboard 2>/dev/null | head -1 | grep -q . && \
-   ! grep -rq "DashboardCard\\|dashboard.Card" "$REPO/internal" 2>/dev/null; then
-  step_fail 8 "dashboard card data-source surface missing"
+# Dashboard cards ship as Swift files under LeahUI/Dashboard; the Go side
+# of phase 4 has no equivalent package, so assert the actual T18 artifacts.
+CARDS_DIR="$REPO/app/Leah/Sources/LeahUI/Dashboard"
+if [ ! -f "$CARDS_DIR/CoachCard.swift" ] || \
+   [ ! -f "$CARDS_DIR/PrivacyCard.swift" ] || \
+   [ ! -f "$CARDS_DIR/HealthCard.swift" ]; then
+  step_fail 8 "dashboard cards missing under $CARDS_DIR"
 fi
 echo "phase4-e2e: (8) ok — dashboard card surface present"
 
