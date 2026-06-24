@@ -122,6 +122,17 @@ func main() {
 	// Field-disjoint owner: composition_root.go; IPC edges land separately
 	// without colliding on main.go.
 	p4 := wirePhase4Producers(store.DB(), os.Stderr, lg)
+	defer func() {
+		if p4.Discovery != nil {
+			p4.Discovery.Stop()
+		}
+		if p4.A2A != nil {
+			_ = p4.A2A.Stop(context.Background())
+		}
+		if p4.Supervisor != nil {
+			_ = p4.Supervisor.Close()
+		}
+	}()
 	_ = p4 // IPC edges (Recommendations / Budget / Plugins panes) consume in follow-up
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
