@@ -28,10 +28,10 @@ public struct IntegrationStep: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text("Connect one integration.")
-        .font(.system(size: 22, weight: .medium))
+        .font(.title2.weight(.medium))
         .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
       Text("Leah works best with at least one data source.")
-        .font(.system(size: 13))
+        .font(.callout)
         .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
       ForEach(Integration.allCases, id: \.self) { opt in
         HStack(spacing: 10) {
@@ -39,13 +39,13 @@ public struct IntegrationStep: View {
             .foregroundColor(selected == opt ? .accentColor : .gray)
           StatusGlyphView(state: opt == .calendar ? calendarState : .none)
           Text(opt.rawValue)
-            .font(.system(size: 13))
+            .font(.callout)
             .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
         }
         .onTapGesture { selected = opt }
       }
       if !status.isEmpty {
-        Text(status).font(.system(size: 12)).foregroundColor(.gray)
+        Text(status).font(.caption).foregroundColor(.gray)
       }
       Spacer()
       HStack {

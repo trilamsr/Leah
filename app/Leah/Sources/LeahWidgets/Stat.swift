@@ -16,16 +16,16 @@ public struct StatWidget: LeahWidget {
     public var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: 11, weight: .medium))
+                .font(.caption.weight(.medium))
                 .tracking(0.5)
                 .foregroundColor(Palette.textMuted)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(value)
-                    .font(.system(size: 28, weight: .medium, design: .monospaced))
+                    .font(.system(.title, design: .monospaced).weight(.medium))
                     .foregroundColor(Palette.ivory)
                 if let t = trend {
                     Text(t)
-                        .font(.system(size: 13, design: .monospaced))
+                        .font(.system(.callout, design: .monospaced))
                         .foregroundColor(trendColor(t))
                 }
             }

@@ -79,18 +79,20 @@ public struct PrivacyPane: View {
                 }
             )) {
                 Text("Send anonymous error reports + performance metrics. Never includes message content.")
-                    .font(.system(size: 13))
+                    .font(.callout)
                     .foregroundColor(.white)
             }
+            .accessibilityLabel("Send anonymous error reports and performance metrics")
+            .accessibilityHint("Never includes message content.")
             if !status.isEmpty {
-                Text(status).font(.system(size: 12)).foregroundColor(.gray)
+                Text(status).font(.caption).foregroundColor(.gray)
             }
             Divider()
             Text("Embed locally (slower, private) — Phase 2")
-                .font(.system(size: 13)).foregroundColor(.gray)
+                .font(.callout).foregroundColor(.gray)
             Divider()
             Text("Conversation history kept: 24 hours (locked Phase 1)")
-                .font(.system(size: 13)).foregroundColor(.white)
+                .font(.callout).foregroundColor(.white)
             Spacer()
         }
         .padding(24)

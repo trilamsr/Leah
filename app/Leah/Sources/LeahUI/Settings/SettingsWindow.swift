@@ -40,7 +40,7 @@ struct SettingsView: View {
                     .padding(.bottom, 4)
                 ForEach(visiblePanes, id: \.self) { pane in
                     Text(pane.title)
-                        .font(.system(size: 13))
+                        .font(.callout)
                         .foregroundColor(selected == pane ? .white : .gray)
                         .padding(.vertical, 6)
                         .padding(.horizontal, 12)

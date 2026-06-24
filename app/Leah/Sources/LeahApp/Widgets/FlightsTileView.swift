@@ -149,7 +149,7 @@ public struct FlightsTileView: View {
 
   private var eyebrow: some View {
     Text("FLIGHTS · \(payload.origin) → \(payload.destination)")
-      .font(.system(size: 11, weight: .regular, design: .default))
+      .font(.system(.caption, design: .default).weight(.regular))
       .tracking(0.04 * 11)
       .foregroundColor(Color(hex: FlightsTileStyle.goldHex))
   }
@@ -174,10 +174,10 @@ public struct FlightsTileView: View {
       }
       VStack(alignment: .leading, spacing: 2) {
         Text(sc.cell.date.suffix(5).replacingOccurrences(of: "-", with: "/"))
-          .font(.system(size: 9, design: .monospaced))
+          .font(.system(.caption2, design: .monospaced))
           .foregroundColor(fg.opacity(0.7))
         Text(priceLabel(sc.cell.priceCents))
-          .font(.system(size: 12, design: .monospaced))
+          .font(.system(.caption, design: .monospaced))
           .foregroundColor(fg)
       }
       .padding(.horizontal, 6)

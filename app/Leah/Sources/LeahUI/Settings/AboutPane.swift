@@ -48,19 +48,19 @@ public struct AboutPane: View {
             row("Commit", value: AboutInfo.commitSHA)
             Divider()
             HStack {
-                Text("Updates").foregroundColor(.gray).font(.system(size: 13))
+                Text("Updates").foregroundColor(.gray).font(.callout)
                 Spacer()
                 Button("Check for updates") { onCheckForUpdates() }
             }
             Divider()
             HStack(alignment: .top) {
-                Text("Verification").foregroundColor(.gray).font(.system(size: 13))
+                Text("Verification").foregroundColor(.gray).font(.callout)
                 Spacer()
                 VerificationPanel(model: verification)
             }
             Divider()
             HStack {
-                Text("License").foregroundColor(.gray).font(.system(size: 13))
+                Text("License").foregroundColor(.gray).font(.callout)
                 Spacer()
                 Link("View on GitHub", destination: URL(string: AboutInfo.licenseURL)!)
                     .foregroundColor(.accentColor)
@@ -72,10 +72,10 @@ public struct AboutPane: View {
 
     private func row(_ label: String, value: String) -> some View {
         HStack {
-            Text(label).foregroundColor(.gray).font(.system(size: 13))
+            Text(label).foregroundColor(.gray).font(.callout)
             Spacer()
             Text(value)
-                .font(.system(size: 13, design: .monospaced))
+                .font(.system(.callout, design: .monospaced))
                 .foregroundColor(.white)
                 .textSelection(.enabled)
         }

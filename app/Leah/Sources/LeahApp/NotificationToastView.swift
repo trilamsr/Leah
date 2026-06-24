@@ -44,18 +44,18 @@ public struct NotificationToastView: View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 8) {
         Circle().fill(severityColor).frame(width: 6, height: 6)
-        Text(toast.title).font(.system(size: 13, weight: .medium)).foregroundColor(LeahPalette.ivory)
+        Text(toast.title).font(.callout.weight(.medium)).foregroundColor(LeahPalette.ivory)
         Spacer(minLength: 0)
-        Text("Mark").font(.system(size: 11)).foregroundColor(LeahPalette.textMuted)
+        Text("Mark").font(.caption).foregroundColor(LeahPalette.textMuted)
       }
       if !toast.body.isEmpty {
-        Text(toast.body).font(.system(size: 12)).foregroundColor(LeahPalette.textMuted).lineLimit(1)
+        Text(toast.body).font(.caption).foregroundColor(LeahPalette.textMuted).lineLimit(1)
       }
       if let label = toast.actionLabel {
         HStack {
           Spacer(minLength: 0)
           Text(label)
-            .font(.system(size: 11, weight: .medium))
+            .font(.caption.weight(.medium))
             .foregroundColor(LeahPalette.champagneGold)
             .padding(.horizontal, 10).padding(.vertical, 4)
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(LeahPalette.hairline, lineWidth: 1))

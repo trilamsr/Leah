@@ -10,13 +10,13 @@ public struct HotkeyStep: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text("Press ⌥Space anywhere to summon Leah.")
-        .font(.system(size: 22, weight: .medium))
+        .font(.title2.weight(.medium))
         .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
       Text("""
         You'll need to grant Accessibility permission. \
         Open System Settings → Privacy & Security → Accessibility → enable Leah.
         """)
-        .font(.system(size: 13))
+        .font(.callout)
         .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
       Spacer()
       HStack {

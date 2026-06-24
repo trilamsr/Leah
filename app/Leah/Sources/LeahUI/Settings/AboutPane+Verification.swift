@@ -92,7 +92,7 @@ public struct VerificationPanel: View {
             }
             ForEach(model.signers, id: \.fingerprint) { signer in
                 Text("\(signer.kind): \(signer.fingerprint.prefix(12))…")
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.gray)
             }
             if !model.reason.isEmpty {

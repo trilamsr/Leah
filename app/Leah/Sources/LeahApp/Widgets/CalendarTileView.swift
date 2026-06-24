@@ -93,7 +93,7 @@ public struct CalendarTileView: View {
     let visible = Self.nextEvents(payload: payload, max: 3)
     return VStack(alignment: .leading, spacing: 10) {
       Text("CALENDAR \u{00B7} \(payload.range.uppercased())")
-        .font(.system(size: 11, weight: .medium))
+        .font(.caption.weight(.medium))
         .tracking(1.2)
         .foregroundColor(Self.textDim)
 
@@ -107,10 +107,10 @@ public struct CalendarTileView: View {
                 .frame(maxHeight: .infinity)
               VStack(alignment: .leading, spacing: 2) {
                 Text(event.title)
-                  .font(.system(size: 13, weight: .medium))
+                  .font(.callout.weight(.medium))
                   .foregroundColor(Self.ivory)
                 Text("\(Self.timeFmt.string(from: event.start)) \u{2013} \(Self.timeFmt.string(from: event.end))")
-                  .font(.system(size: 11))
+                  .font(.caption)
                   .foregroundColor(Self.textDim)
               }
               Spacer()

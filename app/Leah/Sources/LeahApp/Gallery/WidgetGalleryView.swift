@@ -94,7 +94,7 @@ public struct WidgetGalleryView: View {
       VStack(alignment: .leading, spacing: 12) {
         TextField("Find a widget…", text: $model.searchQuery)
           .textFieldStyle(.plain)
-          .font(.system(size: 14))
+          .font(.body)
           .foregroundColor(.leahIvory)
           .padding(.horizontal, 12)
           .padding(.vertical, 8)
@@ -115,7 +115,7 @@ public struct WidgetGalleryView: View {
     VStack(alignment: .leading, spacing: 10) {
       ForEach(WidgetGalleryCategory.allCases, id: \.self) { cat in
         Text(cat.displayName.uppercased())
-          .font(.system(size: 11, weight: .medium))
+          .font(.caption.weight(.medium))
           .tracking(0.04 * 11)
           .foregroundColor(cat == model.selectedCategory ? .leahGold : LeahPalette.textMuted)
           .onTapGesture { model.selectedCategory = cat }
@@ -141,19 +141,19 @@ public struct WidgetGalleryView: View {
   private func previewCell(_ item: WidgetGalleryItem) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(item.name.uppercased())
-        .font(.system(size: 10, weight: .medium))
+        .font(.caption2.weight(.medium))
         .tracking(0.04 * 10)
         .foregroundColor(LeahPalette.textMuted)
       if let live = registry.view(for: item.sampleEnvelope()) {
         live
       } else {
         Text(item.sampleText)
-          .font(.system(size: 11))
+          .font(.caption)
           .foregroundColor(.leahIvory)
       }
       Button("Spawn") { model.spawn(item) }
         .buttonStyle(.plain)
-        .font(.system(size: 11, weight: .medium))
+        .font(.caption.weight(.medium))
         .foregroundColor(.leahGold)
     }
     .padding(10)

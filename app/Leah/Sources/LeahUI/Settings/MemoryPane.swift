@@ -86,17 +86,17 @@ public struct MemoryPane: View {
             row("Embedding model", value: model.stats.modelDimLabel)
             Divider()
             HStack {
-                Text("Active table").foregroundColor(.gray).font(.system(size: 13))
+                Text("Active table").foregroundColor(.gray).font(.callout)
                 Spacer()
                 Text(model.stats.tableName)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.gray)
                     .textSelection(.enabled)
             }
             Divider()
             VStack(alignment: .leading, spacing: 8) {
                 Text("Type PURGE then press Purge to delete all memory.")
-                    .font(.system(size: 12)).foregroundColor(.gray)
+                    .font(.caption).foregroundColor(.gray)
                 HStack {
                     TextField("", text: $typed)
                         .textFieldStyle(.roundedBorder)
@@ -111,7 +111,7 @@ public struct MemoryPane: View {
                     .disabled(typed != "PURGE")
                 }
                 if !status.isEmpty {
-                    Text(status).font(.system(size: 12)).foregroundColor(.gray)
+                    Text(status).font(.caption).foregroundColor(.gray)
                 }
             }
             Spacer()
@@ -121,9 +121,9 @@ public struct MemoryPane: View {
 
     private func row(_ label: String, value: String) -> some View {
         HStack {
-            Text(label).foregroundColor(.gray).font(.system(size: 13))
+            Text(label).foregroundColor(.gray).font(.callout)
             Spacer()
-            Text(value).foregroundColor(.white).font(.system(size: 13))
+            Text(value).foregroundColor(.white).font(.callout)
         }
     }
 

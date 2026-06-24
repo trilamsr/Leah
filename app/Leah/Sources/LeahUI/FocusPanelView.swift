@@ -14,17 +14,17 @@ public struct FocusPanelView: View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
         Text("⬡")
-          .font(.system(size: 18, weight: .medium))
+          .font(.title3.weight(.medium))
           .foregroundColor(Color(red: 201/255, green: 169/255, blue: 97/255))
         TextField("Ask Leah anything…", text: $input)
           .textFieldStyle(.plain)
-          .font(.system(size: 18))
+          .font(.title3)
           .onSubmit { send() }
       }
       Divider().background(Color.white.opacity(0.20))
       ScrollView {
         Text(response)
-          .font(.system(size: 14))
+          .font(.body)
           .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
           .frame(maxWidth: .infinity, alignment: .leading)
       }

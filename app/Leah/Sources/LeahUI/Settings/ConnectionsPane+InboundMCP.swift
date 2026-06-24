@@ -94,13 +94,14 @@ public struct InboundMCPSection: View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle("Allow inbound MCP", isOn: $enabled)
                 .foregroundColor(.white)
+                .accessibilityHint("Lets external MCP clients connect to Leah using issued tokens.")
             if enabled {
                 tokenTable
                 Divider()
                 issueForm
             } else {
                 Text("Tokens are inactive while inbound MCP is off.")
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundColor(.gray)
             }
         }
@@ -113,18 +114,19 @@ public struct InboundMCPSection: View {
     private var tokenTable: some View {
         VStack(alignment: .leading, spacing: 6) {
             if tokens.isEmpty {
-                Text("No tokens issued.").font(.system(size: 12)).foregroundColor(.gray)
+                Text("No tokens issued.").font(.caption).foregroundColor(.gray)
             } else {
                 ForEach(tokens) { t in
                     HStack(spacing: 12) {
                         Text(t.name).foregroundColor(.white)
                         Text(t.scopes.map { $0.rawValue }.joined(separator: ", "))
-                            .font(.system(size: 11)).foregroundColor(.gray)
+                            .font(.caption).foregroundColor(.gray)
                         Spacer()
                         Button("Revoke") {
                             store.revoke(id: t.id)
                             tokens = store.listTokens()
                         }
+                        .accessibilityLabel("Revoke token \(t.name)")
                     }
                 }
             }
@@ -133,7 +135,7 @@ public struct InboundMCPSection: View {
 
     private var issueForm: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Issue token").font(.system(size: 12, weight: .semibold)).foregroundColor(.white)
+            Text("Issue token").font(.caption.weight(.semibold)).foregroundColor(.white)
             TextField("name (e.g. ci-bot)", text: $newName)
                 .textFieldStyle(.roundedBorder)
             ForEach(InboundMCPScope.allCases) { sc in
@@ -143,7 +145,7 @@ public struct InboundMCPSection: View {
                         if on { newScopes.insert(sc) } else { newScopes.remove(sc) }
                     }
                 ))
-                .font(.system(size: 11))
+                .font(.caption)
                 .foregroundColor(.white)
             }
             Button("Issue") {
@@ -160,8 +162,8 @@ public struct InboundMCPSection: View {
 
     private func revealSheet(_ tok: InboundMCPToken) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Copy this token now").font(.system(size: 13, weight: .semibold))
-            Text("It will not be shown again.").font(.system(size: 11)).foregroundColor(.gray)
+            Text("Copy this token now").font(.callout.weight(.semibold))
+            Text("It will not be shown again.").font(.caption).foregroundColor(.gray)
             ScrollView(.horizontal) {
                 Text(tok.plain ?? "")
                     .font(.system(.body, design: .monospaced))

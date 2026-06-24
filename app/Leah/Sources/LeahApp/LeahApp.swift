@@ -136,10 +136,10 @@ struct DashboardSlotPlaceholder: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(slot.rawValue.capitalized)
-        .font(.system(size: 13, weight: .medium))
+        .font(.callout.weight(.medium))
         .foregroundColor(LeahPalette.ivory)
       Text("coming in Phase 4")
-        .font(.system(size: 11))
+        .font(.caption)
         .foregroundColor(LeahPalette.textMuted)
       Spacer(minLength: 0)
     }

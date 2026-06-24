@@ -144,27 +144,28 @@ public struct RecommendationsPane: View {
 
     private var kindToggles: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Recommendation kinds").font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+            Text("Recommendation kinds").font(.callout.weight(.semibold)).foregroundColor(.white)
             ForEach(model.kindsEnabled.keys.sorted(), id: \.self) { kind in
                 Toggle(isOn: Binding(
                     get: { model.kindsEnabled[kind] ?? false },
                     set: { model.kindsEnabled[kind] = $0 }
                 )) {
-                    Text(kind).font(.system(size: 13)).foregroundColor(.white)
+                    Text(kind).font(.callout).foregroundColor(.white)
                 }
                 .toggleStyle(.switch)
+                .accessibilityLabel("Enable \(kind) recommendations")
             }
         }
     }
 
     private var antiListSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Anti-recommend").font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+            Text("Anti-recommend").font(.callout.weight(.semibold)).foregroundColor(.white)
             if !model.editableRules.isEmpty {
                 ForEach(model.editableRules) { row in
                     HStack {
-                        Text(row.kind).foregroundColor(.white).font(.system(size: 12, design: .monospaced))
-                        Text(row.reason).foregroundColor(.gray).font(.system(size: 12))
+                        Text(row.kind).foregroundColor(.white).font(.system(.caption, design: .monospaced))
+                        Text(row.reason).foregroundColor(.gray).font(.caption)
                         Spacer()
                         Button("Remove") { _ = model.removeEditable(row) }
                             .buttonStyle(.borderless)
@@ -174,10 +175,10 @@ public struct RecommendationsPane: View {
             ForEach(model.lockedRules) { row in
                 HStack {
                     Image(systemName: "lock.fill").foregroundColor(.gray)
-                    Text(row.kind).foregroundColor(.white).font(.system(size: 12, design: .monospaced))
-                    Text(row.reason).foregroundColor(.gray).font(.system(size: 12))
+                    Text(row.kind).foregroundColor(.white).font(.system(.caption, design: .monospaced))
+                    Text(row.reason).foregroundColor(.gray).font(.caption)
                     Spacer()
-                    Text("spec").foregroundColor(.gray).font(.system(size: 11))
+                    Text("spec").foregroundColor(.gray).font(.caption)
                 }
             }
         }
@@ -185,17 +186,17 @@ public struct RecommendationsPane: View {
 
     private var experimentsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("A/B experiments").font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+            Text("A/B experiments").font(.callout.weight(.semibold)).foregroundColor(.white)
             ForEach(model.experiments) { exp in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
-                        Text(exp.kind).foregroundColor(.white).font(.system(size: 12, design: .monospaced))
+                        Text(exp.kind).foregroundColor(.white).font(.system(.caption, design: .monospaced))
                         if exp.locked, let arm = exp.lockedArm {
-                            Text("locked → \(arm)").foregroundColor(.green).font(.system(size: 11))
+                            Text("locked → \(arm)").foregroundColor(.green).font(.caption)
                         }
                     }
                     Text("A: \(exp.winsA)/\(exp.impressionsA)  ·  B: \(exp.winsB)/\(exp.impressionsB)")
-                        .foregroundColor(.gray).font(.system(size: 11))
+                        .foregroundColor(.gray).font(.caption)
                 }
             }
         }
@@ -203,13 +204,13 @@ public struct RecommendationsPane: View {
 
     private var ledgerSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Recent surfaced (last 30)").font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+            Text("Recent surfaced (last 30)").font(.callout.weight(.semibold)).foregroundColor(.white)
             ForEach(model.recentLedger) { row in
                 HStack {
-                    Text(row.kind).foregroundColor(.white).font(.system(size: 12, design: .monospaced))
-                    Text(row.body).foregroundColor(.gray).font(.system(size: 12)).lineLimit(1)
+                    Text(row.kind).foregroundColor(.white).font(.system(.caption, design: .monospaced))
+                    Text(row.body).foregroundColor(.gray).font(.caption).lineLimit(1)
                     Spacer()
-                    Text(row.outcome).foregroundColor(.gray).font(.system(size: 11))
+                    Text(row.outcome).foregroundColor(.gray).font(.caption)
                 }
             }
         }

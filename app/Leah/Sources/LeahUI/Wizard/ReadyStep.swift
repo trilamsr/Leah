@@ -10,18 +10,18 @@ public struct ReadyStep: View {
     VStack(alignment: .center, spacing: 24) {
       Spacer()
       Text("You're ready.")
-        .font(.system(size: 28, weight: .medium))
+        .font(.title.weight(.medium))
         .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
       HStack(spacing: 8) {
         Text("⌥")
-          .font(.system(size: 32, weight: .bold, design: .monospaced))
+          .font(.system(.largeTitle, design: .monospaced).weight(.bold))
           .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
         Text("Space")
-          .font(.system(size: 32, weight: .bold, design: .monospaced))
+          .font(.system(.largeTitle, design: .monospaced).weight(.bold))
           .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
       }
       Text("Press it anywhere to summon Leah.")
-        .font(.system(size: 14))
+        .font(.body)
         .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
       Spacer()
       HStack {

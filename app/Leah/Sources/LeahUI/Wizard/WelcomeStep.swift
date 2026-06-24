@@ -44,8 +44,9 @@ public struct WelcomeStep: View {
       }
       .scaleEffect(lScale)
       .opacity(lOpacity)
+      .accessibilityHidden(true)
       Text("personal assistant")
-        .font(.system(size: 16, weight: .light, design: .serif))
+        .font(.system(.body, design: .serif).weight(.light))
         .italic()
         .tracking(2.0)
         .foregroundColor(Color(red: 232/255, green: 220/255, blue: 196/255))
@@ -55,7 +56,7 @@ public struct WelcomeStep: View {
         Spacer()
         Button(action: onContinue) {
           Text("Begin")
-            .font(.system(size: 13, weight: .medium, design: .serif))
+            .font(.system(.callout, design: .serif).weight(.medium))
             .tracking(1.5)
             .padding(.horizontal, 28)
             .padding(.vertical, 10)

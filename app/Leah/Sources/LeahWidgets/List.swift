@@ -17,11 +17,11 @@ public struct ListWidget: LeahWidget {
                 ForEach(items.indices, id: \.self) { i in
                     HStack(alignment: .top, spacing: 8) {
                         Text(ordered ? "\(i + 1)." : "·")
-                            .font(.system(size: 13))
+                            .font(.callout)
                             .foregroundColor(Palette.accentGold)
                             .frame(minWidth: 16, alignment: .trailing)
                         Text(items[i])
-                            .font(.system(size: 13))
+                            .font(.callout)
                             .foregroundColor(Palette.ivory)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

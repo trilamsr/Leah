@@ -26,9 +26,9 @@ public struct GeneralPane: View {
     private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
-                Text("Hotkey").font(.system(size: 13, weight: .medium)).foregroundColor(.gray)
+                Text("Hotkey").font(.callout.weight(.medium)).foregroundColor(.gray)
                 HStack(spacing: 8) {
-                    Text("⌥Space").font(.system(size: 16, design: .monospaced)).foregroundColor(.white)
+                    Text("⌥Space").font(.system(.body, design: .monospaced)).foregroundColor(.white)
                     if hotkeyConflict {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundColor(.yellow)
@@ -38,11 +38,10 @@ public struct GeneralPane: View {
             }
             if hotkeyConflict {
                 HotkeyConflictWarning()
-            }
             Divider()
             Group {
-                Text("Theme").font(.system(size: 13, weight: .medium)).foregroundColor(.gray)
-                Text("Dark (Phase 2 adds Light)").font(.system(size: 13)).foregroundColor(.white)
+                Text("Theme").font(.callout.weight(.medium)).foregroundColor(.gray)
+                Text("Dark (Phase 2 adds Light)").font(.callout).foregroundColor(.white)
             }
             Divider()
             Toggle("Launch at login", isOn: $launchAtLogin)

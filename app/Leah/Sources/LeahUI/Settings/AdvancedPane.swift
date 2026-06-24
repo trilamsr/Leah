@@ -38,33 +38,39 @@ public struct AdvancedPane: View {
     private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
-                Text("Model").font(.system(size: 13, weight: .medium)).foregroundColor(.gray)
-                Text("Default: claude-sonnet-4-6").font(.system(size: 13)).foregroundColor(.white)
-                Text("Router: claude-haiku-4-5").font(.system(size: 13)).foregroundColor(.white)
+                Text("Model").font(.callout.weight(.medium)).foregroundColor(.gray)
+                Text("Default: claude-sonnet-4-6").font(.callout).foregroundColor(.white)
+                Text("Router: claude-haiku-4-5").font(.callout).foregroundColor(.white)
             }
             Divider()
             Toggle(isOn: $nextReply) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Use Opus 4.8 for the next query only").foregroundColor(.white)
                     Text("Daemon model flips to claude-opus-4-8 for the next request, then auto-resets.")
-                        .font(.system(size: 11)).foregroundColor(.gray)
+                        .font(.caption).foregroundColor(.gray)
                 }
             }
+            .accessibilityLabel("Use Opus 4.8 for the next query only")
+            .accessibilityHint("Daemon model flips to claude-opus-4-8 for the next request, then auto-resets.")
             Toggle(isOn: $sessionWide) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Use Opus 4.8 for this session").foregroundColor(.white)
                     Text("Persists until daemon restart or you toggle off.")
-                        .font(.system(size: 11)).foregroundColor(.gray)
+                        .font(.caption).foregroundColor(.gray)
                 }
             }
+            .accessibilityLabel("Use Opus 4.8 for this session")
+            .accessibilityHint("Persists until daemon restart or you toggle off.")
             Divider()
             Toggle(isOn: $useRollbackChannel) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Use rollback channel for updates").foregroundColor(.white)
                     Text("Surfaces the previous known-good build if the current release regressed.")
-                        .font(.system(size: 11)).foregroundColor(.gray)
+                        .font(.caption).foregroundColor(.gray)
                 }
             }
+            .accessibilityLabel("Use rollback channel for updates")
+            .accessibilityHint("Surfaces the previous known-good build if the current release regressed.")
             Spacer()
         }
         .padding(24)

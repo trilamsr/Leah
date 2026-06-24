@@ -57,7 +57,7 @@ public struct ConnectionsPane: View {
 
     private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+            Text(title).font(.callout.weight(.semibold)).foregroundColor(.white)
             content()
         }
     }
