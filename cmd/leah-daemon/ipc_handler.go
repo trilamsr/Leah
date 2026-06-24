@@ -22,6 +22,60 @@ import (
 // errVerifyFailed is returned by pingFn when the API key is rejected.
 var errVerifyFailed = errors.New("api key rejected")
 
+// VisionIPC, SyncIPC, RecommendIPC, PluginIPC, A2AIPC are the Phase 4
+// dispatch seams. Concrete handlers live in sibling files (ipc_vision.go,
+// ipc_sync.go, ipc_recommend.go, ipc_plugin.go, ipc_a2a.go) and are bound
+// to these surfaces at composition time. Switch arms call methods on
+// possibly-nil interfaces — the switch nil-checks so a daemon booted
+// without (e.g.) sync still answers other kinds normally.
+type VisionIPC interface {
+	Snap(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	StreamStart(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	StreamFrame(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+}
+
+type SyncIPC interface {
+	PeerList(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	PairStart(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	PairAck(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+}
+
+type RecommendIPC interface {
+	List(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	Apply(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	Dismiss(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	AntiAdd(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	AntiList(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+}
+
+type PluginIPC interface {
+	List(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	Install(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	Enable(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	Disable(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	Uninstall(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	Logs(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+}
+
+type A2AIPC interface {
+	PeerList(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	PairStart(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	PeerPause(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+	PeerUnpair(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
+}
+
+// IPCDeps groups Phase 4 dispatch seams so the production constructor's
+// argument list does not balloon further each task. Nil fields are safe —
+// the switch returns an error frame so the HUD sees a structured failure
+// instead of a closed conn.
+type IPCDeps struct {
+	Vision    VisionIPC
+	Sync      SyncIPC
+	Recommend RecommendIPC
+	Plugin    PluginIPC
+	A2A       A2AIPC
+}
+
 // streamFn adapts the live reasoner (or a test stub) into ipc.Frame output.
 // Each frame must be either "prose.delta" (with {"text":"..."} payload) or
 // "turn.end" (with {} payload). The channel is always closed by the producer.
@@ -41,8 +95,19 @@ type fetchFn func(ctx context.Context, query string, k int) ([]knowledge.Chunk, 
 type enrichFn func(ctx context.Context, citationURL string) (*knowledge.CitationEnrichment, error)
 
 // newIPCHandler is the production constructor wired into main.go.
+// Forwards to newIPCHandlerWithDeps with empty IPCDeps so the existing
+// call site keeps compiling; the composition-root sibling switches the
+// daemon over to newIPCHandlerWithDeps when Phase 4 surfaces ship.
 func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier, voiceSess duplex.DuplexSession) ipc.Handler {
-	return newIPCHandlerWithClassifyEnrich(db,
+	return newIPCHandlerWithDeps(sonnet, db, kg, ring, ttsCloud, ttsLocal, ttsClass, voiceSess, IPCDeps{})
+}
+
+// newIPCHandlerWithDeps is the Phase-4 production constructor: same as
+// newIPCHandler plus the dispatch seams for sync / recommend / plugin /
+// a2a / vision. Composition-root binds non-nil deps once their backing
+// services boot.
+func newIPCHandlerWithDeps(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier, voiceSess duplex.DuplexSession, deps IPCDeps) ipc.Handler {
+	return newIPCHandlerWithClassifyEnrichDeps(db,
 		liveStreamFn(sonnet),
 		liveOpusStreamFn(sonnet),
 		liveClassifyFn(),
@@ -53,6 +118,7 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 		ring,
 		ttsCloud, ttsLocal, ttsClass,
 		voiceSess,
+		deps,
 	)
 }
 
@@ -60,20 +126,20 @@ func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.G
 // don't need to exercise classify or verify-key.
 func newIPCHandlerForTest(db *sql.DB, s streamFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify,
-		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil, nil)
+	return newIPCHandlerWithClassifyEnrichDeps(db, s, s, noClassify,
+		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil, nil, IPCDeps{})
 }
 
 // newIPCHandlerWithPingForTest is kept for existing verify-key tests.
 func newIPCHandlerWithPingForTest(db *sql.DB, s streamFn, ping pingFn) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify, ping, nil, nil, time.Time{}, nil, nil, nil, nil, nil)
+	return newIPCHandlerWithClassifyEnrichDeps(db, s, s, noClassify, ping, nil, nil, time.Time{}, nil, nil, nil, nil, nil, IPCDeps{})
 }
 
 // newIPCHandlerWithDiag is kept for the diag_test.go test fixture.
 func newIPCHandlerWithDiag(db *sql.DB, s streamFn, ping pingFn, startTime time.Time) ipc.Handler {
 	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
-	return newIPCHandlerWithClassifyEnrich(db, s, s, noClassify, ping, nil, nil, startTime, nil, nil, nil, nil, nil)
+	return newIPCHandlerWithClassifyEnrichDeps(db, s, s, noClassify, ping, nil, nil, startTime, nil, nil, nil, nil, nil, IPCDeps{})
 }
 
 // newIPCHandlerWithClassify is the pre-enrichment injection point — kept so
@@ -90,12 +156,12 @@ func newIPCHandlerWithClassify(
 	ttsCloud, ttsLocal tts.Provider,
 	ttsClass tts.Classifier,
 ) ipc.Handler {
-	return newIPCHandlerWithClassifyEnrich(db, sonnetStream, opusStream, classify, ping, fetch, nil,
-		startTime, ring, ttsCloud, ttsLocal, ttsClass, nil)
+	return newIPCHandlerWithClassifyEnrichDeps(db, sonnetStream, opusStream, classify, ping, fetch, nil,
+		startTime, ring, ttsCloud, ttsLocal, ttsClass, nil, IPCDeps{})
 }
 
-// newIPCHandlerWithClassifyEnrich is the full injection point — all production
-// and citation-enrichment tests route through here.
+// newIPCHandlerWithClassifyEnrich is kept for the citation-enrichment test
+// fixtures; forwards to the Phase-4 deps-aware variant with empty IPCDeps.
 func newIPCHandlerWithClassifyEnrich(
 	db *sql.DB,
 	sonnetStream, opusStream streamFn,
@@ -108,6 +174,26 @@ func newIPCHandlerWithClassifyEnrich(
 	ttsCloud, ttsLocal tts.Provider,
 	ttsClass tts.Classifier,
 	voiceSess duplex.DuplexSession,
+) ipc.Handler {
+	return newIPCHandlerWithClassifyEnrichDeps(db, sonnetStream, opusStream, classify, ping, fetch, enrich,
+		startTime, ring, ttsCloud, ttsLocal, ttsClass, voiceSess, IPCDeps{})
+}
+
+// newIPCHandlerWithClassifyEnrichDeps is the full injection point — all
+// production wiring and Phase 4 dispatch tests route through here.
+func newIPCHandlerWithClassifyEnrichDeps(
+	db *sql.DB,
+	sonnetStream, opusStream streamFn,
+	classify classifyFn,
+	ping pingFn,
+	fetch fetchFn,
+	enrich enrichFn,
+	startTime time.Time,
+	ring *obs.ErrorRing,
+	ttsCloud, ttsLocal tts.Provider,
+	ttsClass tts.Classifier,
+	voiceSess duplex.DuplexSession,
+	deps IPCDeps,
 ) ipc.Handler {
 	reg := newTTSRegistry()
 	return func(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
@@ -140,10 +226,97 @@ func newIPCHandlerWithClassifyEnrich(
 			return handleVoiceBarge(ctx, req, voiceSess)
 		case ipc.KindVoiceEnd:
 			return handleVoiceEnd(ctx, req, voiceSess)
+
+		case ipc.KindVisionSnap:
+			return dispatchVision(ctx, req, deps.Vision, VisionIPC.Snap)
+		case ipc.KindVisionStreamStart:
+			return dispatchVision(ctx, req, deps.Vision, VisionIPC.StreamStart)
+		case ipc.KindVisionStreamFrame:
+			return dispatchVision(ctx, req, deps.Vision, VisionIPC.StreamFrame)
+
+		case ipc.KindSyncPeerList:
+			return dispatchSync(ctx, req, deps.Sync, SyncIPC.PeerList)
+		case ipc.KindSyncPairStart:
+			return dispatchSync(ctx, req, deps.Sync, SyncIPC.PairStart)
+		case ipc.KindSyncPairAck:
+			return dispatchSync(ctx, req, deps.Sync, SyncIPC.PairAck)
+
+		case ipc.KindRecommendList:
+			return dispatchRecommend(ctx, req, deps.Recommend, RecommendIPC.List)
+		case ipc.KindRecommendApply:
+			return dispatchRecommend(ctx, req, deps.Recommend, RecommendIPC.Apply)
+		case ipc.KindRecommendDismiss:
+			return dispatchRecommend(ctx, req, deps.Recommend, RecommendIPC.Dismiss)
+		case ipc.KindRecommendAntiAdd:
+			return dispatchRecommend(ctx, req, deps.Recommend, RecommendIPC.AntiAdd)
+		case ipc.KindRecommendAntiList:
+			return dispatchRecommend(ctx, req, deps.Recommend, RecommendIPC.AntiList)
+
+		case ipc.KindPluginList:
+			return dispatchPlugin(ctx, req, deps.Plugin, PluginIPC.List)
+		case ipc.KindPluginInstall:
+			return dispatchPlugin(ctx, req, deps.Plugin, PluginIPC.Install)
+		case ipc.KindPluginEnable:
+			return dispatchPlugin(ctx, req, deps.Plugin, PluginIPC.Enable)
+		case ipc.KindPluginDisable:
+			return dispatchPlugin(ctx, req, deps.Plugin, PluginIPC.Disable)
+		case ipc.KindPluginUninstall:
+			return dispatchPlugin(ctx, req, deps.Plugin, PluginIPC.Uninstall)
+		case ipc.KindPluginLogs:
+			return dispatchPlugin(ctx, req, deps.Plugin, PluginIPC.Logs)
+
+		case ipc.KindA2APeerList:
+			return dispatchA2A(ctx, req, deps.A2A, A2AIPC.PeerList)
+		case ipc.KindA2APairStart:
+			return dispatchA2A(ctx, req, deps.A2A, A2AIPC.PairStart)
+		case ipc.KindA2APeerPause:
+			return dispatchA2A(ctx, req, deps.A2A, A2AIPC.PeerPause)
+		case ipc.KindA2APeerUnpair:
+			return dispatchA2A(ctx, req, deps.A2A, A2AIPC.PeerUnpair)
+
 		default:
 			return errFrame(req, fmt.Sprintf("unknown kind: %q", req.Kind)), nil
 		}
 	}
+}
+
+// dispatchVision/Sync/Recommend/Plugin/A2A bind the per-surface nil-check.
+// Method values would let us write one generic helper, but Go's type system
+// can't capture "method on the interface itself" as a single signature
+// across receivers — five three-line helpers beat a reflective hop.
+func dispatchVision(ctx context.Context, req ipc.Frame, v VisionIPC, m func(VisionIPC, context.Context, ipc.Frame) (<-chan ipc.Frame, error)) (<-chan ipc.Frame, error) {
+	if v == nil {
+		return errFrame(req, fmt.Sprintf("vision unavailable for %s", req.Kind)), nil
+	}
+	return m(v, ctx, req)
+}
+
+func dispatchSync(ctx context.Context, req ipc.Frame, s SyncIPC, m func(SyncIPC, context.Context, ipc.Frame) (<-chan ipc.Frame, error)) (<-chan ipc.Frame, error) {
+	if s == nil {
+		return errFrame(req, fmt.Sprintf("sync unavailable for %s", req.Kind)), nil
+	}
+	return m(s, ctx, req)
+}
+
+func dispatchRecommend(ctx context.Context, req ipc.Frame, r RecommendIPC, m func(RecommendIPC, context.Context, ipc.Frame) (<-chan ipc.Frame, error)) (<-chan ipc.Frame, error) {
+	if r == nil {
+		return errFrame(req, fmt.Sprintf("recommend unavailable for %s", req.Kind)), nil
+	}
+	return m(r, ctx, req)
+}
+
+func dispatchPlugin(ctx context.Context, req ipc.Frame, p PluginIPC, m func(PluginIPC, context.Context, ipc.Frame) (<-chan ipc.Frame, error)) (<-chan ipc.Frame, error) {
+	if p == nil {
+		return errFrame(req, fmt.Sprintf("plugin unavailable for %s", req.Kind)), nil
+	}
+	return m(p, ctx, req)
+}
+
+func dispatchA2A(ctx context.Context, req ipc.Frame, a A2AIPC, m func(A2AIPC, context.Context, ipc.Frame) (<-chan ipc.Frame, error)) (<-chan ipc.Frame, error) {
+	if a == nil {
+		return errFrame(req, fmt.Sprintf("a2a unavailable for %s", req.Kind)), nil
+	}
+	return m(a, ctx, req)
 }
 
 // errFrame builds a one-shot error frame echoing the request turn_id.

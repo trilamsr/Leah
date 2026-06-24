@@ -67,6 +67,40 @@ const (
 	KindVisionStreamStart     = "vision.stream.start"
 	KindVisionStreamFrame     = "vision.stream.frame"
 	KindVisionConsentRequired = "vision.consent.required"
+
+	// Sync kinds — §10.7 sync.* (Bonjour + OTP pair). PeerList drains the
+	// current discovery snapshot; PairStart runs the OTP handshake against
+	// the matching peer; PairAck commits the sync_peer row.
+	KindSyncPeerList  = "sync.peer.list"
+	KindSyncPairStart = "sync.pair.start"
+	KindSyncPairAck   = "sync.pair.ack"
+
+	// Recommend kinds — §3.4 closed-loop coach. List paces NextBatch; Apply
+	// and Dismiss feed outcome telemetry; AntiAdd / AntiList drive the
+	// operator's anti-rule registry.
+	KindRecommendList     = "recommend.list"
+	KindRecommendApply    = "recommend.apply"
+	KindRecommendDismiss  = "recommend.dismiss"
+	KindRecommendAntiAdd  = "recommend.anti.add"
+	KindRecommendAntiList = "recommend.anti.list"
+
+	// Plugin kinds — §15 plugin lifecycle. List snapshots host state;
+	// Install/Uninstall manage bundles; Enable/Disable toggle without
+	// uninstall; Logs tails plugin stdout for the PluginsPane.
+	KindPluginList      = "plugin.list"
+	KindPluginInstall   = "plugin.install"
+	KindPluginEnable    = "plugin.enable"
+	KindPluginDisable   = "plugin.disable"
+	KindPluginUninstall = "plugin.uninstall"
+	KindPluginLogs      = "plugin.logs"
+
+	// A2A kinds — §14 agent-to-agent. PeerList snapshots paired peers;
+	// PairStart drives the §5.4 hello handshake; PeerPause toggles delivery;
+	// PeerUnpair revokes the trust record.
+	KindA2APeerList   = "a2a.peer.list"
+	KindA2APairStart  = "a2a.pair.start"
+	KindA2APeerPause  = "a2a.peer.pause"
+	KindA2APeerUnpair = "a2a.peer.unpair"
 )
 
 // Frame is the wire format. Seq is signed int64 so negative values can be
