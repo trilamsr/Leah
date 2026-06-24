@@ -1,13 +1,14 @@
 import AppKit
+import Combine
 
 // AppKit contract: NSStatusItem must mutate on the main thread.
 @MainActor
 public final class MenubarItem {
-  public enum State: Equatable { case idle, listening, error }
-  public private(set) var currentState: State = .idle
+  @Published public private(set) var state: MenubarState = .idle
   private let surface: StatusBarSurface
   private let onClick: () -> Void
   private let proxy: ClickProxy
+  private var stateSub: AnyCancellable?
 
   public convenience init(onClick: @escaping () -> Void) {
     self.init(surface: NSStatusBarSurface(), onClick: onClick)
@@ -19,21 +20,22 @@ public final class MenubarItem {
     self.surface = surface
     self.onClick = onClick
     self.proxy = ClickProxy(handler: onClick)
-    surface.install(image: MenubarHexagon.image(filled: false, hasDot: false),
+    surface.install(image: MenubarHexagon.image(for: .idle),
                     target: proxy,
                     action: #selector(ClickProxy.fire))
   }
 
-  public func setState(_ s: State) {
-    currentState = s
-    switch s {
-    case .idle:
-      surface.setImage(MenubarHexagon.image(filled: false, hasDot: false))
-    case .listening:
-      surface.setImage(MenubarHexagon.image(filled: true, hasDot: false))
-    case .error:
-      surface.setImage(MenubarHexagon.image(filled: true, hasDot: true))
-    }
+  public func setState(_ s: MenubarState) {
+    state = s
+    surface.setImage(MenubarHexagon.image(for: s))
+  }
+
+  /// Bind to a controller's state publisher; the menubar follows it on the
+  /// main run loop. Replaces any previous subscription.
+  public func bind(to controller: MenubarStateController) {
+    stateSub = controller.$state
+      .receive(on: RunLoop.main)
+      .sink { [weak self] s in self?.setState(s) }
   }
 }
 
