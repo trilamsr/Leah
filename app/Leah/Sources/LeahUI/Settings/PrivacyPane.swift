@@ -45,12 +45,27 @@ public final class PrivacyPaneModel: ObservableObject {
 public struct PrivacyPane: View {
     @StateObject private var model: PrivacyPaneModel
     @State private var status = ""
+    @State private var paneState: PaneState
 
-    public init(gate: TelemetryGating = BiometricsGate()) {
+    public init(gate: TelemetryGating = BiometricsGate(), initialState: PaneState = .loaded) {
         _model = StateObject(wrappedValue: PrivacyPaneModel(gate: gate))
+        _paneState = State(initialValue: initialState)
     }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "lock.shield",
+                       title: "Privacy controls unavailable",
+                       caption: "Telemetry + retention settings appear once Leah finishes setup.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             Toggle(isOn: Binding(
                 get: { model.telemetry },

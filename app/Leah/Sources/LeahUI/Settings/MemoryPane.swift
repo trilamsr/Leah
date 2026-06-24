@@ -57,13 +57,29 @@ public struct MemoryPane: View {
     @StateObject private var model: MemoryPaneModel
     @State private var typed = ""
     @State private var status = ""
+    @State private var paneState: PaneState
 
     public init(stats: MemoryStats = MemoryStats(chunkCount: 0, modelID: "voyage-3.5-lite", dim: 1024),
-                gate: TouchIDGating = BiometricsGate()) {
+                gate: TouchIDGating = BiometricsGate(),
+                initialState: PaneState = .loaded) {
         _model = StateObject(wrappedValue: MemoryPaneModel(stats: stats, gate: gate))
+        _paneState = State(initialValue: initialState)
     }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "brain",
+                       title: "No memory yet",
+                       caption: "Leah builds memory as you converse. Chunks appear here after the first index pass.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             row("Total chunks", value: "\(model.stats.chunkCount)")
             Divider()

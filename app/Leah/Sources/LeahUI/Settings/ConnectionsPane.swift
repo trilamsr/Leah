@@ -25,9 +25,26 @@ extension IntegrationRow.Kind: Identifiable {
 // ConnectionsPane composes the three §5.10 sections: outbound integrations
 // (existing v1 surface), inbound MCP tokens, A2A peers.
 public struct ConnectionsPane: View {
-    public init() {}
+    @State private var paneState: PaneState
+
+    public init(initialState: PaneState = .loaded) {
+        _paneState = State(initialValue: initialState)
+    }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "link",
+                       title: "No connections yet",
+                       caption: "Calendar, Mail, Files and MCP tokens appear here once you connect them.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 section("Outbound integrations") { OutboundIntegrationsSection() }

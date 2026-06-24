@@ -16,9 +16,26 @@ public struct AdvancedPane: View {
         UserDefaults.standard.bool(forKey: useRollbackChannelKey)
     }
 
-    public init() {}
+    @State private var paneState: PaneState
+
+    public init(initialState: PaneState = .loaded) {
+        _paneState = State(initialValue: initialState)
+    }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "wrench.and.screwdriver",
+                       title: "Advanced options unavailable",
+                       caption: "Model + update-channel toggles appear once the daemon is reachable.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
                 Text("Model").font(.system(size: 13, weight: .medium)).foregroundColor(.gray)

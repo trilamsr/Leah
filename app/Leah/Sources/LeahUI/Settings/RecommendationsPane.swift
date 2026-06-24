@@ -106,13 +106,28 @@ public final class RecommendationsPaneModel: ObservableObject {
 
 public struct RecommendationsPane: View {
     @StateObject private var model: RecommendationsPaneModel
+    @State private var paneState: PaneState
 
     @MainActor
-    public init(model: RecommendationsPaneModel? = nil) {
+    public init(model: RecommendationsPaneModel? = nil, initialState: PaneState = .loaded) {
         _model = StateObject(wrappedValue: model ?? RecommendationsPaneModel())
+        _paneState = State(initialValue: initialState)
     }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "sparkles",
+                       title: "No recommendations yet",
+                       caption: "Leah surfaces suggestions after you use it for a while. Toggles and history will appear here.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 kindToggles

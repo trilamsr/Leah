@@ -2,10 +2,26 @@ import SwiftUI
 
 public struct GeneralPane: View {
     @State private var launchAtLogin = false
+    @State private var paneState: PaneState
 
-    public init() {}
+    public init(initialState: PaneState = .loaded) {
+        _paneState = State(initialValue: initialState)
+    }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "slider.horizontal.3",
+                       title: "No general settings yet",
+                       caption: "Defaults will appear here once Leah finishes setup.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
                 Text("Hotkey").font(.system(size: 13, weight: .medium)).foregroundColor(.gray)

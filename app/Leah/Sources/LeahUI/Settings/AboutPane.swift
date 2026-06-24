@@ -15,17 +15,33 @@ public enum AboutInfo {
 public struct AboutPane: View {
     private let onCheckForUpdates: () -> Void
     @ObservedObject private var verification: VerificationModel
+    @State private var paneState: PaneState
 
     @MainActor
     public init(
         onCheckForUpdates: @escaping () -> Void = {},
-        verification: VerificationModel? = nil
+        verification: VerificationModel? = nil,
+        initialState: PaneState = .loaded
     ) {
         self.onCheckForUpdates = onCheckForUpdates
         self.verification = verification ?? VerificationModel()
+        _paneState = State(initialValue: initialState)
     }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "info.circle",
+                       title: "Version info unavailable",
+                       caption: "Build metadata appears once Leah finishes loading its bundle.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             row("Version", value: AboutInfo.version)
             Divider()
