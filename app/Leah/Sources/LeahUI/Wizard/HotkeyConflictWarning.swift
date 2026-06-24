@@ -15,15 +15,15 @@ public struct HotkeyConflictWarning: View {
   public var body: some View {
     HStack(alignment: .top, spacing: 10) {
       Image(systemName: "exclamationmark.triangle.fill")
-        .foregroundColor(.yellow)
+        .foregroundStyle(.yellow)
         .font(.system(size: 14))
       VStack(alignment: .leading, spacing: 4) {
         Text("\(chordLabel) is already taken by another app.")
           .font(.system(size: 13, weight: .medium))
-          .foregroundColor(.white)
+          .foregroundColor(.primary)
         Text("Leah cannot summon until you free this shortcut or assign a new one.")
           .font(.system(size: 12))
-          .foregroundColor(.gray)
+          .foregroundColor(.secondary)
         Button("Open Keyboard Shortcuts", action: onOpenShortcuts)
           .font(.system(size: 12))
           .padding(.top, 2)
