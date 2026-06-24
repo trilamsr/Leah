@@ -126,6 +126,8 @@ W1-T05 lands all nine migrations as a single PR (single-owner per CLAUDE.md froz
 
 ## Wave dependency matrix (21 tasks)
 
+> **D1 (Marketplace plugin discovery) deferred to Phase 5.1.** Spec §0 lists Marketplace as Deliverable #1 / Wave W3, but no implementer task is allocated here — Wave 3 covers taste+household (T10–T12). Marketplace discovery + auto-update wiring will be scoped as a follow-on Phase 5.1 mini-wave once W1–W5 ship.
+
 - **Wave 1** (perception + ledger substrate, parallel ≤ 5 — file-disjoint Go-side except T05 single-owner): T01 Computer-use loop runner + action ledger, T02 WKWebView cgo bridge + screenshot/tap controller, T03 macOS Accessibility API (AXUIElement) bridge, T04 deep-research orchestrator + verifier scaffold, T05 nine migrations (single-owner, lands FIRST).
 - **Wave 2** (control plane, parallel ≤ 4 — file-disjoint): T06 calendar smart-scheduler + travel-time + auto-decline, T07 subscription detector + renewal cards, T08 location geofence + reminder lifecycle, T09 long-context cache cursor + Anthropic prompt-cache wiring. Wave 2 starts after T05 merged.
 - **Wave 3** (taste + household, parallel ≤ 3 — file-disjoint): T10 taste profile + MusicKit bridge, T11 per-mood + per-context playlist generator, T12 household voice-ID enrollment wizard + per-profile attestation. Wave 3 starts after T09 merged.

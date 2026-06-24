@@ -12,7 +12,7 @@
 
 Phase 4 made Leah multi-modal and multi-agent on one operator's hardware; Phase 5 makes the SDK that Phase 4 shipped useful (third-party plugins can be found, installed, and trusted from a marketplace), shrinks the voice runtime so always-on listening fits on an 8 GB Mac, and closes the ambient-awareness gaps the 2026 capability inventory (`memory/research_ai_capability_domains_2026.md`) flagged — calendar reasoning, multi-language voice, continuous screen context, OCR-to-memory ingest, and macOS 16 (Tahoe) compatibility. The thesis: Phase 4 made Leah capable; Phase 5 makes Leah at-home on the operator's actual workday.
 
-Seven deliverables. Five build waves. Twenty-three implementer tasks previewed.
+Seven deliverables. Five build waves. Twenty-one implementer tasks previewed.
 
 | # | Deliverable | Wave | Ship gate |
 |---|---|---|---|
