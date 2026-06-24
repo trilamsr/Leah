@@ -48,7 +48,7 @@ func NewSonnetClient() (*AnthropicSonnetClient, error) {
 // Messages streaming endpoint, and returns text deltas on a buffered channel.
 // Closes the channel on stream end, ctx cancel, or terminal error — caller's
 // for-range loop terminates without leaking the SDK SSE goroutine.
-func (c *AnthropicSonnetClient) StreamVision(ctx context.Context, frame vision.Image, prompt string) (<-chan string, error) {
+func (c *AnthropicSonnetClient) StreamVision(ctx context.Context, frame vision.Image, prompt string) (<-chan VisionChunk, error) {
 	_, encoded, err := encodeFrameForSonnet(frame)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (c *AnthropicSonnetClient) StreamVision(ctx context.Context, frame vision.I
 		},
 	}
 	stream := c.sdk.Messages.NewStreaming(ctx, params)
-	out := make(chan string, 16)
+	out := make(chan VisionChunk, 16)
 	go func() {
 		defer func() { _ = stream.Close() }()
 		defer close(out)
@@ -76,9 +76,19 @@ func (c *AnthropicSonnetClient) StreamVision(ctx context.Context, frame vision.I
 					select {
 					case <-ctx.Done():
 						return
-					case out <- td.Text:
+					case out <- VisionChunk{Text: td.Text}:
 					}
 				}
+			}
+		}
+		// Surface mid-stream SDK errors — Next() returns false on both EOF and
+		// failure (timeout, rate-limit, auth, invalid-image). Without this
+		// check the router would treat a network drop as a clean turn-end and
+		// the HUD would render a silently-truncated answer.
+		if err := stream.Err(); err != nil {
+			select {
+			case <-ctx.Done():
+			case out <- VisionChunk{Err: err}:
 			}
 		}
 	}()

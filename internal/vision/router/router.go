@@ -39,11 +39,21 @@ type Router interface {
 	OCR(ctx context.Context, frame vision.Image) ([]vision.TextBlock, error)
 }
 
+// VisionChunk is a single SonnetClient stream frame. Text-only on the happy
+// path; Err non-nil signals a mid-stream failure (network drop, rate-limit,
+// invalid-image, auth) — implementations send one Err chunk and close. The
+// router surfaces Err as a terminal ReasonerEvent so the HUD sees the failure
+// rather than a silent truncated answer.
+type VisionChunk struct {
+	Text string
+	Err  error
+}
+
 // SonnetClient is the cloud vision leg. Implementations base64-encode frame
 // and call Anthropic Messages with a Base64ImageSource; the router itself
 // stays SDK-free so tests can inject a chunk slice.
 type SonnetClient interface {
-	StreamVision(ctx context.Context, image vision.Image, prompt string) (<-chan string, error)
+	StreamVision(ctx context.Context, image vision.Image, prompt string) (<-chan VisionChunk, error)
 }
 
 // VisionMeter is the slice of budget.Runtime the router needs. Passing the
@@ -115,10 +125,14 @@ func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mod
 			return
 		}
 		for chunk := range stream {
+			if chunk.Err != nil {
+				out <- ReasonerEvent{Err: chunk.Err, IsFinal: true}
+				return
+			}
 			select {
 			case <-ctx.Done():
 				return
-			case out <- ReasonerEvent{Text: chunk}:
+			case out <- ReasonerEvent{Text: chunk.Text}:
 			}
 		}
 		out <- ReasonerEvent{IsFinal: true}

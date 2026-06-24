@@ -3,6 +3,7 @@ package router
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -81,15 +82,25 @@ func (c *dbConsent) Grant(mode string, scope ConsentScope) {
 	if scope == ScopePersistent {
 		// DELETE+INSERT keeps the row count at 1 per mode without depending
 		// on a UNIQUE index that the T05 schema doesn't declare.
-		_, _ = c.db.Exec(`DELETE FROM vision_consent WHERE mode=?`, mode)
-		_, _ = c.db.Exec(
+		if _, err := c.db.Exec(`DELETE FROM vision_consent WHERE mode=?`, mode); err != nil {
+			slog.Default().Error("vision: consent persist DELETE failed",
+				"mode", mode, "err", err)
+			return
+		}
+		if _, err := c.db.Exec(
 			`INSERT INTO vision_consent(mode, granted_at, scope) VALUES(?,?,?)`,
 			mode, time.Now().Unix(), scopeToString(scope),
-		)
+		); err != nil {
+			slog.Default().Error("vision: consent persist INSERT failed",
+				"mode", mode, "err", err)
+		}
 	} else {
 		// Downgrade: drop any pre-existing persistent row so the lower-tier
 		// grant is the source of truth on next process start.
-		_, _ = c.db.Exec(`DELETE FROM vision_consent WHERE mode=? AND scope='persistent'`, mode)
+		if _, err := c.db.Exec(`DELETE FROM vision_consent WHERE mode=? AND scope='persistent'`, mode); err != nil {
+			slog.Default().Error("vision: consent downgrade DELETE failed",
+				"mode", mode, "err", err)
+		}
 	}
 }
 
@@ -97,5 +108,8 @@ func (c *dbConsent) Revoke(mode string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.m, mode)
-	_, _ = c.db.Exec(`DELETE FROM vision_consent WHERE mode=?`, mode)
+	if _, err := c.db.Exec(`DELETE FROM vision_consent WHERE mode=?`, mode); err != nil {
+		slog.Default().Error("vision: consent revoke DELETE failed",
+			"mode", mode, "err", err)
+	}
 }

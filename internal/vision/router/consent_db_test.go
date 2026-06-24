@@ -102,6 +102,30 @@ func TestDBConsent_PersistentRegrantReplacesRow(t *testing.T) {
 	}
 }
 
+func TestDBConsent_GrantRevokeLogOnDBError(t *testing.T) {
+	// Closing the DB before Grant/Revoke forces db.Exec to fail. The store
+	// must not panic and the in-memory cache must still reflect the call —
+	// the interface forbids returning an error, so the dbConsent logs and
+	// proceeds. This pins the contract so a refactor doesn't silently revert
+	// to a panic or skip the cache update.
+	db := openConsentDB(t)
+	s, err := NewDBConsent(db)
+	if err != nil {
+		t.Fatalf("NewDBConsent: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	s.Grant("screenshot", ScopePersistent)
+	if !s.Granted("screenshot") {
+		t.Fatal("cache must reflect Grant even when DB write fails")
+	}
+	s.Revoke("screenshot")
+	if s.Granted("screenshot") {
+		t.Fatal("cache must reflect Revoke even when DB write fails")
+	}
+}
+
 func TestDBConsent_DowngradeRemovesPersistentRow(t *testing.T) {
 	// Persistent → ThisSession downgrade must drop the DB row so a future
 	// process doesn't pick up the stale persistent grant.
