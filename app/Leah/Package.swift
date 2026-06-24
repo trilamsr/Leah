@@ -8,7 +8,9 @@ let package = Package(
     .executable(name: "Leah", targets: ["LeahApp"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
+    // Sparkle 2.6.4 is the minimum that ships the Sequoia (macOS 15) installer
+    // fix; earlier 2.6.x can leave the helper stuck post-relaunch on 15.x.
+    .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.4"),
   ],
   targets: [
     .executableTarget(
