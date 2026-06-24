@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import Combine
 @testable import LeahUI
 
 @MainActor
@@ -47,9 +48,12 @@ final class MenubarItemTests: XCTestCase {
     let fake = FakeStatusBarSurface()
     let m = MenubarItem(surface: fake, onClick: {})
     let ctrl = MenubarStateController()
+    let reached = expectation(description: "state reaches .thinking")
+    let probe = m.$state.sink { if $0 == .thinking { reached.fulfill() } }
     m.bind(to: ctrl)
     ctrl.transition(to: .thinking)
-    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    wait(for: [reached], timeout: 2.0)
     XCTAssertEqual(m.state, .thinking)
+    probe.cancel()
   }
 }
