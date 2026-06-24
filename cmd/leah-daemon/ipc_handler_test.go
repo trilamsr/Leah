@@ -514,22 +514,22 @@ func TestIPCHandlerFetchesContext(t *testing.T) {
 	}
 }
 
-type stubA2A struct{ called string }
+type stubA2AIPC struct{ called string }
 
-func (s *stubA2A) PeerList(_ context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
+func (s *stubA2AIPC) PeerList(_ context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
 	s.called = "PeerList"
 	out := make(chan ipc.Frame, 1)
 	out <- ipc.Frame{Kind: ipc.KindA2APeerList, TurnID: req.TurnID, Seq: 1, Payload: json.RawMessage(`{"peers":[]}`)}
 	close(out)
 	return out, nil
 }
-func (s *stubA2A) PairStart(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
+func (s *stubA2AIPC) PairStart(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
 	return nil, nil
 }
-func (s *stubA2A) PeerPause(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
+func (s *stubA2AIPC) PeerPause(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
 	return nil, nil
 }
-func (s *stubA2A) PeerUnpair(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
+func (s *stubA2AIPC) PeerUnpair(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
 	return nil, nil
 }
 
@@ -562,7 +562,7 @@ func TestIPCHandlerPhase4Dispatch(t *testing.T) {
 		}
 	}
 
-	stub := &stubA2A{}
+	stub := &stubA2AIPC{}
 	hStub := newIPCHandlerWithClassifyEnrichDeps(db, nil, nil, noClassify,
 		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil, nil,
 		IPCDeps{A2A: stub})

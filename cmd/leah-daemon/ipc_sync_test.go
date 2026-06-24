@@ -124,7 +124,7 @@ func TestHandleSyncPairStart_StoresPendingAndReturnsPeerID(t *testing.T) {
 	if got.PeerID != "dev-A" || got.Status != "paired" {
 		t.Errorf("payload: %+v", got)
 	}
-	if _, ok := pending.m["dev-A"]; !ok {
+	if _, ok := pending.snapshot("dev-A"); !ok {
 		t.Errorf("PairResult not staged for ack")
 	}
 }
@@ -190,7 +190,7 @@ func TestHandleSyncPairAck_InsertsRowAndReturnsOK(t *testing.T) {
 	if id != "dev-A" || name != "alice-mbp" || len(fp) != 2 || fp[0] != 0xAA || fp[1] != 0xBB {
 		t.Errorf("row: id=%q name=%q fp=%x paired=%d", id, name, fp, paired)
 	}
-	if _, ok := pending.m["dev-A"]; ok {
+	if _, ok := pending.snapshot("dev-A"); ok {
 		t.Errorf("pending not cleared on ack")
 	}
 }
@@ -223,24 +223,8 @@ func TestHandleSyncPairAck_EmptyPeerIDErr(t *testing.T) {
 	}
 }
 
-func TestSyncDispatchRoutedFromIPCHandler(t *testing.T) {
-	db := newSyncTestDB(t)
-	eng := &stubSyncEngine{peers: []discovery.Peer{
-		mustPeer("dev-X", "192.0.2.42:7777", 1700000005000, discovery.StatusOnline),
-	}}
-	noStream := func(_ context.Context, _, _ string) (<-chan ipc.Frame, error) { return nil, nil }
-	h := newIPCHandlerWithClassifyEnrich(db, noStream, noStream, nil,
-		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil, nil, eng)
-	req := ipc.Frame{Kind: ipc.KindSyncPeerList, TurnID: "s4", Seq: 0}
-	ch, err := h(context.Background(), req)
-	if err != nil {
-		t.Fatalf("dispatch: %v", err)
-	}
-	frames := drainFrames(ch)
-	if len(frames) != 1 || frames[0].Kind != ipc.KindSyncPeerList {
-		t.Fatalf("frames: %+v", frames)
-	}
-	if eng.browseCalled != 1 {
-		t.Errorf("browseCalled=%d, want 1", eng.browseCalled)
-	}
-}
+// TestSyncDispatchRoutedFromIPCHandler was retired in the fold: dispatch-wiring
+// binds sync via SyncIPC in IPCDeps (PeerList/PairStart/PairAck on ipc.Frame),
+// not via an engine arg on newIPCHandlerWithClassifyEnrich. The nil-deps
+// routing for sync.* is still covered by TestIPCHandlerPhase4Dispatch; binding
+// a concrete SyncIPC adapter is a follow-up.

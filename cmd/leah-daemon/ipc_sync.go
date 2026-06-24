@@ -182,3 +182,10 @@ func (p *pendingPairsMap) take(peerID string) (PairResult, bool) {
 	}
 	return r, ok
 }
+
+func (p *pendingPairsMap) snapshot(peerID string) (PairResult, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	r, ok := p.m[peerID]
+	return r, ok
+}
