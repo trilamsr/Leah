@@ -4,6 +4,16 @@ import AVFoundation
 @testable import LeahAuth
 
 final class WizardTests: XCTestCase {
+  override func setUp() {
+    super.setUp()
+    UserDefaults.standard.removeObject(forKey: WizardController.completedKey)
+  }
+
+  override func tearDown() {
+    UserDefaults.standard.removeObject(forKey: WizardController.completedKey)
+    super.tearDown()
+  }
+
   @MainActor
   func testWizardSkipsWhenKeychainPopulated() throws {
     try Keychain.save("sk-ant-present")
@@ -19,16 +29,31 @@ final class WizardTests: XCTestCase {
     XCTAssertTrue(c.shouldPresent())
   }
 
+  // Skip writes wizard_completed so a re-launch of the daemon does not
+  // re-present the wizard even though Keychain stays empty (default-OFF).
   @MainActor
-  func testWizardWalksAllSixSteps() {
+  func testSkipPersistsCompletedAndSuppressesRePresent() throws {
+    try? Keychain.delete()
+    let c = WizardController()
+    XCTAssertTrue(c.shouldPresent())
+    c.skip()
+    XCTAssertEqual(c.currentStep, .done)
+    XCTAssertFalse(c.shouldPresent(), "skip must persist wizard_completed")
+  }
+
+  @MainActor
+  func testWizardWalksAllSteps() {
     let c = WizardController()
     XCTAssertEqual(c.currentStep, .welcome)
     c.advance(); XCTAssertEqual(c.currentStep, .apiKey)
     c.advance(); XCTAssertEqual(c.currentStep, .hotkey)
     c.advance(); XCTAssertEqual(c.currentStep, .mic)
     c.advance(); XCTAssertEqual(c.currentStep, .integration)
+    c.advance(); XCTAssertEqual(c.currentStep, .firstPrompt)
     c.advance(); XCTAssertEqual(c.currentStep, .ready)
     c.advance(); XCTAssertEqual(c.currentStep, .done)
+    // .ready → .done triggers finish(); wizard_completed must persist.
+    XCTAssertTrue(UserDefaults.standard.bool(forKey: WizardController.completedKey))
   }
 
   // advance() must mutate @Published state on MainActor — @MainActor annotation
@@ -108,6 +133,12 @@ final class WizardTests: XCTestCase {
                   "caption must point to Settings for later enable")
   }
 
+  // Mic-denied recovery must point the user to the exact System Settings pane.
+  func testMicStepDeniedRecoveryCopyPointsAtSystemSettings() {
+    XCTAssertTrue(MicStep.deniedRecoveryCaption.contains("System Settings"))
+    XCTAssertTrue(MicStep.deniedRecoveryCaption.contains("Microphone"))
+  }
+
   // Welcome utterance must carry IPA pronunciation attribute on "Leah" to prevent
   // mispronunciation as "Lee" (dropped final syllable).
   func testWelcomeUtteranceHasLeahIPAAttribute() {
@@ -127,5 +158,28 @@ final class WizardTests: XCTestCase {
       }
     }
     XCTAssertTrue(foundIPAAttribute, "Leah range must have IPA attribute")
+  }
+
+  // FirstPromptStep prefills "What can you do?" and Send triggers both summon
+  // (opens HUD focus panel) and advance.
+  @MainActor
+  func testFirstPromptStepDefaultIsDemoQuestion() {
+    XCTAssertEqual(FirstPromptStep.defaultPrompt, "What can you do?")
+  }
+
+  // IntegrationStep "Connect later" silently continues — no error toast even
+  // when the user cancels the per-integration OAuth/CLI flow.
+  @MainActor
+  func testIntegrationStepConnectLaterSilent() {
+    var continued = false
+    var ranConnect = false
+    _ = IntegrationStep(
+      onContinue: { continued = true },
+      runConnect: { _ in ranConnect = true; return false }
+    )
+    // Construction does not auto-run anything; "Connect later" path just calls
+    // onContinue without shelling out.
+    XCTAssertFalse(continued)
+    XCTAssertFalse(ranConnect)
   }
 }

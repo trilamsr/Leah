@@ -1,7 +1,9 @@
 import SwiftUI
 import AppKit
 
-// Step 3: Hotkey confirm + Accessibility permission per spec §8.3.
+// Step 2: ⌥Space default summon + Accessibility permission per spec §8.3.
+// Custom-binding live editor is in Settings → Hotkey; we just point there to
+// keep the wizard's blast radius small (one decision per step).
 public struct HotkeyStep: View {
   let onContinue: () -> Void
 
@@ -18,6 +20,9 @@ public struct HotkeyStep: View {
         """)
         .font(.callout)
         .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
+      Text("Prefer a different shortcut? Change it later in Settings → Hotkey.")
+        .font(.system(size: 12))
+        .foregroundColor(Color(red: 138/255, green: 132/255, blue: 120/255))
       Spacer()
       HStack {
         Button("Open System Settings") {
