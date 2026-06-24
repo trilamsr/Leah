@@ -140,6 +140,9 @@ func (c *Coord) ApplyRemote(ctx context.Context, p discovery.Peer, entries []crd
 	if paused {
 		return crdt.DeltaStats{}, ErrPaused
 	}
+	if c.log == nil {
+		return crdt.DeltaStats{}, errors.New("log not wired")
+	}
 	stats, err := c.log.ApplyLog(ctx, entries)
 	if err != nil {
 		return stats, fmt.Errorf("apply: %w", err)
@@ -168,6 +171,9 @@ func (c *Coord) EmitFor(ctx context.Context, p discovery.Peer, since crdt.Lampor
 	}
 	if len(entries) == 0 {
 		return nil
+	}
+	if c.outbox == nil {
+		return errors.New("outbox not wired")
 	}
 	return c.outbox.Enqueue(ctx, p.ID(), entries)
 }
