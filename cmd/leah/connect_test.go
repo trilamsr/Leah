@@ -25,6 +25,11 @@ func TestRunConnect_List(t *testing.T) {
 	if !strings.Contains(out, "gmail") || !strings.Contains(out, "gcal") {
 		t.Fatalf("providers missing: %s", out)
 	}
+	// github + discord are new adapter slots — a registry regression that
+	// drops either should fail here, not at first operator-facing `--list`.
+	if !strings.Contains(out, "github") || !strings.Contains(out, "discord") {
+		t.Fatalf("github/discord missing: %s", out)
+	}
 	if !strings.Contains(out, "not authorized") {
 		t.Fatalf("want unauth marker: %s", out)
 	}
