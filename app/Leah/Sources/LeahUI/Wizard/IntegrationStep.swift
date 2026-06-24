@@ -13,6 +13,7 @@ public struct IntegrationStep: View {
 
   @State private var status: [Integration: ConnectionState] = [:]
   @State private var lastMessage = ""
+  @State private var pending: Set<Integration> = []
   private let store = EKEventStore()
 
   public init(
@@ -72,11 +73,9 @@ public struct IntegrationStep: View {
         .font(.callout)
         .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
       Spacer()
-      Button(status[opt] == .connected ? "Connected" : "Connect now (opens browser)") {
-        connect(opt)
-      }
-      .disabled(status[opt] == .connected)
-      .controlSize(.small)
+      Button(buttonLabel(opt)) { connect(opt) }
+        .disabled(status[opt] == .connected || pending.contains(opt))
+        .controlSize(.small)
     }
   }
 
@@ -89,13 +88,29 @@ public struct IntegrationStep: View {
         // No CLI mapping yet (Files) — silent skip, no error toast per spec.
         return
       }
-      let ok = runConnect(arg)
-      if ok {
-        status[opt] = .connected
-        lastMessage = "\(opt.rawValue) connected."
+      // Process.waitUntilExit on MainActor freezes the wizard for the entire
+      // device-code OAuth flow (minutes). Spawn off-main and re-enter MainActor
+      // only to publish the result.
+      pending.insert(opt)
+      let runConnectFn = runConnect
+      Task.detached(priority: .utility) {
+        let ok = runConnectFn(arg)
+        await MainActor.run {
+          pending.remove(opt)
+          if ok {
+            status[opt] = .connected
+            lastMessage = "\(opt.rawValue) connected."
+          }
+          // Cancelled / error: silent. User retries from Settings → Connections.
+        }
       }
-      // Cancelled / error: silent. User can retry from Settings → Connections.
     }
+  }
+
+  private func buttonLabel(_ opt: Integration) -> String {
+    if status[opt] == .connected { return "Connected" }
+    if pending.contains(opt) { return "Connecting…" }
+    return "Connect now (opens browser)"
   }
 
   private func connectCalendar() {

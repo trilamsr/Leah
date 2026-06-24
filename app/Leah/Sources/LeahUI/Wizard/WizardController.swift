@@ -14,6 +14,9 @@ public final class WizardController: ObservableObject {
 
   @Published public private(set) var currentStep: Step = .welcome
   private var window: NSWindow?
+  // Strong ref — NSWindow.delegate is weak. Without this the delegate
+  // deallocates before windowWillClose fires and X-close re-presents on relaunch.
+  private var windowDelegate: WizardWindowDelegate?
 
   public init() {}
 
@@ -37,6 +40,16 @@ public final class WizardController: ObservableObject {
     w.styleMask = [.titled, .closable]
     w.title = "Leah"
     w.center()
+    // X-close path: persist completed so we don't re-present, then drop
+    // activation policy. Same terminal state as finish() minus the step jump.
+    let delegate = WizardWindowDelegate { [weak self] in
+      UserDefaults.standard.set(true, forKey: Self.completedKey)
+      self?.window = nil
+      self?.windowDelegate = nil
+      NSApp?.setActivationPolicy(.accessory)
+    }
+    w.delegate = delegate
+    windowDelegate = delegate
     w.makeKeyAndOrderFront(nil)
     w.orderFrontRegardless()
     window = w
@@ -76,6 +89,13 @@ public final class WizardController: ObservableObject {
     UserDefaults.standard.set(true, forKey: Self.completedKey)
     window?.close()
     window = nil
+    windowDelegate = nil
     NSApp?.setActivationPolicy(.accessory)
   }
+}
+
+final class WizardWindowDelegate: NSObject, NSWindowDelegate {
+  private let onClose: () -> Void
+  init(onClose: @escaping () -> Void) { self.onClose = onClose }
+  func windowWillClose(_ notification: Notification) { onClose() }
 }
