@@ -25,10 +25,10 @@ public struct APIKeyStep: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text("Add your Anthropic API key.")
-        .font(.system(size: 22, weight: .medium))
+        .font(.title2.weight(.medium))
         .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
       Text("Get one at console.anthropic.com → API Keys.")
-        .font(.system(size: 13))
+        .font(.callout)
         .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
       HStack {
         Group {
@@ -41,10 +41,10 @@ public struct APIKeyStep: View {
         Button(showKey ? "Hide" : "Show") { showKey.toggle() }
       }
       Text("Stored securely in macOS Keychain.")
-        .font(.system(size: 12))
+        .font(.caption)
         .foregroundColor(Color(red: 138/255, green: 132/255, blue: 120/255))
       if !status.isEmpty {
-        Text(status).font(.system(size: 12)).foregroundColor(.gray)
+        Text(status).font(.caption).foregroundColor(.gray)
       }
       Spacer()
       HStack {

@@ -137,17 +137,17 @@ public struct CodeTileView: View {
   private var header: some View {
     HStack {
       Text(payload.language.uppercased())
-        .font(.system(size: 11, weight: .medium))
+        .font(.caption.weight(.medium))
         .tracking(0.5)
         .foregroundColor(CodeDiffPalette.textMuted)
       if let f = payload.filename {
         Text("· \(f)")
-          .font(.system(size: 11))
+          .font(.caption)
           .foregroundColor(CodeDiffPalette.textMuted)
       }
       Spacer()
       Button(action: copyToPasteboard) {
-        Text("Copy").font(.system(size: 11, weight: .medium)).tracking(0.5)
+        Text("Copy").font(.caption.weight(.medium)).tracking(0.5)
       }
       .buttonStyle(.borderless)
       .foregroundColor(CodeDiffPalette.textMuted)
@@ -160,7 +160,7 @@ public struct CodeTileView: View {
     let regions = payload.highlightedRegions()
     return regions.reduce(Text("")) { acc, r in
       acc + Text(r.text)
-        .font(.system(size: 13, design: .monospaced))
+        .font(.system(.callout, design: .monospaced))
         .foregroundColor(color(for: r.role))
     }
     .frame(maxWidth: .infinity, alignment: .leading)

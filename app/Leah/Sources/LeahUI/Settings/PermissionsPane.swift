@@ -8,10 +8,26 @@ public struct PermissionsPane: View {
     @State private var micGranted = false
     @State private var calGranted = false
     @State private var axGranted = false
+    @State private var paneState: PaneState
 
-    public init() {}
+    public init(initialState: PaneState = .loaded) {
+        _paneState = State(initialValue: initialState)
+    }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "hand.raised",
+                       title: "No permissions checked yet",
+                       caption: "Mic, Accessibility and Calendar status appear once Leah queries the system.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             permissionRow(
                 label: "Microphone",

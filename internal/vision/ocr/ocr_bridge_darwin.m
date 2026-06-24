@@ -11,6 +11,10 @@ int leah_ocr_recognize(const unsigned char* px, int w, int h, int bpp, OCRHit** 
     VNRecognizeTextRequest* req = [[VNRecognizeTextRequest alloc] init];
     req.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
     req.usesLanguageCorrection = YES;
+    // Pin to en-US: macOS 15 broadened Vision's default language set, which
+    // shifts per-observation confidence scores non-deterministically across
+    // OS minor versions. Explicit pin keeps OCR output stable for v1.1.
+    req.recognitionLanguages = @[@"en-US"];
     VNImageRequestHandler* handler = [[VNImageRequestHandler alloc] initWithCGImage:cgImg options:@{}];
     NSError* err = nil;
     BOOL ok = [handler performRequests:@[req] error:&err];

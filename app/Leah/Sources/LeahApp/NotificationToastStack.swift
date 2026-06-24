@@ -85,7 +85,7 @@ public struct NotificationToastStackView: View {
 
   private var overflowCard: some View {
     HStack {
-      Text("+\(stack.overflowCount) more").font(.system(size: 12)).foregroundColor(LeahPalette.textMuted)
+      Text("+\(stack.overflowCount) more").font(.caption).foregroundColor(LeahPalette.textMuted)
       Spacer(minLength: 0)
     }
     .padding(.horizontal, 12).padding(.vertical, 8)

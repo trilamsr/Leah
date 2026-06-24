@@ -21,7 +21,7 @@ public struct CitationTileView: View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 6) {
         Text(site)
-          .font(.system(size: 11, weight: .medium))
+          .font(.caption.weight(.medium))
           .tracking(0.5)
           .foregroundColor(LeahPalette.champagneGold)
         if let b = badge { BadgeChip(badge: b) }
@@ -31,7 +31,7 @@ public struct CitationTileView: View {
         .foregroundColor(LeahPalette.ivory)
       if !snippet.isEmpty {
         Text(snippet)
-          .font(.system(size: 12))
+          .font(.caption)
           .foregroundColor(LeahPalette.textMuted)
           .lineLimit(3)
       }
@@ -66,7 +66,7 @@ private struct BadgeChip: View {
   let badge: CitationTileView.Badge
   var body: some View {
     Text(badge == .stale ? "STALE" : "404")
-      .font(.system(size: 10, weight: .semibold))
+      .font(.caption2.weight(.semibold))
       .tracking(0.5)
       .foregroundColor(LeahPalette.ivory)
       .padding(.horizontal, 6)

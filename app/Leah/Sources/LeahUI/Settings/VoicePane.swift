@@ -25,13 +25,29 @@ public struct VoicePane: View {
 
     @State private var provider: String = VoicePane.currentTTSProvider()
     @State private var wakeWord: Bool = VoicePane.wakeWordEnabled()
+    @State private var paneState: PaneState
 
-    public init() {}
+    public init(initialState: PaneState = .loaded) {
+        _paneState = State(initialValue: initialState)
+    }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "waveform",
+                       title: "Voice not configured",
+                       caption: "TTS provider + wake-word controls appear once the voice runtime is enabled.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
-                Text("TTS provider").font(.system(size: 13, weight: .medium)).foregroundColor(.gray)
+                Text("TTS provider").font(.callout.weight(.medium)).foregroundColor(.gray)
                 Picker("", selection: $provider) {
                     ForEach(Self.ttsProviderOptions, id: \.self) { Text($0).tag($0) }
                 }
@@ -44,6 +60,7 @@ public struct VoicePane: View {
             Toggle("Listen for \"Hey Leah\" wake-word", isOn: $wakeWord)
                 .foregroundColor(.white)
                 .onChange(of: wakeWord) { _, newValue in Self.setWakeWordEnabled(newValue) }
+                .accessibilityHint("Adds ~2-4% to daily battery drain.")
             Divider()
             Button("Preview voice canon") {}
                 .disabled(true)

@@ -8,11 +8,12 @@ public struct WizardView: View {
   public var body: some View {
     VStack {
       switch controller.currentStep {
-      case .welcome:     WelcomeStep(onContinue: controller.advance)
+      case .welcome:     WelcomeStep(onContinue: controller.advance, onSkip: controller.skip)
       case .apiKey:      APIKeyStep(onContinue: controller.advance)
       case .hotkey:      HotkeyStep(onContinue: controller.advance)
       case .mic:         MicStep(onContinue: controller.advance)
       case .integration: IntegrationStep(onContinue: controller.advance)
+      case .firstPrompt: FirstPromptStep(onContinue: controller.advance)
       case .ready:       ReadyStep(onContinue: controller.advance)
       case .done:        Color.clear
       }

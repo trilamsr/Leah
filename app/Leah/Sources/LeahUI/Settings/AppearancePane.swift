@@ -49,13 +49,29 @@ public struct AppearancePane: View {
 
     @State private var theme: AppearanceTheme = AppearancePane.currentTheme()
     @State private var minimalMode: Bool = AppearancePane.minimalModeEnabled()
+    @State private var paneState: PaneState
 
-    public init() {}
+    public init(initialState: PaneState = .loaded) {
+        _paneState = State(initialValue: initialState)
+    }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "paintbrush",
+                       title: "Appearance not configured",
+                       caption: "Theme + minimal-mode controls appear once setup completes.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
-                Text("Theme").font(.system(size: 13, weight: .medium)).foregroundColor(.gray)
+                Text("Theme").font(.callout.weight(.medium)).foregroundColor(.gray)
                 Picker("", selection: $theme) {
                     ForEach(AppearanceTheme.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
@@ -66,11 +82,12 @@ public struct AppearancePane: View {
             Toggle("Minimal mode", isOn: $minimalMode)
                 .foregroundColor(.white)
                 .onChange(of: minimalMode) { _, newValue in Self.setMinimalModeEnabled(newValue) }
+                .accessibilityHint("Hides decorative HUD elements and pulse animations.")
             Divider()
             HStack {
-                Text("Accent budget").font(.system(size: 13, weight: .medium)).foregroundColor(.gray)
+                Text("Accent budget").font(.callout.weight(.medium)).foregroundColor(.gray)
                 Spacer()
-                Text(Self.accentBudgetText).font(.system(size: 13)).foregroundColor(.white)
+                Text(Self.accentBudgetText).font(.callout).foregroundColor(.white)
             }
             Spacer()
         }

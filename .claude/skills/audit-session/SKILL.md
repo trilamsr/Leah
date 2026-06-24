@@ -202,6 +202,30 @@ MEMORY.md sync: diff new `feedback_*` slugs vs MEMORY.md index → write missing
 
 Pointers freshness: `git diff --stat origin/main -- docs/engineer/`; ≥3 doc moves → flag stale-pointer audit.
 
+**Phase 4 v1.1 spec-parity check (binding when session touches `docs/superpowers/specs/2026-06-22-leah-phase4-design.md`).** The Phase 4 design spec has 9 §-sections (§1 Voice, §2 Sync, §3 Learn, §4 Vision, §5 A2A, §6 Attest, §7 Plugin, §8 Budget, §9 Supervisor). Each must back into an `internal/<pkg>/` directory with ≥1 non-test file. The pure-spec ship-with-no-code failure mode (audit-recommended-not-autonomous) is the symptom this catches.
+
+```bash
+spec_pkgs=(voice sync learn vision a2a attest plugin budget supervisor)
+: > "$HANDOFF_DIR/phase4-parity.txt"
+for p in "${spec_pkgs[@]}"; do
+  non_test=$(find "internal/$p" -name '*.go' ! -name '*_test.go' 2>/dev/null | head -1)
+  [ -z "$non_test" ] && echo "[PHASE4-PARITY] internal/$p missing non-test file" >> "$HANDOFF_DIR/phase4-parity.txt"
+done
+```
+
+Surface every line in hand-back. Do NOT auto-file (per Hard Nos) — a missing pkg may be intentional drop or pending implementation; operator decides.
+
+**Phase 4 dispatch-template harness verification.** Five templates must parse + paths must resolve: `{implementer,implementer-adapter,reviewer,designer,triage}.md`. Spec-parity script lives at `scripts/check-phase4-parity.sh` (when present).
+
+```bash
+for t in implementer implementer-adapter reviewer designer triage; do
+  [ -r "docs/engineer/dispatch-templates/$t.md" ] || \
+    echo "[DISPATCH-TEMPLATE-MISSING] $t.md" >> "$HANDOFF_DIR/phase4-parity.txt"
+done
+[ -x scripts/check-phase4-parity.sh ] && scripts/check-phase4-parity.sh \
+  >> "$HANDOFF_DIR/phase4-parity.txt" 2>&1 || true
+```
+
 `mark_done 4`
 
 ## Phase 5: Code audit (signal mining)
@@ -270,6 +294,62 @@ fi
 ```
 
 Surface in hand-back as `[ORPHAN-CANDIDATE] x N` where N is the orphan line count. Do NOT auto-file — some orphans are intentional (future-wired, dev-only entrypoints reachable via `go run`, test-only helpers consumed across module boundaries). Operator triages: wire it, delete it, or annotate it.
+
+**Phase 4 producer wiring (composition-root verification).** Lesson reinforced post-v3.3.0: 3 wiring gaps (TTS / KG / MCP bridge) shipped because orphan-scan ran AFTER tag. Phase 4 added 7 producer surfaces that must each be constructed in the composition root and invoked from ≥1 IPC handler — checking import-graph alone is not enough (a producer can be imported but never instantiated).
+
+```bash
+phase4_producers=(
+  "learn.Recommender"
+  "budget.Runtime"
+  "sync.Discovery"
+  "a2a.Server"
+  "plugin.Host"
+  "supervisor.Status"
+  "vision.Router"
+)
+root="cmd/leah-daemon"
+# Composition-root file: prefer composition_root.go when present, else main.go.
+# Both are valid — the spec calls for composition_root.go but main.go is the
+# current home of the wiring surface; tolerate either to avoid false alarms.
+comp_root="$root/composition_root.go"
+[ -r "$comp_root" ] || comp_root="$root/main.go"
+
+# wirePhase4Producers entry-point check — spec calls for a single named hook
+# invoked from main() so the wave can be re-ordered without churning main.go.
+if [ -r "$comp_root" ] && ! grep -q 'wirePhase4Producers' "$comp_root" "$root/main.go" 2>/dev/null; then
+  echo "[PHASE4-WIRING] wirePhase4Producers not invoked from $root/main.go" \
+    >> "$HANDOFF_DIR/phase4-wiring.txt"
+fi
+
+for prod in "${phase4_producers[@]}"; do
+  # Constructed in composition root?
+  if ! grep -rq "$prod" "$root/"*.go 2>/dev/null; then
+    echo "[PHASE4-WIRING] $prod not constructed in $root/" >> "$HANDOFF_DIR/phase4-wiring.txt"
+    continue
+  fi
+  # Invoked by ≥1 IPC handler? Heuristic: referenced from any ipc_*.go file
+  # in the daemon package. False-negative when the producer is passed through
+  # a struct field rather than a direct ref — operator triages in hand-back.
+  if ! grep -rq "$prod" "$root"/ipc_*.go 2>/dev/null; then
+    echo "[PHASE4-WIRING] $prod constructed but no ipc_*.go reference" \
+      >> "$HANDOFF_DIR/phase4-wiring.txt"
+  fi
+done
+```
+
+Every `[PHASE4-WIRING]` line surfaces in hand-back. Do NOT auto-file (per Hard Nos `NO auto-file on uncertain detection` — indirect refs via struct fields produce false negatives; operator triages).
+
+**Phase 4 frozen-enum-files delta.** Phase 4 added Kind enum entries to the already-frozen `internal/obs/events.go` and `internal/ipc/frame.go` for the sync / recommend / plugin / a2a / vision surfaces. Single-owner-per-dispatch rule (CLAUDE.md `Dispatch parallelism`) applies — concurrent edits race. Scan for parallel touches:
+
+```bash
+git log --since "$SESSION_START" --author "$GIT_AUTHOR" --name-only --pretty=format:'%H' \
+  -- internal/obs/events.go internal/ipc/frame.go \
+  | awk 'NF==1 && length($0)==40 {sha=$0; next} /events.go|frame.go/ {print sha"\t"$0}' \
+  | sort -u > "$HANDOFF_DIR/frozen-enum-touches.txt"
+[ "$(wc -l < "$HANDOFF_DIR/frozen-enum-touches.txt")" -ge 2 ] && \
+  echo "[FROZEN-ENUM-RACE] ≥2 commits touched frozen-enum files this session" \
+    >> "$HANDOFF_DIR/phase4-wiring.txt"
+```
 
 `mark_done 5_5`
 
@@ -447,6 +527,21 @@ if [ -s "$HANDOFF_DIR/orphans.txt" ]; then
   echo "--- orphan-candidates (Phase 5.5) ---"
   cat "$HANDOFF_DIR/orphans.txt"
 fi
+
+# Phase 4 parity (Phase 4 doc-audit extension) + wiring (Phase 5.5 extension).
+# Emit verbatim so the operator sees the failing §-section / producer pair.
+phase4_parity_count=0
+if [ -s "$HANDOFF_DIR/phase4-parity.txt" ]; then
+  phase4_parity_count=$(wc -l < "$HANDOFF_DIR/phase4-parity.txt" | tr -d ' ')
+  echo "--- phase4-parity (Phase 4) ---"
+  cat "$HANDOFF_DIR/phase4-parity.txt"
+fi
+phase4_wiring_count=0
+if [ -s "$HANDOFF_DIR/phase4-wiring.txt" ]; then
+  phase4_wiring_count=$(wc -l < "$HANDOFF_DIR/phase4-wiring.txt" | tr -d ' ')
+  echo "--- phase4-wiring (Phase 5.5) ---"
+  cat "$HANDOFF_DIR/phase4-wiring.txt"
+fi
 ```
 
 After all 9 phases + A1/A2 run, emit ONE consolidated hand-back block (the `[GATE-BOUNDARY-GAP] x N` count below = `gbg_count`; the individual lines emitted above this block name each template that needs the patch):
@@ -465,6 +560,10 @@ FILED (auto):
 - [AUTONOMY-LEVER] x N
 - [GATE-BOUNDARY-GAP] x N (from Phase 4 — feedback_* rules missing from dispatch-templates; surfaced for manual patch, not auto-edited)
 - [ORPHAN-CANDIDATE] x N (from Phase 5.5 — packages with zero non-test, non-cmd importers; surfaced for triage, not auto-filed — catches the v3.3.0 inert-ship failure mode where shipped packages never reached the composition root)
+- [PHASE4-PARITY] x N (from Phase 4 — Phase 4 design-spec §-section without backing `internal/<pkg>/` non-test file; surfaced for manual triage)
+- [PHASE4-WIRING] x N (from Phase 5.5 — Phase 4 producer not constructed in `cmd/leah-daemon/` OR constructed but no `ipc_*.go` reference; surfaced for triage — catches the v3.3.0 inert-ship recurrence at the producer-instantiation level)
+- [FROZEN-ENUM-RACE] x N (from Phase 5.5 — ≥2 session commits touched `internal/obs/events.go` or `internal/ipc/frame.go`; single-owner-per-dispatch rule violated, surfaced for review)
+- [DISPATCH-TEMPLATE-MISSING] x N (from Phase 4 — one of `{implementer,implementer-adapter,reviewer,designer,triage}.md` absent from `docs/engineer/dispatch-templates/`)
 
 CANDIDATES (next-session promote):
 - CLAUDE.md: <slug>

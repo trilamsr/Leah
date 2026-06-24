@@ -29,9 +29,8 @@ type memConsent struct {
 
 func newMemConsent() *memConsent { return &memConsent{m: map[string]ConsentScope{}} }
 
-// NewMemConsent returns an in-process ConsentStore. Persistence is deferred
-// to a DB-backed wrapper in T04.b — the in-memory store satisfies §4.6's
-// "first-time-per-session" requirement on its own.
+// NewMemConsent returns an in-process ConsentStore. Use NewDBConsent (in
+// consent_db.go) when persistent grants must survive a process restart.
 func NewMemConsent() ConsentStore { return newMemConsent() }
 
 func (c *memConsent) Granted(mode string) bool {

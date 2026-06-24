@@ -31,7 +31,7 @@ public struct ImageTileView: View {
 
       if state == .broken {
         Text("BROKEN")
-          .font(.system(size: 10, weight: .semibold))
+          .font(.caption2.weight(.semibold))
           .tracking(0.5)
           .foregroundColor(LeahPalette.ivory)
           .padding(.horizontal, 6).padding(.vertical, 2)

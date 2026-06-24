@@ -81,20 +81,20 @@ public struct AmbientHUDView: View {
       HStack(spacing: 8) {
         MarkGlyph().frame(width: 24, height: 24)
         Text(greeting())
-          .font(.system(size: 12, weight: .medium))
+          .font(.caption.weight(.medium))
           .foregroundColor(LeahPalette.textMuted)
         Spacer(minLength: 0)
       }
       if let now = nowRowText() {
         Text(now)
-          .font(.system(size: 13))
+          .font(.callout)
           .foregroundColor(LeahPalette.ivory)
           .lineLimit(1)
           .truncationMode(.tail)
       }
       Spacer(minLength: 0)
       Text(pulseText(rotation: pulseRotation))
-        .font(.system(size: 12, design: .monospaced))
+        .font(.system(.caption, design: .monospaced))
         .foregroundColor(LeahPalette.textMuted)
     }
     .padding(.horizontal, 14)

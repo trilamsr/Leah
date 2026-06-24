@@ -22,6 +22,7 @@ func DefaultRegistry() *Registry {
 	return NewRegistry([]Provider{
 		NewGmail(os.Getenv("LEAH_GMAIL_CLIENT_ID"), os.Getenv("LEAH_GMAIL_CLIENT_SECRET")),
 		NewGcal(os.Getenv("LEAH_GCAL_CLIENT_ID"), os.Getenv("LEAH_GCAL_CLIENT_SECRET")),
+		NewGitHub(os.Getenv("LEAH_GITHUB_CLIENT_ID"), os.Getenv("LEAH_GITHUB_CLIENT_SECRET")),
 		NewRegatta(),
 		newTokenPaste(tokenPasteSpec{name: "confluence", fields: []string{"Atlassian email", "API token"}, assemble: basicAuth}, os.Stdin, os.Stdout),
 		newTokenPaste(tokenPasteSpec{name: "jira", fields: []string{"Atlassian email", "API token"}, assemble: basicAuth}, os.Stdin, os.Stdout),
@@ -30,6 +31,9 @@ func DefaultRegistry() *Registry {
 		newTokenPaste(tokenPasteSpec{name: "linear", fields: []string{"API key (lin_api_…)"}, assemble: rawToken}, os.Stdin, os.Stdout),
 		newTokenPaste(tokenPasteSpec{name: "msteams", fields: []string{"Graph API bearer token"}, assemble: rawToken}, os.Stdin, os.Stdout),
 		newTokenPaste(tokenPasteSpec{name: "tmdb", fields: []string{"TMDB v4 read token (eyJ...)"}, assemble: rawToken}, os.Stdin, os.Stdout),
+		// Discord has no RFC-8628 device flow; Bot Tokens are pasted by the
+		// operator after creating an Application at discord.com/developers.
+		newTokenPaste(tokenPasteSpec{name: "discord", fields: []string{"Bot token"}, assemble: rawToken}, os.Stdin, os.Stdout),
 		newNativeMac("imessage", "osascript"),
 		newNativeMac("facetime", "open"),
 	})

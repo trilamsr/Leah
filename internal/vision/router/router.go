@@ -14,9 +14,8 @@ import (
 )
 
 // VisionMode is the operator preference for a single Ask. VisionAuto lets the
-// router escalate to Sonnet when local OCR confidence would not answer the
-// prompt; today shouldEscalate is a stub that always returns true (escalate
-// when permitted) — pending the heuristic in T04.b.
+// router escalate to Sonnet when prompt intent + frame size suggest local OCR
+// would not answer the prompt — heuristic lives in escalate.go.
 type VisionMode int
 
 const (
@@ -40,11 +39,21 @@ type Router interface {
 	OCR(ctx context.Context, frame vision.Image) ([]vision.TextBlock, error)
 }
 
+// VisionChunk is a single SonnetClient stream frame. Text-only on the happy
+// path; Err non-nil signals a mid-stream failure (network drop, rate-limit,
+// invalid-image, auth) — implementations send one Err chunk and close. The
+// router surfaces Err as a terminal ReasonerEvent so the HUD sees the failure
+// rather than a silent truncated answer.
+type VisionChunk struct {
+	Text string
+	Err  error
+}
+
 // SonnetClient is the cloud vision leg. Implementations base64-encode frame
 // and call Anthropic Messages with a Base64ImageSource; the router itself
 // stays SDK-free so tests can inject a chunk slice.
 type SonnetClient interface {
-	StreamVision(ctx context.Context, image vision.Image, prompt string) (<-chan string, error)
+	StreamVision(ctx context.Context, image vision.Image, prompt string) (<-chan VisionChunk, error)
 }
 
 // VisionMeter is the slice of budget.Runtime the router needs. Passing the
@@ -84,7 +93,7 @@ func New(ocr vision.OCREngine, sonnet SonnetClient, consent ConsentStore, meter 
 }
 
 func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mode VisionMode) (<-chan ReasonerEvent, error) {
-	useSonnet := mode == VisionSonnet || (mode == VisionAuto && r.shouldEscalate(frame))
+	useSonnet := mode == VisionSonnet || (mode == VisionAuto && shouldEscalate(frame, prompt))
 	if !useSonnet {
 		out := make(chan ReasonerEvent, 1)
 		close(out)
@@ -116,10 +125,14 @@ func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mod
 			return
 		}
 		for chunk := range stream {
+			if chunk.Err != nil {
+				out <- ReasonerEvent{Err: chunk.Err, IsFinal: true}
+				return
+			}
 			select {
 			case <-ctx.Done():
 				return
-			case out <- ReasonerEvent{Text: chunk}:
+			case out <- ReasonerEvent{Text: chunk.Text}:
 			}
 		}
 		out <- ReasonerEvent{IsFinal: true}
@@ -130,8 +143,3 @@ func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mod
 func (r *router) OCR(ctx context.Context, frame vision.Image) ([]vision.TextBlock, error) {
 	return r.ocr.Recognize(ctx, frame)
 }
-
-// shouldEscalate is the VisionAuto heuristic stub — today escalates whenever
-// the cloud path is reachable. Real heuristic (OCR-confidence threshold,
-// prompt-intent classifier) lands in T04.b once the HUD wires Ask end-to-end.
-func (r *router) shouldEscalate(_ vision.Image) bool { return true }

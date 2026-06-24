@@ -22,8 +22,8 @@ import (
 // the daemon-wiring test exercises Subscribe → handler → router without a
 // real gateway.
 type fakeDialer struct {
-	frames  [][]byte
-	dialed  atomic.Int32
+	frames [][]byte
+	dialed atomic.Int32
 }
 
 func (d *fakeDialer) Dial(_ context.Context, _, _ string) (discord.WebSocketConn, error) {
@@ -274,7 +274,7 @@ func TestStartInboundDiscordSelfBuildAttestsSelfBuildScope(t *testing.T) {
 		"op": 0, "t": "MESSAGE_CREATE",
 		"d": map[string]any{
 			"channel_id": "C1", "guild_id": "G1", "content": "approve",
-			"author": map[string]string{"id": "U1"},
+			"author":    map[string]string{"id": "U1"},
 			"timestamp": time.Now().Format(time.RFC3339Nano),
 		},
 	})

@@ -1,33 +1,84 @@
 import AppKit
 
+/// Daemon state surfaced through the menubar glyph. Five states match the
+/// IPC event taxonomy (push-source pipeline §4.2): shape signals the channel,
+/// color only joins for error so it can break template tinting and alert.
+public enum MenubarState: Sendable, Equatable {
+  case idle
+  case listening
+  case thinking
+  case responding
+  case error
+}
+
 public enum MenubarHexagon {
-  /// Draws an 18×18 hexagon as a TEMPLATE image so macOS tints it per
-  /// menubar appearance. Outlined = idle; filled = listening; filled +
-  /// inner dot = error (spec §4.2 — shape carries meaning, not color).
-  public static func image(filled: Bool, hasDot: Bool) -> NSImage {
-    let size = NSSize(width: 18, height: 18)
-    let img = NSImage(size: size, flipped: false) { rect in
-      let path = NSBezierPath()
-      let cx = rect.midX, cy = rect.midY, r: CGFloat = 8
-      for i in 0..<6 {
-        let a = (CGFloat(i) * .pi / 3) - .pi / 2
-        let p = NSPoint(x: cx + r * cos(a), y: cy + r * sin(a))
-        if i == 0 { path.move(to: p) } else { path.line(to: p) }
-      }
-      path.close()
-      path.lineWidth = 1.5
-      NSColor.black.setStroke()
-      NSColor.black.setFill()
-      if filled { path.fill() } else { path.stroke() }
-      if hasDot {
-        let dot = NSBezierPath(ovalIn: NSRect(x: cx - 1.5, y: cy - 1.5, width: 3, height: 3))
-        // punched-out center; template tinting inverts to accent on dark menubar
-        NSColor.white.setFill()
-        dot.fill()
+  /// Composes `hexagon.fill` with a state-specific SF Symbol overlay.
+  /// Template for idle/listening/thinking/responding (tints with menubar
+  /// appearance); error is colored so red reads regardless of mode.
+  public static func image(for state: MenubarState) -> NSImage {
+    switch state {
+    case .idle:
+      return baseHexagon()
+    case .listening:
+      return compose(overlay: "circle.fill", template: true)
+    case .thinking:
+      return compose(overlay: "ellipsis", template: true)
+    case .responding:
+      return compose(overlay: "waveform", template: true)
+    case .error:
+      return compose(overlay: "exclamationmark.triangle.fill",
+                     template: false,
+                     tint: .systemRed)
+    }
+  }
+
+  private static let pointSize: CGFloat = 16
+  private static let overlaySize: CGFloat = 9
+  private static let canvas = NSSize(width: 18, height: 18)
+
+  private static func baseHexagon() -> NSImage {
+    let cfg = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
+    let img = NSImage(systemSymbolName: "hexagon.fill", accessibilityDescription: "Leah idle")?
+      .withSymbolConfiguration(cfg) ?? fallback()
+    img.isTemplate = true
+    return img
+  }
+
+  private static func compose(overlay: String, template: Bool, tint: NSColor? = nil) -> NSImage {
+    let baseCfg = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
+    let overlayCfg = NSImage.SymbolConfiguration(pointSize: overlaySize, weight: .bold)
+    let baseSym = NSImage(systemSymbolName: "hexagon.fill", accessibilityDescription: nil)?
+      .withSymbolConfiguration(baseCfg) ?? fallback()
+    let overlaySym = NSImage(systemSymbolName: overlay, accessibilityDescription: nil)?
+      .withSymbolConfiguration(overlayCfg) ?? fallback()
+
+    let composed = NSImage(size: canvas, flipped: false) { rect in
+      // Bottom-right placement matches macOS badge convention.
+      baseSym.draw(in: rect)
+      let ow: CGFloat = overlaySize
+      let overlayRect = NSRect(x: rect.maxX - ow, y: 0, width: ow, height: ow)
+      if let tint = tint {
+        guard let tinted = overlaySym.copy() as? NSImage else {
+          overlaySym.draw(in: overlayRect)
+          return true
+        }
+        tinted.lockFocus()
+        tint.set()
+        NSRect(origin: .zero, size: tinted.size).fill(using: .sourceIn)
+        tinted.unlockFocus()
+        tinted.draw(in: overlayRect)
+      } else {
+        overlaySym.draw(in: overlayRect)
       }
       return true
     }
-    img.isTemplate = true
-    return img
+    composed.isTemplate = template
+    return composed
+  }
+
+  private static func fallback() -> NSImage {
+    // SF Symbols ship on macOS 11+; this branch only fires if a symbol id
+    // changes upstream. Empty image keeps the menubar slot alive.
+    NSImage(size: canvas)
   }
 }

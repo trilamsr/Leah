@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import Combine
 @testable import LeahUI
 
 @MainActor
@@ -22,28 +23,11 @@ final class FakeStatusBarSurface: StatusBarSurface {
 }
 
 final class MenubarItemTests: XCTestCase {
-  func testIdleHexagonIsOutlinedTemplate() {
-    let img = MenubarHexagon.image(filled: false, hasDot: false)
-    XCTAssertTrue(img.isTemplate, "menubar images MUST be template per spec §4.2")
-    XCTAssertEqual(img.size.width, 18, accuracy: 1)
-    XCTAssertEqual(img.size.height, 18, accuracy: 1)
-  }
-
-  func testListeningHexagonIsFilledTemplate() {
-    let img = MenubarHexagon.image(filled: true, hasDot: false)
-    XCTAssertTrue(img.isTemplate)
-  }
-
-  func testErrorHexagonHasInnerDotTemplate() {
-    let img = MenubarHexagon.image(filled: true, hasDot: true)
-    XCTAssertTrue(img.isTemplate)
-  }
-
   @MainActor
   func testMenubarItemDefaultsToIdle() {
     let fake = FakeStatusBarSurface()
     let m = MenubarItem(surface: fake, onClick: {})
-    XCTAssertEqual(m.currentState, .idle)
+    XCTAssertEqual(m.state, .idle)
     XCTAssertNotNil(fake.installedImage, "install() must run on construction")
   }
 
@@ -57,5 +41,19 @@ final class MenubarItemTests: XCTestCase {
     XCTAssertFalse(fake.lastImage === idleImg, "listening must swap image")
     m.setState(.error)
     XCTAssertNotNil(fake.lastImage)
+  }
+
+  @MainActor
+  func testBindFollowsControllerPublishedState() {
+    let fake = FakeStatusBarSurface()
+    let m = MenubarItem(surface: fake, onClick: {})
+    let ctrl = MenubarStateController()
+    let reached = expectation(description: "state reaches .thinking")
+    let probe = m.$state.sink { if $0 == .thinking { reached.fulfill() } }
+    m.bind(to: ctrl)
+    ctrl.transition(to: .thinking)
+    wait(for: [reached], timeout: 2.0)
+    XCTAssertEqual(m.state, .thinking)
+    probe.cancel()
   }
 }

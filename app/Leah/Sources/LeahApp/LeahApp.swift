@@ -39,7 +39,15 @@ struct LeahApp: App {
     let fp = FocusPanelController(client: client)
     focusPanel = fp
     let hk = HotkeyManager { Task { @MainActor in fp.summon() } }
-    hk.register()
+    // App launch must not fail if ⌥Space is taken — Settings surfaces the
+    // conflict badge so the user can rebind.
+    do {
+      _ = try hk.register()
+    } catch let HotkeyRegistrationError.conflict(other) {
+      NSLog("HotkeyManager: ⌥Space conflict (other=%@)", other ?? "unknown")
+    } catch {
+      NSLog("HotkeyManager: register failed: %@", String(describing: error))
+    }
     hotkey = hk
     summonObserver = NotificationCenter.default.addObserver(
       forName: .leahSummonFocusPanel,
@@ -128,10 +136,10 @@ struct DashboardSlotPlaceholder: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(slot.rawValue.capitalized)
-        .font(.system(size: 13, weight: .medium))
+        .font(.callout.weight(.medium))
         .foregroundColor(LeahPalette.ivory)
       Text("coming in Phase 4")
-        .font(.system(size: 11))
+        .font(.caption)
         .foregroundColor(LeahPalette.textMuted)
       Spacer(minLength: 0)
     }

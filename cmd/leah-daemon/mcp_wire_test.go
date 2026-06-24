@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/trilam/leah/internal/testutil"
 )
 
 // TestMCPPublishWired_GatedOn asserts startMCPPublishAt binds the publish
@@ -19,14 +21,16 @@ func TestMCPPublishWired_GatedOn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	startMCPPublishAt(ctx, nil, nil, os.Stderr, sock)
+	done := startMCPPublishAt(ctx, nil, nil, os.Stderr, sock)
 
-	if !waitFor(sock, true, 2*time.Second) {
-		t.Fatalf("publish socket not created at %s", sock)
-	}
+	testutil.Eventually(t, 2*time.Second, 10*time.Millisecond, func() bool {
+		_, err := os.Stat(sock)
+		return err == nil
+	})
 	cancel()
-	if !waitFor(sock, false, 2*time.Second) {
-		t.Fatalf("publish socket not removed after ctx cancel: %s", sock)
+	<-done
+	if _, err := os.Stat(sock); !os.IsNotExist(err) {
+		t.Fatalf("publish socket not removed after ctx cancel: %s (stat err=%v)", sock, err)
 	}
 }
 
@@ -39,9 +43,10 @@ func TestMCPPublishWired_GatedOff(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	startMCPPublishAt(ctx, nil, nil, os.Stderr, sock)
+	// ServePublish returns ErrPublishDisabled synchronously when the gate is
+	// off, so <-done is a deterministic gate — no wall-clock sleep needed.
+	<-startMCPPublishAt(ctx, nil, nil, os.Stderr, sock)
 
-	time.Sleep(150 * time.Millisecond)
 	if _, err := os.Stat(sock); err == nil {
 		t.Fatalf("publish socket created with gate off: %s", sock)
 	}
@@ -58,17 +63,4 @@ func shortSockPath(t *testing.T) string {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return filepath.Join(dir, "p.sock")
-}
-
-func waitFor(path string, want bool, d time.Duration) bool {
-	deadline := time.Now().Add(d)
-	for time.Now().Before(deadline) {
-		_, err := os.Stat(path)
-		exists := err == nil
-		if exists == want {
-			return true
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return false
 }

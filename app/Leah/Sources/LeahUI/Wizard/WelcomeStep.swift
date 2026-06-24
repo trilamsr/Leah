@@ -4,68 +4,86 @@ import AVFoundation
 // Step 1: Death-Note-L styling — bold extruded blackletter slab, regal sleek.
 // Forward scale on appear ("coming forward" intent).
 // Voice preview via system TTS (no mic perm needed) per spec §8.2.
+// Skip-wizard top-right routes to default-OFF setup; daemon never receives
+// opt-in writes for the skipped run.
 public struct WelcomeStep: View {
   let onContinue: () -> Void
+  let onSkip: () -> Void
   private let synth = AVSpeechSynthesizer()
   @State private var lScale: CGFloat = 0.55
   @State private var lOpacity: Double = 0.0
   @State private var subOpacity: Double = 0.0
 
-  public init(onContinue: @escaping () -> Void) { self.onContinue = onContinue }
+  public init(onContinue: @escaping () -> Void, onSkip: @escaping () -> Void = {}) {
+    self.onContinue = onContinue
+    self.onSkip = onSkip
+  }
 
   public var body: some View {
-    VStack(spacing: 24) {
-      Spacer()
-      // Death-Note-L styling — heavy blackletter slab. Layered text creates
-      // the extruded weight that single-pass Old English Text MT loses at
-      // SwiftUI's default tracking. Three-stack: shadow (depth) + gold halo
-      // (regal accent) + ivory face (legibility against obsidian).
-      ZStack {
-        // Halo: champagne gold glow.
-        Text("L")
-          .font(.custom("Old English Text MT", size: 240))
-          .fontWeight(.heavy)
-          .foregroundColor(Color(red: 201/255, green: 169/255, blue: 97/255))
-          .blur(radius: 16)
-          .opacity(0.6)
-        // Face: ivory, heavy serif weight, slight italic for forward lean.
-        Text("L")
-          .font(.custom("Old English Text MT", size: 240))
-          .fontWeight(.heavy)
-          .foregroundColor(Color(red: 240/255, green: 230/255, blue: 210/255))
-          .overlay(
-            Text("L")
-              .font(.custom("Old English Text MT", size: 240))
-              .fontWeight(.heavy)
-              .foregroundColor(.clear)
-              .shadow(color: Color(red: 201/255, green: 169/255, blue: 97/255), radius: 1, x: 1, y: 1)
-              .shadow(color: Color(red: 201/255, green: 169/255, blue: 97/255), radius: 1, x: -1, y: -1)
-          )
-      }
-      .scaleEffect(lScale)
-      .opacity(lOpacity)
-      Text("personal assistant")
-        .font(.system(size: 16, weight: .light, design: .serif))
-        .italic()
-        .tracking(2.0)
-        .foregroundColor(Color(red: 232/255, green: 220/255, blue: 196/255))
-        .opacity(subOpacity)
-      Spacer()
-      HStack {
+    ZStack(alignment: .topTrailing) {
+      VStack(spacing: 24) {
         Spacer()
-        Button(action: onContinue) {
-          Text("Begin")
-            .font(.system(size: 13, weight: .medium, design: .serif))
-            .tracking(1.5)
-            .padding(.horizontal, 28)
-            .padding(.vertical, 10)
+        // Death-Note-L styling — heavy blackletter slab. Layered text creates
+        // the extruded weight that single-pass Old English Text MT loses at
+        // SwiftUI's default tracking. Three-stack: shadow (depth) + gold halo
+        // (regal accent) + ivory face (legibility against obsidian).
+        ZStack {
+          // Halo: champagne gold glow.
+          Text("L")
+            .font(.custom("Old English Text MT", size: 240))
+            .fontWeight(.heavy)
+            .foregroundColor(Color(red: 201/255, green: 169/255, blue: 97/255))
+            .blur(radius: 16)
+            .opacity(0.6)
+          // Face: ivory, heavy serif weight, slight italic for forward lean.
+          Text("L")
+            .font(.custom("Old English Text MT", size: 240))
+            .fontWeight(.heavy)
+            .foregroundColor(Color(red: 240/255, green: 230/255, blue: 210/255))
+            .overlay(
+              Text("L")
+                .font(.custom("Old English Text MT", size: 240))
+                .fontWeight(.heavy)
+                .foregroundColor(.clear)
+                .shadow(color: Color(red: 201/255, green: 169/255, blue: 97/255), radius: 1, x: 1, y: 1)
+                .shadow(color: Color(red: 201/255, green: 169/255, blue: 97/255), radius: 1, x: -1, y: -1)
+            )
         }
-        .opacity(subOpacity)
-        .keyboardShortcut(.defaultAction)
+        .scaleEffect(lScale)
+        .opacity(lOpacity)
+        .accessibilityHidden(true)
+        Text("personal assistant")
+          .font(.system(.body, design: .serif).weight(.light))
+          .italic()
+          .tracking(2.0)
+          .foregroundColor(Color(red: 232/255, green: 220/255, blue: 196/255))
+          .opacity(subOpacity)
+        Spacer()
+        HStack {
+          Spacer()
+          Button(action: onContinue) {
+            Text("Begin")
+              .font(.system(.callout, design: .serif).weight(.medium))
+              .tracking(1.5)
+              .padding(.horizontal, 28)
+              .padding(.vertical, 10)
+          }
+          .opacity(subOpacity)
+          .keyboardShortcut(.defaultAction)
+        }
+        .padding(.bottom, 8)
       }
-      .padding(.bottom, 8)
+      .padding(48)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+      Button("Skip wizard", action: onSkip)
+        .buttonStyle(.plain)
+        .font(.system(size: 11, weight: .regular, design: .serif))
+        .foregroundColor(Color(red: 138/255, green: 132/255, blue: 120/255))
+        .padding(.top, 12)
+        .padding(.trailing, 16)
+        .opacity(subOpacity)
     }
-    .padding(48)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Color(red: 8/255, green: 9/255, blue: 12/255))
     .onAppear {

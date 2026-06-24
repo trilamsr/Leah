@@ -67,6 +67,41 @@ const (
 	KindVisionStreamStart     = "vision.stream.start"
 	KindVisionStreamFrame     = "vision.stream.frame"
 	KindVisionConsentRequired = "vision.consent.required"
+
+	// Sync kinds — HUD enumerates LAN peers via KindSyncPeerList,
+	// drives the OTP handshake with KindSyncPairStart, and finalizes the
+	// pairing (sync_peer row insert) with KindSyncPairAck.
+	KindSyncPeerList  = "sync.peer.list"
+	KindSyncPairStart = "sync.pair.start"
+	KindSyncPairAck   = "sync.pair.ack"
+
+	// Recommend kinds — Settings RecommendationsPane (T07) bridge into
+	// internal/learn.Recommender. List/Apply/Dismiss drive the queued→surfaced
+	// →accepted lifecycle; AntiAdd / AntiList expose the operator-source
+	// anti-rule surface so a kind dismissed by the user never re-surfaces.
+	KindRecommendList     = "recommend.list"
+	KindRecommendApply    = "recommend.apply"
+	KindRecommendDismiss  = "recommend.dismiss"
+	KindRecommendAntiAdd  = "recommend.anti.add"
+	KindRecommendAntiList = "recommend.anti.list"
+
+	// Plugin kinds — Settings PluginsPane drives plugin.Host through
+	// list/install/enable/disable/uninstall/logs; daemon echoes the same
+	// kind back with the result payload so HUD can route by request kind.
+	KindPluginList      = "plugin.list"
+	KindPluginInstall   = "plugin.install"
+	KindPluginEnable    = "plugin.enable"
+	KindPluginDisable   = "plugin.disable"
+	KindPluginUninstall = "plugin.uninstall"
+	KindPluginLogs      = "plugin.logs"
+
+	// A2A kinds — T14.b ConnectionsPane. peer.list snapshots paired
+	// agents; pair.start kicks the inbound OTP handshake; peer.pause toggles
+	// the §5.4.1 paused bit; peer.unpair drops a peer via A2AServer.Revoke.
+	KindA2APeerList   = "a2a.peer.list"
+	KindA2APairStart  = "a2a.pair.start"
+	KindA2APeerPause  = "a2a.peer.pause"
+	KindA2APeerUnpair = "a2a.peer.unpair"
 )
 
 // Frame is the wire format. Seq is signed int64 so negative values can be

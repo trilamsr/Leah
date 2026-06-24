@@ -20,19 +20,23 @@ func (f *fakeOCR) Recognize(_ context.Context, _ vision.Image) ([]vision.TextBlo
 }
 
 type fakeSonnet struct {
-	chunks []string
-	err    error
-	calls  atomic.Int32
+	chunks    []string
+	err       error
+	streamErr error
+	calls     atomic.Int32
 }
 
-func (f *fakeSonnet) StreamVision(_ context.Context, _ vision.Image, _ string) (<-chan string, error) {
+func (f *fakeSonnet) StreamVision(_ context.Context, _ vision.Image, _ string) (<-chan VisionChunk, error) {
 	f.calls.Add(1)
 	if f.err != nil {
 		return nil, f.err
 	}
-	out := make(chan string, len(f.chunks))
+	out := make(chan VisionChunk, len(f.chunks)+1)
 	for _, c := range f.chunks {
-		out <- c
+		out <- VisionChunk{Text: c}
+	}
+	if f.streamErr != nil {
+		out <- VisionChunk{Err: f.streamErr}
 	}
 	close(out)
 	return out, nil
@@ -171,6 +175,24 @@ func TestAsk_SonnetStreamError_PropagatesAsTerminalEvent(t *testing.T) {
 	got := drain(t, ch)
 	if len(got) != 1 || !got[0].IsFinal || got[0].Err == nil {
 		t.Fatalf("expected terminal error event; got %+v", got)
+	}
+}
+
+func TestAsk_SonnetMidStreamError_PropagatesAsTerminalEvent(t *testing.T) {
+	// StreamVision returns nil err on entry, then the underlying SDK stream
+	// fails partway (rate-limit, timeout, auth). The router MUST surface that
+	// as a terminal Err event — otherwise the HUD renders a truncated answer.
+	sonnet := &fakeSonnet{chunks: []string{"partial"}, streamErr: errors.New("rate limit")}
+	consent := newMemConsent()
+	consent.Grant("screenshot", ScopeThisSession)
+	r := New(&fakeOCR{}, sonnet, consent, nil, nil)
+	ch, err := r.Ask(context.Background(), newTestImage(), "p", VisionSonnet)
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	got := drain(t, ch)
+	if len(got) != 2 || got[0].Text != "partial" || !got[1].IsFinal || got[1].Err == nil {
+		t.Fatalf("expected partial text then terminal error; got %+v", got)
 	}
 }
 

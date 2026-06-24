@@ -49,7 +49,10 @@ final class DashboardViewTests: XCTestCase {
 
   @MainActor
   func testRequiredSlotsMatchSpec() {
-    XCTAssertEqual(DashboardView.requiredSlots, [.memory, .agenda, .briefs, .news, .knowledge])
+    XCTAssertEqual(
+      DashboardView.requiredSlots,
+      [.memory, .agenda, .briefs, .news, .knowledge, .coach, .privacy, .health]
+    )
   }
 
   @MainActor

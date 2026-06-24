@@ -24,7 +24,7 @@ fi
 
 # Assertion 2: --build-only does NOT call codesign.
 build_out=$("$SCRIPT" --build-only 2>&1) || true
-if echo "$build_out" | grep -qi "codesign\|Developer ID"; then
+if echo "$build_out" | grep -qiE "codesign|Developer ID"; then
   fail "--build-only output mentions codesign (should not)"
 else
   ok "--build-only does not mention codesign"

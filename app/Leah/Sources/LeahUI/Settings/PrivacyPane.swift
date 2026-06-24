@@ -45,12 +45,27 @@ public final class PrivacyPaneModel: ObservableObject {
 public struct PrivacyPane: View {
     @StateObject private var model: PrivacyPaneModel
     @State private var status = ""
+    @State private var paneState: PaneState
 
-    public init(gate: TelemetryGating = BiometricsGate()) {
+    public init(gate: TelemetryGating = BiometricsGate(), initialState: PaneState = .loaded) {
         _model = StateObject(wrappedValue: PrivacyPaneModel(gate: gate))
+        _paneState = State(initialValue: initialState)
     }
 
     public var body: some View {
+        switch paneState {
+        case .empty:
+            EmptyState(symbol: "lock.shield",
+                       title: "Privacy controls unavailable",
+                       caption: "Telemetry + retention settings appear once Leah finishes setup.")
+        case .error(let msg):
+            ErrorState(message: msg) { paneState = .loaded }
+        case .loaded:
+            loaded
+        }
+    }
+
+    private var loaded: some View {
         VStack(alignment: .leading, spacing: 16) {
             Toggle(isOn: Binding(
                 get: { model.telemetry },
@@ -64,18 +79,20 @@ public struct PrivacyPane: View {
                 }
             )) {
                 Text("Send anonymous error reports + performance metrics. Never includes message content.")
-                    .font(.system(size: 13))
+                    .font(.callout)
                     .foregroundColor(.white)
             }
+            .accessibilityLabel("Send anonymous error reports and performance metrics")
+            .accessibilityHint("Never includes message content.")
             if !status.isEmpty {
-                Text(status).font(.system(size: 12)).foregroundColor(.gray)
+                Text(status).font(.caption).foregroundColor(.gray)
             }
             Divider()
             Text("Embed locally (slower, private) — Phase 2")
-                .font(.system(size: 13)).foregroundColor(.gray)
+                .font(.callout).foregroundColor(.gray)
             Divider()
             Text("Conversation history kept: 24 hours (locked Phase 1)")
-                .font(.system(size: 13)).foregroundColor(.white)
+                .font(.callout).foregroundColor(.white)
             Spacer()
         }
         .padding(24)

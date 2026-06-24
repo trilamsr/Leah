@@ -46,7 +46,7 @@ public struct MarketTileView: View {
     HStack(alignment: .center, spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
         Text(symbol)
-          .font(.system(size: 13, weight: .medium, design: .monospaced))
+          .font(.system(.callout, design: .monospaced).weight(.medium))
           .foregroundColor(.leahIvory)
         // Single gold hairline anchors the symbol; one connected region toward
         // the 3-instance budget vs. N letter glyphs if the symbol were tinted.
@@ -54,7 +54,7 @@ public struct MarketTileView: View {
           .fill(Color.leahGold)
           .frame(width: 28, height: 1.5)
         Text(price)
-          .font(.system(size: 22, weight: .semibold, design: .monospaced))
+          .font(.system(.title2, design: .monospaced).weight(.semibold))
           .foregroundColor(.leahIvory)
         HStack(spacing: 4) {
           Text(deltaGlyph)
@@ -62,7 +62,7 @@ public struct MarketTileView: View {
           Text(changeText)
             .foregroundColor(.leahIvory)
         }
-        .font(.system(size: 12, design: .monospaced))
+        .font(.system(.caption, design: .monospaced))
       }
       Spacer(minLength: 8)
       sparklineChart

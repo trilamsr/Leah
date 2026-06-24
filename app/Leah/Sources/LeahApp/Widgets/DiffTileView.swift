@@ -83,12 +83,12 @@ public struct DiffTileView: View {
   private var header: some View {
     HStack {
       Text("DIFF")
-        .font(.system(size: 11, weight: .medium))
+        .font(.caption.weight(.medium))
         .tracking(DiffTilePayload.hunkHeaderTracking)
         .foregroundColor(CodeDiffPalette.textMuted)
       if let f = payload.filename {
         Text("· \(f)")
-          .font(.system(size: 11))
+          .font(.caption)
           .tracking(DiffTilePayload.hunkHeaderTracking)
           .foregroundColor(CodeDiffPalette.textMuted)
       }
@@ -106,13 +106,13 @@ public struct DiffTileView: View {
       switch line.kind {
       case .hunkHeader:
         Text(line.text)
-          .font(.system(size: 11, weight: .medium, design: .monospaced))
+          .font(.system(.caption, design: .monospaced).weight(.medium))
           .tracking(DiffTilePayload.hunkHeaderTracking)
           .foregroundColor(CodeDiffPalette.textMuted)
           .padding(.leading, 8)
       default:
         Text(prefix(for: line.kind) + line.text)
-          .font(.system(size: 13, design: .monospaced))
+          .font(.system(.callout, design: .monospaced))
           .foregroundColor(textColor(for: line.kind))
           .padding(.leading, 8)
       }

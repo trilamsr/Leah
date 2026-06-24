@@ -121,7 +121,7 @@ public struct WeatherTileView: View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 8) {
         Text("WEATHER \u{00B7} \(payload.location.uppercased())")
-          .font(.system(size: 11, weight: .medium))
+          .font(.caption.weight(.medium))
           .tracking(1.2)
           .foregroundColor(Self.textDim)
         Spacer()
@@ -129,10 +129,10 @@ public struct WeatherTileView: View {
 
       HStack(alignment: .firstTextBaseline, spacing: 12) {
         Text(Self.tempLabel(value: payload.current.temp, units: payload.units))
-          .font(.system(size: 32, weight: .regular))
+          .font(.largeTitle.weight(.regular))
           .foregroundColor(Self.gold)
         Text(payload.current.condition.replacingOccurrences(of: "_", with: " "))
-          .font(.system(size: 13))
+          .font(.callout)
           .foregroundColor(Self.ivory)
       }
 
@@ -140,16 +140,16 @@ public struct WeatherTileView: View {
         ForEach(Array(payload.forecast.enumerated()), id: \.offset) { _, day in
           VStack(spacing: 4) {
             Text(day.day)
-              .font(.system(size: 11, weight: .medium))
+              .font(.caption.weight(.medium))
               .foregroundColor(Self.textDim)
             Image(systemName: Self.iconName(for: day.condition))
               .foregroundColor(Self.goldMute)
               .font(.system(size: 16))
             Text(Self.tempLabel(value: day.high, units: payload.units))
-              .font(.system(size: 11))
+              .font(.caption)
               .foregroundColor(Self.ivory)
             Text(Self.tempLabel(value: day.low, units: payload.units))
-              .font(.system(size: 11))
+              .font(.caption)
               .foregroundColor(Self.textDim)
           }
         }

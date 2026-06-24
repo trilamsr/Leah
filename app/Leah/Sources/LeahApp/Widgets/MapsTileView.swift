@@ -82,7 +82,7 @@ public struct MapsTileView: View {
 
   private var eyebrow: some View {
     Text("MAPS · \(payload.label.uppercased())")
-      .font(.system(size: 11, weight: .regular, design: .default))
+      .font(.system(.caption, design: .default).weight(.regular))
       .tracking(0.04 * 11)
       .foregroundColor(Color(hex: "#B8B0A0"))
   }

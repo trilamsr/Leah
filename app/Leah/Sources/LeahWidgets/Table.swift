@@ -23,7 +23,7 @@ public struct TableWidget: LeahWidget {
             HStack(spacing: 16) {
                 ForEach(headers.indices, id: \.self) { i in
                     Text(headers[i])
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.caption.weight(.medium))
                         .tracking(0.5)
                         .foregroundColor(Palette.accentGold)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -38,7 +38,7 @@ public struct TableWidget: LeahWidget {
                 HStack(spacing: 16) {
                     ForEach(rows[r].indices, id: \.self) { c in
                         Text(rows[r][c])
-                            .font(.system(size: 13))
+                            .font(.callout)
                             .foregroundColor(cellColor(row: r, col: c))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

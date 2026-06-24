@@ -513,3 +513,68 @@ func TestIPCHandlerFetchesContext(t *testing.T) {
 		t.Fatalf("prompt missing original query: %q", capturedPrompt)
 	}
 }
+
+type stubA2AIPC struct{ called string }
+
+func (s *stubA2AIPC) PeerList(_ context.Context, req ipc.Frame) (<-chan ipc.Frame, error) {
+	s.called = "PeerList"
+	out := make(chan ipc.Frame, 1)
+	out <- ipc.Frame{Kind: ipc.KindA2APeerList, TurnID: req.TurnID, Seq: 1, Payload: json.RawMessage(`{"peers":[]}`)}
+	close(out)
+	return out, nil
+}
+func (s *stubA2AIPC) PairStart(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
+	return nil, nil
+}
+func (s *stubA2AIPC) PeerPause(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
+	return nil, nil
+}
+func (s *stubA2AIPC) PeerUnpair(_ context.Context, _ ipc.Frame) (<-chan ipc.Frame, error) {
+	return nil, nil
+}
+
+// Phase-4 dispatch: nil deps reply with a structured error frame instead of
+// dropping the conn; non-nil deps route through the interface method.
+func TestIPCHandlerPhase4Dispatch(t *testing.T) {
+	db := newTestTurnDB(t)
+
+	phase4Kinds := []string{
+		ipc.KindVisionSnap, ipc.KindVisionStreamStart, ipc.KindVisionStreamFrame,
+		ipc.KindSyncPeerList, ipc.KindSyncPairStart, ipc.KindSyncPairAck,
+		ipc.KindRecommendList, ipc.KindRecommendApply, ipc.KindRecommendDismiss,
+		ipc.KindRecommendAntiAdd, ipc.KindRecommendAntiList,
+		ipc.KindPluginList, ipc.KindPluginInstall, ipc.KindPluginEnable,
+		ipc.KindPluginDisable, ipc.KindPluginUninstall, ipc.KindPluginLogs,
+		ipc.KindA2APeerList, ipc.KindA2APairStart, ipc.KindA2APeerPause, ipc.KindA2APeerUnpair,
+	}
+
+	noClassify := func(_ context.Context, _ string) reasoner.Intent { return reasoner.Intent{Kind: "chat"} }
+	hNil := newIPCHandlerWithClassifyEnrichDeps(db, nil, nil, noClassify,
+		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil, nil, IPCDeps{})
+	for _, k := range phase4Kinds {
+		out, err := hNil(context.Background(), ipc.Frame{Kind: k, TurnID: "d1", Seq: 0})
+		if err != nil {
+			t.Fatalf("%s nil-dep: %v", k, err)
+		}
+		f := <-out
+		if f.Kind != ipc.KindError {
+			t.Fatalf("%s nil-dep: kind=%q want error", k, f.Kind)
+		}
+	}
+
+	stub := &stubA2AIPC{}
+	hStub := newIPCHandlerWithClassifyEnrichDeps(db, nil, nil, noClassify,
+		func(_ context.Context, _ string) error { return nil }, nil, nil, time.Time{}, nil, nil, nil, nil, nil,
+		IPCDeps{A2A: stub})
+	out, err := hStub(context.Background(), ipc.Frame{Kind: ipc.KindA2APeerList, TurnID: "d2", Seq: 0})
+	if err != nil {
+		t.Fatalf("a2a.peer.list: %v", err)
+	}
+	f := <-out
+	if f.Kind != ipc.KindA2APeerList {
+		t.Fatalf("a2a.peer.list: kind=%q", f.Kind)
+	}
+	if stub.called != "PeerList" {
+		t.Fatalf("stub.called=%q", stub.called)
+	}
+}

@@ -4,16 +4,25 @@ import LeahAuth
 
 public final class WizardController: ObservableObject {
   public enum Step: Equatable {
-    case welcome, apiKey, hotkey, mic, integration, ready, done
+    case welcome, apiKey, hotkey, mic, integration, firstPrompt, ready, done
   }
+
+  // Set after a successful walkthrough OR an explicit Skip. Read by
+  // shouldPresent() so a skipped wizard does not re-present on next launch
+  // even though the keychain stays empty (default-OFF safe state).
+  public static let completedKey = "leah.wizard.completed"
 
   @Published public private(set) var currentStep: Step = .welcome
   private var window: NSWindow?
+  // Strong ref — NSWindow.delegate is weak. Without this the delegate
+  // deallocates before windowWillClose fires and X-close re-presents on relaunch.
+  private var windowDelegate: WizardWindowDelegate?
 
   public init() {}
 
   public func shouldPresent() -> Bool {
-    (try? Keychain.read()) == nil
+    if UserDefaults.standard.bool(forKey: Self.completedKey) { return false }
+    return (try? Keychain.read()) == nil
   }
 
   @MainActor
@@ -31,6 +40,16 @@ public final class WizardController: ObservableObject {
     w.styleMask = [.titled, .closable]
     w.title = "Leah"
     w.center()
+    // X-close path: persist completed so we don't re-present, then drop
+    // activation policy. Same terminal state as finish() minus the step jump.
+    let delegate = WizardWindowDelegate { [weak self] in
+      UserDefaults.standard.set(true, forKey: Self.completedKey)
+      self?.window = nil
+      self?.windowDelegate = nil
+      NSApp?.setActivationPolicy(.accessory)
+    }
+    w.delegate = delegate
+    windowDelegate = delegate
     w.makeKeyAndOrderFront(nil)
     w.orderFrontRegardless()
     window = w
@@ -43,7 +62,8 @@ public final class WizardController: ObservableObject {
     case .apiKey:      currentStep = .hotkey
     case .hotkey:      currentStep = .mic
     case .mic:         currentStep = .integration
-    case .integration: currentStep = .ready
+    case .integration: currentStep = .firstPrompt
+    case .firstPrompt: currentStep = .ready
     case .ready:
       currentStep = .done
       finish()
@@ -51,13 +71,31 @@ public final class WizardController: ObservableObject {
     }
   }
 
-  /// finish closes the wizard window, releases the reference, and flips the
-  /// app back to .accessory mode (Info.plist contract — LSUIElement=false
-  /// gives us focus for onboarding, accessory after).
+  /// skip jumps directly to .done without touching any opt-in setting; the
+  /// daemon stays in its default-OFF state. Persists wizard_completed so we
+  /// do not re-present on next launch.
+  @MainActor
+  public func skip() {
+    currentStep = .done
+    finish()
+  }
+
+  /// finish closes the wizard window, releases the reference, persists the
+  /// completed flag, and flips the app back to .accessory mode (Info.plist
+  /// contract — LSUIElement=false gives us focus for onboarding, accessory
+  /// after). NSApp is nil under XCTest; guard it.
   @MainActor
   public func finish() {
+    UserDefaults.standard.set(true, forKey: Self.completedKey)
     window?.close()
     window = nil
-    NSApp.setActivationPolicy(.accessory)
+    windowDelegate = nil
+    NSApp?.setActivationPolicy(.accessory)
   }
+}
+
+final class WizardWindowDelegate: NSObject, NSWindowDelegate {
+  private let onClose: () -> Void
+  init(onClose: @escaping () -> Void) { self.onClose = onClose }
+  func windowWillClose(_ notification: Notification) { onClose() }
 }
