@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Pane render state: loaded shows content, empty/error replaces with placeholder.
 public enum PaneState {
     case loaded
     case empty
