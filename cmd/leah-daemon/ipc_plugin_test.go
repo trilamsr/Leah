@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/trilam/leah/internal/ipc"
@@ -110,9 +112,11 @@ func TestHandlePluginList_NilHost(t *testing.T) {
 }
 
 func TestHandlePluginInstall_OK(t *testing.T) {
+	root := t.TempDir()
+	bundle := filepath.Join(root, "a.leahplugin")
 	h := &stubHost{gotInstallID: "com.x.a"}
-	frame := reqFrame(t, ipc.KindPluginInstall, map[string]string{"bundle_path": "/tmp/a.leahplugin"})
-	got := drainPluginFrames(handlePluginInstall(context.Background(), frame, h))
+	frame := reqFrame(t, ipc.KindPluginInstall, map[string]string{"bundle_path": bundle})
+	got := drainPluginFrames(handlePluginInstall(context.Background(), frame, h, root))
 	if len(got) != 1 || got[0].Kind != ipc.KindPluginInstall {
 		t.Fatalf("want plugin.install frame: %+v", got)
 	}
@@ -122,15 +126,16 @@ func TestHandlePluginInstall_OK(t *testing.T) {
 	if err := json.Unmarshal(got[0].Payload, &body); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
-	if body.ID != "com.x.a" || h.gotInstallPath != "/tmp/a.leahplugin" {
+	if body.ID != "com.x.a" || h.gotInstallPath != bundle {
 		t.Fatalf("install mismatch: id=%q gotPath=%q", body.ID, h.gotInstallPath)
 	}
 }
 
 func TestHandlePluginInstall_AttestFailedSurfacesAsError(t *testing.T) {
+	root := t.TempDir()
 	h := &stubHost{installErr: plug.ErrPluginAttestFailed}
-	frame := reqFrame(t, ipc.KindPluginInstall, map[string]string{"bundle_path": "/tmp/bad"})
-	got := drainPluginFrames(handlePluginInstall(context.Background(), frame, h))
+	frame := reqFrame(t, ipc.KindPluginInstall, map[string]string{"bundle_path": filepath.Join(root, "bad")})
+	got := drainPluginFrames(handlePluginInstall(context.Background(), frame, h, root))
 	if len(got) != 1 || got[0].Kind != ipc.KindError {
 		t.Fatalf("want error frame: %+v", got)
 	}
@@ -138,9 +143,33 @@ func TestHandlePluginInstall_AttestFailedSurfacesAsError(t *testing.T) {
 
 func TestHandlePluginInstall_BadPayload(t *testing.T) {
 	frame := ipc.Frame{Kind: ipc.KindPluginInstall, TurnID: "tp", Seq: 1, Payload: json.RawMessage("{")}
-	got := drainPluginFrames(handlePluginInstall(context.Background(), frame, &stubHost{}))
+	got := drainPluginFrames(handlePluginInstall(context.Background(), frame, &stubHost{}, t.TempDir()))
 	if len(got) != 1 || got[0].Kind != ipc.KindError {
 		t.Fatalf("want error frame: %+v", got)
+	}
+}
+
+func TestHandlePluginInstall_PathTraversalBlocked(t *testing.T) {
+	root := t.TempDir()
+	h := &stubHost{}
+	cases := []string{"/etc/passwd", "/tmp/elsewhere", root + "-evil/bundle"}
+	for _, p := range cases {
+		frame := reqFrame(t, ipc.KindPluginInstall, map[string]string{"bundle_path": p})
+		got := drainPluginFrames(handlePluginInstall(context.Background(), frame, h, root))
+		if len(got) != 1 || got[0].Kind != ipc.KindError {
+			t.Fatalf("path %q: want error frame, got %+v", p, got)
+		}
+		if h.gotInstallPath != "" {
+			t.Fatalf("path %q: host should never see install for traversal", p)
+		}
+	}
+}
+
+func TestHandlePluginInstall_RootUnconfigured(t *testing.T) {
+	frame := reqFrame(t, ipc.KindPluginInstall, map[string]string{"bundle_path": "/anything"})
+	got := drainPluginFrames(handlePluginInstall(context.Background(), frame, &stubHost{}, ""))
+	if len(got) != 1 || got[0].Kind != ipc.KindError {
+		t.Fatalf("empty root must error: %+v", got)
 	}
 }
 
@@ -226,5 +255,70 @@ func TestHandlePluginLogs_HostError(t *testing.T) {
 	got := drainPluginFrames(handlePluginLogs(context.Background(), frame, h))
 	if len(got) != 1 || got[0].Kind != ipc.KindError {
 		t.Fatalf("want error frame: %+v", got)
+	}
+}
+
+func TestHandlePlugin_IDValidationRejectsInjection(t *testing.T) {
+	bad := []string{
+		"",
+		"a",                 // too short
+		"AB",                // uppercase
+		"../etc/passwd",     // traversal
+		"x/y",               // path sep
+		"x;DROP TABLE",      // sql
+		"x\nname",           // newline
+		strings.Repeat("a", 65),
+	}
+	for _, id := range bad {
+		t.Run(id, func(t *testing.T) {
+			h := &stubHost{}
+			for _, kind := range []string{ipc.KindPluginEnable, ipc.KindPluginDisable, ipc.KindPluginUninstall, ipc.KindPluginLogs} {
+				frame := reqFrame(t, kind, map[string]any{"id": id})
+				var got []ipc.Frame
+				switch kind {
+				case ipc.KindPluginEnable:
+					got = drainPluginFrames(handlePluginEnable(context.Background(), frame, h))
+				case ipc.KindPluginDisable:
+					got = drainPluginFrames(handlePluginDisable(context.Background(), frame, h))
+				case ipc.KindPluginUninstall:
+					got = drainPluginFrames(handlePluginUninstall(context.Background(), frame, h))
+				case ipc.KindPluginLogs:
+					got = drainPluginFrames(handlePluginLogs(context.Background(), frame, h))
+				}
+				if len(got) != 1 || got[0].Kind != ipc.KindError {
+					t.Fatalf("%s id=%q: want error, got %+v", kind, id, got)
+				}
+			}
+			if h.gotEnableID != "" || h.gotDisableID != "" || h.gotUninstallID != "" || h.gotLogsID != "" {
+				t.Fatal("host saw an invalid id — validation skipped")
+			}
+		})
+	}
+}
+
+func TestHandlePluginLogs_TailBoundsCap(t *testing.T) {
+	// Build 100 lines, each ~16KiB; raw total ~1.6 MiB exceeds the 1 MiB cap.
+	big := strings.Repeat("x", 16*1024)
+	lines := make([]leahplugin.LogLine, 100)
+	for i := range lines {
+		lines[i] = leahplugin.LogLine{At: int64(i), Level: leahplugin.LogInfo, Msg: big}
+	}
+	h := &stubHost{logsResult: lines}
+	frame := reqFrame(t, ipc.KindPluginLogs, map[string]any{"id": "com.x.a", "tail": 100})
+	got := drainPluginFrames(handlePluginLogs(context.Background(), frame, h))
+	if len(got) != 1 || got[0].Kind != ipc.KindPluginLogs {
+		t.Fatalf("want logs frame: %+v", got)
+	}
+	if n := len(got[0].Payload); n > 2*logTailMaxBytes {
+		t.Fatalf("payload %d bytes exceeds 2x cap; bounds-explosion guard missing", n)
+	}
+	var body struct {
+		Lines []pluginLogWire `json:"lines"`
+	}
+	if err := json.Unmarshal(got[0].Payload, &body); err != nil {
+		t.Fatalf("payload: %v", err)
+	}
+	if len(body.Lines) >= len(lines) {
+		t.Fatalf("expected truncation, got %d/%d", len(body.Lines), len(lines))
 	}
 }

@@ -3,7 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/trilam/leah/internal/ipc"
 	plug "github.com/trilam/leah/internal/plugin"
@@ -27,6 +31,49 @@ type pluginLogWire struct {
 	Msg   string `json:"msg"`
 }
 
+// pluginIDRe constrains plugin IDs to reverse-DNS-style labels across IPC
+// + sqlstore rows; rejects path-traversal, control chars, and SQL meta
+// before host hits. Each dot-separated label is [a-z0-9][a-z0-9-]* and the
+// overall length is capped at 64 to bound row size.
+var pluginIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*$`)
+
+// logTailMaxBytes caps the serialized log slice; an attacker passing
+// tail=MaxInt would otherwise allocate unbounded memory in the host.
+const logTailMaxBytes = 1 << 20 // 1 MiB
+
+func validatePluginID(id string) error {
+	if len(id) < 3 || len(id) > 64 {
+		return fmt.Errorf("invalid plugin id")
+	}
+	if !pluginIDRe.MatchString(id) {
+		return fmt.Errorf("invalid plugin id")
+	}
+	return nil
+}
+
+// validateBundlePath rejects paths outside the daemon's plugin root —
+// without this an Install caller could pass `/etc/passwd` or `../../foo`
+// and the host would resolve absolute + Stat it.
+func validateBundlePath(bundlePath, pluginRoot string) (string, error) {
+	if pluginRoot == "" {
+		return "", errors.New("plugin root unconfigured")
+	}
+	abs, err := filepath.Abs(bundlePath)
+	if err != nil {
+		return "", fmt.Errorf("resolve bundle path: %w", err)
+	}
+	rootAbs, err := filepath.Abs(pluginRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve plugin root: %w", err)
+	}
+	// Trailing separator prevents `/root-evil` matching `/root`.
+	prefix := rootAbs + string(filepath.Separator)
+	if abs != rootAbs && !strings.HasPrefix(abs, prefix) {
+		return "", errors.New("bundle path escapes plugin root")
+	}
+	return abs, nil
+}
+
 func handlePluginList(req ipc.Frame, host plug.Host) <-chan ipc.Frame {
 	if host == nil {
 		return errFrame(req, "plugin host unavailable")
@@ -45,7 +92,7 @@ func handlePluginList(req ipc.Frame, host plug.Host) <-chan ipc.Frame {
 	return okFrame(req, ipc.KindPluginList, map[string]any{"plugins": out})
 }
 
-func handlePluginInstall(ctx context.Context, req ipc.Frame, host plug.Host) <-chan ipc.Frame {
+func handlePluginInstall(ctx context.Context, req ipc.Frame, host plug.Host, pluginRoot string) <-chan ipc.Frame {
 	if host == nil {
 		return errFrame(req, "plugin host unavailable")
 	}
@@ -55,7 +102,11 @@ func handlePluginInstall(ctx context.Context, req ipc.Frame, host plug.Host) <-c
 	if err := json.Unmarshal(req.Payload, &p); err != nil {
 		return errFrame(req, fmt.Sprintf("bad payload: %v", err))
 	}
-	id, err := host.Install(ctx, p.BundlePath)
+	abs, err := validateBundlePath(p.BundlePath, pluginRoot)
+	if err != nil {
+		return errFrame(req, err.Error())
+	}
+	id, err := host.Install(ctx, abs)
 	if err != nil {
 		return errFrame(req, err.Error())
 	}
@@ -80,6 +131,9 @@ func handlePluginToggle(ctx context.Context, req ipc.Frame, host plug.Host, kind
 	if err := json.Unmarshal(req.Payload, &p); err != nil {
 		return errFrame(req, fmt.Sprintf("bad payload: %v", err))
 	}
+	if err := validatePluginID(p.ID); err != nil {
+		return errFrame(req, err.Error())
+	}
 	var err error
 	if enable {
 		err = host.Enable(ctx, leahplugin.PluginID(p.ID))
@@ -102,6 +156,9 @@ func handlePluginUninstall(ctx context.Context, req ipc.Frame, host plug.Host) <
 	if err := json.Unmarshal(req.Payload, &p); err != nil {
 		return errFrame(req, fmt.Sprintf("bad payload: %v", err))
 	}
+	if err := validatePluginID(p.ID); err != nil {
+		return errFrame(req, err.Error())
+	}
 	if err := host.Uninstall(ctx, leahplugin.PluginID(p.ID)); err != nil {
 		return errFrame(req, err.Error())
 	}
@@ -119,12 +176,20 @@ func handlePluginLogs(ctx context.Context, req ipc.Frame, host plug.Host) <-chan
 	if err := json.Unmarshal(req.Payload, &p); err != nil {
 		return errFrame(req, fmt.Sprintf("bad payload: %v", err))
 	}
+	if err := validatePluginID(p.ID); err != nil {
+		return errFrame(req, err.Error())
+	}
 	lines, err := host.Logs(ctx, leahplugin.PluginID(p.ID), p.Tail)
 	if err != nil {
 		return errFrame(req, err.Error())
 	}
 	wire := make([]pluginLogWire, 0, len(lines))
+	var bytes int
 	for _, l := range lines {
+		bytes += len(l.Msg) + 16 // approx ts+level overhead
+		if bytes > logTailMaxBytes {
+			break
+		}
 		wire = append(wire, pluginLogWire{TS: l.At, Level: int(l.Level), Msg: l.Msg})
 	}
 	return okFrame(req, ipc.KindPluginLogs, map[string]any{"lines": wire})
