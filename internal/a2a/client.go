@@ -130,23 +130,36 @@ func (s *session) Ask(ctx context.Context, prompt string) (<-chan ReasonerEvent,
 	out := make(chan ReasonerEvent, 16)
 	go func() {
 		defer close(out)
+		send := func(ev ReasonerEvent) bool {
+			select {
+			case <-ctx.Done():
+				return false
+			case out <- ev:
+				return true
+			}
+		}
 		for {
+			if ctx.Err() != nil {
+				return
+			}
 			f, err := readFrame(s.conn)
 			if err != nil {
-				out <- ReasonerEvent{Err: err}
+				send(ReasonerEvent{Err: err})
 				return
 			}
 			switch f.Kind {
 			case KindAskPartial:
-				out <- ReasonerEvent{Delta: string(f.Payload)}
+				if !send(ReasonerEvent{Delta: string(f.Payload)}) {
+					return
+				}
 			case KindAskEnd:
-				out <- ReasonerEvent{Delta: string(f.Payload), Final: true}
+				send(ReasonerEvent{Delta: string(f.Payload), Final: true})
 				return
 			case KindConsentRequire:
-				out <- ReasonerEvent{Err: fmt.Errorf("%w: %s", ErrConsentNotGranted, string(f.Payload))}
+				send(ReasonerEvent{Err: fmt.Errorf("%w: %s", ErrConsentNotGranted, string(f.Payload))})
 				return
 			default:
-				out <- ReasonerEvent{Err: fmt.Errorf("a2a: unexpected ask response %s", f.Kind)}
+				send(ReasonerEvent{Err: fmt.Errorf("a2a: unexpected ask response %s", f.Kind)})
 				return
 			}
 		}

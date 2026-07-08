@@ -18,6 +18,24 @@ import (
 // post-prompt utterance is not the attestation phrase.
 var ErrAttestationDenied = errors.New("voice/session: attestation denied")
 
+// replyDrainDeadline bounds the wait after rctx cancel so a TTS provider
+// that ignores context can't freeze the session.
+const replyDrainDeadline = 2 * time.Second
+
+func waitBounded(wg *sync.WaitGroup, deadline time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(deadline):
+		return false
+	}
+}
+
 // Reasoner mirrors the dispatcher's reply path. Kept local so session does
 // not back-import dispatcher (which would invert the layering).
 type Reasoner interface {
@@ -118,13 +136,16 @@ func (s *Session) Run(ctx context.Context) error {
 			cancelStart := s.Now()
 			replyCancel()
 			replyCancel = nil
-			replyWG.Wait()
+			if !waitBounded(&replyWG, replyDrainDeadline) {
+				s.Metrics.RecordBargeInCancel("timeout", s.Now().Sub(cancelStart))
+				return
+			}
 			if bargedIn {
 				s.Metrics.RecordBargeInCancel("completed", s.Now().Sub(cancelStart))
 			}
 			return
 		}
-		replyWG.Wait()
+		_ = waitBounded(&replyWG, replyDrainDeadline)
 	}
 
 	idleTimer := time.NewTimer(s.IdleAfter)
