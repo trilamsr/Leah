@@ -115,7 +115,12 @@ func (s *storage) upsertEntity(e Entity, now time.Time) error {
 	if last.IsZero() {
 		last = now
 	}
-	_, err := s.db.Exec(`
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`
 		INSERT INTO entities (kind, key, display, aliases_json, first_seen, last_touched)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(kind, key) DO UPDATE SET
@@ -123,13 +128,12 @@ func (s *storage) upsertEntity(e Entity, now time.Time) error {
 		    aliases_json = excluded.aliases_json,
 		    last_touched = excluded.last_touched`,
 		string(e.Kind), e.Key, e.Display, string(aliases), now.UnixNano(), last.UnixNano(),
-	)
-	if err != nil {
+	); err != nil {
 		return fmt.Errorf("upsert entity: %w", err)
 	}
 	for _, ref := range e.Refs {
 		ts := ref.Timestamp.UnixNano()
-		if _, err := s.db.Exec(`
+		if _, err := tx.Exec(`
 			INSERT OR REPLACE INTO entity_items (kind, key, source, item_id, ts)
 			VALUES (?, ?, ?, ?, ?)`,
 			string(e.Kind), e.Key, ref.Source, ref.ID, ts,
@@ -137,7 +141,7 @@ func (s *storage) upsertEntity(e Entity, now time.Time) error {
 			return fmt.Errorf("insert ref: %w", err)
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *storage) getEntity(kind EntityKind, key string) (Entity, error) {
@@ -255,25 +259,77 @@ func (s *storage) listRefs(kind EntityKind, key string, since time.Time, limit i
 }
 
 func (s *storage) deleteEntity(kind EntityKind, key string) (bool, error) {
-	res, err := s.db.Exec(`DELETE FROM entities WHERE kind = ? AND key = ?`, string(kind), key)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.Exec(`DELETE FROM entities WHERE kind = ? AND key = ?`, string(kind), key)
 	if err != nil {
 		return false, fmt.Errorf("delete entity: %w", err)
 	}
 	n, _ := res.RowsAffected()
-	if _, err := s.db.Exec(`DELETE FROM entity_items WHERE kind = ? AND key = ?`, string(kind), key); err != nil {
+	if _, err := tx.Exec(`DELETE FROM entity_items WHERE kind = ? AND key = ?`, string(kind), key); err != nil {
 		return false, fmt.Errorf("delete refs: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit: %w", err)
 	}
 	return n > 0, nil
 }
 
-// SearchRelevant retrieves top-k chunks ordered by insertion order; semantic
-// distance ranking is Phase 2 (sqlite-vec MATCH). Returns empty slice when
-// store is empty or no chunks match.
+// SearchRelevant retrieves top-k chunks ranked by term-overlap score. Chunks
+// containing more query terms rank higher; ties fall back to insertion order.
+// Empty query returns the first k by insertion order. Semantic-vector ranking
+// (sqlite-vec MATCH) is Phase 2.
 func (s *storage) SearchRelevant(ctx context.Context, query string, k int) ([]Chunk, error) {
 	if k <= 0 {
 		return []Chunk{}, nil
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, text FROM knowledge_chunks ORDER BY rowid ASC LIMIT ?`, k)
+	terms := searchTerms(query)
+	if len(terms) == 0 {
+		rows, err := s.db.QueryContext(ctx, `SELECT id, text FROM knowledge_chunks ORDER BY rowid ASC LIMIT ?`, k)
+		if err != nil {
+			return nil, fmt.Errorf("query chunks: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+		var out []Chunk
+		for rows.Next() {
+			var c Chunk
+			if err := rows.Scan(&c.ID, &c.Text); err != nil {
+				return nil, fmt.Errorf("scan chunk: %w", err)
+			}
+			out = append(out, c)
+		}
+		return out, rows.Err()
+	}
+	// Score expression: sum of (term matched ? 1 : 0). SQLite `INSTR(lower(x),
+	// lower(t)) > 0` returns 1/0 already, so summing the boolean cast gives
+	// the overlap count. Filter to score>0 so an all-miss query returns empty
+	// rather than a random first-k prefix.
+	var scoreExpr strings.Builder
+	for i := range terms {
+		if i > 0 {
+			scoreExpr.WriteString(" + ")
+		}
+		scoreExpr.WriteString("(INSTR(LOWER(text), ?) > 0)")
+	}
+	// scoreExpr appears twice in SQL (SELECT and WHERE); bind terms twice.
+	args := make([]any, 0, len(terms)*2+1)
+	for _, t := range terms {
+		args = append(args, t)
+	}
+	for _, t := range terms {
+		args = append(args, t)
+	}
+	args = append(args, k)
+	q := fmt.Sprintf(
+		`SELECT id, text, (%s) AS score FROM knowledge_chunks
+		 WHERE (%s) > 0
+		 ORDER BY score DESC, rowid ASC LIMIT ?`,
+		scoreExpr.String(), scoreExpr.String(),
+	)
+	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query chunks: %w", err)
 	}
@@ -281,11 +337,40 @@ func (s *storage) SearchRelevant(ctx context.Context, query string, k int) ([]Ch
 	var out []Chunk
 	for rows.Next() {
 		var c Chunk
-		if err := rows.Scan(&c.ID, &c.Text); err != nil {
+		var score int
+		if err := rows.Scan(&c.ID, &c.Text, &score); err != nil {
 			return nil, fmt.Errorf("scan chunk: %w", err)
 		}
-		c.Distance = 0.0
+		if len(terms) > 0 {
+			c.Distance = 1.0 - float64(score)/float64(len(terms))
+		}
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+func searchTerms(q string) []string {
+	q = strings.ToLower(strings.TrimSpace(q))
+	if q == "" {
+		return nil
+	}
+	isSep := func(r rune) bool {
+		letter := r >= 'a' && r <= 'z'
+		digit := r >= '0' && r <= '9'
+		return !letter && !digit
+	}
+	fields := strings.FieldsFunc(q, isSep)
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if len(f) < 2 {
+			continue
+		}
+		if _, dup := seen[f]; dup {
+			continue
+		}
+		seen[f] = struct{}{}
+		out = append(out, f)
+	}
+	return out
 }

@@ -84,6 +84,53 @@ func TestAsk_LocalMode_NoSonnetCallNoConsent(t *testing.T) {
 	}
 }
 
+// VisionLocal must surface OCR text via the Ask channel rather than returning
+// an empty stream — handleVisionSnap (cmd/leah-daemon/ipc_vision.go) routes
+// every mode through Ask, so a silent empty channel renders as a blank HUD
+// reply. Regression guard for the Phase 4 v1.1 router-OCR gap.
+func TestAsk_LocalMode_StreamsOCRText(t *testing.T) {
+	ocr := &fakeOCR{blocks: []vision.TextBlock{
+		{Text: "hello"},
+		{Text: "world"},
+	}}
+	r := New(ocr, &fakeSonnet{}, newMemConsent(), nil, nil)
+	ch, err := r.Ask(context.Background(), newTestImage(), "read text", VisionLocal)
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	got := drain(t, ch)
+	if len(got) == 0 {
+		t.Fatal("VisionLocal returned zero events; HUD would render blank reply")
+	}
+	var text string
+	var sawFinal bool
+	for _, ev := range got {
+		text += ev.Text
+		if ev.IsFinal {
+			sawFinal = true
+		}
+	}
+	if text == "" {
+		t.Fatalf("VisionLocal stream had no text; got %+v", got)
+	}
+	if !sawFinal {
+		t.Fatalf("VisionLocal stream missing IsFinal terminator; got %+v", got)
+	}
+}
+
+func TestAsk_LocalMode_OCRError_SurfacesAsTerminalEvent(t *testing.T) {
+	ocr := &fakeOCR{err: errors.New("ocr boom")}
+	r := New(ocr, &fakeSonnet{}, newMemConsent(), nil, nil)
+	ch, err := r.Ask(context.Background(), newTestImage(), "p", VisionLocal)
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	got := drain(t, ch)
+	if len(got) == 0 || got[len(got)-1].Err == nil {
+		t.Fatalf("VisionLocal OCR error must surface as terminal Err event; got %+v", got)
+	}
+}
+
 func TestAsk_SonnetWithoutConsent_PromptsAndDenies(t *testing.T) {
 	sonnet := &fakeSonnet{}
 	consent := newMemConsent()

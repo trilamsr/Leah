@@ -50,24 +50,35 @@ func (d *darwinDiscovery) Browse(ctx context.Context) (<-chan Peer, error) {
 	go func() {
 		<-ctx.Done()
 		d.mu.Lock()
+		found := false
 		for i, s := range d.subs {
 			if s == ch {
 				d.subs = append(d.subs[:i], d.subs[i+1:]...)
+				found = true
 				break
 			}
 		}
 		d.mu.Unlock()
-		close(ch)
+		if found {
+			close(ch)
+		}
 	}()
 	return ch, nil
 }
 
 func (d *darwinDiscovery) Stop() {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	if d.stopped {
+		d.mu.Unlock()
 		return
 	}
-	C.leah_bonjour_stop()
+	subs := d.subs
+	d.subs = nil
 	d.stopped = true
+	d.mu.Unlock()
+	// Close under no lock so Browse's ctx-done goroutine can re-enter d.mu.
+	for _, ch := range subs {
+		close(ch)
+	}
+	C.leah_bonjour_stop()
 }

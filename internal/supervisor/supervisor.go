@@ -107,6 +107,9 @@ type procState struct {
 	circuit   *circuit
 	restarts  []time.Time
 	lastCrash string
+	// runnerMu serialises runner.Start/Stop so Start/Stop/Restart/tickRestart
+	// cannot race one another once s.mu has been dropped.
+	runnerMu sync.Mutex
 }
 
 type pendingRestart struct {
@@ -156,6 +159,8 @@ func (s *Supervisor) Start(ctx context.Context, h ProcessHandle) error {
 	if !ok {
 		return errors.New("supervisor: unknown handle")
 	}
+	p.runnerMu.Lock()
+	defer p.runnerMu.Unlock()
 	if err := p.runner.Start(ctx); err != nil {
 		s.emit(SupervisorEvent{Kind: "crash", Process: p.spec.Name, Reason: err.Error()})
 		return err
@@ -174,6 +179,8 @@ func (s *Supervisor) Stop(ctx context.Context, h ProcessHandle) error {
 	if !ok {
 		return errors.New("supervisor: unknown handle")
 	}
+	p.runnerMu.Lock()
+	defer p.runnerMu.Unlock()
 	if err := p.runner.Stop(ctx); err != nil {
 		return err
 	}
@@ -332,7 +339,10 @@ func (s *Supervisor) attemptRestart(h ProcessHandle) {
 		ctx, cancel = context.WithTimeout(ctx, p.spec.StartTimeout)
 		defer cancel()
 	}
-	if err := p.runner.Start(ctx); err != nil {
+	p.runnerMu.Lock()
+	err := p.runner.Start(ctx)
+	p.runnerMu.Unlock()
+	if err != nil {
 		s.emit(SupervisorEvent{At: s.cfg.Clock(), Kind: "crash", Process: p.spec.Name, Reason: err.Error()})
 		s.notifyCrash(h, err)
 		return

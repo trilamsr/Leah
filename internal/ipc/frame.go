@@ -34,7 +34,6 @@ const (
 	KindWidgetUpdate      = "widget.update"
 	KindWidgetStale       = "widget.stale"
 	KindWidgetError       = "widget.error"
-	KindWidgetDismiss     = "widget.dismiss"
 	KindWidgetUnmount     = "widget.unmount"
 	KindNotificationToast = "notification.toast"
 

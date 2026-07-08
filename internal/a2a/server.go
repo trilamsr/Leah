@@ -303,15 +303,24 @@ func (s *Server) handleAsk(ctx context.Context, conn net.Conn, peer PeerID, f Fr
 	if err := unmarshalPayload(f.Payload, &req); err != nil {
 		return err
 	}
+	// Cancel + drain on early exit so Handler.Ask can't park on out<-
+	// once the 16-slot buffer fills.
+	hctx, hcancel := context.WithCancel(ctx)
 	out := make(chan ReasonerEvent, 16)
 	go func() {
 		defer close(out)
 		if s.Handler != nil {
-			s.Handler.Ask(ctx, peer, req.Prompt, out)
+			s.Handler.Ask(hctx, peer, req.Prompt, out)
 		}
 	}()
+	drain := func() {
+		hcancel()
+		for range out {
+		}
+	}
 	for ev := range out {
 		if ev.Err != nil {
+			hcancel()
 			return writeFrame(conn, Frame{ID: NewID(), Kind: KindAskEnd, Payload: []byte(ev.Err.Error())})
 		}
 		kind := KindAskPartial
@@ -319,12 +328,15 @@ func (s *Server) handleAsk(ctx context.Context, conn net.Conn, peer PeerID, f Fr
 			kind = KindAskEnd
 		}
 		if err := writeFrame(conn, Frame{ID: NewID(), Kind: kind, Payload: []byte(ev.Delta)}); err != nil {
+			drain()
 			return err
 		}
 		if ev.Final {
+			hcancel()
 			return nil
 		}
 	}
+	hcancel()
 	return writeFrame(conn, Frame{ID: NewID(), Kind: KindAskEnd, Payload: []byte{}})
 }
 

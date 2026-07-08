@@ -68,19 +68,37 @@ func handleVisionSnap(ctx context.Context, req ipc.Frame, r router.Router) (<-ch
 	go func() {
 		defer close(out)
 		var seq int64
-		for ev := range events {
-			seq++
-			if ev.Err != nil {
-				payload, _ := json.Marshal(map[string]string{"error": ev.Err.Error()})
-				out <- ipc.Frame{Kind: ipc.KindError, TurnID: req.TurnID, Seq: seq, Payload: payload}
-				return
+		send := func(f ipc.Frame) bool {
+			select {
+			case <-ctx.Done():
+				return false
+			case out <- f:
+				return true
 			}
-			if ev.IsFinal {
-				out <- ipc.Frame{Kind: ipc.KindTurnEnd, TurnID: req.TurnID, Seq: seq, Payload: json.RawMessage(`{}`)}
+		}
+		for {
+			select {
+			case <-ctx.Done():
 				return
+			case ev, ok := <-events:
+				if !ok {
+					return
+				}
+				seq++
+				if ev.Err != nil {
+					payload, _ := json.Marshal(map[string]string{"error": ev.Err.Error()})
+					send(ipc.Frame{Kind: ipc.KindError, TurnID: req.TurnID, Seq: seq, Payload: payload})
+					return
+				}
+				if ev.IsFinal {
+					send(ipc.Frame{Kind: ipc.KindTurnEnd, TurnID: req.TurnID, Seq: seq, Payload: json.RawMessage(`{}`)})
+					return
+				}
+				payload, _ := json.Marshal(map[string]string{"text": ev.Text})
+				if !send(ipc.Frame{Kind: ipc.KindProseDelta, TurnID: req.TurnID, Seq: seq, Payload: payload}) {
+					return
+				}
 			}
-			payload, _ := json.Marshal(map[string]string{"text": ev.Text})
-			out <- ipc.Frame{Kind: ipc.KindProseDelta, TurnID: req.TurnID, Seq: seq, Payload: payload}
 		}
 	}()
 	return out, nil

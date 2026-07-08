@@ -94,16 +94,8 @@ type fetchFn func(ctx context.Context, query string, k int) ([]knowledge.Chunk, 
 // Errors degrade silently — the widget tile still mounts without enrichment.
 type enrichFn func(ctx context.Context, citationURL string) (*knowledge.CitationEnrichment, error)
 
-// newIPCHandler is the production constructor wired into main.go.
-// Forwards to newIPCHandlerWithDeps with empty IPCDeps so the existing
-// call site keeps compiling; the composition-root sibling switches the
-// daemon over to newIPCHandlerWithDeps when Phase 4 surfaces ship.
-func newIPCHandler(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier, voiceSess duplex.DuplexSession) ipc.Handler {
-	return newIPCHandlerWithDeps(sonnet, db, kg, ring, ttsCloud, ttsLocal, ttsClass, voiceSess, IPCDeps{})
-}
-
-// newIPCHandlerWithDeps is the Phase-4 production constructor: same as
-// newIPCHandler plus the dispatch seams for sync / recommend / plugin /
+// newIPCHandlerWithDeps is the Phase-4 production constructor. Same as the
+// pre-fold constructor plus the dispatch seams for sync / recommend / plugin /
 // a2a / vision. Composition-root binds non-nil deps once their backing
 // services boot.
 func newIPCHandlerWithDeps(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier, voiceSess duplex.DuplexSession, deps IPCDeps) ipc.Handler {
@@ -428,12 +420,21 @@ func handleAsk(
 }
 
 // handleVerifyKey runs a 1-token ping against the Anthropic API with the
-// supplied key. Returns a single "verify-key.result" frame.
+// supplied key. Returns "verify-key.result" on happy path, errFrame on
+// malformed payload or missing key so Settings can distinguish wire error
+// from API rejection.
 func handleVerifyKey(ctx context.Context, req ipc.Frame, ping pingFn) (<-chan ipc.Frame, error) {
 	var p struct {
 		Key string `json:"key"`
 	}
-	_ = json.Unmarshal(req.Payload, &p)
+	if len(req.Payload) > 0 && string(req.Payload) != "null" {
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errFrame(req, fmt.Sprintf("bad payload: %v", err)), nil
+		}
+	}
+	if p.Key == "" {
+		return errFrame(req, "key required"), nil
+	}
 
 	err := ping(ctx, p.Key)
 	ok := err == nil
@@ -462,16 +463,31 @@ func liveStreamFn(c *reasoner.AnthropicClient) streamFn {
 		go func() {
 			defer close(out)
 			var seq int64
-			for d := range deltas {
-				if d.Text == "" {
-					continue
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case d, ok := <-deltas:
+					if !ok {
+						seq++
+						select {
+						case <-ctx.Done():
+						case out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: seq, Payload: json.RawMessage(`{}`)}:
+						}
+						return
+					}
+					if d.Text == "" {
+						continue
+					}
+					seq++
+					payload, _ := json.Marshal(map[string]string{"text": d.Text})
+					select {
+					case <-ctx.Done():
+						return
+					case out <- ipc.Frame{Kind: "prose.delta", TurnID: turnID, Seq: seq, Payload: payload}:
+					}
 				}
-				seq++
-				payload, _ := json.Marshal(map[string]string{"text": d.Text})
-				out <- ipc.Frame{Kind: "prose.delta", TurnID: turnID, Seq: seq, Payload: payload}
 			}
-			seq++
-			out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: seq, Payload: json.RawMessage(`{}`)}
 		}()
 		return out, nil
 	}
