@@ -1,8 +1,14 @@
 import SwiftUI
 import AVFoundation
+#if canImport(AppKit)
+import AppKit
+#endif
 
-// Step 1: Death-Note-L styling — bold extruded blackletter slab, regal sleek.
-// Forward scale on appear ("coming forward" intent).
+// Step 1: Death-Note-L styling — cursive script "L" (Snell Roundhand), the
+// hairline-tail signature glyph Light Yagami's nemesis uses. Falls back to
+// Apple Chancery if Snell missing; both ship in macOS Supplemental fonts so
+// SwiftUI's font lookup always resolves to a calligraphic italic, never the
+// system sans-serif. Forward scale on appear ("coming forward" intent).
 // Voice preview via system TTS (no mic perm needed) per spec §8.2.
 // Skip-wizard top-right routes to default-OFF setup; daemon never receives
 // opt-in writes for the skipped run.
@@ -14,6 +20,23 @@ public struct WelcomeStep: View {
   @State private var lOpacity: Double = 0.0
   @State private var subOpacity: Double = 0.0
 
+  // resolvedBrandFont picks the first installed calligraphic face. NSFont's
+  // lookup returns the requested face only when it actually exists; checking
+  // here keeps the heavy-glyph render path off the fallback to .systemFont,
+  // which collapses the "L" to a thin vertical bar at display sizes.
+  private static func resolvedBrandFont(size: CGFloat) -> Font {
+    #if canImport(AppKit)
+    // Helvetica is the brand mark per operator direction — clean modernist
+    // sans-serif, no calligraphy. Bold weight reads as a logo at display
+    // sizes; the guard against missing NSFont covers stripped-down test
+    // environments only (Helvetica ships on every macOS).
+    if NSFont(name: "Helvetica-Bold", size: size) != nil {
+      return Font.custom("Helvetica-Bold", size: size)
+    }
+    #endif
+    return .system(size: size, weight: .bold)
+  }
+
   public init(onContinue: @escaping () -> Void, onSkip: @escaping () -> Void = {}) {
     self.onContinue = onContinue
     self.onSkip = onSkip
@@ -23,31 +46,21 @@ public struct WelcomeStep: View {
     ZStack(alignment: .topTrailing) {
       VStack(spacing: 24) {
         Spacer()
-        // Death-Note-L styling — heavy blackletter slab. Layered text creates
-        // the extruded weight that single-pass Old English Text MT loses at
-        // SwiftUI's default tracking. Three-stack: shadow (depth) + gold halo
-        // (regal accent) + ivory face (legibility against obsidian).
+        // Layered cursive "L": gold halo (regal depth) + ivory face (legibility
+        // against obsidian). Snell Roundhand's hairline tails read as the
+        // Death Note "L" signature even at small render sizes.
         ZStack {
           // Halo: champagne gold glow.
           Text("L")
-            .font(.custom("Old English Text MT", size: 240))
-            .fontWeight(.heavy)
+            .font(Self.resolvedBrandFont(size: 240))
             .foregroundColor(Color(red: 201/255, green: 169/255, blue: 97/255))
             .blur(radius: 16)
             .opacity(0.6)
-          // Face: ivory, heavy serif weight, slight italic for forward lean.
+          // Face: ivory cursive serif.
           Text("L")
-            .font(.custom("Old English Text MT", size: 240))
-            .fontWeight(.heavy)
+            .font(Self.resolvedBrandFont(size: 240))
             .foregroundColor(Color(red: 240/255, green: 230/255, blue: 210/255))
-            .overlay(
-              Text("L")
-                .font(.custom("Old English Text MT", size: 240))
-                .fontWeight(.heavy)
-                .foregroundColor(.clear)
-                .shadow(color: Color(red: 201/255, green: 169/255, blue: 97/255), radius: 1, x: 1, y: 1)
-                .shadow(color: Color(red: 201/255, green: 169/255, blue: 97/255), radius: 1, x: -1, y: -1)
-            )
+            .shadow(color: Color(red: 201/255, green: 169/255, blue: 97/255).opacity(0.5), radius: 2, x: 1, y: 1)
         }
         .scaleEffect(lScale)
         .opacity(lOpacity)

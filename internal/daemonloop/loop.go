@@ -94,6 +94,15 @@ type Loop struct {
 	// DailyInterval overrides the 24h cadence per Loop. Zero = defaultDailyInterval.
 	DailyInterval time.Duration
 
+	// skipLogState throttles the "skipped/deferred" log lines so they only
+	// fire on state transitions instead of every 30-second poll (the pre-fix
+	// path emitted ~120 lines/hour per branch, flooding /tmp/leah-dev.log).
+	// One entry per branch key ("weekly.skip", "weekly.defer", "daily.skip",
+	// "daily.defer"); the value is the last-logged reason so re-logging when
+	// the underlying reason changes (e.g. tracker file rewritten) still fires.
+	skipLogMu    sync.Mutex
+	skipLogState map[string]string
+
 	// Degraded is the O9 degraded-pull tier: re-pull a connected adapter at a
 	// short interval instead of a webhook (which needs a public endpoint the
 	// loopback invariant forbids). No hour gate — it never pushes.
@@ -129,6 +138,23 @@ func (l *Loop) LastTick() time.Time {
 		return *p
 	}
 	return time.Time{}
+}
+
+// logSkipOnce writes msg to l.Out only when the reason for the given key has
+// changed since the last log. Pre-fix the weekly/daily skip+defer paths
+// printed a line every 30-second poll (~120 lines/hour per branch); the
+// throttle keeps the transition semantics without flooding the log.
+func (l *Loop) logSkipOnce(key, msg string) {
+	l.skipLogMu.Lock()
+	defer l.skipLogMu.Unlock()
+	if l.skipLogState == nil {
+		l.skipLogState = map[string]string{}
+	}
+	if l.skipLogState[key] == msg {
+		return
+	}
+	l.skipLogState[key] = msg
+	_, _ = fmt.Fprintln(l.Out, msg)
 }
 
 // New constructs a Loop with empty prevState + cold=true so the first tick
@@ -234,14 +260,14 @@ func (l *Loop) maybeFireWeekly(ctx context.Context) {
 	last, ok := readWeeklyTracker(l.WeeklyTracker)
 	if ok && now.Sub(last) < interval {
 		l.weeklyMu.Unlock()
-		_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly skipped (last ran %s, <%v ago)\n",
-			last.Format(time.RFC3339), interval)
+		l.logSkipOnce("weekly.skip", fmt.Sprintf("leah-daemon: weekly skipped (last ran %s, <%v ago)",
+			last.Format(time.RFC3339), interval))
 		return
 	}
 	if l.WeeklyHour > 0 && time.Now().Hour() < l.WeeklyHour {
 		l.weeklyMu.Unlock()
-		_, _ = fmt.Fprintf(l.Out, "leah-daemon: weekly deferred (hour %d < WeeklyHour %d)\n",
-			time.Now().Hour(), l.WeeklyHour)
+		l.logSkipOnce("weekly.defer", fmt.Sprintf("leah-daemon: weekly deferred (hour %d < WeeklyHour %d)",
+			time.Now().Hour(), l.WeeklyHour))
 		return
 	}
 
@@ -286,14 +312,14 @@ func (l *Loop) maybeFireDaily(ctx context.Context) {
 	last, ok := readWeeklyTracker(l.DailyTracker)
 	if ok && now.Sub(last) < interval {
 		l.dailyMu.Unlock()
-		_, _ = fmt.Fprintf(l.Out, "leah-daemon: daily skipped (last ran %s, <%v ago)\n",
-			last.Format(time.RFC3339), interval)
+		l.logSkipOnce("daily.skip", fmt.Sprintf("leah-daemon: daily skipped (last ran %s, <%v ago)",
+			last.Format(time.RFC3339), interval))
 		return
 	}
 	if l.DailyHour > 0 && time.Now().Hour() < l.DailyHour {
 		l.dailyMu.Unlock()
-		_, _ = fmt.Fprintf(l.Out, "leah-daemon: daily deferred (hour %d < DailyHour %d)\n",
-			time.Now().Hour(), l.DailyHour)
+		l.logSkipOnce("daily.defer", fmt.Sprintf("leah-daemon: daily deferred (hour %d < DailyHour %d)",
+			time.Now().Hour(), l.DailyHour))
 		return
 	}
 
