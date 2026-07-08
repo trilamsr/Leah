@@ -38,9 +38,11 @@ func TTLFor(scope string) time.Duration {
 }
 
 type Cache struct {
-	db  *sql.DB
-	mu  sync.Mutex
-	now func() time.Time
+	db     *sql.DB
+	mu     sync.Mutex
+	now    func() time.Time
+	stop   chan struct{}
+	stopWG sync.WaitGroup
 }
 
 func OpenCache(path string) (*Cache, error) {
@@ -74,7 +76,44 @@ func OpenCache(path string) (*Cache, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("maps cache: chmod: %w", err)
 	}
-	return &Cache{db: db, now: time.Now}, nil
+	c := &Cache{db: db, now: time.Now, stop: make(chan struct{})}
+	c.startReaper(10 * time.Minute)
+	return c, nil
+}
+
+// startReaper drains expired rows in the background so cold entries do not
+// accumulate. Purge-on-read only removes the row when the same key is queried;
+// keys never queried again would otherwise grow the DB unbounded.
+func (c *Cache) startReaper(interval time.Duration) {
+	c.stopWG.Add(1)
+	go func() {
+		defer c.stopWG.Done()
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-c.stop:
+				return
+			case <-t.C:
+				_ = c.ReapExpired(context.Background())
+			}
+		}
+	}()
+}
+
+// ReapExpired deletes every row whose expires_at is in the past. Safe to call
+// concurrently with Get/Set — SQLite serialises through the shared DB handle.
+func (c *Cache) ReapExpired(ctx context.Context) error {
+	if c == nil || c.db == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, err := c.db.ExecContext(ctx, `DELETE FROM entries WHERE expires_at <= ?`, c.now().UnixNano())
+	if err != nil {
+		return fmt.Errorf("maps cache: reap: %w", err)
+	}
+	return nil
 }
 
 func defaultCachePath() (string, error) {
@@ -88,6 +127,14 @@ func defaultCachePath() (string, error) {
 func (c *Cache) Close() error {
 	if c == nil || c.db == nil {
 		return nil
+	}
+	if c.stop != nil {
+		select {
+		case <-c.stop:
+		default:
+			close(c.stop)
+		}
+		c.stopWG.Wait()
 	}
 	return c.db.Close()
 }

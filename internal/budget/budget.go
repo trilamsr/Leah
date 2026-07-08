@@ -138,6 +138,9 @@ type runtime struct {
 	writes chan sampleWrite // async DB flush — §8.7 optimistic charge
 	done   chan struct{}
 	wg     sync.WaitGroup
+
+	pendingMu sync.Mutex
+	pending   map[bucketAt]int64
 }
 
 type bucketAt struct {
@@ -266,13 +269,16 @@ func (r *runtime) Charge(ctx context.Context, b Bucket, n int64) error {
 	}
 	r.cache[key] = spent + n
 	if r.db != nil {
-		// Non-blocking send — §8.7 optimistic charge: hot path stays sub-ms,
-		// flushLoop persists. Channel full means the flusher fell behind and
-		// the cache has the truth; the next Peek FlushPending closes the gap.
 		select {
 		case r.writes <- sampleWrite{bucket: b, at: ws, n: n}:
 		default:
-			slog.Warn("budget.write_queue_full", "package", "budget", "bucket", string(b))
+			r.pendingMu.Lock()
+			if r.pending == nil {
+				r.pending = map[bucketAt]int64{}
+			}
+			r.pending[key] += n
+			r.pendingMu.Unlock()
+			slog.Warn("budget.write_queue_full_coalesced", "package", "budget", "bucket", string(b))
 		}
 	}
 	var action DegradeAction
@@ -410,13 +416,18 @@ func (r *runtime) emitLocked(ev Event) {
 // per-call goroutines paying the connection-acquire cost on the hot path.
 func (r *runtime) flushLoop() {
 	defer r.wg.Done()
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
 	for {
 		select {
 		case <-r.done:
 			r.drain()
+			r.drainPending()
 			return
 		case w := <-r.writes:
 			r.persist(w)
+		case <-tick.C:
+			r.drainPending()
 		}
 	}
 }
@@ -429,6 +440,21 @@ func (r *runtime) drain() {
 		default:
 			return
 		}
+	}
+}
+
+// drainPending flushes coalesced samples the hot path could not enqueue.
+func (r *runtime) drainPending() {
+	r.pendingMu.Lock()
+	if len(r.pending) == 0 {
+		r.pendingMu.Unlock()
+		return
+	}
+	pending := r.pending
+	r.pending = nil
+	r.pendingMu.Unlock()
+	for key, n := range pending {
+		r.persist(sampleWrite{bucket: key.b, at: key.at, n: n})
 	}
 }
 
