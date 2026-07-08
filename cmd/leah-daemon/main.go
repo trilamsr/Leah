@@ -221,8 +221,12 @@ func main() {
 	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
 	ttsClass := tts.NewBlockwordClassifier()
 	ttsCloud, ttsLocal := buildTTSProviders()
+	ipcDeps := IPCDeps{
+		A2A:  newA2AIPCAdapter(p4.A2A),
+		Sync: newSyncIPCAdapter(newDiscoveryEngine(p4.Discovery), store.DB()),
+	}
 	obs.SafeGo(lg, registry, "ipc-server", func() {
-		_ = ipc.NewServer(sockPath, newIPCHandler(sonnet, store.DB(), nil, errRing, ttsCloud, ttsLocal, ttsClass, nil)).Serve(ctx)
+		_ = ipc.NewServer(sockPath, newIPCHandlerWithDeps(sonnet, store.DB(), nil, errRing, ttsCloud, ttsLocal, ttsClass, nil, ipcDeps)).Serve(ctx)
 	})
 	startMCPPublish(ctx, lg, registry, os.Stderr)
 

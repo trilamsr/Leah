@@ -428,12 +428,21 @@ func handleAsk(
 }
 
 // handleVerifyKey runs a 1-token ping against the Anthropic API with the
-// supplied key. Returns a single "verify-key.result" frame.
+// supplied key. Returns "verify-key.result" on happy path, errFrame on
+// malformed payload or missing key so Settings can distinguish wire error
+// from API rejection.
 func handleVerifyKey(ctx context.Context, req ipc.Frame, ping pingFn) (<-chan ipc.Frame, error) {
 	var p struct {
 		Key string `json:"key"`
 	}
-	_ = json.Unmarshal(req.Payload, &p)
+	if len(req.Payload) > 0 && string(req.Payload) != "null" {
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errFrame(req, fmt.Sprintf("bad payload: %v", err)), nil
+		}
+	}
+	if p.Key == "" {
+		return errFrame(req, "key required"), nil
+	}
 
 	err := ping(ctx, p.Key)
 	ok := err == nil
@@ -462,16 +471,31 @@ func liveStreamFn(c *reasoner.AnthropicClient) streamFn {
 		go func() {
 			defer close(out)
 			var seq int64
-			for d := range deltas {
-				if d.Text == "" {
-					continue
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case d, ok := <-deltas:
+					if !ok {
+						seq++
+						select {
+						case <-ctx.Done():
+						case out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: seq, Payload: json.RawMessage(`{}`)}:
+						}
+						return
+					}
+					if d.Text == "" {
+						continue
+					}
+					seq++
+					payload, _ := json.Marshal(map[string]string{"text": d.Text})
+					select {
+					case <-ctx.Done():
+						return
+					case out <- ipc.Frame{Kind: "prose.delta", TurnID: turnID, Seq: seq, Payload: payload}:
+					}
 				}
-				seq++
-				payload, _ := json.Marshal(map[string]string{"text": d.Text})
-				out <- ipc.Frame{Kind: "prose.delta", TurnID: turnID, Seq: seq, Payload: payload}
 			}
-			seq++
-			out <- ipc.Frame{Kind: "turn.end", TurnID: turnID, Seq: seq, Payload: json.RawMessage(`{}`)}
 		}()
 		return out, nil
 	}

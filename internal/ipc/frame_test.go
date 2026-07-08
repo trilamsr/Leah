@@ -55,7 +55,11 @@ func TestReadFrameRejectsTruncatedBody(t *testing.T) {
 }
 
 func TestFrameKindsWidgetMountUpdateStaleErrorDismissToast(t *testing.T) {
-	for _, k := range []string{"widget.mount", "widget.update", "widget.stale", "widget.error", "widget.dismiss", "widget.unmount", "notification.toast"} {
+	// widget.dismiss removed per BUG-5: it was declared but the daemon
+	// dispatch switch had no case for it and no producer ever emitted it,
+	// so the wire kind was a trap — the HUD would have received
+	// "unknown kind" from the daemon. Deletion-default.
+	for _, k := range []string{"widget.mount", "widget.update", "widget.stale", "widget.error", "widget.unmount", "notification.toast"} {
 		f := Frame{Kind: k, TurnID: "t1", Seq: 1}
 		b, err := json.Marshal(f)
 		if err != nil {

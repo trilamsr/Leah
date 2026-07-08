@@ -33,19 +33,32 @@ func handleVoiceStart(ctx context.Context, req ipc.Frame, sess duplex.DuplexSess
 	go func() {
 		defer close(out)
 		var seq int64
-		for ev := range events {
-			seq++
-			kind, payload := voiceFrameOf(ev)
-			out <- ipc.Frame{Kind: kind, TurnID: req.TurnID, Seq: seq, Payload: payload}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-events:
+				if !ok {
+					return
+				}
+				seq++
+				kind, payload := voiceFrameOf(ev)
+				select {
+				case <-ctx.Done():
+					return
+				case out <- ipc.Frame{Kind: kind, TurnID: req.TurnID, Seq: seq, Payload: payload}:
+				}
+			}
 		}
 	}()
 	return out, nil
 }
 
 func handleVoiceBarge(_ context.Context, req ipc.Frame, sess duplex.DuplexSession) (<-chan ipc.Frame, error) {
-	if sess != nil {
-		sess.Interrupt()
+	if sess == nil {
+		return errFrame(req, "voice session unavailable"), nil
 	}
+	sess.Interrupt()
 	payload, _ := json.Marshal(map[string]bool{"ok": true})
 	out := make(chan ipc.Frame, 1)
 	out <- ipc.Frame{Kind: ipc.KindVoiceBarge, TurnID: req.TurnID, Seq: 1, Payload: payload}
@@ -54,9 +67,10 @@ func handleVoiceBarge(_ context.Context, req ipc.Frame, sess duplex.DuplexSessio
 }
 
 func handleVoiceEnd(_ context.Context, req ipc.Frame, sess duplex.DuplexSession) (<-chan ipc.Frame, error) {
-	if sess != nil {
-		sess.End()
+	if sess == nil {
+		return errFrame(req, "voice session unavailable"), nil
 	}
+	sess.End()
 	payload, _ := json.Marshal(map[string]bool{"ok": true})
 	out := make(chan ipc.Frame, 1)
 	out <- ipc.Frame{Kind: ipc.KindVoiceEnd, TurnID: req.TurnID, Seq: 1, Payload: payload}
@@ -64,9 +78,9 @@ func handleVoiceEnd(_ context.Context, req ipc.Frame, sess duplex.DuplexSession)
 	return out, nil
 }
 
-// voiceFrameOf maps a duplex.DuplexEvent to wire form. Unknown kinds are
-// promoted to voice.partial with empty text so a future event-enum addition
-// never silently drops a frame on the floor.
+// voiceFrameOf maps a duplex.DuplexEvent to wire form. Unknown kinds surface
+// as VoicePartial with an "unknown_kind" marker so the HUD can distinguish
+// a real partial from an unrecognized event.
 func voiceFrameOf(ev duplex.DuplexEvent) (string, json.RawMessage) {
 	switch ev.Kind {
 	case duplex.PartialIn, duplex.FinalIn, duplex.WakeDetected:
@@ -89,7 +103,10 @@ func voiceFrameOf(ev duplex.DuplexEvent) (string, json.RawMessage) {
 		payload, _ := json.Marshal(map[string]string{"error": msg})
 		return ipc.KindError, payload
 	default:
-		payload, _ := json.Marshal(map[string]any{"text": ev.Text})
+		payload, _ := json.Marshal(map[string]any{
+			"text":         ev.Text,
+			"unknown_kind": int(ev.Kind),
+		})
 		return ipc.KindVoicePartial, payload
 	}
 }

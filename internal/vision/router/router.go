@@ -95,9 +95,7 @@ func New(ocr vision.OCREngine, sonnet SonnetClient, consent ConsentStore, meter 
 func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mode VisionMode) (<-chan ReasonerEvent, error) {
 	useSonnet := mode == VisionSonnet || (mode == VisionAuto && shouldEscalate(frame, prompt))
 	if !useSonnet {
-		out := make(chan ReasonerEvent, 1)
-		close(out)
-		return out, nil
+		return r.askLocal(ctx, frame), nil
 	}
 	r.gateMu.Lock()
 	if !r.consent.Granted("screenshot") {
@@ -121,12 +119,18 @@ func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mod
 		defer close(out)
 		stream, err := r.sonnet.StreamVision(ctx, frame, prompt)
 		if err != nil {
-			out <- ReasonerEvent{Err: err, IsFinal: true}
+			select {
+			case <-ctx.Done():
+			case out <- ReasonerEvent{Err: err, IsFinal: true}:
+			}
 			return
 		}
 		for chunk := range stream {
 			if chunk.Err != nil {
-				out <- ReasonerEvent{Err: chunk.Err, IsFinal: true}
+				select {
+				case <-ctx.Done():
+				case out <- ReasonerEvent{Err: chunk.Err, IsFinal: true}:
+				}
 				return
 			}
 			select {
@@ -135,11 +139,48 @@ func (r *router) Ask(ctx context.Context, frame vision.Image, prompt string, mod
 			case out <- ReasonerEvent{Text: chunk.Text}:
 			}
 		}
-		out <- ReasonerEvent{IsFinal: true}
+		select {
+		case <-ctx.Done():
+		case out <- ReasonerEvent{IsFinal: true}:
+		}
 	}()
 	return out, nil
 }
 
 func (r *router) OCR(ctx context.Context, frame vision.Image) ([]vision.TextBlock, error) {
 	return r.ocr.Recognize(ctx, frame)
+}
+
+// askLocal streams the joined OCR block text as one text ReasonerEvent
+// followed by an IsFinal terminator. OCR failure surfaces as a terminal Err.
+func (r *router) askLocal(ctx context.Context, frame vision.Image) <-chan ReasonerEvent {
+	out := make(chan ReasonerEvent, 2)
+	go func() {
+		defer close(out)
+		blocks, err := r.ocr.Recognize(ctx, frame)
+		if err != nil {
+			select {
+			case <-ctx.Done():
+			case out <- ReasonerEvent{Err: err, IsFinal: true}:
+			}
+			return
+		}
+		var text string
+		for i, b := range blocks {
+			if i > 0 {
+				text += "\n"
+			}
+			text += b.Text
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case out <- ReasonerEvent{Text: text}:
+		}
+		select {
+		case <-ctx.Done():
+		case out <- ReasonerEvent{IsFinal: true}:
+		}
+	}()
+	return out
 }
