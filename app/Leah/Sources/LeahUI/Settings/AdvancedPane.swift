@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Opus 4.8 escalation toggles per F4. Both default false.
+// Deep-reasoning escalation toggles per F4. Both default false.
 // nextReply auto-resets after daemon consumes it; sessionWide persists until
 // daemon restart or operator toggles off.
 public struct AdvancedPane: View {
@@ -27,7 +27,7 @@ public struct AdvancedPane: View {
         case .empty:
             EmptyState(symbol: "wrench.and.screwdriver",
                        title: "Advanced options unavailable",
-                       caption: "Model + update-channel toggles appear once the daemon is reachable.")
+                       caption: "Reasoning + update-channel toggles appear once the daemon is reachable.")
         case .error(let msg):
             ErrorState(message: msg) { paneState = .loaded }
         case .loaded:
@@ -39,27 +39,27 @@ public struct AdvancedPane: View {
         VStack(alignment: .leading, spacing: 16) {
             Group {
                 Text("Model").font(.callout.weight(.medium)).foregroundColor(.gray)
-                Text("Default: claude-sonnet-4-6").font(.callout).foregroundColor(.white)
-                Text("Router: claude-haiku-4-5").font(.callout).foregroundColor(.white)
+                Text("Default reasoning tier: balanced").font(.callout).foregroundColor(.white)
+                Text("Router: fast tier").font(.callout).foregroundColor(.white)
             }
             Divider()
             Toggle(isOn: $nextReply) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Use Opus 4.8 for the next query only").foregroundColor(.white)
-                    Text("Daemon model flips to claude-opus-4-8 for the next request, then auto-resets.")
+                    Text("Use higher-quality reasoning for the next query only").foregroundColor(.white)
+                    Text("Next request runs on the deep-reasoning tier, then auto-resets.")
                         .font(.caption).foregroundColor(.gray)
                 }
             }
-            .accessibilityLabel("Use Opus 4.8 for the next query only")
-            .accessibilityHint("Daemon model flips to claude-opus-4-8 for the next request, then auto-resets.")
+            .accessibilityLabel("Use higher-quality reasoning for the next query only")
+            .accessibilityHint("Next request runs on the deep-reasoning tier, then auto-resets.")
             Toggle(isOn: $sessionWide) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Use Opus 4.8 for this session").foregroundColor(.white)
+                    Text("Use higher-quality reasoning for this session").foregroundColor(.white)
                     Text("Persists until daemon restart or you toggle off.")
                         .font(.caption).foregroundColor(.gray)
                 }
             }
-            .accessibilityLabel("Use Opus 4.8 for this session")
+            .accessibilityLabel("Use higher-quality reasoning for this session")
             .accessibilityHint("Persists until daemon restart or you toggle off.")
             Divider()
             Toggle(isOn: $useRollbackChannel) {
