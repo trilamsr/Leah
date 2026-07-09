@@ -14,7 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/contracts"
@@ -248,7 +248,7 @@ func (s *SelfBuild) promptSHA() string {
 // run into one resolver key (Wave2-5 retro H1).
 func (s *SelfBuild) appendAudit(intent, detail string) {
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        attestation.ScopeSelfBuild,
+		Kind:        attest.ScopeSelfBuild,
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "rejected",
@@ -259,7 +259,7 @@ func (s *SelfBuild) appendAudit(intent, detail string) {
 
 func (s *SelfBuild) appendAuditFail(intent, detail string) {
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        attestation.ScopeSelfBuild,
+		Kind:        attest.ScopeSelfBuild,
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "failed",
@@ -270,7 +270,7 @@ func (s *SelfBuild) appendAuditFail(intent, detail string) {
 
 func (s *SelfBuild) appendAuditClarify(intent string) {
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        attestation.ScopeSelfBuild,
+		Kind:        attest.ScopeSelfBuild,
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "clarify",
@@ -302,7 +302,7 @@ func (s *SelfBuild) appendAuditOutcome(intent, state, issueURL string, pr int) {
 		detail += fmt.Sprintf(" pr=%d", pr)
 	}
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        attestation.ScopeSelfBuild + ".outcome",
+		Kind:        attest.ScopeSelfBuild + ".outcome",
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     state,
@@ -329,7 +329,7 @@ func (s *SelfBuild) appendAuditSuccess(intent, issueURL string) {
 		detail += " attestation_question=" + strconv.Quote(q)
 	}
 	_ = s.Audit.Append(audit.Entry{
-		Kind:        attestation.ScopeSelfBuild,
+		Kind:        attest.ScopeSelfBuild,
 		ArgsHash:    argsHash(intent),
 		BlastRadius: 4,
 		Outcome:     "dispatched",
@@ -343,11 +343,11 @@ func (s *SelfBuild) pickAttestationQuestion() (string, error) {
 	if s.AttestationQuestionsPath == "" {
 		return "", nil
 	}
-	pool, err := attestation.Load(s.AttestationQuestionsPath, attestation.ScopeSelfBuild, attestation.CostOverrideScope)
+	pool, err := attest.Load(s.AttestationQuestionsPath, attest.ScopeSelfBuild, attest.CostOverrideScope)
 	if err != nil {
 		return "", err
 	}
-	return pool.Pick(attestation.ScopeSelfBuild)
+	return pool.Pick(attest.ScopeSelfBuild)
 }
 
 // attestationBlock renders the markdown footer appended to the issue body.

@@ -1,4 +1,4 @@
-package attestation
+package attest
 
 import (
 	"github.com/trilam/leah/internal/obs"

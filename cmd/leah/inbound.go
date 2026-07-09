@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/inbound"
@@ -51,7 +51,7 @@ func runInboundEnroll(ctx context.Context, args []string, w io.Writer, att conne
 
 	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 
-	if err := att.Attest(ctx, attestation.ScopeInboundEnroll); err != nil {
+	if err := att.Attest(ctx, attest.ScopeInboundEnroll); err != nil {
 		_ = a.Append(audit.Entry{
 			Kind:        "inbound_enroll",
 			BlastRadius: 2,

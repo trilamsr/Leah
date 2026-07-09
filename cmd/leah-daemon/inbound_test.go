@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/adapters/discord"
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/inbound"
 	"github.com/trilam/leah/internal/recommend"
@@ -308,8 +308,8 @@ func TestStartInboundDiscordSelfBuildAttestsSelfBuildScope(t *testing.T) {
 	testutil.Eventually(t, 2*time.Second, 10*time.Millisecond, func() bool {
 		return len(att.Scopes()) > 0
 	})
-	if got := att.Scopes()[0]; got != attestation.ScopeSelfBuild {
-		t.Fatalf("scope downgrade: got %q want %q (spec §4.2 — remote origin must NOT downgrade gate)", got, attestation.ScopeSelfBuild)
+	if got := att.Scopes()[0]; got != attest.ScopeSelfBuild {
+		t.Fatalf("scope downgrade: got %q want %q (spec §4.2 — remote origin must NOT downgrade gate)", got, attest.ScopeSelfBuild)
 	}
 }
 
@@ -320,7 +320,7 @@ func TestStartInboundDiscordSelfBuildAttestsSelfBuildScope(t *testing.T) {
 func TestStartInboundDiscordDefaultsFailClosed(t *testing.T) {
 	g := &inbound.Gate{
 		Attestor: failClosedAttestor{},
-		Resolver: inbound.StaticScopeResolver{Scope: attestation.ScopeInboundApply},
+		Resolver: inbound.StaticScopeResolver{Scope: attest.ScopeInboundApply},
 		Store:    inbound.NewMemoryEnrollStore(),
 	}
 	err := g.Authorize(context.Background(),

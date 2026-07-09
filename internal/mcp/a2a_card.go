@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 )
 
 // A2A protocol version pinned to spec §14; bumping = wave-spec, not silent.
@@ -52,7 +52,7 @@ func canonicalCard(addr string, operatorOverrides map[string]any) map[string]any
 				"description": "Delegate spec → PR. Per-call operator attestation.",
 				"tags":        []any{"write", "operator-attested"},
 				"x-leah": map[string]any{
-					"auth_scope":           attestation.ScopeSelfBuildA2A,
+					"auth_scope":           attest.ScopeSelfBuildA2A,
 					"blast_radius":         4,
 					"requires_attestation": true,
 				},

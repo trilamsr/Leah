@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/trilam/leah/internal/adapters/discord"
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/contracts"
@@ -194,11 +194,11 @@ type recScopeResolver struct{ eng *recommend.MemoryEngine }
 
 func (r recScopeResolver) ScopeFor(recID string) string {
 	if r.eng == nil {
-		return attestation.ScopeInboundApply
+		return attest.ScopeInboundApply
 	}
 	recs, err := r.eng.Propose(context.Background())
 	if err != nil {
-		return attestation.ScopeInboundApply
+		return attest.ScopeInboundApply
 	}
 	for _, rec := range recs {
 		if rec.ID != recID {
@@ -206,14 +206,14 @@ func (r recScopeResolver) ScopeFor(recID string) string {
 		}
 		switch {
 		case hasPrefix(rec.Source, "self-build"), hasPrefix(rec.Pattern, "self-build"):
-			return attestation.ScopeSelfBuild
+			return attest.ScopeSelfBuild
 		case hasPrefix(rec.Source, "self-upgrade"), hasPrefix(rec.Pattern, "self-upgrade"):
-			return attestation.ScopeSelfUpgrade
+			return attest.ScopeSelfUpgrade
 		default:
-			return attestation.ScopeInboundApply
+			return attest.ScopeInboundApply
 		}
 	}
-	return attestation.ScopeInboundApply
+	return attest.ScopeInboundApply
 }
 
 func hasPrefix(s, prefix string) bool { return strings.HasPrefix(s, prefix) }

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/contracts"
 )
 
@@ -220,4 +220,4 @@ var _ ConsentGate = (*Gate)(nil)
 // DefaultApplyScope is re-exported so daemon wiring doesn't import attestation
 // just to spell the constant. Authors of new resolvers can use this as the
 // fallback when the rec carries no own-scope hint.
-const DefaultApplyScope = attestation.ScopeInboundApply
+const DefaultApplyScope = attest.ScopeInboundApply

@@ -1,5 +1,4 @@
-// Package attestation hosts the shared operator-attestation question pool.
-package attestation
+package attest
 
 import (
 	"bufio"

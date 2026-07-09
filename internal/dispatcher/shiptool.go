@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 )
 
@@ -28,7 +28,7 @@ type ShipTool struct {
 
 func (s *ShipTool) Run(ctx context.Context, title string) error {
 	kind := "ship." + s.Tool
-	if err := s.Attestor.Attest(ctx, attestation.ScopeShipTool); err != nil {
+	if err := s.Attestor.Attest(ctx, attest.ScopeShipTool); err != nil {
 		s.append(kind, "declined", "")
 		return fmt.Errorf("ship --%s: attestation declined: %w", s.Tool, err)
 	}

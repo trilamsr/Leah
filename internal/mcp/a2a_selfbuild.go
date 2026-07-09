@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 )
 
@@ -255,11 +255,11 @@ func (a *A2AHandler) pickQuestion() (string, error) {
 	if a.AttestationQuestionsPath == "" {
 		return "", ErrAttestationPoolUnconfigured
 	}
-	pool, err := attestation.Load(a.AttestationQuestionsPath, attestation.AllScopes()...)
+	pool, err := attest.Load(a.AttestationQuestionsPath, attest.AllScopes()...)
 	if err != nil {
 		return "", err
 	}
-	return pool.Pick(attestation.ScopeSelfBuildA2A)
+	return pool.Pick(attest.ScopeSelfBuildA2A)
 }
 
 func truncate(s string, n int) string {
