@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Opus 4.8 escalation toggles per F4. Both default false.
+// Deep-reasoning escalation toggles per F4. Both default false.
 // nextReply auto-resets after daemon consumes it; sessionWide persists until
 // daemon restart or operator toggles off.
 public struct AdvancedPane: View {
