@@ -125,6 +125,15 @@ Deferred to Phase 4+ or explicitly deferred forever. See `docs/specs/2026-06-09-
 - Cedar policy engine + bifurcated SQLCipher backup — deferred for personal use.
 - Multi-device tokens + iOS Shortcut bridge — when iPhone-secondary milestone reached.
 
+## Operator runbooks
+
+Task-specific operator docs live under [`docs/operator/`](docs/operator/):
+
+- [`install-brew.md`](docs/operator/install-brew.md) — Homebrew tap + formula install path
+- [`release-runbook.md`](docs/operator/release-runbook.md) — tag → sign → notarize → Sparkle appcast
+- [`reproducible-build.md`](docs/operator/reproducible-build.md) — deterministic build verification
+- [`ci-gates.md`](docs/operator/ci-gates.md) — required checks + branch-protection recreate commands
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

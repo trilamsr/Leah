@@ -3,7 +3,7 @@ title: Wave-8 survivor decision matrix — operator review 2026-06-23
 audience: operator
 purpose: rubber-stamp the survivor set (KILL / FOLD / KEEP / SHIPPED) for Wave-8 W121-W142 before any code agent loads
 input: issue #249 unshipped set + brief 2026-06-10-wave-8-aiml-upgrade.md + tree state on main@8a69180
-companion: docs/engineer/audits/2026-06-23-wave-8-survivor-decision-matrix.md (long-form rationale)
+companion: docs/engineer/post-mortems/2026-06-23-wave-8-survivor-decision-matrix.md (long-form rationale)
 ---
 
 # Wave-8 survivor decision matrix — operator review 2026-06-23
@@ -55,7 +55,7 @@ No new spec PR needed — surviving waves are spec'd in `docs/engineer/specs/202
 
 ## Notes
 
-1. Existing long-form audit at `docs/engineer/audits/2026-06-23-wave-8-survivor-decision-matrix.md` carries the file-by-file tree-state evidence (49 lines of prose); this page is the operator-facing decision surface. The two are consistent — same survivor set, same kill set.
+1. Existing long-form audit at `docs/engineer/post-mortems/2026-06-23-wave-8-survivor-decision-matrix.md` carries the file-by-file tree-state evidence (49 lines of prose); this page is the operator-facing decision surface. The two are consistent — same survivor set, same kill set.
 2. Spec-vs-tree drift to record on #249 close: W127 replay shipped inline in `cmd/leah/suggest.go` (not `internal/operatormodel/replay.go`); W142 shipped in Swift (not Go). Both functionally complete.
 3. Residual test-coverage debt on W125 (9 spec'd test cases, ~4 covered) + W127 (`TestReplay_ReproducesProfile` golden-replay) is a backfill ticket, NOT a Wave-8 survivor.
 4. No Phase 5 spec exists on disk as of `main@8a69180`. The "FOLD INTO PHASE 5" classification was not used because no Phase 5 scope is defined to fold into; if a sibling agent authors one, W121-W123 + W126 could move there instead of a Wave-8.1 batch — operator call.
