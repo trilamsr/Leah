@@ -11,6 +11,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
+	"github.com/trilam/leah/internal/keychain"
 	"github.com/trilam/leah/internal/obs"
 )
 
@@ -66,8 +67,8 @@ type AnthropicClient struct {
 	Registry *obs.Registry // nil-safe: cache metrics no-op when unset
 }
 
-// NewAnthropicClient builds an AnthropicClient, returning an error when
-// ANTHROPIC_API_KEY is unset — fail-fast in main beats a runtime 401.
+// NewAnthropicClient builds an AnthropicClient, returning an error when no
+// Anthropic key is available in env or Keychain.
 func NewAnthropicClient() (*AnthropicClient, error) {
 	return NewAnthropicClientWithModel("")
 }
@@ -76,9 +77,12 @@ func NewAnthropicClient() (*AnthropicClient, error) {
 // degraded leg of the Router (Haiku) so the warn-state swap doesn't
 // require a second env knob.
 func NewAnthropicClientWithModel(model string) (*AnthropicClient, error) {
-	key := os.Getenv("ANTHROPIC_API_KEY")
+	key, err := keychain.LoadAnthropicKey()
+	if err != nil {
+		return nil, fmt.Errorf("load anthropic key: %w", err)
+	}
 	if key == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set")
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set (env or Keychain slot %s/%s)", keychain.AnthropicService, keychain.DefaultAccount)
 	}
 	c := anthropic.NewClient(option.WithAPIKey(key))
 	if model == "" {

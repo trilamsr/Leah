@@ -47,6 +47,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/trilam/leah/internal/keychain"
 )
 
 // Generator turns text into fixed-dimension vectors. Implementations MUST
@@ -253,9 +255,12 @@ type OpenAIGenerator struct {
 // NewOpenAIGenerator builds an OpenAIGenerator, returning an error if
 // OPENAI_API_KEY is unset (fail-fast beats a runtime 401).
 func NewOpenAIGenerator() (*OpenAIGenerator, error) {
-	key := os.Getenv("OPENAI_API_KEY")
+	key, err := keychain.LoadOpenAIKey()
+	if err != nil {
+		return nil, fmt.Errorf("embed: load openai key: %w", err)
+	}
 	if key == "" {
-		return nil, fmt.Errorf("embed: OPENAI_API_KEY not set (required for LEAH_EMBED_BACKEND=openai)")
+		return nil, fmt.Errorf("embed: OPENAI_API_KEY not set (env or Keychain slot %s/%s; required for LEAH_EMBED_BACKEND=openai)", keychain.OpenAIService, keychain.DefaultAccount)
 	}
 	return &OpenAIGenerator{
 		apiKey: key,
