@@ -7,6 +7,7 @@ toolchain go1.26.4
 require (
 	github.com/anthropics/anthropic-sdk-go v1.49.0
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/fxamacker/cbor/v2 v2.9.2
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/yalue/onnxruntime_go v1.20.0
 	go.opentelemetry.io/otel v1.44.0
@@ -24,7 +25,6 @@ require (
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
