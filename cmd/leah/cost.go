@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/costview"
+	"github.com/trilam/leah/internal/budget/view"
 )
 
 // defaultCostWindow is the default --since value when the operator does
@@ -70,7 +70,7 @@ func runCost(args []string) int {
 
 	since := time.Now().Add(-window)
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	summary, err := costview.Aggregate(auditPath, since)
+	summary, err := view.Aggregate(auditPath, since)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah cost: aggregate: %v\n", err)
 		return 1
@@ -91,7 +91,7 @@ func runCost(args []string) int {
 
 // printCostText renders the terse 2-column layout. Header always shows
 // total + count + window; body switches on --by.
-func printCostText(w *os.File, s costview.Summary, window time.Duration, by string) int {
+func printCostText(w *os.File, s view.Summary, window time.Duration, by string) int {
 	_, _ = fmt.Fprintf(w, "leah cost — last %s\n", humanDuration(window))
 	_, _ = fmt.Fprintf(w, "  total   $%.4f\n", s.TotalUSD)
 	_, _ = fmt.Fprintf(w, "  rows    %d\n", s.Count)
@@ -113,7 +113,7 @@ func printCostText(w *os.File, s costview.Summary, window time.Duration, by stri
 	return 0
 }
 
-func printBuckets(w *os.File, title string, buckets []costview.Bucket) {
+func printBuckets(w *os.File, title string, buckets []view.Bucket) {
 	if len(buckets) == 0 {
 		_, _ = fmt.Fprintf(w, "  (no rows in window)\n")
 		return

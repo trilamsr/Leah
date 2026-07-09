@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/costmonth"
+	"github.com/trilam/leah/internal/budget/monthly"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/eval"
 	"github.com/trilam/leah/internal/ipc"
@@ -182,14 +182,14 @@ func main() {
 			cmCap = parsed
 		}
 	}
-	if cm, err := costmonth.OpenAt(filepath.Join(sd, "cost-month.json"), cmCap, time.Now()); err == nil {
-		obs.SafeGo(lg, registry, "costmonth-rollover", func() {
+	if cm, err := monthly.OpenAt(filepath.Join(sd, "cost-month.json"), cmCap, time.Now()); err == nil {
+		obs.SafeGo(lg, registry, "monthly-cost-rollover", func() {
 			cm.RunRolloverLoop(ctx, time.Minute, func(err error) {
-				_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: costmonth rollover: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: monthly-cost rollover: %v\n", err)
 			})
 		})
 	} else {
-		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: costmonth open non-fatal: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: monthly-cost open non-fatal: %v\n", err)
 	}
 
 	snapPath := startMetricsSnapshotter(ctx, lg, registry, sd)

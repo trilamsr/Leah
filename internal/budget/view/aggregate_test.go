@@ -1,4 +1,4 @@
-package costview
+package view
 
 import (
 	"encoding/json"

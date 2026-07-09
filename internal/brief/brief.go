@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/costview"
+	"github.com/trilam/leah/internal/budget/view"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/regattaclient"
@@ -201,7 +201,7 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 
 	g.Go(func() error {
 		weekStart := now.AddDate(0, 0, -7)
-		if summary, err := costview.Aggregate(auditPath, weekStart); err == nil {
+		if summary, err := view.Aggregate(auditPath, weekStart); err == nil {
 			d.WeekToDateUSD = summary.TotalUSD
 			// Projected monthly = week × (30 / 7). Coarse — operator-use only.
 			d.ProjectedMonthly = summary.TotalUSD * (30.0 / 7.0)

@@ -1,9 +1,9 @@
-// Package costmonth persists the operator's monthly LLM spend to
+// Package monthly persists the operator's monthly LLM spend to
 // ~/.leah-state/cost-month.json so the spec §7 cost circuit breaker
 // survives daemon restarts. One goroutine — the goroutine holding the
 // Store mutex — owns the file; writes go via tmp+rename so a crash
 // mid-update never leaves a torn JSON blob on disk.
-package costmonth
+package monthly
 
 import (
 	"context"

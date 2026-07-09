@@ -16,7 +16,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/costmonth"
+	"github.com/trilam/leah/internal/budget/monthly"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
 	"github.com/trilam/leah/internal/notify"
@@ -291,12 +291,12 @@ func openCostBreaker() reasoner.Breaker {
 			cap = parsed
 		}
 	}
-	store, err := costmonth.OpenAt(filepath.Join(stateDir(), "cost-month.json"), cap, time.Now())
+	store, err := monthly.OpenAt(filepath.Join(stateDir(), "cost-month.json"), cap, time.Now())
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah: costmonth open non-fatal: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah: monthly-cost open non-fatal: %v\n", err)
 		return nil
 	}
-	return costmonth.NewBreaker(store)
+	return monthly.NewBreaker(store)
 }
 
 // askStreamer is the surface runAskWith depends on — *reasoner.Reasoner
