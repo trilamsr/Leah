@@ -172,7 +172,7 @@ Audit row schema (consumed by `internal/audit`):
 - `TestNewRejectsMissingDeps` — nil `Attestor` and nil `OSExec` each fail
   construction with a descriptive error.
 
-## 8. Trade-offs (per CLAUDE.md UX > performance > long-term)
+## 8. Trade-offs (per README.md UX > performance > long-term)
 
 - **UX**: AppleScript subprocess adds ~80ms latency per send vs. a
   hypothetical native binding. Accepted — operator-facing flow is "type the

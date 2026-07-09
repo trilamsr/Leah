@@ -51,7 +51,7 @@ Defer. Stay on localhost HTTP. Revisit when Wails v3 hits beta.
 
 ## 6. Decision rule
 
-Per CLAUDE.md: UX > performance > long-term benefits, default simpler.
+Per README.md: UX > performance > long-term benefits, default simpler.
 A browser tab is the same UX as a frameless WebView for the MVP-5
 operator (single user, local machine). Performance is identical
 (both render in WebKit/Chromium). The long-term benefit (native

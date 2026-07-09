@@ -22,6 +22,6 @@ Required sections (use these exact H2 headings):
 - (any related issues/PRs/specs the operator mentioned; omit section if none)
 
 Notes for the regatta agent that picks this up:
-- Follow the repo's CLAUDE.md
+- Follow the repo's README house rules
 - Failing test first
 - Independent reviewer subagent will dispatch on PR open (don't self-approve)

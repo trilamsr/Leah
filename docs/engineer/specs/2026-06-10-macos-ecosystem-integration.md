@@ -117,7 +117,7 @@ can be written against it.
   the WAL-recovery dance that fights iCloud-sync writes and produces the
   "database is locked" failure mode the matrix calls out. The cost — we
   must re-open on each sync tick to see new rows — is the right trade per
-  CLAUDE.md priority (UX > performance): correctness over hot-loop speed.
+  README.md priority (UX > performance): correctness over hot-loop speed.
 
 - **Per-app reader.go.** Each app lives in
   `internal/macos/<app>/reader.go` implementing the `MacApp` interface
@@ -150,7 +150,7 @@ can be written against it.
 ## 5. Write pipeline (one-shot)
 
 MVP write scope: create a Calendar event, mark a Reminder complete. Two ops,
-both AppleScript subprocess. Rationale per CLAUDE.md `UX > performance >
+both AppleScript subprocess. Rationale per README.md `UX > performance >
 long-term`:
 
 | Option | Pros | Cons | Verdict |

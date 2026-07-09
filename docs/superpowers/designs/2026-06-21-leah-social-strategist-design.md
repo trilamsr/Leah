@@ -167,7 +167,7 @@ leah strategist queue refill   # ensure ~7-day queue depth: generate up to (7 - 
 leah strategist doctor         # check higgsfield key present + ffmpeg + ImageMagick installed
 ```
 
-Dispatch wires into `cmd/leah/main.go` `runCommand` switch under `case "strategist":` — single-owner edit per CLAUDE.md.
+Dispatch wires into `cmd/leah/main.go` `runCommand` switch under `case "strategist":` — single-owner edit per README.md.
 
 ### Per-subcommand contract
 

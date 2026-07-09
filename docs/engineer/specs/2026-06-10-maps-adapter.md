@@ -31,7 +31,7 @@ constraints all defer until a concrete caller files an issue.
 - APIs consumed: Places (Nearby + Details + Text Search), Directions,
   Geocoding, Distance Matrix, Routes (`computeRoutes` v2 for traffic ETA).
 - Why this provider: best global POI density + best transit data + stable
-  since 2005. UX wins per `CLAUDE.md` priority (UX > performance > long-term)
+  since 2005. UX wins per `README.md` § House rules priority (UX > performance > long-term)
   despite higher per-call cost than alternatives.
 
 `go.mod` edit deferred to the wiring wave (W56), mirroring the gmail /
@@ -226,7 +226,7 @@ LRU eviction: 50k rows / 100MB disk, operator-configurable.
 
 ## 8. Test plan
 
-Failing-test-first per `CLAUDE.md`. Tests live next to source.
+Failing-test-first per `README.md` § House rules. Tests live next to source.
 
 - **Per-RPC adapter tests** (`maps_test.go`): `httptest.Server` stands in
   for the Google Maps API; canned responses cover happy path, 429, 5xx,

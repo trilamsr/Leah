@@ -104,8 +104,8 @@ func (c *Client) EnsureLabel(ctx context.Context, repo, label string) error {
 }
 
 // ViewPR returns the gh-projected JSON for one PR. fields MUST be an
-// explicit allowlist (per CLAUDE.md gh-minimal-fields rule) — passing all
-// fields blows token budget on PR body / comments.
+// explicit allowlist — passing all fields blows token budget on PR body /
+// comments.
 func (c *Client) ViewPR(ctx context.Context, repo string, num int, fields []string) (map[string]any, error) {
 	args := []string{"gh", "pr", "view", strconv.Itoa(num),
 		"--repo", repo,

@@ -335,9 +335,9 @@ in `metalearn.go` — no cross-package dependency.
 | W104 | Nightly meta-learn grid-search | `metalearn.go` + `daemonloop.Loop.DailyTasks` hook + test |
 
 W100 blocks W101–W104 (each consumes blender output). W101–W104 are
-file-disjoint, fan out to 4 reviewers in parallel per CLAUDE.md.
+file-disjoint, fan out to 4 reviewers in parallel per README.md.
 
-## 9. Test plan (TDD per CLAUDE.md)
+## 9. Test plan (TDD per README.md)
 
 Each wave lands failing test FIRST, capture in PR body, then impl.
 

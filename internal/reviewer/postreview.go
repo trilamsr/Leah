@@ -31,8 +31,7 @@ func ValidateAgentID(id string) error {
 
 // ValidateAgentIDAgainstAuthor adds the self-tag check on top of
 // ValidateAgentID — rejects the case where the reviewer ID equals the PR
-// author login (operator writing own APPROVE, per CLAUDE.md
-// feedback_no_self_tagged_approve).
+// author login (operator writing own APPROVE).
 func ValidateAgentIDAgainstAuthor(reviewerID, prAuthor string) error {
 	if err := ValidateAgentID(reviewerID); err != nil {
 		return err

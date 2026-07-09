@@ -26,7 +26,7 @@ Bulleted, each criterion observable via a `leah` CLI command OR a Go test assert
 
 ## Test plan
 
-Unit tests + at least one integration test. Name each test function (`TestX`). Per CLAUDE.md: failing test FIRST, then implementation.
+Unit tests + at least one integration test. Name each test function (`TestX`). Per README house rules: failing test FIRST, then implementation.
 
 ## Deferred
 
@@ -43,7 +43,7 @@ Copy this section VERBATIM:
 - Do not self-tag Reviewer-recommendation: APPROVE — spawn independent reviewer subagent.
 - Do not edit prompts/*.md, go.mod, or go.sum in this PR.
 - Do not introduce reads of ~/.config/leah/, ~/.aws/, ~/.ssh/, ~/.npmrc, $HOME/.netrc, or os.Environ() iteration.
-- Follow CLAUDE.md: failing test first, comment budget, no AI signatures.
+- Follow README house rules: failing test first, comment budget, no AI signatures.
 ```
 
 ## §6 — Refusal / clarify path

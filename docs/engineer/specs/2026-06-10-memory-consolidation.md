@@ -184,7 +184,7 @@ If step 7 fails: summary row durable + archive durable; source rows
 still present → next pass re-detects them as already-consolidated via
 `last_consolidated_at >= row.ts` and only does step 7. Idempotent.
 
-Failure mode (CLAUDE.md root-cause discipline): source rows are NOT
+Failure mode (README.md root-cause discipline): source rows are NOT
 deleted until summary row is durably written AND archive is fsync'd.
 A crash between any two steps leaves the system either in pre-pass
 state or in a state where re-running the pass converges.
