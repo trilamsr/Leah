@@ -87,8 +87,7 @@ synthesis already runs unlocked today; only `afplay` holds the device.
 ## 5. Risk
 
 - **Backend voice drift** (kokoro vs openai produce different voices on
-  fallback) — already an accepted shift documented in
-  `docs/specs/2026-06-09-tts-kokoro.md` §8; Synthesize inherits it, no new risk.
+  fallback) — already an accepted shift; Synthesize inherits it, no new risk.
 - **Memory** — wav for a 1-sentence brief is small; cap is enforced downstream
   by the consumer (`discord.maxVoiceBytes = 8MB`), not here. Document that
   Synthesize does not cap; the transmit adapter does.

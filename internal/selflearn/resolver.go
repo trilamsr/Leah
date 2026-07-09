@@ -1,7 +1,6 @@
 // Package selflearn closes the learn-from-experience loop for a single
 // operator: resolver (back-fills outcomes), mistake log (operator
-// annotations), retro (weekly markdown). See
-// docs/specs/2026-06-09-self-learning-personal.md.
+// annotations), retro (weekly markdown).
 package selflearn
 
 import (

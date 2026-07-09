@@ -1,10 +1,18 @@
 # Leah — Agent Operating Rules
 
-Single source of truth for any agent (main session, subagent, CI) operating in this repo. Current scope = Phase 3 (v3.3.0) — voice + polish atop the closed-loop core; see `CHANGELOG.md`, `ARCHITECTURE.md`, `docs/specs/`, and `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md` for the full design.
+Single source of truth for any agent (main session, subagent, CI) operating in this repo. Current scope = Phase 3 (v3.3.0) — voice + polish atop the closed-loop core; see `CHANGELOG.md`, `ARCHITECTURE.md`, and `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md` for the full design.
 
 ## Decision priority
 
 UX > performance > long-term benefits. Default simpler. Three similar lines beat a premature abstraction.
+
+## Principles
+
+- Operator is the customer — single-tenant forever. Reject any feature that only pays off multi-user.
+- Blast radius shapes friction — every action ranks 0..5 (read / local-write / external-write / self-modifying). Higher rank requires more gate: notify → approve → 2FA → refuse.
+- Adopt before build — before a new package, check if `gh`, `regatta`, `kokoro`, or another CLI already does it. Prefer wrapping a subprocess.
+- Audit everything; redact cloud crossings — every operator-facing action lands one JSONL row; body of any cloud call is redacted at the audit boundary.
+- Cost is observable — every LLM/TTS/embedding call routes through `budget.Charge`; skipping it silently breaks the weekly retro and the per-process ceiling.
 
 ## Dispatch parallelism
 

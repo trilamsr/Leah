@@ -1,6 +1,5 @@
 // Package memory is the single-operator persistent KB for leah (M2).
 // Three nouns: contact, project, decision. Storage only — no retrieval / no Reasoner integration yet.
-// See docs/specs/2026-06-09-memory-m2-minimal.md.
 package memory
 
 import (

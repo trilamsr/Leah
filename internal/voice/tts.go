@@ -2,7 +2,7 @@
 // 3-tier backend chain: Kokoro-82M local (default, cost-zero), OpenAI
 // tts-1-hd (paid fallback), macOS `say` (last-resort offline). Backends
 // satisfy the TTS interface; ChainTTS walks them in order on each Speak
-// call, returning on first success. See docs/specs/2026-06-09-tts-kokoro.md.
+// call, returning on first success.
 package voice
 
 import (

@@ -5,7 +5,7 @@
 // (see internal/memory/schema.sql, schema_version 2).
 //
 // Personal-use Phase 1: zero concurrent contexts, no auto-infer, no
-// cross-context queries. See docs/specs/2026-06-09-context-manager.md.
+// cross-context queries.
 package ctxmgr
 
 import (
