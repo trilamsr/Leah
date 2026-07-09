@@ -45,7 +45,6 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 
 - Agents always in worktrees (`.claude/worktrees/agent-<id>/`).
 - Never push from primary.
-- `make install-janitor` arms a 5-min launchd sweep that prunes `agent-*` worktrees whose branch is merged or deleted upstream.
 
 ## Token economy
 

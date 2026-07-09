@@ -91,8 +91,6 @@ launchctl load ~/Library/LaunchAgents/com.tri.leah.plist
 
 Stop: `launchctl unload ~/Library/LaunchAgents/com.tri.leah.plist`. Logs at `/tmp/leah.stdout.log` + `/tmp/leah.stderr.log`.
 
-Worktree janitor (5-min launchd sweep of merged agent worktrees): `make install-janitor`. Runbook: `docs/engineer/runbooks/janitor.md`.
-
 ## Development
 
 ```sh

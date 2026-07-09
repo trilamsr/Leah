@@ -64,7 +64,7 @@ Allowed (WHY-only):
 - Non-obvious invariant or workaround (`// HACK: pin random seed to keep golden-file stable across go versions.`).
 - Cross-file contract reference (`// Pairs with internal/X.Foo — drift here breaks ZZ.`).
 
-Net comment-density of any new prod `.go` file should be ≤ 5% of LOC. `scripts/check-comment-density.sh` (in `scripts/check.sh`) gates this in the PR diff; operator escape is `<!-- comment-density-justified: <reason> -->` in PR body.
+Net comment-density of any new prod `.go` file should be ≤ 5% of LOC.
 
 ## Preamble blocks (paste verbatim)
 
@@ -98,7 +98,7 @@ NO SELF-TAGGED APPROVE
 PR BODY HYGIENE
 - `gh pr create` / `gh pr edit` MUST use `--body-file <path>`. HEREDOC bodies escape backticks and silently break the release-notes fence detector. Write body to `/tmp/pr-<branch>.md` first.
 - PR body MUST contain a ```release-notes ... ``` fence (one line: `[PREFIX] user-visible change` OR `none (internal)`).
-- Auto-close keyword form: `closes #N, closes #M` (comma-separated, one keyword per issue). The space-separated form `closes #N #M` only closes `#N` — GitHub silently drops the rest. `scripts/check-pr-body-close-keywords.sh` enforces.
+- Auto-close keyword form: `closes #N, closes #M` (comma-separated, one keyword per issue). The space-separated form `closes #N #M` only closes `#N` — GitHub silently drops the rest.
 
 GH MINIMAL FIELDS
 - Every `gh pr list / view / issue list` MUST pass explicit `--json` allowlist (default: `number,state,mergeStateStatus,statusCheckRollup,isDraft,headRefName`) + `-L 20`. Never bare `--json`.
@@ -180,7 +180,7 @@ PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `
 
 3. **Release-notes fence ALWAYS required**. Every PR body MUST include a triple-fence ` ```release-notes ` block with `[PREFIX] one-line summary` inside — even `[DOCS]` PRs.
 
-4. **`closes #N #M` only closes `#N`**. Use comma-separated form: `closes #N, closes #M`. `scripts/check-pr-body-close-keywords.sh` enforces.
+4. **`closes #N #M` only closes `#N`**. Use comma-separated form: `closes #N, closes #M`.
 
 5. **Rebase `--theirs` vs `--ours` is counterintuitive**. During `git rebase` replay, git treats the rebase target (main) as `--ours` and the commit being replayed (your PR's work) as `--theirs` — opposite of `git merge` semantics. Wrong choice silently drops PR work. Snippet:
    ```
