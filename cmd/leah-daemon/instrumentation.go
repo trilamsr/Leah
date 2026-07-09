@@ -1,20 +1,13 @@
 package main
 
 import (
-	"github.com/trilam/leah/internal/adapters/confluence"
 	"github.com/trilam/leah/internal/adapters/discord"
 	"github.com/trilam/leah/internal/adapters/facetime"
 	"github.com/trilam/leah/internal/adapters/flights"
 	"github.com/trilam/leah/internal/adapters/gcal"
 	"github.com/trilam/leah/internal/adapters/gmail"
 	"github.com/trilam/leah/internal/adapters/imessage"
-	"github.com/trilam/leah/internal/adapters/jira"
-	"github.com/trilam/leah/internal/adapters/linear"
 	"github.com/trilam/leah/internal/adapters/maps"
-	"github.com/trilam/leah/internal/adapters/msteams"
-	"github.com/trilam/leah/internal/adapters/notion"
-	"github.com/trilam/leah/internal/adapters/slack"
-	"github.com/trilam/leah/internal/adapters/whatsapp"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/daemonloop"
@@ -60,15 +53,8 @@ func wireObs(
 	imessage.RegisterMetrics(registry)
 	facetime.RegisterMetrics(registry)
 	discord.RegisterMetrics(registry)
-	whatsapp.RegisterMetrics(registry)
 	maps.RegisterMetrics(registry)
 	flights.RegisterMetrics(registry)
-	slack.RegisterMetrics(registry)
-	notion.RegisterMetrics(registry)
-	linear.RegisterMetrics(registry)
-	jira.RegisterMetrics(registry)
-	confluence.RegisterMetrics(registry)
-	msteams.RegisterMetrics(registry)
 	connect.RegisterMetrics(registry)
 	feeds.RegisterMetrics(registry)
 	intent.RegisterMetrics(registry)

@@ -36,29 +36,6 @@ func LoadRefreshingSource(ctx context.Context, clientID, clientSecret, path stri
 	return &RefreshingSource{src: cfg.TokenSource(ctx, &tok), path: path, last: tok}, nil
 }
 
-// StaticSource yields a fixed paste-token credential (jira/linear/notion/
-// confluence) read once from disk — no refresh, mirroring the no-OAuth
-// tokenPasteProvider that wrote it.
-type StaticSource struct{ token string }
-
-// LoadStaticSource reads the AccessToken from a paste-token file at path.
-func LoadStaticSource(path string) (*StaticSource, error) {
-	buf, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("connect: read token: %w", err)
-	}
-	var tok oauth2.Token
-	if err := json.Unmarshal(buf, &tok); err != nil {
-		return nil, fmt.Errorf("connect: parse token: %w", err)
-	}
-	if tok.AccessToken == "" {
-		return nil, fmt.Errorf("connect: empty token at %s", path)
-	}
-	return &StaticSource{token: tok.AccessToken}, nil
-}
-
-func (s *StaticSource) Token(_ context.Context) (string, error) { return s.token, nil }
-
 func (r *RefreshingSource) Token(_ context.Context) (string, error) {
 	tok, err := r.src.Token()
 	if err != nil {

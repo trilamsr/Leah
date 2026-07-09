@@ -23,50 +23,6 @@ func writeDiscordToken(t *testing.T, sd string) {
 	}
 }
 
-func TestBriefNotifierAppendsDiscordWhenConnectedAndChannelSet(t *testing.T) {
-	sd := t.TempDir()
-	t.Setenv("LEAH_STATE_DIR", sd)
-	t.Setenv("LEAH_PUSHOVER_USER", "")
-	t.Setenv("LEAH_PUSHOVER_TOKEN", "")
-	t.Setenv("LEAH_BRIEF_WHATSAPP_TO", "")
-	writeDiscordToken(t, sd)
-	t.Setenv("LEAH_BRIEF_DISCORD_CHANNEL", "C123")
-
-	f := buildBriefNotifier(connectedDiscordAdapter())
-	if got := len(f.Notifiers); got != 3 {
-		t.Errorf("desktop+voice+discord = 3, got %d", got)
-	}
-}
-
-func TestBriefNotifierOmitsDiscordWhenChannelUnset(t *testing.T) {
-	sd := t.TempDir()
-	t.Setenv("LEAH_STATE_DIR", sd)
-	t.Setenv("LEAH_PUSHOVER_USER", "")
-	t.Setenv("LEAH_PUSHOVER_TOKEN", "")
-	t.Setenv("LEAH_BRIEF_WHATSAPP_TO", "")
-	writeDiscordToken(t, sd)
-	t.Setenv("LEAH_BRIEF_DISCORD_CHANNEL", "")
-
-	f := buildBriefNotifier(connectedDiscordAdapter())
-	if got := len(f.Notifiers); got != 2 {
-		t.Errorf("discord channel unset → desktop+voice = 2, got %d", got)
-	}
-}
-
-func TestBriefNotifierOmitsDiscordWhenNotConnected(t *testing.T) {
-	sd := t.TempDir()
-	t.Setenv("LEAH_STATE_DIR", sd)
-	t.Setenv("LEAH_PUSHOVER_USER", "")
-	t.Setenv("LEAH_PUSHOVER_TOKEN", "")
-	t.Setenv("LEAH_BRIEF_WHATSAPP_TO", "")
-	t.Setenv("LEAH_BRIEF_DISCORD_CHANNEL", "C123")
-
-	f := buildBriefNotifier(connectedDiscordAdapter())
-	if got := len(f.Notifiers); got != 2 {
-		t.Errorf("discord token absent → desktop+voice = 2, got %d", got)
-	}
-}
-
 func TestSpamStatsFor_ReadsLiveLimiter(t *testing.T) {
 	sd := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", sd)
@@ -91,7 +47,6 @@ func TestSpamStatsFor_NilWhenUnconnected(t *testing.T) {
 	}
 }
 
-// failing remote notifier MUST NOT block the others (Fanout isolation).
 func TestBriefNotifierFanoutIsolatesRemoteFailure(t *testing.T) {
 	desktop := &countingNotifier{}
 	remote := &countingNotifier{err: errors.New("remote down")}

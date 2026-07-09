@@ -33,24 +33,6 @@ func TestGatherJiraErrorMarksUnavailable(t *testing.T) {
 	}
 }
 
-func TestGatherCallsLinearLister(t *testing.T) {
-	dir := t.TempDir()
-	l := &fakeWorkLister{items: []WorkItem{{Title: "LEA-2", Detail: "todo"}}}
-	d := Gather(context.Background(), time.Now(), dir, nil, GatherOpts{Linear: l})
-	if len(d.LinearItems) != 1 || d.LinearUnavailable {
-		t.Errorf("linear items not propagated: %+v unavail=%v", d.LinearItems, d.LinearUnavailable)
-	}
-}
-
-func TestGatherCallsNotionLister(t *testing.T) {
-	dir := t.TempDir()
-	n := &fakeWorkLister{items: []WorkItem{{Title: "Roadmap"}}}
-	d := Gather(context.Background(), time.Now(), dir, nil, GatherOpts{Notion: n})
-	if len(d.NotionItems) != 1 || d.NotionUnavailable {
-		t.Errorf("notion items not propagated: %+v unavail=%v", d.NotionItems, d.NotionUnavailable)
-	}
-}
-
 func TestGatherCallsConfluenceLister(t *testing.T) {
 	dir := t.TempDir()
 	c := &fakeWorkLister{items: []WorkItem{{Title: "Runbook"}}}
@@ -60,11 +42,10 @@ func TestGatherCallsConfluenceLister(t *testing.T) {
 	}
 }
 
-// TestGatherNilWorkListers_OmitSections asserts unset work tools stay silent.
 func TestGatherNilWorkListers_OmitSections(t *testing.T) {
 	d := Data{Now: time.Now()}
 	out := Render(d)
-	for _, h := range []string{"## Jira", "## Linear", "## Notion", "## Confluence"} {
+	for _, h := range []string{"## Jira", "## Confluence"} {
 		if strings.Contains(out, h) {
 			t.Errorf("unconfigured work tool should omit %q:\n%s", h, out)
 		}
@@ -80,26 +61,24 @@ func TestRenderJiraItems(t *testing.T) {
 }
 
 func TestRenderWorkToolUnavailable(t *testing.T) {
-	d := Data{Now: time.Now(), LinearUnavailable: true}
+	d := Data{Now: time.Now(), ConfluenceUnavailable: true}
 	out := Render(d)
-	if !strings.Contains(out, "## Linear") || !strings.Contains(out, "unavailable") {
-		t.Errorf("expected linear unavailable fallback:\n%s", out)
+	if !strings.Contains(out, "## Confluence") || !strings.Contains(out, "unavailable") {
+		t.Errorf("expected confluence unavailable fallback:\n%s", out)
 	}
 }
 
-// TestGatherWorkToolErrorIsolation asserts one work tool's error marks only
-// its own flag — the errgroup fan-out keeps siblings alive.
 func TestGatherWorkToolErrorIsolation(t *testing.T) {
 	dir := t.TempDir()
 	opts := GatherOpts{
-		Jira:   &fakeWorkLister{err: errors.New("boom")},
-		Linear: &fakeWorkLister{items: []WorkItem{{Title: "ok"}}},
+		Jira:       &fakeWorkLister{err: errors.New("boom")},
+		Confluence: &fakeWorkLister{items: []WorkItem{{Title: "ok"}}},
 	}
 	d := Gather(context.Background(), time.Now(), dir, nil, opts)
 	if !d.JiraUnavailable {
 		t.Errorf("jira error should mark JiraUnavailable")
 	}
-	if d.LinearUnavailable || len(d.LinearItems) != 1 {
-		t.Errorf("linear sibling poisoned by jira error: unavail=%v items=%v", d.LinearUnavailable, d.LinearItems)
+	if d.ConfluenceUnavailable || len(d.ConfluenceItems) != 1 {
+		t.Errorf("confluence sibling poisoned by jira error: unavail=%v items=%v", d.ConfluenceUnavailable, d.ConfluenceItems)
 	}
 }

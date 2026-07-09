@@ -104,7 +104,7 @@ func TestRunDisconnect_NotConnected_CleanExit(t *testing.T) {
 // provider has no remote revoke, so disconnect is a clean local delete
 // plus a success audit row.
 func TestRunDisconnect_WorkTools_RemoveTokenAndAudit(t *testing.T) {
-	for _, name := range []string{"confluence", "jira", "slack", "notion", "linear", "msteams"} {
+	for _, name := range []string{"discord", "tmdb"} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			t.Setenv("LEAH_STATE_DIR", dir)

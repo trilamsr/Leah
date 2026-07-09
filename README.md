@@ -58,7 +58,7 @@ Closed-loop core, observe → remember → decide → act, with a native macOS H
 
 - **Native macOS HUD** — SwiftUI app (`app/Leah/`) with NSPanel hotkey, NSStatusItem, Settings panes, widget tile registry. AF_UNIX socket transport between daemon and HUD via length-prefixed JSON frames (`internal/ipc/frame.go`).
 - **Voice** — Wake-word (`wake-leah.mlmodel` + VAD gate + per-app suppression, opt-in), push-to-talk (Fn / right-⌘), TTS subsystem (ElevenLabs Flash v2.5 cloud primary, Apple Ava Premium fallback) with daemon-side privacy classifier. §17.17.
-- **CLI surface** — ~50 subcommands. Daily drivers: `ask`, `ship`, `review`, `call`, `brief`, `find`, `recall`, `connect <integration>`, `ctx`, `status`, `cost`, `retro`, `self-build`, `self-build-status`, `news`, `paper`, `quote`, `watch`, `slack`, `open`, `inbound`, `purge`. `leah` with no args prints the full list.
+- **CLI surface** — ~50 subcommands. Daily drivers: `ask`, `ship`, `review`, `call`, `brief`, `find`, `recall`, `connect <integration>`, `ctx`, `status`, `cost`, `retro`, `self-build`, `self-build-status`, `news`, `paper`, `quote`, `watch`, `open`, `inbound`, `purge`. `leah` with no args prints the full list.
 - **Memory** — `contact`, `project`, `decision`, `mistake`. SQLite at `~/.leah-state/memory.db` (`internal/memory/`). Typed-attestation gate on `leah purge` CLI; Touch ID gate on Settings → Memory → Purge in the native app per §17.13.
 - **Context manager** — `leah ctx new/switch/show/history/list`; single-active-context; per-switch audit row.
 - **Self-build dispatcher** — `leah self-build "<intent>"` files a `[SELF-BUILD]` issue against `trilamsr/Leah` (repo hard-locked); regatta picks up → PR → `leah review` independent subagent verdict → operator merges. Automerge banned on self-build.
@@ -74,7 +74,7 @@ Closed-loop core, observe → remember → decide → act, with a native macOS H
 - **Daemon weekly tick** — Sunday-9am cron fires resolver back-fill, pattern detect → `skill-candidates.md`, retro generate → `retro-YYYY-WW.md`, operatormodel profile rebuild.
 - **Operator model** — `operatormodel.UpdateProfile` rebuilds time-of-day / cadence / context-transition signals from last 30 days; `Recommend()` ranks candidates.
 - **Observability** — `internal/obs` slog daily-rotated JSONL logs, in-process metrics, `SafeGo`/`SafeRun` panic-recovery into `~/.leah-state/panics/`.
-- **Adapters shipped** — Gmail, Google Calendar, Slack, Discord, Linear, Jira, Atlassian, Confluence, Notion, Maps, Flights, iMessage, FaceTime, MSTeams, TMDB. First-launch auth via `leah connect <integration>` (browser OAuth device-code default; MCP fallback when integration is MCP-only).
+- **Adapters shipped** — Gmail, Google Calendar, Discord, Maps, Flights, iMessage, FaceTime, TMDB. First-launch auth via `leah connect <integration>` (browser OAuth device-code default; MCP fallback when integration is MCP-only).
 - **Backup** — `restic` to local USB + Backblaze B2; `leah backup` + restore drills.
 
 State lives in `$LEAH_STATE_DIR` (default `~/.leah-state/`): `audit.jsonl`, `memory.db`, `panics/`, `retro-*.md`, weekly tick outputs.

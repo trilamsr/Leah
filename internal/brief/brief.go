@@ -69,8 +69,8 @@ type WorkItem struct {
 }
 
 // WorkLister is the one-method shape every work-tool lister satisfies. The
-// wire site adapts the adapter's real read RPC (jira/linear ListMyIssues,
-// notion ListDatabases, confluence ListRecentPages) onto it.
+// wire site adapts the adapter's real read RPC (jira ListMyIssues,
+// confluence ListRecentPages) onto it.
 type WorkLister interface {
 	List(ctx context.Context) ([]WorkItem, error)
 }
@@ -85,8 +85,6 @@ type GatherOpts struct {
 	News       NewsReporter
 	Market     MarketReporter
 	Jira       WorkLister
-	Linear     WorkLister
-	Notion     WorkLister
 	Confluence WorkLister
 	Watchlist  WatchlistQuoter
 }
@@ -126,10 +124,6 @@ type Data struct {
 	// section omitted; Unavailable=true → connected but the read failed.
 	JiraItems             []WorkItem
 	JiraUnavailable       bool
-	LinearItems           []WorkItem
-	LinearUnavailable     bool
-	NotionItems           []WorkItem
-	NotionUnavailable     bool
 	ConfluenceItems       []WorkItem
 	ConfluenceUnavailable bool
 
@@ -234,8 +228,6 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 	}
 
 	gatherWork(ctx, &g, o.Jira, &d.JiraItems, &d.JiraUnavailable)
-	gatherWork(ctx, &g, o.Linear, &d.LinearItems, &d.LinearUnavailable)
-	gatherWork(ctx, &g, o.Notion, &d.NotionItems, &d.NotionUnavailable)
 	gatherWork(ctx, &g, o.Confluence, &d.ConfluenceItems, &d.ConfluenceUnavailable)
 
 	// Read watchlist.json synchronously — the spawn decision needs the symbol
@@ -381,8 +373,6 @@ func Render(d Data) string {
 	renderMail(&b, d)
 
 	renderWorkSection(&b, "Jira", d.JiraItems, d.JiraUnavailable)
-	renderWorkSection(&b, "Linear", d.LinearItems, d.LinearUnavailable)
-	renderWorkSection(&b, "Notion", d.NotionItems, d.NotionUnavailable)
 	renderWorkSection(&b, "Confluence", d.ConfluenceItems, d.ConfluenceUnavailable)
 
 	renderNews(&b, d)

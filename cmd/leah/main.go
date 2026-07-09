@@ -231,12 +231,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runPRState(ctx, nil, rest, stdout)
 	case "review-queue":
 		return runReviewQueue(ctx, rest, stdout)
-	case "threads":
-		return runThreads(ctx, rest, stdout)
 	case "trip":
 		return runTrip(ctx, rest, stdout)
-	case "slack":
-		return runSlack(ctx, rest, stdout)
 	case "open":
 		return runOpen(ctx, rest, stdout)
 	case "find":
@@ -402,17 +398,8 @@ func runShipArgs(ctx context.Context, args []string) int {
 	fromIssue := fs.Int("from-issue", 0, "prepend gh issue view + comments for issue #N from the same repo")
 	fromThread := fs.String("from-thread", "", "prepend last-N shell-history entries (e.g. 100c or 30m)")
 	imsgTo := fs.String("imessage", "", "iMessage \"<body>\" to <to> (attestation-gated)")
-	toolFlags := []shipToolFlag{
-		{"slack", fs.String("slack", "", "post \"<title>\" to Slack (attestation-gated)")},
-		{"jira", fs.String("jira", "", "create a Jira issue titled \"<title>\" (attestation-gated)")},
-		{"notion", fs.String("notion", "", "create a Notion page titled \"<title>\" (attestation-gated)")},
-		{"linear", fs.String("linear", "", "create a Linear issue titled \"<title>\" (attestation-gated)")},
-		{"teams", fs.String("teams", "", "post \"<title>\" to Teams (attestation-gated)")},
-		{"confluence", fs.String("confluence", "", "(no write surface in MVP — errors)")},
-	}
 	fs.Usage = func() {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"")
-		_, _ = fmt.Fprintln(os.Stderr, "       leah ship --<slack|jira|notion|linear|teams> \"<title>\"")
 		_, _ = fmt.Fprintln(os.Stderr, "       leah ship --imessage <to> \"<body>\"")
 		fs.PrintDefaults()
 	}
@@ -426,12 +413,6 @@ func runShipArgs(ctx context.Context, args []string) int {
 			return 2
 		}
 		return runShipIMessageWith(ctx, newConnectAttestor(), nativeExec{}, *imsgTo, fs.Arg(0))
-	}
-
-	for _, tf := range toolFlags {
-		if *tf.val != "" {
-			return runShipTool(ctx, tf.tool, *tf.val)
-		}
 	}
 
 	if fs.NArg() < 2 {
@@ -700,7 +681,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  self-upgrade              attested rebuild + atomic symlink-swap of ~/bin/leah (BR=4)")
 	_, _ = fmt.Fprintln(os.Stderr, "  pr-state <N>|--open|--queue  one-line PR readiness (state, CI, review, mergeable)")
 	_, _ = fmt.Fprintln(os.Stderr, "  review-queue [--org X] [--json]  PRs awaiting your review, oldest-first")
-	_, _ = fmt.Fprintln(os.Stderr, "  slack <send|list|thread|search>  wraps the slack adapter for CLI use")
 	_, _ = fmt.Fprintln(os.Stderr, "  open <target>             launch streaming/social via macOS open (netflix, spotify, linkedin, …)")
 	_, _ = fmt.Fprintln(os.Stderr, "  find [--region XX] <title...>  which streaming services carry a title (TMDB)")
 	_, _ = fmt.Fprintln(os.Stderr, "  strategist <post|next|inbox|queue|doctor>  social-post pipeline (text+image+clip via higgsfield)")

@@ -3,7 +3,6 @@ package connect
 import (
 	"bufio"
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"strings"
@@ -62,8 +61,3 @@ func (p *tokenPasteProvider) authorize(_ context.Context, _ PromptFn) (*oauth2.T
 
 // rawToken stores the pasted credential verbatim; the adapter's transport handles any prefix.
 func rawToken(v []string) string { return v[0] }
-
-// basicAuth builds the Atlassian "Basic base64(email:token)" header value.
-func basicAuth(v []string) string {
-	return "Basic " + base64.StdEncoding.EncodeToString([]byte(v[0]+":"+v[1]))
-}
