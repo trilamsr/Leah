@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/inbound"
 )
 
@@ -35,8 +35,8 @@ func TestRunInboundEnroll_PersistsAfterAttestation(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("rc = %d (stderr: %s)", code, w.String())
 	}
-	if att.gotScope != attestation.ScopeInboundEnroll {
-		t.Fatalf("attest scope = %q want %q", att.gotScope, attestation.ScopeInboundEnroll)
+	if att.gotScope != attest.ScopeInboundEnroll {
+		t.Fatalf("attest scope = %q want %q", att.gotScope, attest.ScopeInboundEnroll)
 	}
 
 	store, err := inbound.OpenFileEnrollStore(filepath.Join(dir, "inbound-enroll.json"))

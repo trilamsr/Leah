@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 )
 
@@ -49,8 +49,8 @@ func TestShipTool_AttestsThenWrites(t *testing.T) {
 	if err := st.Run(context.Background(), "ship the thing"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if at.scope != attestation.ScopeShipTool {
-		t.Errorf("attested scope = %q, want %q", at.scope, attestation.ScopeShipTool)
+	if at.scope != attest.ScopeShipTool {
+		t.Errorf("attested scope = %q, want %q", at.scope, attest.ScopeShipTool)
 	}
 	if w.calls != 1 || w.title != "ship the thing" {
 		t.Errorf("writer calls=%d title=%q, want 1 / %q", w.calls, w.title, "ship the thing")

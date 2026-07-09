@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
 )
@@ -31,7 +31,7 @@ func runSelfUpgrade(ctx context.Context, args []string, w io.Writer, deps *upgra
 		deps = &upgradeDeps{Attestor: newSelfUpgradeAttestor(), Run: runUpgradeScript}
 	}
 
-	if err := deps.Attestor.Attest(ctx, attestation.ScopeSelfUpgrade); err != nil {
+	if err := deps.Attestor.Attest(ctx, attest.ScopeSelfUpgrade); err != nil {
 		_ = a.Append(audit.Entry{Kind: "self_upgrade", BlastRadius: 4, Outcome: "declined"})
 		_, _ = fmt.Fprintf(os.Stderr, "leah self-upgrade: attestation declined, aborting\n")
 		return 1
@@ -85,7 +85,7 @@ func (selfUpgradeAttestor) Attest(_ context.Context, scope string) error {
 }
 
 func pickSelfUpgradeQuestion(scope string) (string, error) {
-	pool, err := attestation.Load(filepath.Join(promptDir(), "self-build-attestations.txt"), attestation.ScopeSelfUpgrade)
+	pool, err := attest.Load(filepath.Join(promptDir(), "self-build-attestations.txt"), attest.ScopeSelfUpgrade)
 	if err != nil {
 		return "", err
 	}

@@ -135,7 +135,7 @@ func TestSelfBuildPrependsTitle(t *testing.T) {
 	}
 }
 
-// Selfbuild routes through internal/attestation: the dispatched issue body must
+// Selfbuild routes through internal/attest: the dispatched issue body must
 // carry the attestation block + a pool-sourced question (Wave1-E HIGH-2).
 func TestSelfBuildIncludesAttestation(t *testing.T) {
 	dir := t.TempDir()

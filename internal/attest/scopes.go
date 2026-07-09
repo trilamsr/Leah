@@ -1,4 +1,4 @@
-package attestation
+package attest
 
 // Canonical scope identifiers. String literals previously appeared at every
 // Pool.Load callsite; centralising them here keeps audit-row Kind values and

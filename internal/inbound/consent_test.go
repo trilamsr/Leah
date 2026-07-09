@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 )
 
 // fakeAttestor records every scope it was asked to clear; returns deny when
@@ -34,15 +34,15 @@ func TestAuthorize_SelfBuildDoesNotDowngrade(t *testing.T) {
 	att := &fakeAttestor{}
 	gate := &Gate{
 		Attestor: att,
-		Resolver: staticResolver{scope: attestation.ScopeSelfBuild},
+		Resolver: staticResolver{scope: attest.ScopeSelfBuild},
 		Store:    NewMemoryEnrollStore(),
 	}
 	p := Pending{RecID: "rec-build-42", Channel: "discord", PeerID: "peer-A"}
 	if err := gate.Authorize(context.Background(), p, IntentAccept); err != nil {
 		t.Fatalf("Authorize: %v", err)
 	}
-	if len(att.calls) != 1 || att.calls[0] != attestation.ScopeSelfBuild {
-		t.Fatalf("scope: got %v want [%s]", att.calls, attestation.ScopeSelfBuild)
+	if len(att.calls) != 1 || att.calls[0] != attest.ScopeSelfBuild {
+		t.Fatalf("scope: got %v want [%s]", att.calls, attest.ScopeSelfBuild)
 	}
 }
 
@@ -51,14 +51,14 @@ func TestAuthorize_DefaultsToInboundApply(t *testing.T) {
 	att := &fakeAttestor{}
 	gate := &Gate{
 		Attestor: att,
-		Resolver: staticResolver{scope: attestation.ScopeInboundApply},
+		Resolver: staticResolver{scope: attest.ScopeInboundApply},
 		Store:    NewMemoryEnrollStore(),
 	}
 	if err := gate.Authorize(context.Background(), Pending{RecID: "rec-cron"}, IntentAccept); err != nil {
 		t.Fatalf("Authorize: %v", err)
 	}
-	if len(att.calls) != 1 || att.calls[0] != attestation.ScopeInboundApply {
-		t.Fatalf("scope: got %v want [%s]", att.calls, attestation.ScopeInboundApply)
+	if len(att.calls) != 1 || att.calls[0] != attest.ScopeInboundApply {
+		t.Fatalf("scope: got %v want [%s]", att.calls, attest.ScopeInboundApply)
 	}
 }
 
@@ -69,7 +69,7 @@ func TestAuthorize_DenialSurfacesError(t *testing.T) {
 	att := &fakeAttestor{deny: deny}
 	gate := &Gate{
 		Attestor: att,
-		Resolver: staticResolver{scope: attestation.ScopeInboundApply},
+		Resolver: staticResolver{scope: attest.ScopeInboundApply},
 		Store:    NewMemoryEnrollStore(),
 	}
 	if err := gate.Authorize(context.Background(), Pending{RecID: "x"}, IntentAccept); !errors.Is(err, deny) {
@@ -84,7 +84,7 @@ func TestAuthorize_NonAcceptIntentsSkipAttestation(t *testing.T) {
 		att := &fakeAttestor{}
 		gate := &Gate{
 			Attestor: att,
-			Resolver: staticResolver{scope: attestation.ScopeInboundApply},
+			Resolver: staticResolver{scope: attest.ScopeInboundApply},
 			Store:    NewMemoryEnrollStore(),
 		}
 		if err := gate.Authorize(context.Background(), Pending{RecID: "x"}, intent); err != nil {
@@ -243,7 +243,7 @@ func TestRouter_PeerMismatchSkipsConcreteGate(t *testing.T) {
 	_ = store.Enroll("discord", "peer-real")
 	gate := &Gate{
 		Attestor: att,
-		Resolver: staticResolver{scope: attestation.ScopeInboundApply},
+		Resolver: staticResolver{scope: attest.ScopeInboundApply},
 		Store:    store,
 	}
 	pending := NewMemoryPendingStore()

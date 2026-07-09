@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/attestation"
+	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 )
 
@@ -83,8 +83,8 @@ func TestA2ACard_MatchesSpec(t *testing.T) {
 	if !ok {
 		t.Fatalf("skills[0].x-leah missing")
 	}
-	if x["auth_scope"] != attestation.ScopeSelfBuildA2A {
-		t.Errorf("x-leah.auth_scope = %v, want %s", x["auth_scope"], attestation.ScopeSelfBuildA2A)
+	if x["auth_scope"] != attest.ScopeSelfBuildA2A {
+		t.Errorf("x-leah.auth_scope = %v, want %s", x["auth_scope"], attest.ScopeSelfBuildA2A)
 	}
 	if br, _ := x["blast_radius"].(float64); br != 4 {
 		t.Errorf("x-leah.blast_radius = %v, want 4", x["blast_radius"])
@@ -141,7 +141,7 @@ func TestA2ACard_OperatorEditsToGateFieldsAreOverwritten(t *testing.T) {
 	if x["requires_attestation"] != true {
 		t.Errorf("gate field requires_attestation NOT regenerated: %v", x["requires_attestation"])
 	}
-	if x["auth_scope"] != attestation.ScopeSelfBuildA2A {
+	if x["auth_scope"] != attest.ScopeSelfBuildA2A {
 		t.Errorf("gate field auth_scope NOT regenerated: %v", x["auth_scope"])
 	}
 	raw := readFile(t, logger.Path)
