@@ -1,7 +1,7 @@
 # Leah — Widget Protocol v1 (data + lifecycle + registry)
 
 Companion to:
-- `2026-06-21-leah-macos-native-ui-design-v1.md` § 1.3 (Focus chamber), § 5.2 (chamber anatomy), § 9 (widget canvas visuals — concurrent author)
+- `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` § 1.3 (Focus chamber), § 5.2 (chamber anatomy), § 9 (widget canvas visuals — concurrent author)
 - Wizard / Settings surfaces: same doc § 1.5, § 1.6 (per-widget enable toggles live in Settings → Widgets)
 
 **Scope:** the data protocol — JSON tool-call shape, daemon adapter contract, lifecycle, streaming frames, registry, security, extensibility, tests. **Not** visuals; the design doc owns layout, color, typography, motion.
