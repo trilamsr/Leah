@@ -11,7 +11,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/costview"
+	"github.com/trilam/leah/internal/budget/view"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/regattaclient"
@@ -44,7 +44,7 @@ type SpamStat struct {
 type CostsView struct {
 	TodayUSD float64           `json:"today_usd"`
 	WeekUSD  float64           `json:"week_usd"`
-	TopKinds []costview.Bucket `json:"top_kinds"`
+	TopKinds []view.Bucket `json:"top_kinds"`
 }
 
 // AuditRow is one entry surfaced from audit.jsonl tail.
@@ -185,18 +185,18 @@ func computeHUDStateEvent(value string, listening, thinking bool) obs.Event {
 // otherwise we re-aggregate at the finer grain — acceptable since the
 // audit file is small at single-operator scale.
 func readCosts(auditPath string) CostsView {
-	v := CostsView{TopKinds: []costview.Bucket{}}
+	v := CostsView{TopKinds: []view.Bucket{}}
 	if auditPath == "" {
 		return v
 	}
 	now := time.Now()
-	week, err := costview.Aggregate(auditPath, now.Add(-7*24*time.Hour))
+	week, err := view.Aggregate(auditPath, now.Add(-7*24*time.Hour))
 	if err != nil {
 		return v
 	}
 	v.WeekUSD = week.TotalUSD
 	v.TopKinds = week.TopKinds(3)
-	if today, err := costview.Aggregate(auditPath, now.Add(-24*time.Hour)); err == nil {
+	if today, err := view.Aggregate(auditPath, now.Add(-24*time.Hour)); err == nil {
 		v.TodayUSD = today.TotalUSD
 	}
 	return v

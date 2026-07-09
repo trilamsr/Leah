@@ -1,4 +1,4 @@
-package costmonth
+package monthly
 
 import (
 	"sync"

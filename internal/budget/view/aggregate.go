@@ -1,6 +1,6 @@
-// Package costview aggregates leah's per-invocation cost across the
+// Package view aggregates leah's per-invocation cost across the
 // append-only audit.jsonl log. Read-only, no SQLite, streaming parse.
-package costview
+package view
 
 import (
 	"bufio"
