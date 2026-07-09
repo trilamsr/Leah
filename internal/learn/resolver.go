@@ -1,7 +1,4 @@
-// Package selflearn closes the learn-from-experience loop for a single
-// operator: resolver (back-fills outcomes), mistake log (operator
-// annotations), retro (weekly markdown).
-package selflearn
+package learn
 
 import (
 	"bufio"
@@ -17,20 +14,20 @@ import (
 	"github.com/trilam/leah/internal/audit"
 )
 
-// Outcome is the resolver verdict for a pending audit row.
-type Outcome string
+// RetroOutcome is the resolver verdict for a pending audit row.
+type RetroOutcome string
 
 const (
-	OutcomeSuccess Outcome = "success"
-	OutcomeFailed  Outcome = "failed"
-	OutcomeUnknown Outcome = "unknown"
-	OutcomePending Outcome = "pending"
+	RetroSuccess RetroOutcome = "success"
+	RetroFailed  RetroOutcome = "failed"
+	RetroUnknown RetroOutcome = "unknown"
+	RetroPending RetroOutcome = "pending"
 )
 
 // Rule resolves a single pending audit Entry. Returns the verdict and a
 // short probe-result string folded into the resolver.update Detail.
 type Rule interface {
-	Resolve(ctx context.Context, e audit.Entry) (Outcome, string)
+	Resolve(ctx context.Context, e audit.Entry) (RetroOutcome, string)
 }
 
 // Resolver walks audit.jsonl for pending rows within Since and dispatches
@@ -45,8 +42,8 @@ type Resolver struct {
 	Out       io.Writer
 	// OnOutcome, if set, receives each resolved verdict so a downstream
 	// observer (operatormodel) reflects recent ship results. Must not block —
-	// the daemon wires it through OutcomeSink (queue-with-drop).
-	OnOutcome func(Outcome)
+	// the daemon wires it through RetroOutcomeSink (queue-with-drop).
+	OnOutcome func(RetroOutcome)
 
 	mu sync.Mutex
 }
@@ -82,7 +79,7 @@ func (r *Resolver) Run(ctx context.Context) error {
 	}
 
 	for _, e := range entries {
-		if e.Outcome != string(OutcomePending) {
+		if e.Outcome != string(RetroPending) {
 			continue
 		}
 		ts, err := time.Parse(time.RFC3339, e.Timestamp)
@@ -98,7 +95,7 @@ func (r *Resolver) Run(ctx context.Context) error {
 			continue
 		}
 		verdict, probeDetail := rule.Resolve(ctx, e)
-		if verdict == OutcomePending {
+		if verdict == RetroPending {
 			continue // rule says "wait longer"
 		}
 		detail := fmt.Sprintf("resolved %s -> %s", key, probeDetail)

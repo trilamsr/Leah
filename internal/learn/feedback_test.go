@@ -1,4 +1,4 @@
-package selflearn
+package learn
 
 import (
 	"bytes"
@@ -24,9 +24,9 @@ func TestResolverEmitsOutcomeToCallback(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	var got []Outcome
+	var got []RetroOutcome
 	var mu sync.Mutex
-	sink := NewOutcomeSink(1, func(o Outcome) {
+	sink := NewRetroOutcomeSink(1, func(o RetroOutcome) {
 		mu.Lock()
 		got = append(got, o)
 		mu.Unlock()
@@ -36,7 +36,7 @@ func TestResolverEmitsOutcomeToCallback(t *testing.T) {
 	r := &Resolver{
 		AuditPath: auditPath,
 		Logger:    logger,
-		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeFailed, detail: "state=CLOSED mergedAt=nil"}},
+		Rules:     map[string]Rule{"ship": stubRule{verdict: RetroFailed, detail: "state=CLOSED mergedAt=nil"}},
 		Since:     7 * 24 * time.Hour,
 		Now:       func() time.Time { return time.Date(2026, 6, 9, 11, 0, 0, 0, time.UTC) },
 		Out:       new(bytes.Buffer),
@@ -52,8 +52,8 @@ func TestResolverEmitsOutcomeToCallback(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("want 1 outcome delivered, got %d", len(got))
 	}
-	if got[0] != OutcomeFailed {
-		t.Errorf("verdict: want %q, got %q", OutcomeFailed, got[0])
+	if got[0] != RetroFailed {
+		t.Errorf("verdict: want %q, got %q", RetroFailed, got[0])
 	}
 }
 
@@ -69,7 +69,7 @@ func TestResolverNilCallbackIsNoOp(t *testing.T) {
 	r := &Resolver{
 		AuditPath: auditPath,
 		Logger:    logger,
-		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeSuccess, detail: "ok"}},
+		Rules:     map[string]Rule{"ship": stubRule{verdict: RetroSuccess, detail: "ok"}},
 		Since:     7 * 24 * time.Hour,
 		Now:       func() time.Time { return time.Now() },
 		Out:       new(bytes.Buffer),
@@ -79,13 +79,13 @@ func TestResolverNilCallbackIsNoOp(t *testing.T) {
 	}
 }
 
-// TestOutcomeSinkDropsOnOverflow asserts Emit never blocks: when the queue
+// TestRetroOutcomeSinkDropsOnOverflow asserts Emit never blocks: when the queue
 // is full the outcome is dropped, not back-pressured onto the resolver.
-func TestOutcomeSinkDropsOnOverflow(t *testing.T) {
+func TestRetroOutcomeSinkDropsOnOverflow(t *testing.T) {
 	release := make(chan struct{})
 	var delivered int
 	var mu sync.Mutex
-	sink := NewOutcomeSink(1, func(_ Outcome) {
+	sink := NewRetroOutcomeSink(1, func(_ RetroOutcome) {
 		<-release // block the single worker so the buffer saturates
 		mu.Lock()
 		delivered++
@@ -96,7 +96,7 @@ func TestOutcomeSinkDropsOnOverflow(t *testing.T) {
 	go func() {
 		// Far more emits than capacity; must return promptly without blocking.
 		for i := 0; i < 10_000; i++ {
-			sink.Emit(OutcomeSuccess)
+			sink.Emit(RetroSuccess)
 		}
 		close(done)
 	}()
@@ -115,21 +115,21 @@ func TestOutcomeSinkDropsOnOverflow(t *testing.T) {
 	}
 }
 
-// TestOutcomeSinkEmitCloseRace asserts concurrent Emit + Close never panics
+// TestRetroOutcomeSinkEmitCloseRace asserts concurrent Emit + Close never panics
 // on send-to-closed-channel. The select in Emit can pick the `s.ch <- o`
 // branch even after Close has begun, and a concurrent close(s.ch) then
 // panics the sending goroutine. Run under -race to surface the data race
 // on s.ch as well.
-func TestOutcomeSinkEmitCloseRace(t *testing.T) {
+func TestRetroOutcomeSinkEmitCloseRace(t *testing.T) {
 	for iter := 0; iter < 50; iter++ {
-		sink := NewOutcomeSink(4, func(_ Outcome) {})
+		sink := NewRetroOutcomeSink(4, func(_ RetroOutcome) {})
 		var wg sync.WaitGroup
 		for i := 0; i < 8; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				for j := 0; j < 500; j++ {
-					sink.Emit(OutcomeSuccess)
+					sink.Emit(RetroSuccess)
 				}
 			}()
 		}
@@ -137,6 +137,6 @@ func TestOutcomeSinkEmitCloseRace(t *testing.T) {
 		sink.Close()
 		wg.Wait()
 		// Emit after Close must also be safe (no panic).
-		sink.Emit(OutcomeSuccess)
+		sink.Emit(RetroSuccess)
 	}
 }

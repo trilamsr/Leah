@@ -1,22 +1,22 @@
-package selflearn
+package learn
 
 import "sync"
 
-// OutcomeSink fans verdicts to an observer, dropping on overflow so Emit
+// RetroOutcomeSink fans verdicts to an observer, dropping on overflow so Emit
 // never blocks the resolver.
-type OutcomeSink struct {
-	ch     chan Outcome
+type RetroOutcomeSink struct {
+	ch     chan RetroOutcome
 	mu     sync.RWMutex // RLock guards in-flight sends; Lock gates close
 	closed bool
 	wg     sync.WaitGroup
 	once   sync.Once
 }
 
-func NewOutcomeSink(buffer int, sink func(Outcome)) *OutcomeSink {
+func NewRetroOutcomeSink(buffer int, sink func(RetroOutcome)) *RetroOutcomeSink {
 	if buffer < 1 {
 		buffer = 1
 	}
-	s := &OutcomeSink{ch: make(chan Outcome, buffer)}
+	s := &RetroOutcomeSink{ch: make(chan RetroOutcome, buffer)}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -27,7 +27,7 @@ func NewOutcomeSink(buffer int, sink func(Outcome)) *OutcomeSink {
 	return s
 }
 
-func (s *OutcomeSink) Emit(o Outcome) {
+func (s *RetroOutcomeSink) Emit(o RetroOutcome) {
 	// RLock lets multiple emitters proceed in parallel; Close's Lock
 	// waits for all in-flight sends before close(s.ch), which makes
 	// send-to-closed-channel impossible.
@@ -42,7 +42,7 @@ func (s *OutcomeSink) Emit(o Outcome) {
 	}
 }
 
-func (s *OutcomeSink) Close() {
+func (s *RetroOutcomeSink) Close() {
 	s.once.Do(func() {
 		s.mu.Lock()
 		s.closed = true

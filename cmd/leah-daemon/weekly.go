@@ -16,8 +16,8 @@ import (
 	"github.com/trilam/leah/internal/notify"
 	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/patterns"
-	"github.com/trilam/leah/internal/selflearn"
-	"github.com/trilam/leah/internal/selflearn/rules"
+	"github.com/trilam/leah/internal/learn"
+	"github.com/trilam/leah/internal/learn/rules"
 )
 
 // buildWeeklyTasks returns the per-week tasks fired by daemonloop on the
@@ -51,14 +51,14 @@ func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []dae
 // metric-snapshot deltas). Errors log + skip — the next weekly tick retries.
 func buildResolverTask(auditPath string, a *audit.Logger, out *os.File, feedback *operatormodel.FeedbackObserver) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
-		sink := selflearn.NewOutcomeSink(64, func(o selflearn.Outcome) {
+		sink := learn.NewRetroOutcomeSink(64, func(o learn.RetroOutcome) {
 			feedback.Observe(operatormodel.ShipOutcome{Verdict: shipVerdict(o), At: time.Now().UTC()})
 		})
 		defer sink.Close() // flush in-flight before the operatormodel task drains
-		r := &selflearn.Resolver{
+		r := &learn.Resolver{
 			AuditPath: auditPath,
 			Logger:    a,
-			Rules: map[string]selflearn.Rule{
+			Rules: map[string]learn.Rule{
 				"regatta.ship": rules.RegattaPR{},
 			},
 			Out:       out,
@@ -73,11 +73,11 @@ func buildResolverTask(auditPath string, a *audit.Logger, out *os.File, feedback
 // shipVerdict maps a selflearn resolver verdict to the operator-model
 // ship_outcome slot, keeping the import arrow one-way (the translation
 // lives at the daemon boundary, not inside operatormodel).
-func shipVerdict(o selflearn.Outcome) string {
+func shipVerdict(o learn.RetroOutcome) string {
 	switch o {
-	case selflearn.OutcomeSuccess:
+	case learn.RetroSuccess:
 		return operatormodel.VerdictOK
-	case selflearn.OutcomeFailed:
+	case learn.RetroFailed:
 		return operatormodel.VerdictFailed
 	default:
 		return operatormodel.VerdictDangling
@@ -104,17 +104,17 @@ func buildPatternsTask(sd, auditPath string, out *os.File) daemonloop.WeeklyTask
 
 // buildRetroTask writes the weekly self-retro to ~/.leah-state/
 // retro-YYYY-WW.md, threading the attestation-scanner adapter into
-// selflearn.Retro for soft-fail attestation reporting.
+// learn.Retro for soft-fail attestation reporting.
 func buildRetroTask(sd, auditPath string, out *os.File) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
 		dbPath := filepath.Join(sd, "memory.db")
-		store, err := selflearn.OpenMistakeStore(dbPath)
+		store, err := learn.OpenMistakeStore(dbPath)
 		if err != nil {
 			_, _ = fmt.Fprintf(out, "leah-daemon: weekly retro store error: %v\n", err)
 			return
 		}
 		defer func() { _ = store.Close() }()
-		retro := &selflearn.Retro{
+		retro := &learn.Retro{
 			AuditPath:          auditPath,
 			Store:              store,
 			AttestationScanner: daemonAttestationScanner(),

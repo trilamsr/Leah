@@ -1,4 +1,4 @@
-package selflearn
+package learn
 
 import "github.com/trilam/leah/internal/obs"
 

@@ -1,4 +1,4 @@
-package selflearn
+package learn
 
 import (
 	"bytes"
@@ -15,11 +15,11 @@ import (
 
 // stubRule returns a fixed verdict regardless of entry.
 type stubRule struct {
-	verdict Outcome
+	verdict RetroOutcome
 	detail  string
 }
 
-func (s stubRule) Resolve(_ context.Context, _ audit.Entry) (Outcome, string) {
+func (s stubRule) Resolve(_ context.Context, _ audit.Entry) (RetroOutcome, string) {
 	return s.verdict, s.detail
 }
 
@@ -51,7 +51,7 @@ func TestResolverUpdatesPendingRow(t *testing.T) {
 			Now:  func() time.Time { return time.Date(2026, 6, 9, 11, 0, 0, 0, time.UTC) },
 		},
 		Rules: map[string]Rule{
-			"ship": stubRule{verdict: OutcomeSuccess, detail: "state=MERGED"},
+			"ship": stubRule{verdict: RetroSuccess, detail: "state=MERGED"},
 		},
 		Since: 7 * 24 * time.Hour,
 		Now:   func() time.Time { return time.Date(2026, 6, 9, 11, 0, 0, 0, time.UTC) },
@@ -69,7 +69,7 @@ func TestResolverUpdatesPendingRow(t *testing.T) {
 	if got.Kind != "resolver.update" {
 		t.Errorf("kind: want resolver.update, got %q", got.Kind)
 	}
-	if got.Outcome != string(OutcomeSuccess) {
+	if got.Outcome != string(RetroSuccess) {
 		t.Errorf("outcome: want success, got %q", got.Outcome)
 	}
 	if !strings.Contains(got.Detail, "ship") || !strings.Contains(got.Detail, "abc") {
@@ -109,7 +109,7 @@ func TestResolverSkipsAlreadyResolved(t *testing.T) {
 	r := &Resolver{
 		AuditPath: auditPath,
 		Logger:    logger,
-		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeSuccess, detail: "state=MERGED"}},
+		Rules:     map[string]Rule{"ship": stubRule{verdict: RetroSuccess, detail: "state=MERGED"}},
 		Since:     7 * 24 * time.Hour,
 		Now:       func() time.Time { return time.Date(2026, 6, 9, 11, 0, 0, 0, time.UTC) },
 		Out:       new(bytes.Buffer),
@@ -130,7 +130,7 @@ func TestResolver_MissingAuditFileNoError(t *testing.T) {
 	r := &Resolver{
 		AuditPath: filepath.Join(t.TempDir(), "no-such-audit.jsonl"),
 		Logger:    &audit.Logger{Path: filepath.Join(t.TempDir(), "out.jsonl")},
-		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeSuccess}},
+		Rules:     map[string]Rule{"ship": stubRule{verdict: RetroSuccess}},
 		Since:     7 * 24 * time.Hour,
 		Now:       func() time.Time { return time.Now() },
 		Out:       new(bytes.Buffer),
@@ -154,7 +154,7 @@ func TestResolver_RowOutsideSinceWindowIgnored(t *testing.T) {
 	r := &Resolver{
 		AuditPath: auditPath,
 		Logger:    logger,
-		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeSuccess, detail: "x"}},
+		Rules:     map[string]Rule{"ship": stubRule{verdict: RetroSuccess, detail: "x"}},
 		Since:     7 * 24 * time.Hour, // 7d window — 30d-old row should fall outside
 		Now:       func() time.Time { return time.Now() },
 		Out:       new(bytes.Buffer),
@@ -180,7 +180,7 @@ func TestResolver_UnknownKindSkipped(t *testing.T) {
 	r := &Resolver{
 		AuditPath: auditPath,
 		Logger:    logger,
-		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomeSuccess}},
+		Rules:     map[string]Rule{"ship": stubRule{verdict: RetroSuccess}},
 		Since:     7 * 24 * time.Hour,
 		Now:       func() time.Time { return time.Now() },
 		Out:       new(bytes.Buffer),
@@ -194,7 +194,7 @@ func TestResolver_UnknownKindSkipped(t *testing.T) {
 	}
 }
 
-// TestResolver_PendingVerdictDeferred asserts a rule returning OutcomePending
+// TestResolver_PendingVerdictDeferred asserts a rule returning RetroPending
 // (probe says "wait longer") does NOT write a resolver.update row — re-runs
 // will retry.
 func TestResolver_PendingVerdictDeferred(t *testing.T) {
@@ -207,7 +207,7 @@ func TestResolver_PendingVerdictDeferred(t *testing.T) {
 	r := &Resolver{
 		AuditPath: auditPath,
 		Logger:    logger,
-		Rules:     map[string]Rule{"ship": stubRule{verdict: OutcomePending, detail: "still-running"}},
+		Rules:     map[string]Rule{"ship": stubRule{verdict: RetroPending, detail: "still-running"}},
 		Since:     7 * 24 * time.Hour,
 		Now:       func() time.Time { return time.Now() },
 		Out:       new(bytes.Buffer),

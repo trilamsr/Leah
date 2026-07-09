@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/selflearn"
+	"github.com/trilam/leah/internal/learn"
 )
 
 // runMistake dispatches `leah mistake <action> ...`.
@@ -39,13 +39,13 @@ func runMistake(args []string) int {
 			_, _ = fmt.Fprintln(os.Stderr, "leah mistake add: --audit-id, --root-cause, --prevention all required")
 			return 2
 		}
-		store, err := selflearn.OpenMistakeStore(memoryPath())
+		store, err := learn.OpenMistakeStore(memoryPath())
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah mistake add: open store: %v\n", err)
 			return 1
 		}
 		defer func() { _ = store.Close() }()
-		id, err := store.Add(selflearn.Mistake{
+		id, err := store.Add(learn.Mistake{
 			AuditTS:    *auditID,
 			AuditKind:  *kind,
 			AuditHash:  *hash,

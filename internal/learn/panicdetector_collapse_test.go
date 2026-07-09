@@ -1,4 +1,4 @@
-package selflearn
+package learn
 
 import (
 	"reflect"
