@@ -12,7 +12,7 @@ import (
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/watchdog"
@@ -63,7 +63,7 @@ func runSelfBuild(ctx context.Context, intent string) int {
 		Watch:                    true,
 		Regatta:                  regattaclient.New(),
 		Heartbeat:                watchdog.New(),
-		Notify:                   notify.NewDesktop(),
+		Notify:                   commsout.NewDesktop(),
 		PollEvery:                30 * time.Second,
 		MaxPolls:                 120,
 	}

@@ -26,7 +26,7 @@ import (
 	"github.com/trilam/leah/internal/onboarding"
 	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/recommend"
-	"github.com/trilam/leah/internal/selflearn"
+	"github.com/trilam/leah/internal/learn"
 	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/voice/listener"
 	voiceloop "github.com/trilam/leah/internal/voice/loop"
@@ -73,7 +73,7 @@ func wireObs(
 	feeds.RegisterMetrics(registry)
 	intent.RegisterMetrics(registry)
 	recommend.RegisterMetrics(registry)
-	selflearn.RegisterMetrics(registry)
+	learn.RegisterMetrics(registry)
 	operatormodel.RegisterMetrics(registry)
 	listener.RegisterMetrics(registry)
 	voiceloop.RegisterMetrics(registry)

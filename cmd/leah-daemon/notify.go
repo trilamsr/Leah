@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 )
 
 // buildNotifier returns the composition root for daemon notifications.
@@ -13,11 +13,11 @@ import (
 // Fanout dispatches to every wrapped notifier and joins errors so a TTS
 // chain failure cannot suppress the desktop banner.
 func buildNotifier() contracts.Notifier {
-	desktop := notify.NewDesktop()
+	desktop := commsout.NewDesktop()
 	if os.Getenv("LEAH_VOICE_ENABLED") != "1" {
 		return desktop
 	}
-	return &notify.Fanout{Notifiers: []contracts.Notifier{desktop, notify.NewVoice()}}
+	return &commsout.Fanout{Notifiers: []contracts.Notifier{desktop, commsout.NewVoice()}}
 }
 
 // logVoiceState emits the operator-visible line announcing whether voice

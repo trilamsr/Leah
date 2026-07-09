@@ -19,7 +19,7 @@ import (
 	"github.com/trilam/leah/internal/budget/monthly"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/onboarding"
 	"github.com/trilam/leah/internal/persona"
@@ -513,7 +513,7 @@ func runShipWithContext(ctx context.Context, repo, intent, contextBlock string) 
 		Watch:     true,
 		Regatta:   regattaclient.New(),
 		Heartbeat: watchdog.New(),
-		Notify:    notify.NewDesktop(),
+		Notify:    commsout.NewDesktop(),
 		PollEvery: 30 * time.Second,
 		MaxPolls:  120, // 60 min max watch
 	}
@@ -543,7 +543,7 @@ func runReview(ctx context.Context, repo string, prNum int) int {
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
 
-	sysPrompt, err := os.ReadFile(filepath.Join(reviewerPromptDir(), "independent-reviewer.md"))
+	sysPrompt, err := os.ReadFile(filepath.Join(promptDir(), "reviewer-independent-reviewer.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read reviewer prompt: %v\n", err)
 		return 1
@@ -654,13 +654,6 @@ func promptDir() string {
 		return d
 	}
 	return "prompts"
-}
-
-func reviewerPromptDir() string {
-	if d := os.Getenv("LEAH_REVIEWER_PROMPT_DIR"); d != "" {
-		return d
-	}
-	return "reviewer-prompts"
 }
 
 func usage() {

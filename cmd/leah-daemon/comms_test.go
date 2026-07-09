@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 )
 
 // writeDiscordToken drops a connect-shaped token file so connected() passes.
@@ -95,7 +95,7 @@ func TestSpamStatsFor_NilWhenUnconnected(t *testing.T) {
 func TestBriefNotifierFanoutIsolatesRemoteFailure(t *testing.T) {
 	desktop := &countingNotifier{}
 	remote := &countingNotifier{err: errors.New("remote down")}
-	f := &notify.Fanout{Notifiers: []contracts.Notifier{desktop, remote}}
+	f := &commsout.Fanout{Notifiers: []contracts.Notifier{desktop, remote}}
 
 	if err := f.Notify(context.Background(), "T", "B"); err == nil {
 		t.Error("want joined error from failing remote")

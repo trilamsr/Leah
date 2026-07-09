@@ -26,7 +26,7 @@ when F1's `Synthesize` is wired.
 - `internal/contracts/notifier.go` — `Notifier` interface
   (`Notify(ctx, title, body) error`). **Present** (desktop/voice/pushover
   satisfy it).
-- `internal/notify/fanout.go` — `Fanout{Notifiers []contracts.Notifier}`.
+- `internal/comms/out/fanout.go` — `Fanout{Notifiers []contracts.Notifier}`.
   **Present.**
 - `cmd/leah-daemon/brief.go` — `buildBriefNotifier()`, `buildBriefTask`,
   `LEAH_VOICE_ENABLED`/`LEAH_BRIEF_DAILY`/`LEAH_BRIEF_HOUR` gates.
@@ -40,18 +40,18 @@ when F1's `Synthesize` is wired.
 
 ## 3. Interface surface
 
-Thin adapters in `internal/notify/` (keeps adapter packages free of the
+Thin adapters in `internal/comms/out/` (keeps adapter packages free of the
 notify import; mirrors how desktop/voice live there):
 
 ```go
-// internal/notify/discord.go
+// internal/comms/out/discord.go
 type DiscordNotify struct {
     Poster    interface{ PostMessage(context.Context, string, string) error }
     ChannelID string
 }
 func (d *DiscordNotify) Notify(ctx context.Context, title, body string) error
 
-// internal/notify/whatsapp.go
+// internal/comms/out/whatsapp.go
 type WhatsAppNotify struct {
     Sender interface{ SendText(context.Context, string, string) error }
     To     string

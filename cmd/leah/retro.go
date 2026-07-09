@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/selflearn"
-	"github.com/trilam/leah/internal/selflearn/rules"
+	"github.com/trilam/leah/internal/learn"
+	"github.com/trilam/leah/internal/learn/rules"
 )
 
 // runRetro renders the weekly retro markdown to stdout.
@@ -21,7 +21,7 @@ func runRetro(args []string) int {
 		return 2
 	}
 
-	store, err := selflearn.OpenMistakeStore(memoryPath())
+	store, err := learn.OpenMistakeStore(memoryPath())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah retro: open store: %v\n", err)
 		return 1
@@ -29,7 +29,7 @@ func runRetro(args []string) int {
 	defer func() { _ = store.Close() }()
 
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	r := &selflearn.Retro{
+	r := &learn.Retro{
 		AuditPath:          auditPath,
 		Store:              store,
 		AttestationScanner: attestationScannerAdapter(rules.AttestationGate{}),
@@ -46,19 +46,19 @@ func runRetro(args []string) int {
 }
 
 // attestationScannerAdapter bridges rules.AttestationGate.Scan (which
-// returns rules.Violation) to selflearn.Retro.AttestationScanner (which
-// requires selflearn.AttestationViolation). The two-type shape exists
+// returns rules.Violation) to learn.Retro.AttestationScanner (which
+// requires learn.AttestationViolation). The two-type shape exists
 // only to keep selflearn → rules dependency one-way; this adapter does
 // the trivial field copy at the composition root.
-func attestationScannerAdapter(g rules.AttestationGate) func(context.Context, string) ([]selflearn.AttestationViolation, error) {
-	return func(ctx context.Context, path string) ([]selflearn.AttestationViolation, error) {
+func attestationScannerAdapter(g rules.AttestationGate) func(context.Context, string) ([]learn.AttestationViolation, error) {
+	return func(ctx context.Context, path string) ([]learn.AttestationViolation, error) {
 		raw, err := g.Scan(ctx, path)
 		if err != nil {
 			return nil, err
 		}
-		out := make([]selflearn.AttestationViolation, 0, len(raw))
+		out := make([]learn.AttestationViolation, 0, len(raw))
 		for _, v := range raw {
-			out = append(out, selflearn.AttestationViolation{
+			out = append(out, learn.AttestationViolation{
 				Repo: v.Repo, PRNumber: v.PRNumber, URL: v.URL,
 			})
 		}

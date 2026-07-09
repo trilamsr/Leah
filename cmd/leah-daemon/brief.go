@@ -18,7 +18,7 @@ import (
 	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/feeds"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 )
 
 // buildBriefTask returns the morning-brief task (appended to weekly tasks
@@ -68,10 +68,10 @@ func buildDegradedPullTask(sd string, rc daemonloop.RegattaClient, out *os.File)
 
 // buildBriefNotifier fans the brief across every configured push channel;
 // each remote joins only when configured so an unset channel stays silent.
-func buildBriefNotifier(discordAdpt *discord.Adapter) *notify.Fanout {
-	ns := []contracts.Notifier{notify.NewDesktop(), notify.NewVoice()}
+func buildBriefNotifier(discordAdpt *discord.Adapter) *commsout.Fanout {
+	ns := []contracts.Notifier{commsout.NewDesktop(), commsout.NewVoice()}
 	if os.Getenv("LEAH_PUSHOVER_USER") != "" && os.Getenv("LEAH_PUSHOVER_TOKEN") != "" {
-		ns = append(ns, notify.NewPushover())
+		ns = append(ns, commsout.NewPushover())
 	}
 	if d := newDiscordNotifier(discordAdpt); d != nil {
 		ns = append(ns, d)
@@ -79,7 +79,7 @@ func buildBriefNotifier(discordAdpt *discord.Adapter) *notify.Fanout {
 	if w := newWhatsAppNotifier(); w != nil {
 		ns = append(ns, w)
 	}
-	return &notify.Fanout{Notifiers: ns}
+	return &commsout.Fanout{Notifiers: ns}
 }
 
 // briefOpts wires gmail + gcal into the live daemon brief, gated on the

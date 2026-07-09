@@ -169,7 +169,7 @@ adapters. `endpoint` is bounded per provider (typed in adapter package).
 | `leah_brief_gcal_today_count`       | gauge     | (none)        |
 | `leah_brief_compose_failures_total` | counter   | `stage`       |
 
-### 4.9 Self-learning (`internal/selflearn`)
+### 4.9 Self-learning (`internal/learn`)
 
 Existing (PR #44): `leah_selflearn_dangling_selfbuilds_total`.
 

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/selflearn"
+	"github.com/trilam/leah/internal/learn"
 )
 
 const maxSearchRows = 200
@@ -223,7 +223,7 @@ func (t *Tools) dispatchStatus() (dispatchStatusOut, error) {
 }
 
 type selfBuildStatusOut struct {
-	Dangling []selflearn.DanglingSelfBuild `json:"dangling"`
+	Dangling []learn.DanglingSelfBuild `json:"dangling"`
 }
 
 func (t *Tools) toolSelfBuildStatus(_ []byte) (any, int, error) {
@@ -239,7 +239,7 @@ func (t *Tools) selfBuildStatus() (selfBuildStatusOut, error) {
 	if now == nil {
 		now = time.Now
 	}
-	d, err := selflearn.DetectDanglingSelfBuild(t.AuditPath, now)
+	d, err := learn.DetectDanglingSelfBuild(t.AuditPath, now)
 	if err != nil {
 		return selfBuildStatusOut{}, err
 	}

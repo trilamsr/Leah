@@ -13,7 +13,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/inbound"
+	commsin "github.com/trilam/leah/internal/comms/in"
 	"github.com/trilam/leah/internal/recommend"
 )
 
@@ -35,8 +35,8 @@ type inboundOpts struct {
 	Engine   *recommend.MemoryEngine
 	Audit    *audit.Logger
 	Dialer   discord.WebSocketDialer
-	Pending  inbound.PendingStore
-	Enroll   inbound.EnrollStore
+	Pending  commsin.PendingStore
+	Enroll   commsin.EnrollStore
 	Attestor contracts.Attestor
 }
 
@@ -81,7 +81,7 @@ func startInboundDiscord(ctx context.Context, opts inboundOpts) (func(), error) 
 
 	pending := opts.Pending
 	if pending == nil {
-		pending = inbound.NewMemoryPendingStore()
+		pending = commsin.NewMemoryPendingStore()
 	}
 	enroll := opts.Enroll
 	if enroll == nil {
@@ -90,10 +90,10 @@ func startInboundDiscord(ctx context.Context, opts inboundOpts) (func(), error) 
 		// dismissal. Falls back to memory if the file open fails so the
 		// daemon still starts.
 		path := filepath.Join(opts.StateDir, "inbound-enroll.json")
-		if fs, ferr := inbound.OpenFileEnrollStore(path); ferr == nil {
+		if fs, ferr := commsin.OpenFileEnrollStore(path); ferr == nil {
 			enroll = fs
 		} else {
-			enroll = inbound.NewMemoryEnrollStore()
+			enroll = commsin.NewMemoryEnrollStore()
 		}
 	}
 
@@ -102,14 +102,14 @@ func startInboundDiscord(ctx context.Context, opts inboundOpts) (func(), error) 
 		att = failClosedAttestor{}
 	}
 
-	router := &inbound.Router{
+	router := &commsin.Router{
 		Pending: pending,
-		Consent: &inbound.Gate{
+		Consent: &commsin.Gate{
 			Attestor: att,
 			Resolver: recScopeResolver{eng: opts.Engine},
 			Store:    enroll,
 		},
-		Classify: inbound.NewRegexClassifier(),
+		Classify: commsin.NewRegexClassifier(),
 		Engine:   engineByID{eng: opts.Engine},
 		Audit:    auditSink(opts.Audit),
 	}
@@ -146,8 +146,8 @@ func parseCSV(s string) []string {
 // discordToReply normalizes a Discord MESSAGE_CREATE into the transport-
 // agnostic Reply. Voice bytes are carried but ignored downstream until the
 // STT inbound path lands (spec §6 — Voice deferred).
-func discordToReply(m discord.Message) inbound.Reply {
-	return inbound.Reply{
+func discordToReply(m discord.Message) commsin.Reply {
+	return commsin.Reply{
 		Channel:  "discord",
 		PeerID:   m.AuthorID,
 		ConvID:   m.ChannelID,
@@ -229,11 +229,11 @@ func (failClosedAttestor) Attest(context.Context, string) error {
 	return errors.New("inbound: no interactive attestor wired; remote accept denied (spec §4.2)")
 }
 
-func auditSink(a *audit.Logger) func(inbound.AuditRow) {
+func auditSink(a *audit.Logger) func(commsin.AuditRow) {
 	if a == nil {
 		return nil
 	}
-	return func(row inbound.AuditRow) {
+	return func(row commsin.AuditRow) {
 		_ = a.Append(audit.Entry{
 			Kind:    "inbound_reply",
 			Outcome: row.Outcome,

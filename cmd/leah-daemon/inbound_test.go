@@ -13,7 +13,7 @@ import (
 	"github.com/trilam/leah/internal/adapters/discord"
 	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/inbound"
+	commsin "github.com/trilam/leah/internal/comms/in"
 	"github.com/trilam/leah/internal/recommend"
 	"github.com/trilam/leah/internal/testutil"
 )
@@ -197,11 +197,11 @@ func TestStartInboundDiscordWiresRouter(t *testing.T) {
 	rec := recommend.Recommendation{ID: "rec1", Pattern: "p", Tier: recommend.TierSilent, Source: "test"}
 	eng.Seed(rec)
 
-	pending := inbound.NewMemoryPendingStore()
-	if err := pending.Put(inbound.Pending{RecID: "rec1", Channel: "discord", ConvID: "C1", PeerID: "U1", SentAt: time.Now()}); err != nil {
+	pending := commsin.NewMemoryPendingStore()
+	if err := pending.Put(commsin.Pending{RecID: "rec1", Channel: "discord", ConvID: "C1", PeerID: "U1", SentAt: time.Now()}); err != nil {
 		t.Fatalf("put pending: %v", err)
 	}
-	enroll := inbound.NewMemoryEnrollStore()
+	enroll := commsin.NewMemoryEnrollStore()
 	_ = enroll.Enroll("discord", "U1")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -287,9 +287,9 @@ func TestStartInboundDiscordSelfBuildAttestsSelfBuildScope(t *testing.T) {
 		ID: "rec-sb", Pattern: "self-build:merge-pr", Source: "self-build.dispatcher",
 		Tier: recommend.TierConfirm,
 	})
-	pending := inbound.NewMemoryPendingStore()
-	_ = pending.Put(inbound.Pending{RecID: "rec-sb", Channel: "discord", ConvID: "C1", PeerID: "U1", SentAt: time.Now()})
-	enroll := inbound.NewMemoryEnrollStore()
+	pending := commsin.NewMemoryPendingStore()
+	_ = pending.Put(commsin.Pending{RecID: "rec-sb", Channel: "discord", ConvID: "C1", PeerID: "U1", SentAt: time.Now()})
+	enroll := commsin.NewMemoryEnrollStore()
 	_ = enroll.Enroll("discord", "U1")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -318,14 +318,14 @@ func TestStartInboundDiscordSelfBuildAttestsSelfBuildScope(t *testing.T) {
 // can't be bypassed by an unwired daemon (better deny-on-accept than silently
 // apply via a noop).
 func TestStartInboundDiscordDefaultsFailClosed(t *testing.T) {
-	g := &inbound.Gate{
+	g := &commsin.Gate{
 		Attestor: failClosedAttestor{},
-		Resolver: inbound.StaticScopeResolver{Scope: attest.ScopeInboundApply},
-		Store:    inbound.NewMemoryEnrollStore(),
+		Resolver: commsin.StaticScopeResolver{Scope: attest.ScopeInboundApply},
+		Store:    commsin.NewMemoryEnrollStore(),
 	}
 	err := g.Authorize(context.Background(),
-		inbound.Pending{RecID: "x", Channel: "discord", ConvID: "C1", PeerID: "U1"},
-		inbound.IntentAccept)
+		commsin.Pending{RecID: "x", Channel: "discord", ConvID: "C1", PeerID: "U1"},
+		commsin.IntentAccept)
 	if err == nil {
 		t.Fatalf("default attestor must fail closed on Authorize; got nil error")
 	}
