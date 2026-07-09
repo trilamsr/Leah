@@ -1,6 +1,6 @@
 # Leah — Agent Operating Rules
 
-Single source of truth for any agent (main session, subagent, CI) operating in this repo. Current scope = Phase 3 (v3.3.0) — voice + polish atop the closed-loop core; see `CHANGELOG.md`, `ARCHITECTURE.md`, `docs/specs/`, and `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md` for the full design.
+Single source of truth for any agent (main session, subagent, CI) operating in this repo. Current scope = Phase 3 (v3.3.0) — voice + polish atop the closed-loop core; see `CHANGELOG.md`, `ARCHITECTURE.md`, and `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md` for the full design.
 
 ## Decision priority
 
