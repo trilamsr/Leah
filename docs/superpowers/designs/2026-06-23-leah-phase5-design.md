@@ -1,8 +1,7 @@
 # Leah Phase 5 — Distribution + ambient awareness layer
 
 **Version:** v1.0 (2026-06-23). Authoritative for Phase 5 dispatch.
-**Predecessor:** `docs/superpowers/designs/2026-06-22-leah-phase4-design.md` v1.0 — Phase 4 closes with v1.1 (voice frontier, multi-device sync, learn-recommend pass-2, camera+vision, multi-agent A2A, attestation, plugin SDK, privacy budget, watchdog supervisor).
-**Phase boundary:** Phase 5 PRs do not start until Phase 4 (v1.1 public launch per predecessor §0) ships and runs on the operator's machine for ≥ 14 days. Phase 5 ends with v1.2 public launch.
+**Phase boundary:** Phase 5 PRs do not start until Phase 4 (v1.1 public launch) ships and runs on the operator's machine for ≥ 14 days. Phase 5 ends with v1.2 public launch.
 
 > **Spec parity:** this file is checked by `scripts/check-spec-parity.sh`. Forbidden phrases (renamed terms, killed cosmetics) are not used in normative body.
 

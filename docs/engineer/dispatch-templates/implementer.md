@@ -82,14 +82,14 @@ TDD
 ADVERSARIAL REVIEW
 - After green, the operator (NOT this subagent) dispatches an independent `cavecrew-reviewer` (or equivalent fresh-slot reviewer) against this template's sibling `reviewer.md`. Address Risk-tier+ findings (inline-fix OR file `[followup]` issue + cite #).
 - AUTO-SKIP permitted only when `git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.github/|scripts/|.*\.md$)'` returns empty (docs/CI/scripts-only).
-- LOAD-BEARING CARVE-OUT (NEVER auto-skip): diffs touching `internal/{adapters,audit,backup,brief,budget,costview,ctxmgr,daemonloop,dispatcher,embed,ghclient,intent,memory,notify,obs,operatormodel,patterns,persona,reasoner,regattaclient,reviewer,selflearn,testutil,voice,watchdog,web}/`, `cmd/leah/`, `cmd/leah-daemon/`, `CLAUDE.md`, `scripts/check-*.sh`, `.github/workflows/*`, `docs/engineer/{specs,dispatch-templates}/*.md`, `docs/engineer/autonomous-session-prompt.md` require mandatory independent review even on `[DOCS]` / `[CI]` release-notes.
+- LOAD-BEARING CARVE-OUT (NEVER auto-skip): diffs touching `internal/{adapters,audit,backup,brief,budget,costview,ctxmgr,daemonloop,dispatcher,embed,ghclient,intent,memory,notify,obs,operatormodel,patterns,persona,reasoner,regattaclient,reviewer,selflearn,testutil,voice,watchdog,web}/`, `cmd/leah/`, `cmd/leah-daemon/`, `CLAUDE.md`, `scripts/check-*.sh`, `.github/workflows/*`, `docs/engineer/{specs,dispatch-templates}/*.md` require mandatory independent review even on `[DOCS]` / `[CI]` release-notes.
 
 NO SIGNATURES
 - No `Co-Authored-By`, no AI footer, no "Generated with" tags. Anywhere.
 
 NO AUTOMERGE FROM IMPLEMENTER
 - NEVER run `gh pr merge --auto` (or any automerge-enabling form). End with `gh pr ready <N>` + handoff to main-thread dispatcher.
-- The main-thread dispatcher (NOT this subagent) enables `gh pr merge --auto --squash` AFTER an independent reviewer APPROVEs on the current head SHA. See `docs/engineer/autonomous-session-prompt.md` AUTOMERGE — AUTHORIZED.
+- The main-thread dispatcher (NOT this subagent) enables `gh pr merge --auto --squash` AFTER an independent reviewer APPROVEs on the current head SHA.
 - Author-enabled automerge = zero adversarial window between APPROVE-token landing and merge.
 
 NO SELF-TAGGED APPROVE
@@ -113,8 +113,8 @@ CI-CHECK OUTPUT COMPRESSION
 
 SHARED-PRIMITIVE OWNERSHIP
 - Before edit, scan composition roots (`cmd/leah/main.go`, `internal/daemonloop/`, `internal/dispatcher/`) for sibling-touch. Defer to named OWNER if assigned. File-disjoint dispatch wins parallelism — chained-output work must sequence.
-- Spec-PR ownership: `docs/engineer/specs/` and `docs/engineer/briefs/` directories are SHARED — only ONE spec PR in flight at a time. Even though spec PRs add new files (no filename overlap), parallel spec PRs branched off the same main produce stale-base regressions because each diff-against-new-main includes the sibling's just-merged files as "deletions". Resolution: serialize spec PRs (wait for current to merge before dispatching next), OR dispatch code-impl PRs (file-disjoint per package) instead.
-- Root-file ownership: `Makefile`, `go.mod`, `go.sum`, `CLAUDE.md`, `docs/engineer/autonomous-session-prompt.md`, `docs/engineer/dispatch-templates/*.md` — single-owner per dispatch; never parallel.
+- Spec-PR ownership: `docs/engineer/specs/` is SHARED — only ONE spec PR in flight at a time. Even though spec PRs add new files (no filename overlap), parallel spec PRs branched off the same main produce stale-base regressions because each diff-against-new-main includes the sibling's just-merged files as "deletions". Resolution: serialize spec PRs (wait for current to merge before dispatching next), OR dispatch code-impl PRs (file-disjoint per package) instead.
+- Root-file ownership: `Makefile`, `go.mod`, `go.sum`, `CLAUDE.md`, `docs/engineer/dispatch-templates/*.md` — single-owner per dispatch; never parallel.
 
 COMMENT BUDGET (recurring offender)
 - Drop single-line WHAT-narration. Default to no comment. Long-term-benefit gate: keep only if removing leaves future reader confused about WHY.

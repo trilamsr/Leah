@@ -60,7 +60,6 @@ AUTO-SKIP CHECK (decide first)
   - `cmd/leah/`, `cmd/leah-daemon/` — composition roots
   - `docs/engineer/specs/*.md` — load-bearing design surface
   - `docs/engineer/dispatch-templates/*.md` — agent-rule surface
-  - `docs/engineer/autonomous-session-prompt.md` — autonomous-loop rule surface
   - `CLAUDE.md` — agent-rule surface
   - `scripts/check-*.sh` — CI gate surface
   - `.github/workflows/*` — CI gate surface
@@ -104,7 +103,7 @@ RUN LOCAL LINTS (do not infer from PR description)
 
 AUTOMERGE GATE (every Risk-tier+ must be addressed)
 - Automerge fires ONLY when: (1) reviewer ran on PR's current head (not stale rev), (2) every Risk-tier+ finding has disposition (inline-fix OR tracking issue #), (3) if any prior review on this PR returned `block-on-findings`, the CURRENT review MUST be a re-spawned pass on the amended head returning `clear-to-merge` per the S5 reflexion loop (`docs/engineer/specs/2026-06-10-reflexion-loop.md`) — disposition alone does NOT satisfy the gate.
-- The implementer subagent MUST NOT enable automerge. The main-thread dispatcher enables `gh pr merge --auto --squash` AFTER this review returns APPROVE + CI green on current head. PR is not terminal — merge is. See `docs/engineer/autonomous-session-prompt.md` AUTOMERGE — AUTHORIZED.
+- The implementer subagent MUST NOT enable automerge. The main-thread dispatcher enables `gh pr merge --auto --squash` AFTER this review returns APPROVE + CI green on current head. PR is not terminal — merge is.
 - If the PR already has `autoMergeRequest != null` and the most recent `REVIEWER APPROVE:` PR comment carries the implementer's own agent-id → BLOCK on findings; no adversarial window remains.
 
 LOAD-BEARING LEFTOVERS → ONE AGGREGATE TRACKING ISSUE PER PR

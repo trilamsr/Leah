@@ -1,6 +1,6 @@
 # Leah — Agent Operating Rules
 
-Single source of truth for any agent (main session, subagent, CI) operating in this repo. Current scope = Phase 3 (v3.3.0) — voice + polish atop the closed-loop core; see `CHANGELOG.md`, `ARCHITECTURE.md`, and `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md` for the full design.
+Single source of truth for any agent (main session, subagent, CI) operating in this repo. Current scope = Phase 3 (v3.3.0) — voice + polish atop the closed-loop core; see `CHANGELOG.md`, `ARCHITECTURE.md`, and `docs/superpowers/plans/2026-06-23-leah-macos-native-phase5.md` for the forward roadmap.
 
 ## Decision priority
 
@@ -17,8 +17,8 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 ## Dispatch parallelism
 
 - File-disjoint code PRs (each touching its own `internal/<pkg>/`) parallelize up to 6.
-- Spec PRs (`docs/engineer/specs/` + `docs/engineer/briefs/`) SERIALIZE — 1 in flight at a time.
-- Shared roots (`Makefile`, `go.mod`, `CLAUDE.md`, autonomous-session-prompt.md, dispatch-templates) — single-owner per dispatch.
+- Spec PRs (`docs/engineer/specs/`) SERIALIZE — 1 in flight at a time.
+- Shared roots (`Makefile`, `go.mod`, `CLAUDE.md`, dispatch-templates) — single-owner per dispatch.
 - Frozen-enum files (`internal/obs/events.go`, `internal/ipc/frame.go`) — single-owner per dispatch; serialize push-source PRs.
 - Why: parallel spec PRs branched off the same main produce stale-base regressions (PR-B's diff-vs-new-main appears to delete PR-A's just-merged files even when content is disjoint).
 
@@ -53,4 +53,4 @@ UX > performance > long-term benefits. Default simpler. Three similar lines beat
 
 ## Repo settings
 
-- GitHub auto-merge + main branch protection live outside the repo. Snapshot, recreate commands, and rationale: `docs/engineer/runbooks/repo-settings.md`. Touch settings via `gh api` or web UI → update that runbook.
+- GitHub auto-merge + main branch protection live outside the repo. Touch settings via `gh api` or web UI.

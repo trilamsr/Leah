@@ -4,8 +4,6 @@ Leah binaries on the GitHub releases page carry a four-link attestation chain
 so a wary operator can answer "is this binary the one upstream published?"
 without trusting the release-page UI.
 
-Spec: `docs/engineer/specs/2026-06-10-trust-moats.md` §7 (S10 M6).
-
 ## What the workflow publishes
 
 For every tag matching `v*`, `.github/workflows/release-attest.yml` emits:
