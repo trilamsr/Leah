@@ -19,6 +19,7 @@ import (
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/feeds"
 	commsout "github.com/trilam/leah/internal/comms/out"
+	"github.com/trilam/leah/internal/keychain"
 )
 
 // buildBriefTask returns the morning-brief task (appended to weekly tasks
@@ -70,7 +71,9 @@ func buildDegradedPullTask(sd string, rc daemonloop.RegattaClient, out *os.File)
 // each remote joins only when configured so an unset channel stays silent.
 func buildBriefNotifier(discordAdpt *discord.Adapter) *commsout.Fanout {
 	ns := []contracts.Notifier{commsout.NewDesktop(), commsout.NewVoice()}
-	if os.Getenv("LEAH_PUSHOVER_USER") != "" && os.Getenv("LEAH_PUSHOVER_TOKEN") != "" {
+	pushoverUser, _ := keychain.LoadPushoverUser()
+	pushoverToken, _ := keychain.LoadPushoverToken()
+	if pushoverUser != "" && pushoverToken != "" {
 		ns = append(ns, commsout.NewPushover())
 	}
 	if d := newDiscordNotifier(discordAdpt); d != nil {

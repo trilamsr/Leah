@@ -7,9 +7,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
+
+	"github.com/trilam/leah/internal/keychain"
 )
 
 const defaultPushoverAPI = "https://api.pushover.net/1/messages.json"
@@ -25,13 +26,16 @@ type Pushover struct {
 	APIURL string
 }
 
-// NewPushover returns a Pushover wired to the environment + default API URL.
-// HTTP client has explicit 10s timeout — daemon error path can't block on
-// slow DNS / Pushover endpoint.
+// NewPushover returns a Pushover wired to env + Keychain (env wins) with the
+// default API URL. HTTP client has explicit 10s timeout — daemon error path
+// can't block on slow DNS / Pushover endpoint. Keychain read errors are
+// swallowed so a locked Keychain still allows env-only credentials.
 func NewPushover() *Pushover {
+	user, _ := keychain.LoadPushoverUser()
+	token, _ := keychain.LoadPushoverToken()
 	return &Pushover{
-		User:   os.Getenv("LEAH_PUSHOVER_USER"),
-		Token:  os.Getenv("LEAH_PUSHOVER_TOKEN"),
+		User:   user,
+		Token:  token,
 		HTTP:   &http.Client{Timeout: 10 * time.Second},
 		APIURL: defaultPushoverAPI,
 	}

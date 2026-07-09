@@ -12,6 +12,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
+	"github.com/trilam/leah/internal/keychain"
 	"github.com/trilam/leah/internal/vision"
 )
 
@@ -30,9 +31,12 @@ type AnthropicSonnetClient struct {
 // LEAH_MODEL identically to reasoner.NewAnthropicClient — operator pins one
 // model env-wide, not per-leg.
 func NewSonnetClient() (*AnthropicSonnetClient, error) {
-	key := os.Getenv("ANTHROPIC_API_KEY")
+	key, err := keychain.LoadAnthropicKey()
+	if err != nil {
+		return nil, fmt.Errorf("load anthropic key: %w", err)
+	}
 	if key == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set")
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set (env or Keychain slot %s/%s)", keychain.AnthropicService, keychain.DefaultAccount)
 	}
 	model := sonnetVisionModel
 	if v := os.Getenv("LEAH_MODEL"); v != "" {

@@ -2,8 +2,11 @@ package elevenlabs
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/trilam/leah/internal/keychain"
 )
 
 // avaAltoDefaultVoiceID is the built-in mapping for tts.DefaultVoice
@@ -15,11 +18,14 @@ const avaAltoDefaultVoiceID = "EXAVITQu4vr4xnSDxMaL"
 // keychain entry yields an api key. Daemon must fall back to local provider.
 var ErrMissingAPIKey = errors.New("elevenlabs: LEAH_ELEVENLABS_API_KEY unset")
 
-// FromEnv builds a Client from process env. LEAH_ELEVENLABS_API_KEY is
-// required (keychain integration lands when internal/keychain ships);
-// LEAH_ELEVENLABS_VOICE_ID overrides the ava-alto-145wpm default.
+// FromEnv builds a Client. The api key resolves env-first then falls back to
+// the Keychain slot the Swift wizard writes. LEAH_ELEVENLABS_VOICE_ID
+// overrides the ava-alto-145wpm default.
 func FromEnv(hc *http.Client) (*Client, error) {
-	key := os.Getenv("LEAH_ELEVENLABS_API_KEY")
+	key, err := keychain.LoadElevenLabsKey()
+	if err != nil {
+		return nil, fmt.Errorf("elevenlabs: load key: %w", err)
+	}
 	if key == "" {
 		return nil, ErrMissingAPIKey
 	}

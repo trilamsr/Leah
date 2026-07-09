@@ -243,6 +243,8 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runFind(ctx, rest, stdout)
 	case "strategist":
 		return runStrategist(ctx, rest, stdout)
+	case "keychain":
+		return runKeychain(ctx, rest, os.Stdin, stdout)
 	default:
 		usage()
 		return 2
@@ -704,5 +706,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  open <target>             launch streaming/social via macOS open (netflix, spotify, linkedin, …)")
 	_, _ = fmt.Fprintln(os.Stderr, "  find [--region XX] <title...>  which streaming services carry a title (TMDB)")
 	_, _ = fmt.Fprintln(os.Stderr, "  strategist <post|next|inbox|queue|doctor>  social-post pipeline (text+image+clip via higgsfield)")
+	_, _ = fmt.Fprintln(os.Stderr, "  keychain <set|get|delete> <service>  bridge Go reads to Swift wizard Keychain slot (stdin secret)")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
 }

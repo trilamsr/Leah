@@ -10,6 +10,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
+
+	"github.com/trilam/leah/internal/keychain"
 )
 
 // Anthropic sonnet-4 pricing. Cache writes cost 1.25x base input, cache reads
@@ -31,12 +33,15 @@ type AnthropicSubagent struct {
 	model string
 }
 
-// NewAnthropicSubagent constructs an AnthropicSubagent, failing fast when
-// ANTHROPIC_API_KEY is unset.
+// NewAnthropicSubagent constructs an AnthropicSubagent, failing fast when no
+// Anthropic key is available in env or Keychain.
 func NewAnthropicSubagent() (*AnthropicSubagent, error) {
-	key := os.Getenv("ANTHROPIC_API_KEY")
+	key, err := keychain.LoadAnthropicKey()
+	if err != nil {
+		return nil, fmt.Errorf("load anthropic key: %w", err)
+	}
 	if key == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set")
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set (env or Keychain slot %s/%s)", keychain.AnthropicService, keychain.DefaultAccount)
 	}
 	model := "claude-sonnet-4-6"
 	if v := os.Getenv("LEAH_REVIEWER_MODEL"); v != "" {
