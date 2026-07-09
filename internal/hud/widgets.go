@@ -195,8 +195,8 @@ func (w *Widgets) News(ctx context.Context) (string, error) {
 
 // TripMapPreview returns the tripplanner map-preview panel HTML. The seam
 // returns pre-rendered HTML (not a typed Place) so hud stays free of a
-// compile-time edge into tripplanner — same convention as voice/intents/trip.go.
-// A nil seam or upstream error degrades to the standard error tile.
+// compile-time edge into tripplanner. A nil seam or upstream error degrades
+// to the standard error tile.
 func (w *Widgets) TripMapPreview(ctx context.Context) (string, error) {
 	if w.Trip == nil {
 		return errorTile("trip-mappreview"), nil
