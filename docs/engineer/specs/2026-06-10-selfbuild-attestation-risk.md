@@ -110,7 +110,7 @@ edits the constants if accepted, closing open Q §13.3):
 - If >70% of last-30d PRs fall into one tier, proposes new boundaries
   shifting the saturated tier's bound by ±0.5 risk units toward the
   underrepresented neighbor.
-- Never auto-applies — proposal is observation-only per CLAUDE.md "Block
+- Never auto-applies — proposal is observation-only per README.md "Block
   is owned by S5" non-goal.
 
 ## 4. Attestation difficulty by tier
@@ -254,7 +254,7 @@ silently degrading the signal. Detection tries paths in order:
    ```
    into every implementer-spawned PR body. If the SHA resolves to a commit
    reachable from the merge base whose tree contains only `*_test.go`
-   changes, `tdd_followed=true`. Paired-PR followup (per CLAUDE.md
+   changes, `tdd_followed=true`. Paired-PR followup (per README.md
    dispatch-template single-owner rule, see §13) lands the template edit
    adding this fence.
 3. **Neither available**: `tdd_followed=unknown`. Aggregator (§6) excludes
@@ -358,7 +358,7 @@ operator with >90% same-question answers in 30d (habituation symptom).
 | W118  | `internal/dispatcher/selfbuild.go` (extend) + `selfbuild_risk_test.go` | Wire risk score → tier → pool selection in `Run`          |
 | W119  | `internal/subagent/audit.go` + `_test.go` + `internal/selflearn/subagent.go` + `_test.go` | Sub-PR retro audit row writer + selflearn aggregator     |
 
-W116-W118 parallelize up to 3 (file-disjoint per CLAUDE.md dispatch rule).
+W116-W118 parallelize up to 3 (file-disjoint per README.md dispatch rule).
 W119 serializes after W118 because the `selfbuild.go` audit-row format is
 input to W119's aggregator.
 
@@ -477,11 +477,11 @@ where override silently loses the original-tier signal).
 
 1. Should `tdd_followed` consider `Test` + `Fuzz` + `Benchmark` prefixes
    equally? Current proposal: yes — any `func Test*|Fuzz*|Benchmark*` commit
-   before impl satisfies. CLAUDE.md TDD rule does not distinguish.
+   before impl satisfies. README.md TDD rule does not distinguish.
 2. Should question-pool weighting use audit `Detail` `question_hash` or full
    question text? Proposal: hash (privacy + audit-row scannability).
 3. Paired-PR followup needed against dispatch-template (single-owner per
-   CLAUDE.md): add the `Pre-impl test SHA:` PR-body fence so §6.1 path 2
+   README.md): add the `Pre-impl test SHA:` PR-body fence so §6.1 path 2
    works post-squash-merge. Owner: same wave as W119.
 
 ## 14. Decision-priority summary
@@ -491,6 +491,6 @@ where override silently loses the original-tier signal).
 - **Performance**: zero LLM cost, one extra `gh pr diff` per dispatch
   (~200ms). Net negative for medium-tier PRs (one less question on average
   due to easy pool eligibility).
-- **Long-term**: closes the habituation loophole CLAUDE.md flags as the
+- **Long-term**: closes the habituation loophole README.md flags as the
   attestation-failure mode. Sub-PR retro feeds S5 reflexion + tournament
   review with the per-role + per-kind degradation signals it needs.

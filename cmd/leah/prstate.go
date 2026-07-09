@@ -33,8 +33,8 @@ type prSummary struct {
 	Mergeable        string
 }
 
-// prStateFields is the allowlist for gh pr view --json. Per CLAUDE.md
-// gh-minimal-fields, requesting all fields blows token budget on body/comments.
+// prStateFields is the allowlist for gh pr view --json. Requesting all
+// fields blows token budget on body/comments.
 var prStateFields = []string{
 	"number", "title", "state", "mergeStateStatus", "reviewDecision",
 	"statusCheckRollup", "author", "createdAt", "isDraft", "mergeable",

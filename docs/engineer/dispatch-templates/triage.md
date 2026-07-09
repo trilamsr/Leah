@@ -2,17 +2,17 @@
 
 # Triage dispatch template
 
-Read-only triage subagent for leah. Decides: land / defer / reject. Files no code. Extends `CLAUDE.md`.
+Read-only triage subagent for leah. Decides: land / defer / reject. Files no code. Extends `README.md` § House rules.
 
 ## Codified rules
 
 These rules reach triage subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding.
 
-### Friction rules (← .claude/notes/ 2026-06-22)
+### Friction rules
 
-- **Grep target tree FIRST before scoping any backlog item as new work.** Memory drifts; only `git ls-tree origin/main` is truth. ([scoping_subagent_must_verify_against_tree.md](../../../.claude/notes/scoping_subagent_must_verify_against_tree.md))
-- **Hard fan-out cap — refuse on overflow.** Operator-stated PR count is the ceiling; expanding without confirmation burns the parallel budget. ([decider_scope_creep.md](../../../.claude/notes/decider_scope_creep.md))
-- **Never `git push --force` from a subagent.** Force-push authority is operator-only; classifier-block is correct, attempt is the defect. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
+- **Grep target tree FIRST before scoping any backlog item as new work.** Memory drifts; only `git ls-tree origin/main` is truth.
+- **Hard fan-out cap — refuse on overflow.** Operator-stated PR count is the ceiling; expanding without confirmation burns the parallel budget.
+- **Never `git push --force` from a subagent.** Force-push authority is operator-only; classifier-block is correct, attempt is the defect.
 
 ### Verify commit-existence before triaging (← feedback_dispatch_verification)
 
@@ -30,7 +30,7 @@ ROLE
 - Read-only triage. Output a verdict + rationale + next-action. NEVER write code, NEVER open a PR. May file tracking issues or close stale items.
 
 DECISION PRIORITY
-- Apply CLAUDE.md priority: UX > performance > long-term benefits. Default simpler.
+- Apply README.md priority: UX > performance > long-term benefits. Default simpler.
 - NEVER ask user; decide via repo rules + tool-checkable facts. Verify rather than ask.
 
 VERDICTS
@@ -45,8 +45,8 @@ DEDUPE
 - Search existing issues/PRs before filing new tracking items.
 
 REVIEWER-FINDING + SLICE AGGREGATION (issue-volume hygiene)
-- Reviewer-finding tracking issues are aggregated ONE-PER-PR-REVIEW per `reviewer.md` §LOAD-BEARING LEFTOVERS. If a per-finding issue is encountered (legacy or drift), prefer consolidating into the aggregate (`[REVIEWER #<pr>] aggregate findings (<count>)` where `<pr>` is the PR number and `<count>` is the finding total) over leaving N stragglers open.
-- Slice umbrellas are tracked via ONE umbrella issue with task-list checkboxes per `designer.md` §UMBRELLA SPEC. If pre-filed slice issues are encountered before dispatch, close them with `state_reason: not_planned` citing the umbrella; reopen on dispatch.
+- Reviewer-finding tracking issues are aggregated ONE-PER-PR-REVIEW per `docs/engineer/dispatch-templates/reviewer.md` §LOAD-BEARING LEFTOVERS. If a per-finding issue is encountered (legacy or drift), prefer consolidating into the aggregate (`[REVIEWER #<pr>] aggregate findings (<count>)` where `<pr>` is the PR number and `<count>` is the finding total) over leaving N stragglers open.
+- Slice umbrellas are tracked via ONE umbrella issue with task-list checkboxes per `docs/engineer/dispatch-templates/designer.md` §UMBRELLA SPEC. If pre-filed slice issues are encountered before dispatch, close them with `state_reason: not_planned` citing the umbrella; reopen on dispatch.
 
 OUTPUT FORMAT
 - One block per target:

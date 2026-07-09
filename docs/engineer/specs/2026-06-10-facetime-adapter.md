@@ -161,7 +161,7 @@ Audit row schema:
 - `TestNewRejectsMissingDeps` — nil Attestor and nil OSExec each fail
   construction with a descriptive error.
 
-## 8. Trade-offs (per CLAUDE.md UX > performance > long-term)
+## 8. Trade-offs (per README.md UX > performance > long-term)
 
 - **UX**: Operator still has to press the call button. This is a worse UX
   than fully-automatic dialing, but it is the only Apple-blessed path. The

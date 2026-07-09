@@ -302,7 +302,7 @@ Audit row schema (consumed by `internal/audit`):
   nil `HTTP` / nil `OpusEncoder` each fail construction with a
   descriptive error.
 
-## 10. Trade-offs (per CLAUDE.md UX > performance > long-term)
+## 10. Trade-offs (per README.md UX > performance > long-term)
 
 - **UX**: WhatsApp reaches the operator anywhere they get push
   notifications. Worth the Meta-dashboard setup tax. ~1000 free

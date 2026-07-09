@@ -8,12 +8,12 @@ Canonical prompt for fan-out work that wires a cross-cutting concern (metrics, a
 
 These rules reach subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding. Implementer base rules in `implementer.md` apply in full; adapter-fan-out-specific additions below.
 
-### Friction rules (← .claude/notes/ 2026-06-22)
+### Friction rules
 
-- **"Done" = commit + push + PR open, verified via `git log -1` + `gh pr view --json state` in the SAME turn.** Per-adapter dispatches that return "edits applied" without a pushed PR fail the gate. ([agent_done_means_pushed.md](../../../.claude/notes/agent_done_means_pushed.md))
-- **Never `git push --force` from a subagent.** Operator-only authority. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
-- **End-of-task: `git worktree remove --force` your own worktree.** Fan-out leaves N worktrees if each agent skips its own cleanup. ([worktree_exceeds_janitor_capacity.md](../../../.claude/notes/worktree_exceeds_janitor_capacity.md))
-- **During in-flight auto-merge: commit-on-top, never rebase-then-push.** Fan-out PRs sit with auto-merge armed for minutes; a late rebase-push races the merge and orphans the branch. ([agent_rebase_races_merge.md](../../../.claude/notes/agent_rebase_races_merge.md))
+- **"Done" = commit + push + PR open, verified via `git log -1` + `gh pr view --json state` in the SAME turn.** Per-adapter dispatches that return "edits applied" without a pushed PR fail the gate.
+- **Never `git push --force` from a subagent.** Operator-only authority.
+- **End-of-task: `git worktree remove --force` your own worktree.** Fan-out leaves N worktrees if each agent skips its own cleanup.
+- **During in-flight auto-merge: commit-on-top, never rebase-then-push.** Fan-out PRs sit with auto-merge armed for minutes; a late rebase-push races the merge and orphans the branch.
 - **Sub-delegating fix work — `caveman:cavecrew-builder` has no Bash.** Its tool list is `Read, Edit, Write, Grep, Glob` only; it cannot run tests, `git push`, or `gh pr ...`. For any fix that requires verification or shipping, dispatch via `general-purpose` (tools: *). cavecrew-builder is correct only for pure-edit work where the parent verifies + pushes afterward. Cross-ref operator-personal `feedback_cavecrew_builder_no_bash.md`.
 
 ### CI/check gates (← feedback_check_gates)
@@ -82,7 +82,7 @@ IMPLEMENT
    c.m.<METHOD>("<endpoint-label>", time.Since(start).Seconds())
    ```
    Call AFTER the RPC but BEFORE the err branch returns — both success and failure must observe.
-4. Endpoint labels: inline string literals at each call site. NO const block (CLAUDE.md "three similar lines beat a premature abstraction").
+4. Endpoint labels: inline string literals at each call site. NO const block (README.md "three similar lines beat a premature abstraction").
 5. Branch-specific surfaces (OAuth exchange, token refresh, credential cache token-age) — wire when present. Note `n/a` in PR body when absent.
 
 TESTS (TDD — failing test FIRST, separate commit)
@@ -94,7 +94,7 @@ TESTS (TDD — failing test FIRST, separate commit)
 - Stage 2 (GREEN): commit implementation. `go test ./<TARGET-PACKAGE>/...` must pass.
 - `TestObserveAPI_OnRPC`: covers each RPC × {success, ≥1 failure}. Endpoint label asserted via counter snapshot.
 - `TestObserveAPI_NilMetricsNoop`: MUST construct via `New(Config{<required-fields-only>})`. NEVER bare `&Adapter{}` — that bypasses the constructor's nil-metrics wiring.
-- Test godocs: ONE LINE MAX per CLAUDE.md `## Comments discipline`.
+- Test godocs: ONE LINE MAX per README.md `## Comments discipline`.
 
 PR BODY (BINDING SHAPE)
 - Summary: 1–2 sentences. Reference `<TEMPLATE-PR>` as template.
@@ -121,7 +121,7 @@ REVIEWER SPAWN (BINDING)
 MERGE STEP (HARD GATE)
 - **DO NOT MERGE FROM THIS SUBAGENT.** Hand back to main thread with PR URL + final reviewer agent-id.
 - Main thread pastes the footer block (which the reviewer emitted per `reviewer.md` OUTPUT FORMAT) into the PR body via `gh pr edit --body-file`, then `gh pr merge <N> --squash --delete-branch`.
-- Why this hard gate: agents that attempted self-merge in the 2026-06-10 fan-out either hit the harness security classifier (PR #224 facetime blocked) or violated CLAUDE.md "Never self-approve" (PR #222 confluence merged unilaterally). The merge step lives with the operator/main thread, not the implementer.
+- Why this hard gate: agents that attempted self-merge in the 2026-06-10 fan-out either hit the harness security classifier (PR #224 facetime blocked) or violated README.md "Never self-approve" (PR #222 confluence merged unilaterally). The merge step lives with the operator/main thread, not the implementer.
 
 DO NOT
 - Enable automerge.

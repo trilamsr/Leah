@@ -297,7 +297,7 @@ Rationale:
 - Apache 2.0; safe license.
 - Industry standard — adopt over building a span library.
 
-Decision priority (per CLAUDE.md): adopt > build.
+Decision priority (per README.md): adopt > build.
 
 ### 6.2 Span coverage
 
@@ -519,7 +519,7 @@ Performance:
 
 ## 13. Decision-priority summary
 
-Per `CLAUDE.md`: UX > performance > long-term benefits.
+Per `README.md` § House rules: UX > performance > long-term benefits.
 
 - UX win: dashboard widgets (health tile, recent-operations flame-graph,
   live metric tiles) — operator-facing. Sequenced first in the W73–W80

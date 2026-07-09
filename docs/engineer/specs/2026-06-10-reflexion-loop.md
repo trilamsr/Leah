@@ -22,7 +22,7 @@ the gap without taxing cheap PRs:
    reviewer-1's findings attached: "what did reviewer-1 miss?" Cost
    only on PRs that already warranted a block.
 2. **Tournament** — for load-bearing PRs (specs, dispatch templates,
-   CLAUDE.md, dispatcher, autonomous prompt), 2 independent designer
+   README.md, dispatcher, autonomous prompt), 2 independent designer
    subagents review in parallel; 1 arbiter synthesizes.
 3. **Scorecard rows** — every reviewer/implementer turn writes an
    `audit.jsonl` row with a `Scorecard` JSON detail. Selflearn
@@ -94,7 +94,7 @@ cross-PR diversity). Env flags + PR-body sentinels consolidated §6.
 
 A PR is load-bearing when its diff touches ANY of:
 
-- `CLAUDE.md`
+- `README.md` § House rules
 - `docs/engineer/specs/**`, `docs/engineer/briefs/**`
 - `docs/engineer/dispatch-templates/**`
 - `docs/engineer/autonomous-session-prompt.md`
@@ -157,7 +157,7 @@ is itself a tournament failure mode (caught in §3.5).
    + designer-B + reviewer-1 fire in parallel on PR-open; arbiter
    waits for all three. Spec PRs slow-merging; parallel eats no
    wall-clock.
-2. **Tournament-on-block** (default CLAUDE.md / dispatch-templates):
+2. **Tournament-on-block** (default README.md / dispatch-templates):
    reviewer-1 fires first; tournament only on `block-on-findings`.
    Small template PRs often clear first pass; saves 3x on common case.
 
@@ -307,7 +307,7 @@ repeatedly are signaling template drift, which the scorecard catches.
 |------|---------|-------------|
 | W105 | `internal/audit/scorecard.go` (+ test). Encodes Scorecard sub-object into `Entry.Detail`; no field changes. | `TestScorecard_RoundTrip`, `TestScorecard_RejectsUnknownFields`, `TestScorecard_NilFieldsByRole` |
 | W106 | `internal/selflearn/scorecard.go` (+ test); retro report `## Dispatch template scorecard` section. | `TestScorecardWalker_AggregatesByTemplateRole`, `TestScorecardWalker_DegradationWindow`, `TestRetro_ScorecardSectionRendersDelta` |
-| W107 | `internal/dispatcher/` reads env flags + PR-body sentinels; conditional reflexion/tournament dispatch; emits `reviewer_turn`, `arbiter_turn`, `reflexion_dispatch`, `tournament_escalation`. Lockstep edit to `docs/engineer/dispatch-templates/reviewer.md` LOAD-BEARING CARVE-OUT (CLAUDE.md root-file rule — single owner). | `TestDispatcher_ReflexionFiresOnBlockOnly`, `TestDispatcher_TournamentLoadBearingOnly`, `TestDispatcher_SentinelOverridesEnvFlag`, `TestDispatcher_EscalationCapAtThreeRounds` |
+| W107 | `internal/dispatcher/` reads env flags + PR-body sentinels; conditional reflexion/tournament dispatch; emits `reviewer_turn`, `arbiter_turn`, `reflexion_dispatch`, `tournament_escalation`. Lockstep edit to `docs/engineer/dispatch-templates/reviewer.md` LOAD-BEARING CARVE-OUT (README.md root-file rule — single owner). | `TestDispatcher_ReflexionFiresOnBlockOnly`, `TestDispatcher_TournamentLoadBearingOnly`, `TestDispatcher_SentinelOverridesEnvFlag`, `TestDispatcher_EscalationCapAtThreeRounds` |
 | W108 | `cmd/leah retro --scorecard` flag wires §5 into CLI. | `TestRetroCLI_ScorecardFlagRendersTable` |
 
 W105 || W106 (file-disjoint) → W107 (imports both) → W108 (imports
@@ -386,7 +386,7 @@ All four = prior-art references only; no runtime dep, no NOTICE/LICENSE bundling
 
 ## 12. Constraints inherited
 
-- Spec PR serializes (CLAUDE.md).
+- Spec PR serializes (README.md).
 - Code waves file-disjoint (W105: audit, W106: selflearn, W107:
   dispatcher + lockstep template, W108: cmd/leah).
 - No AI signatures.

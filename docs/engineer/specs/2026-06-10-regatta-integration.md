@@ -242,7 +242,7 @@ Mirror of PR #66 disconnect pattern:
 - `TestForbiddenBrandGrep` — package-level grep test against the
   `scripts/forbidden-grep.sh` pattern. 0 hits required.
 
-## 11. Trade-offs (per CLAUDE.md UX > performance > long-term)
+## 11. Trade-offs (per README.md UX > performance > long-term)
 
 - **UX**: Docker-first is the cost-conscious operator's path — `leah
   connect regatta` with no flags pulls + starts a container in seconds and

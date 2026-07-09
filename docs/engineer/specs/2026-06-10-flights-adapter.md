@@ -233,7 +233,7 @@ LRU eviction: 20k rows / 50MB disk, operator-configurable.
 
 ## 8. Test plan
 
-Failing-test-first per `CLAUDE.md`. Hermetic — no real Amadeus calls.
+Failing-test-first per `README.md` § House rules. Hermetic — no real Amadeus calls.
 
 - **SearchOffers happy + error matrix** (`flights_test.go`): `httptest.Server`
   stands in for Amadeus; canned responses cover happy path, 401 (creds

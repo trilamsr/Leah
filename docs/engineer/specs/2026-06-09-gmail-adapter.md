@@ -15,7 +15,7 @@ real use.
 
 ## Dependency (adopt-over-build)
 
-Per `CLAUDE.md` `feedback_research_design_principles`, the adapter will adopt
+Per `README.md` § House rules `feedback_research_design_principles`, the adapter will adopt
 Google's first-party Go SDK rather than hand-rolling an HTTP client.
 
 - Module: `google.golang.org/api/gmail/v1`

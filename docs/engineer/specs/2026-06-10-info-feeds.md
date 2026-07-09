@@ -92,7 +92,7 @@ Synthesis runs in two tiers:
   All four synthesizers ship a rule-based path for MVP.
 - **Explain depth: reasoner** — only when the operator asks "explain" or
   "why" against a synthesized result. Routes through the existing
-  `internal/reasoner` interface. Local-first per `CLAUDE.md` simpler-default.
+  `internal/reasoner` interface. Local-first per `README.md` § House rules simpler-default.
 
 Source attribution is non-negotiable. Every synthesized output carries an
 `[]Source{name, url, fetched_at}` list. The HUD and CLI render these as
@@ -193,7 +193,7 @@ API keys (where used):
 
 ## 8. Test plan
 
-Failing-test-first per `CLAUDE.md`. Tests live next to source:
+Failing-test-first per `README.md` § House rules. Tests live next to source:
 
 - **Per-source adapter tests** (`weather/weather_test.go`,
   `news/hn_test.go`, etc.): `httptest.Server` fixtures replay canned

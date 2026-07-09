@@ -21,7 +21,7 @@ path across the work-tools pack.
 
 ## 2. Dependency (adopt-over-build)
 
-Per `CLAUDE.md` adopt-over-build, the adapter will adopt the
+Per `README.md` § House rules adopt-over-build, the adapter will adopt the
 community-maintained `go-atlassian` SDK rather than hand-roll an HTTP
 client. The same module covers Jira (sibling adapter); choosing it here
 amortizes the `go.mod` cost across two adapters.
@@ -208,7 +208,7 @@ refresh logic on top of the bare disk read.
 - `TestAllRPCs_RateLimited_PassThrough` — transport returns 429;
   surfaces `ErrRateLimited`.
 
-## 9. Trade-offs (per CLAUDE.md UX > performance > long-term)
+## 9. Trade-offs (per README.md UX > performance > long-term)
 
 - **UX**: API-token mode is one-time paste vs OAuth 3LO's redirect
   dance. Operator pays the worse setup once vs. the worse runtime

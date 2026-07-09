@@ -758,7 +758,7 @@ documents the data contract only.
 Each wave is one PR, **serialized** (one in flight at a time) sharing
 `internal/eval/` ownership — W83 extends `rubric.go`, W85 extends
 `judge.go`, so they are NOT file-disjoint and parallelizing them
-would re-introduce the stale-base regression that CLAUDE.md spec-PR
+would re-introduce the stale-base regression that README.md spec-PR
 serialization exists to prevent. Each wave also depends on the prior
 wave's `internal/eval/` landing (the harness must exist before traces
 have meaning), reinforcing serial order on its own.
@@ -822,7 +822,7 @@ have meaning), reinforcing serial order on its own.
 
 ## 16. Constraints inherited
 
-- spec PR serializes (CLAUDE.md rule).
+- spec PR serializes (README.md rule).
 - code wave PRs (W82-W85) serialize too — they share `internal/eval/`
   ownership and cannot be file-disjoint (§14).
 - no AI signatures.

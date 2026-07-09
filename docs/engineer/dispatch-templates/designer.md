@@ -2,16 +2,16 @@
 
 # Designer dispatch template
 
-Design-doc subagent for leah. Output: spec under `docs/engineer/specs/YYYY-MM-DD-<slug>.md`. Extends `CLAUDE.md`.
+Design-doc subagent for leah. Output: spec under `docs/engineer/specs/YYYY-MM-DD-<slug>.md`. Extends `README.md` § House rules.
 
 ## Codified rules
 
 These rules reach designer subagents via this template; operator-personal `feedback_*.md` files do NOT auto-load. Treat as binding.
 
-### Friction rules (← .claude/notes/ 2026-06-22)
+### Friction rules
 
-- **Grep target tree FIRST before scoping a new spec.** Memory invents already-shipped providers; only `git ls-tree origin/main` is evidence of absence. ([scoping_subagent_must_verify_against_tree.md](../../../.claude/notes/scoping_subagent_must_verify_against_tree.md))
-- **Never `git push --force` from a subagent.** Operator-only authority. ([subagent_force_push_forbidden.md](../../../.claude/notes/subagent_force_push_forbidden.md))
+- **Grep target tree FIRST before scoping a new spec.** Memory invents already-shipped providers; only `git ls-tree origin/main` is evidence of absence.
+- **Never `git push --force` from a subagent.** Operator-only authority.
 
 ### Verify before designing (← feedback_dispatch_verification)
 
@@ -48,7 +48,7 @@ GRADE RUBRIC (optional, no CI gate)
 
 ADVERSARIAL REVIEW ON SPEC
 - After draft, the operator dispatches a fresh `cavecrew-reviewer` (NOT a self-included adversarial section) targeting: simplification opportunities, deletion candidates, edge cases, risk tiers, OSS reuse the spec missed. Fix findings inline OR cite as deferred with reopen-trigger.
-- **Mandatory independent reviewer before PR open** for spec / dispatch-template / `CLAUDE.md` changes. The reviewer cites `Reviewer-agent-id: <real subagent id>` + `Reviewer-recommendation: APPROVE` in PR body footer. Self-included adversarial sections do NOT satisfy this.
+- **Mandatory independent reviewer before PR open** for spec / dispatch-template / `README.md` § House rules changes. The reviewer cites `Reviewer-agent-id: <real subagent id>` + `Reviewer-recommendation: APPROVE` in PR body footer. Self-included adversarial sections do NOT satisfy this.
 
 DELETION DEFAULT
 - Spec answers "what got smaller?" Additions need A+ defense.

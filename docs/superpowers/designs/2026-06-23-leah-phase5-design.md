@@ -23,7 +23,7 @@ Seven deliverables. Five build waves. Twenty-one implementer tasks previewed.
 | 6 | Vision OCR → memory ingest | W2 | Captured screen text searchable via `leah ask` within 90 s of capture |
 | 7 | Live screen reasoning | W4 | Continuous screen-aware reasoning with consent banner + ≤ 3 W steady-state extra power draw |
 
-Total: ~12 weeks solo (parallel-cap of 6 per `CLAUDE.md` Dispatch parallelism). Each wave = independently mergeable; v1.2 ship after W5.
+Total: ~12 weeks solo (parallel-cap of 6 per `README.md` § House rules Dispatch parallelism). Each wave = independently mergeable; v1.2 ship after W5.
 
 ### 0.1 What Phase 5 is NOT
 
@@ -224,7 +224,7 @@ CREATE TABLE marketplace_revoke (
 - **Index signature is pinned in the binary.** The Ed25519 public key that signs the index lives in the app bundle, set at build time. An attacker who compromises the CDN cannot serve a malicious index without also extracting the signing key.
 - **Plugin binary signature.** Each plugin manifest includes the SHA-256 of its binary; daemon refuses to load on mismatch. The Phase 4 §6 attestation gate runs on every load, not just install.
 - **Capability deltas surface as approval prompts.** A version bump that adds capabilities cannot auto-install.
-- **No telemetry.** Install counts on the index are CDN-aggregated download counts (HTTP server logs); Leah never reports back. No per-operator analytics, no opt-in metrics. The 2026 capability research (`memory/research_ai_capability_domains_2026.md`) shows every vendor ships telemetry; Leah's "Operator owns the agent loop" position (CLAUDE.md Identity/output + `memory/research_ai_assistants_big_tech_2026.md` Leah differentiation) breaks here if we add one.
+- **No telemetry.** Install counts on the index are CDN-aggregated download counts (HTTP server logs); Leah never reports back. No per-operator analytics, no opt-in metrics. The 2026 capability research (`memory/research_ai_capability_domains_2026.md`) shows every vendor ships telemetry; Leah's "Operator owns the agent loop" position (README.md Identity/output + `memory/research_ai_assistants_big_tech_2026.md` Leah differentiation) breaks here if we add one.
 - **Marketplace URL is operator-overridable.** Operator can point Leah at a self-hosted index for air-gapped or alternate-distro deployments. The pinned signature root still applies; operator who wants to override the signature root edits Settings → Plugins → "Trust roots" and adds their own.
 - **Revoke list.** If an installed plugin appears in the index's revoke list (per `marketplace_revoke`), daemon unloads it at next start and surfaces a notification.
 
@@ -275,7 +275,7 @@ If a future version wants opt-in crash reporting for the marketplace specificall
 - Revoke list honored at next-start
 
 **Deferred to v1.3+:**
-- **Paid plugin distribution.** Predecessor §0.1 fixes BYOK-only cost model; CLAUDE.md decision priority + `memory/project_leah_ship_path.md` (personal-use, owner is user) makes a revenue-share product distortion. Free distribution only.
+- **Paid plugin distribution.** Predecessor §0.1 fixes BYOK-only cost model; README.md decision priority + `memory/project_leah_ship_path.md` (personal-use, owner is user) makes a revenue-share product distortion. Free distribution only.
 - **In-marketplace ratings / reviews.** Adds server-side state + telemetry surface that conflicts with §1.11 binding. Operator who wants opinions reads the plugin's GitHub README; this is enough.
 - **Plugin dependency resolution (plugin A depends on plugin B).** Phase 5 plugins are flat; no transitive deps. If plugins start needing shared libraries, revisit in v1.3.
 - **Search ranking algorithm (beyond install-count + freshness).** v1.2 ranks by `(installCount × freshness)` only. No personalization, no operator-behavior signal. Sufficient.
@@ -1945,7 +1945,7 @@ testdata/
 
 ### 10.5 What does NOT change
 
-- `internal/ipc/frame.go` — frozen-enum per CLAUDE.md "frozen-enum files: single-owner per dispatch". Phase 5 IPC additions go through a single PR that owns this file.
+- `internal/ipc/frame.go` — frozen-enum per README.md "frozen-enum files: single-owner per dispatch". Phase 5 IPC additions go through a single PR that owns this file.
 - `internal/obs/events.go` — same.
 - `internal/db/schema.go` — top-level schema constants; migrations are the change surface.
 - Existing dispatch templates in `docs/engineer/dispatch-templates/` — Phase 5 reuses them; the templates absorb feedback per `memory/feedback_dispatch_template_reference.md`.
@@ -2212,7 +2212,7 @@ Items flagged for operator confirmation per `memory/feedback_audit_recommended_n
 
 ## 20. Cross-references
 
-- **CLAUDE.md** — `Decision priority`, `Dispatch parallelism`, `Identity / output`, `Comments discipline`, `TDD + review`, `Worktree discipline`, `Token economy`, `Repo settings` — all binding for every Phase 5 PR.
+- **README.md** — `Decision priority`, `Dispatch parallelism`, `Identity / output`, `Comments discipline`, `TDD + review`, `Worktree discipline`, `Token economy`, `Repo settings` — all binding for every Phase 5 PR.
 - **`memory/research_ai_assistants_big_tech_2026.md`** — competitive baseline used to argue (§7) screen-watch positioning vs Gemini Live; (§1.11) telemetry abstention vs every big-tech vendor; (§6) operator-owned memory vs Limitless absorption.
 - **`memory/research_ai_assistants_startups_2026.md`** — used to argue (§1.13) BYOK + no paid distribution vs the hardware startups that died; (§6) operator-owned screen memory vs Limitless/Bee acquisition pattern.
 - **`memory/research_ai_capability_domains_2026.md`** — used to source gaps: calendar smart-scheduling (§3), multi-language coverage (§4), continuous screen-context (§7), OCR-to-memory (§6).
@@ -2517,7 +2517,7 @@ Per `memory/feedback_dispatch_template_reference.md`, dispatch prompts reference
 
 ### A.15 Phase 5 PR-body template (operator-facing)
 
-Per CLAUDE.md "drop ceremony" + `memory/feedback_pr_summary_style.md`, PR bodies should NOT read AI-generated. Phase 5 PR-body skeleton:
+Per README.md "drop ceremony" + `memory/feedback_pr_summary_style.md`, PR bodies should NOT read AI-generated. Phase 5 PR-body skeleton:
 
 ```
 [3-6 line prose paragraph: what changed, why, what got smaller]
@@ -2603,7 +2603,7 @@ Out unless an operator-stated need surfaces post-v1.2.
 
 ## Appendix C — Phase 5 PR shape estimate
 
-Per `CLAUDE.md` Token economy + dispatch parallelism:
+Per `README.md` § House rules Token economy + dispatch parallelism:
 
 | Wave | Tasks | Avg LoC per PR | Total LoC est | Parallelism |
 |---|---|---|---|---|
@@ -2615,7 +2615,7 @@ Per `CLAUDE.md` Token economy + dispatch parallelism:
 
 **Total Phase 5 LoC estimate:** ~15 250 source-of-truth changes (excludes generated, tests proportional ~5 000 additional).
 
-**Deletion targets (per "deletion default" in CLAUDE.md):**
+**Deletion targets (per "deletion default" in README.md):**
 - §2 Whisper distillation: ~150 LoC removed from old fallback in Phase 4 voice subsystem.
 - §5 OS compat: ~200 LoC removed when CGDisplayStream paths fall to availability-guarded SCStream.
 - §11.5 plugin compat: no removals — Phase 4 IPC frames keep working.
@@ -2968,7 +2968,7 @@ PR-level perf regression check enforces the tolerance row by row. Any regression
 
 ## Appendix P — Spec authoring discipline
 
-This spec follows the same authoring rules the predecessor inherits from `CLAUDE.md` + `memory/feedback_pr_summary_style.md`:
+This spec follows the same authoring rules the predecessor inherits from `README.md` § House rules + `memory/feedback_pr_summary_style.md`:
 
 - No AI signatures in normative body.
 - No emoji.

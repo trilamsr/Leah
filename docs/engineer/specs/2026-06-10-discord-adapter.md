@@ -249,7 +249,7 @@ Audit row schema (consumed by `internal/audit`):
 - `TestNewRejectsMissingDeps` — nil `Attestor` / nil `TokenSource` /
   nil `Session` each fail construction with a descriptive error.
 
-## 9. Trade-offs (per CLAUDE.md UX > performance > long-term)
+## 9. Trade-offs (per README.md UX > performance > long-term)
 
 - **UX**: long-lived gateway WebSocket gives sub-second inbound
   latency — strictly better than polling. Accepted.

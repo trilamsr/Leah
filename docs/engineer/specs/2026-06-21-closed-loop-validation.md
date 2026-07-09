@@ -108,7 +108,7 @@ session can gate on it); non-zero only on read error, not on "pending"
 ## 6. Out of scope
 
 - Triggering the loop — this is read-only validation, not a self-build runner.
-- Auto-merge — operator-merge stays mandatory (CLAUDE.md / self-build PRs
+- Auto-merge — operator-merge stays mandatory (README.md / self-build PRs
   never auto-merge).
 - Surfacing the receipt in the HUD/dashboard — a follow-up; this wave ships the
   CLI + pure classifier only.

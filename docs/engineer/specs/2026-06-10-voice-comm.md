@@ -32,7 +32,7 @@ Three viable models exist. We pick one:
 **Decision: barge-in with a single-active-turn invariant.** Only one
 Reasoner call is in flight at a time. New operator speech during TTS cancels
 the in-flight TTS and the in-flight Reasoner call (if any), then starts a
-fresh turn. Per `CLAUDE.md` priority UX > performance > long-term: barge-in
+fresh turn. Per `README.md` § House rules priority UX > performance > long-term: barge-in
 is the UX win; the implementation cost (streaming refactor of the Reasoner
 pipeline) is the price.
 
@@ -188,7 +188,7 @@ Target: **wake → first-TTS-audio in under 1.5s 95p.**
 
 If `Reasoner.Ask` exceeds 600ms (likely with a 70B local model), we file
 **tracking issue: streaming-reasoner-into-tts (W15+)** rather than relaxing
-the spec target. Per CLAUDE.md root-cause discipline: relaxing the budget
+the spec target. Per README.md root-cause discipline: relaxing the budget
 because a stage misses it is a symptom-fix.
 
 Stages 2 + 3 require `whisper-stream`, not the current one-shot

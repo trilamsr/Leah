@@ -165,7 +165,7 @@ The classification of an incoming memory write into a sensitive category is upst
 
 ## 9. Wave plan W130–W136 (file-disjoint)
 
-Each wave is one moat, one PR, one reviewer. File-disjoint by package — parallelizable up to 6 per CLAUDE.md dispatch rule (M5 SVG is the singleton outlier — docs/ only).
+Each wave is one moat, one PR, one reviewer. File-disjoint by package — parallelizable up to 6 per README.md dispatch rule (M5 SVG is the singleton outlier — docs/ only).
 
 | Wave | Moat | Primary paths |
 | --- | --- | --- |
@@ -183,7 +183,7 @@ W133's audit-schema edit is the only cross-wave coupling — lands first, others
 
 Every wave ships:
 
-- Failing test first (CLAUDE.md TDD rule).
+- Failing test first (README.md TDD rule).
 - Golden-file test where output schema is stable (M1 JSON, M3 archive header, M7 schema).
 - Negative test (M2 without attestation, M3 wrong passphrase, M4 with egress attempted).
 - Audit-row assertion (every CLI path emits one row with the documented kind + BR).

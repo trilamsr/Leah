@@ -120,7 +120,7 @@ All in `internal/sqlstore/migrations/`; chronologically ordered:
 - `2026-06-23-008-longctx.sql` — `longctx_cursor`, `longctx_telemetry`
 - `2026-06-23-009-bridge.sql` — `bridge_shortcut`, `bridge_quarantine`
 
-W1-T05 lands all nine migrations as a single PR (single-owner per CLAUDE.md frozen-enum-files rule); subsequent tasks reference but do not author migration files.
+W1-T05 lands all nine migrations as a single PR (single-owner per README.md frozen-enum-files rule); subsequent tasks reference but do not author migration files.
 
 ---
 
@@ -904,7 +904,7 @@ func WriteReport(dir string, run Run, claims []Claim) (string, error) {
 - Modify: `internal/sqlstore/migrations.go` — register new files in chronological order
 - Create: `internal/sqlstore/migrations_phase5_test.go`
 
-**Why this exists:** All nine Phase 5 migrations land in one PR because the migration registry is a frozen-enum file (per CLAUDE.md). Splitting across tasks invites stale-base regressions when two PRs branched off the same main both edit the registry.
+**Why this exists:** All nine Phase 5 migrations land in one PR because the migration registry is a frozen-enum file (per README.md). Splitting across tasks invites stale-base regressions when two PRs branched off the same main both edit the registry.
 
 - [ ] **Step 1: Write failing test** — `migrations_phase5_test.go` runs each migration against a fresh sqlite DB, then issues a representative INSERT into every new table. Fails if any migration is missing or any INSERT errors.
 

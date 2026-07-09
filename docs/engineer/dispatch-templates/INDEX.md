@@ -1,6 +1,6 @@
 # Dispatch templates
 
-Canonical role prompts for subagent dispatch. Each template extends `CLAUDE.md` — do not re-state operating rules in the dispatch prompt itself; reference the template by path.
+Canonical role prompts for subagent dispatch. Each template extends `README.md` § House rules — do not re-state operating rules in the dispatch prompt itself; reference the template by path.
 
 | Role | File | Purpose |
 |---|---|---|

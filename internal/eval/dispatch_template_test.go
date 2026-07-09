@@ -46,7 +46,7 @@ func TestDispatchTemplates_ParseAndReferences(t *testing.T) {
 // the gate. Placeholder paths (containing `foo` or `bar` segments) are
 // skipped: templates use them as universal example syntax, not real cites.
 func extractRepoPaths(body string) []string {
-	re := regexp.MustCompile(`(?:\.\./)*(?:\.claude/notes|docs|internal|scripts|cmd)/[A-Za-z0-9_./-]+\.(?:md|go|sh)`)
+	re := regexp.MustCompile(`(?:\.\./)*(?:docs|internal|scripts|cmd)/[A-Za-z0-9_./-]+\.(?:md|go|sh)`)
 	matches := re.FindAllString(body, -1)
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(matches))

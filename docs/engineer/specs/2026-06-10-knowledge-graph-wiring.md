@@ -147,7 +147,7 @@ When the operator runs `leah forget --relation sarah@example.com`
 
 ## 7. Wave plan (W120-W123 — file-disjoint)
 
-Spec PR serializes per CLAUDE.md. Impl PRs fan out.
+Spec PR serializes per README.md. Impl PRs fan out.
 
 - **W120 — extend `sources/knowledge.go` with TTL-aware filter.**
   Files: `internal/recommend/sources/knowledge.go`,
@@ -175,7 +175,7 @@ Spec PR serializes per CLAUDE.md. Impl PRs fan out.
   the existing Pattern string, and routes through the existing
   dispatcher. No new adapter interface.
 
-Each wave lands a failing test first (CLAUDE.md TDD). W123 is the
+Each wave lands a failing test first (README.md TDD). W123 is the
 flip-day wave.
 
 ## 8. Test plan

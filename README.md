@@ -4,7 +4,7 @@ Personal chief-of-staff for macOS. Single-operator macOS native app + CLI + alwa
 
 - Architecture: `ARCHITECTURE.md`
 - Specs: `docs/specs/` (design rationale) + `docs/superpowers/designs/` (UI design)
-- Operator rules: `CLAUDE.md`
+- House rules: see [House rules](#house-rules) below
 - Phase plans: `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md`
 - Work tracker: [Linear — Leah](https://linear.app/themaydow/project/leah-a8d553e8cc88)
 
@@ -144,6 +144,19 @@ Task-specific operator docs live under [`docs/operator/`](docs/operator/):
 | `socket did not appear` (`make dev`) | daemon failed to start | check `/tmp/leah-dev.log`; common cause: port conflict or missing `ANTHROPIC_API_KEY` |
 | `osascript: not allowed assistive access` | inject-* scripts need Accessibility | System Settings → Privacy & Security → Accessibility → add Terminal |
 | `pushover credentials not set` (on `leah ship`) | `LEAH_PUSHOVER_*` missing | set them OR ignore — desktop push still works |
+
+## House rules
+
+- Decision priority: UX > performance > long-term benefits. Default simpler; three similar lines beat a premature abstraction.
+- Single-operator forever. Reject any feature that only pays off multi-user.
+- Blast radius shapes friction. Higher-rank actions require more gate: notify → approve → 2FA → refuse.
+- Adopt before build. Check if `gh`, `regatta`, or another CLI already does it before adding a package.
+- Audit everything; redact cloud crossings. Every operator-facing action lands one JSONL row.
+- Cost is observable. Every LLM/TTS/embedding call routes through `budget.Charge`.
+- Root cause only; deletion default (every PR answers "what got smaller?"); drop ceremony.
+- Comments: WHY not WHAT. Default to no comment. Test/Fuzz/Benchmark godocs 1 line max.
+- TDD: failing test first; capture failing output; then impl; then green.
+- No AI signatures anywhere (no Co-Authored-By, no "Generated with").
 
 ## License
 

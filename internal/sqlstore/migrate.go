@@ -13,7 +13,7 @@ var migrationsFS embed.FS
 // migrationFiles is the frozen registry — append-only, order is causal
 // (006 references tables from 004/005's referenced subjects via attest_record,
 // 007 references its own consent table which itself FK-chains to a2a_peer).
-// CLAUDE.md frozen-enum-files rule: single-owner per dispatch.
+// Frozen-enum-file: single-owner per dispatch.
 var migrationFiles = []string{
 	"2026-06-22-001-voice.sql",
 	"2026-06-22-002-vision.sql",
