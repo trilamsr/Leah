@@ -1,3 +1,0 @@
-whisper_vocab.bin derived from openai/whisper-large-v3 tokenizer.json (HuggingFace).
-Format: "WBPE" magic + uint8 version=1 + uint32 LE count, then per-entry { uint16 LE id, uint8 len, bytes }.
-Bytes are the GPT-2 byte-decoder output for each base-vocab token (ids 0..50256); special-token ids (>=50257) intentionally omitted — detokenizer skips them.

@@ -20,18 +20,6 @@ type Widgets struct {
 	Daemon *Client
 	// Now is overridable so freshness-label tests are deterministic.
 	Now func() time.Time
-	// Trip is the tripplanner panel seam. Optional — nil = TripMapPreview
-	// returns the standard widget-error tile, so HUD still ships when the
-	// planner isn't wired (UX > strict).
-	Trip TripPanel
-}
-
-// TripPanel is the structural seam onto the tripplanner panel renderer.
-// Kept as an interface so hud has no compile-time edge into tripplanner;
-// the cmd wiring binds a one-line adapter that calls tripplanner.SuggestTrip
-// + tripplanner.RenderMapPreviewPanel.
-type TripPanel interface {
-	RenderMapPreview(ctx context.Context) (string, error)
 }
 
 func NewWidgets(c *Client) *Widgets { return &Widgets{Daemon: c, Now: time.Now} }
@@ -193,21 +181,6 @@ func (w *Widgets) News(ctx context.Context) (string, error) {
 	}{p, template.HTML(asOfSpan(w.now()))}, "news"), nil
 }
 
-// TripMapPreview returns the tripplanner map-preview panel HTML. The seam
-// returns pre-rendered HTML (not a typed Place) so hud stays free of a
-// compile-time edge into tripplanner. A nil seam or upstream error degrades
-// to the standard error tile.
-func (w *Widgets) TripMapPreview(ctx context.Context) (string, error) {
-	if w.Trip == nil {
-		return errorTile("trip-mappreview"), nil
-	}
-	html, err := w.Trip.RenderMapPreview(ctx)
-	if err != nil || html == "" {
-		return errorTile("trip-mappreview"), nil
-	}
-	return html, nil
-}
-
 func (w *Widgets) CalendarNext(ctx context.Context) (string, error) {
 	var p calendarPayload
 	if err := w.fetchJSON(ctx, "/dashboard/calendar/next", &p); err != nil {
@@ -242,10 +215,6 @@ func (w *Widgets) Routes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("/api/widgets/calendar-next", func(rw http.ResponseWriter, r *http.Request) {
 		h, _ := w.CalendarNext(r.Context())
-		writeHTML(rw, h)
-	})
-	mux.HandleFunc("/api/widgets/trip-mappreview", func(rw http.ResponseWriter, r *http.Request) {
-		h, _ := w.TripMapPreview(r.Context())
 		writeHTML(rw, h)
 	})
 }
