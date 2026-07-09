@@ -9,7 +9,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/backup"
 	"github.com/trilam/leah/internal/daemonloop"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 )
 
 // buildBackupSnapshotTask returns the weekly restic-snapshot task. Iterates
@@ -58,7 +58,7 @@ func buildBackupVerifyTask(a *audit.Logger, out *os.File) daemonloop.WeeklyTask 
 			if err := r.Verify(ctx, repo); err != nil {
 				_, _ = fmt.Fprintf(out, "leah-daemon: quarterly verify %s error: %v\n", repo, err)
 				_ = a.Append(audit.Entry{Kind: "backup.verify", ArgsHash: repo, BlastRadius: 1, Outcome: "failed", Detail: err.Error()})
-				if d := notify.NewDesktop(); d != nil {
+				if d := commsout.NewDesktop(); d != nil {
 					_ = d.Notify(ctx, "Leah: backup verify FAILED", fmt.Sprintf("repo %s — see audit log", repo))
 				}
 				continue

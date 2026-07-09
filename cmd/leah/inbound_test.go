@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/inbound"
+	commsin "github.com/trilam/leah/internal/comms/in"
 )
 
 type fakeCLIAttestor struct {
@@ -39,7 +39,7 @@ func TestRunInboundEnroll_PersistsAfterAttestation(t *testing.T) {
 		t.Fatalf("attest scope = %q want %q", att.gotScope, attest.ScopeInboundEnroll)
 	}
 
-	store, err := inbound.OpenFileEnrollStore(filepath.Join(dir, "inbound-enroll.json"))
+	store, err := commsin.OpenFileEnrollStore(filepath.Join(dir, "inbound-enroll.json"))
 	if err != nil {
 		t.Fatalf("OpenFileEnrollStore: %v", err)
 	}

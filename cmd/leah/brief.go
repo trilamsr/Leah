@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/brief"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/regattaclient"
 )
 
@@ -67,7 +67,7 @@ func runBrief(parent context.Context, args []string) int {
 	_, _ = fmt.Print(body)
 
 	if voiceMode {
-		v := notify.NewVoice()
+		v := commsout.NewVoice()
 		// Speak a 1-line summary, not the full markdown — TTS on long
 		// markdown is painful and the operator already sees stdout.
 		summary := brief.VoiceSummary(data)

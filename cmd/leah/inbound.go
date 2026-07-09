@@ -10,7 +10,7 @@ import (
 	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
-	"github.com/trilam/leah/internal/inbound"
+	commsin "github.com/trilam/leah/internal/comms/in"
 )
 
 // runInbound dispatches `leah inbound <verb>`. Today only `enroll` is wired;
@@ -62,7 +62,7 @@ func runInboundEnroll(ctx context.Context, args []string, w io.Writer, att conne
 		return 1
 	}
 
-	store, err := inbound.OpenFileEnrollStore(inboundEnrollPath())
+	store, err := commsin.OpenFileEnrollStore(inboundEnrollPath())
 	if err != nil {
 		_ = a.Append(audit.Entry{Kind: "inbound_enroll", BlastRadius: 2, Outcome: "failed", Detail: "store_open_failed"})
 		_, _ = fmt.Fprintf(os.Stderr, "leah inbound enroll: %v\n", err)

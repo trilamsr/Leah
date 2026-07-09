@@ -13,7 +13,7 @@ import (
 	"github.com/trilam/leah/internal/ctxmgr"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/patterns"
 	"github.com/trilam/leah/internal/learn"
@@ -218,12 +218,12 @@ func buildPanicDetectTask(sd string, out *os.File) daemonloop.WeeklyTask {
 		title := "Leah: bug-fix candidates"
 		body := fmt.Sprintf("Leah noticed %d bug candidates this week — review ~/.leah-state/bug-fix-candidates.md + run leah self-build", newCount)
 		_, _ = fmt.Fprintf(out, "leah-daemon: weekly panic-detect: %d new candidates → %s\n", newCount, candPath)
-		if d := notify.NewDesktop(); d != nil {
+		if d := commsout.NewDesktop(); d != nil {
 			if err := d.Notify(ctx, title, body); err != nil {
 				_, _ = fmt.Fprintf(out, "leah-daemon: weekly bug-fix desktop notify error: %v\n", err)
 			}
 		}
-		if p := notify.NewPushover(); p != nil {
+		if p := commsout.NewPushover(); p != nil {
 			if err := p.Notify(ctx, title, body); err != nil {
 				// Missing credentials degrade silently — see Pushover.Notify.
 				_, _ = fmt.Fprintf(out, "leah-daemon: weekly bug-fix pushover skip: %v\n", err)

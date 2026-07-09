@@ -10,7 +10,7 @@ import (
 	"github.com/trilam/leah/internal/adapters/discord"
 	"github.com/trilam/leah/internal/adapters/whatsapp"
 	"github.com/trilam/leah/internal/connect"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/web"
 )
@@ -46,12 +46,12 @@ func spamStatsFor(a *discord.Adapter) func() []web.SpamStat {
 // newDiscordNotifier wraps the shared adapter as a brief notifier; nil unless a
 // channel is set and the adapter is connected. Sharing the adapter means the
 // dashboard spam panel reports the same limiter that gates these sends.
-func newDiscordNotifier(a *discord.Adapter) *notify.DiscordNotify {
+func newDiscordNotifier(a *discord.Adapter) *commsout.DiscordNotify {
 	channel := os.Getenv("LEAH_BRIEF_DISCORD_CHANNEL")
 	if channel == "" || a == nil {
 		return nil
 	}
-	n := &notify.DiscordNotify{Poster: a, ChannelID: channel}
+	n := &commsout.DiscordNotify{Poster: a, ChannelID: channel}
 	if os.Getenv("LEAH_BRIEF_VOICE_REMOTE") == "1" {
 		if s, ok := voice.NewTTS().(voice.Synthesizer); ok {
 			n.Synth = s
@@ -61,7 +61,7 @@ func newDiscordNotifier(a *discord.Adapter) *notify.DiscordNotify {
 }
 
 // newWhatsAppNotifier returns nil unless whatsapp is connected, phone-id set, and a recipient set.
-func newWhatsAppNotifier() *notify.WhatsAppNotify {
+func newWhatsAppNotifier() *commsout.WhatsAppNotify {
 	to := os.Getenv("LEAH_BRIEF_WHATSAPP_TO")
 	phoneID := os.Getenv("LEAH_WHATSAPP_PHONE_ID")
 	if to == "" || phoneID == "" {
@@ -80,7 +80,7 @@ func newWhatsAppNotifier() *notify.WhatsAppNotify {
 	if err != nil {
 		return nil
 	}
-	return &notify.WhatsAppNotify{Sender: a, To: to}
+	return &commsout.WhatsAppNotify{Sender: a, To: to}
 }
 
 // fileToken re-reads the connect-written bearer per call so rotation needs no restart.

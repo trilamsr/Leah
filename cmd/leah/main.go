@@ -19,7 +19,7 @@ import (
 	"github.com/trilam/leah/internal/budget/monthly"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
-	"github.com/trilam/leah/internal/notify"
+	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/onboarding"
 	"github.com/trilam/leah/internal/persona"
@@ -513,7 +513,7 @@ func runShipWithContext(ctx context.Context, repo, intent, contextBlock string) 
 		Watch:     true,
 		Regatta:   regattaclient.New(),
 		Heartbeat: watchdog.New(),
-		Notify:    notify.NewDesktop(),
+		Notify:    commsout.NewDesktop(),
 		PollEvery: 30 * time.Second,
 		MaxPolls:  120, // 60 min max watch
 	}
