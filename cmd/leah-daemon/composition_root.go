@@ -12,6 +12,7 @@ import (
 	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/learn"
+	mcpInbound "github.com/trilam/leah/internal/mcp/inbound"
 	"github.com/trilam/leah/internal/plugin"
 	"github.com/trilam/leah/internal/supervisor"
 	"github.com/trilam/leah/internal/sync/discovery"
@@ -35,6 +36,7 @@ type phase4Producers struct {
 	A2AConsent  *a2a.ConsentStore
 	PluginHost  plugin.Host
 	Supervisor  *supervisor.Supervisor
+	MCPInbound  *mcpInbound.Server // default OFF; Settings → Connections issues tokens + starts transport
 }
 
 // wirePhase4Producers constructs each Phase 4 producer with deps drawn from
@@ -58,7 +60,9 @@ func wirePhase4Producers(db *sql.DB, errOut io.Writer, lg *slog.Logger) phase4Pr
 		Discovery:   discovery.New(),                     // constructed only — operator toggles Start
 		A2AConsent:  a2a.NewConsentStore(db),
 		Supervisor:  supervisor.New(supervisor.Config{}),
+		MCPInbound:  mcpInbound.New(mcpInbound.NewTokenStore(mcpInbound.InMemory())),
 	}
+	mcpInbound.RegisterFirstParty(p.MCPInbound, mcpInbound.FirstPartyDeps{}) // nil deps → tools error at call; wired by Settings when integrations land
 
 	// a2a.Server: ephemeral identity (STUB — persistent key arrives with pair
 	// flow). Handler is nil here; daemon-side ipc edge sets it before Listen.
@@ -89,6 +93,7 @@ func wirePhase4Producers(db *sql.DB, errOut io.Writer, lg *slog.Logger) phase4Pr
 		"a2a_server", p.A2A != nil,
 		"plugin_host", p.PluginHost != nil,
 		"supervisor", p.Supervisor != nil,
+		"mcp_inbound", p.MCPInbound != nil,
 		"ambient_capture", "off",
 	)
 	return p
