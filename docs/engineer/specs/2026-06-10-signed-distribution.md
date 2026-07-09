@@ -151,7 +151,7 @@ Separate GitHub repo `trilamsr/homebrew-leah` (Homebrew convention: tap repos mu
 
 ```ruby
 class Leah < Formula
-  desc "Personal AI assistant"
+  desc "Personal chief-of-staff for macOS"
   homepage "https://github.com/trilamsr/Leah"
   version "X.Y.Z"
   url "https://github.com/trilamsr/Leah/releases/download/vX.Y.Z/leah-vX.Y.Z-darwin-arm64.tar.gz"
