@@ -65,9 +65,6 @@ CITE ORIGIN/MAIN, NOT LOCAL WORKTREE
 OUTPUT-PATH SLUG MUST BE EXACT
 - Dispatch prompt MUST specify exact `<SPEC-SLUG>` (date + canonical short slug). Plan-subagent picking own slug produces dup files (`2026-06-09-gmail-w1-tasks.md` vs `2026-06-09-gmail-adapter-w1-tasks.md`).
 
-CROSS-DOC LINK PHASING
-- Sibling docs that cross-link each other (e.g. `docs/operator/foo.md` ↔ `docs/engineer/runbooks/foo.md`) fail `scripts/check-doc-links.sh` per-PR because each PR sees only its own added file. Co-locate in ONE PR OR phase-land with strip-then-restore.
-
 DESIGN ITERATION LOCAL (no per-revision PR)
 - Strategic design + review chains iterate LOCAL: edit-in-place in one worktree, ONE PR lands the final converged doc. Avoid 25-PR sprawl.
 
@@ -113,4 +110,3 @@ PR bodies, commit messages, and Linear comments must NOT read AI-generated. No `
 
 1. **`gh pr create` / `gh pr edit` MUST use `--body-file`**. HEREDOC bodies escape backticks.
 2. **Release-notes fence ALWAYS required**. Spec PR body MUST include a triple-fence ` ```release-notes ` block with `[DOCS] one-line summary` inside.
-3. **Cross-doc-link gate**: `scripts/check-doc-links.sh` fails when a markdown link points at a path that doesn't exist yet at HEAD. Co-locate cross-linked docs in one PR.

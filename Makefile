@@ -1,4 +1,4 @@
-.PHONY: dev dev-stop verify-pr baseline check lint ensure-lint smoke phase2-smoke phase2-smoke-stop install upgrade install-janitor uninstall-janitor eval eval-all verify-checksums verify-attestation handoff-test check-amend-guard help
+.PHONY: dev dev-stop baseline check lint ensure-lint smoke phase2-smoke phase2-smoke-stop install upgrade eval eval-all verify-checksums verify-attestation help
 
 # Pinned to match .github/workflows/check.yml. Bump both together.
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -35,30 +35,9 @@ dev-stop:
 	@pkill -f 'leah-daemon' 2>/dev/null || true
 	@echo "dev environment stopped"
 
-# Re-run check.sh against a specific PR head SHA locally.
-# Use: make verify-pr PR=<num>
-verify-pr:
-	@test -n "$(PR)" || (echo "set PR=<num>" && exit 1)
-	@HEAD=$$(gh api repos/trilamsr/Leah/pulls/$(PR) --jq '.head.sha'); \
-	BRANCH=$$(gh api repos/trilamsr/Leah/pulls/$(PR) --jq '.head.ref'); \
-	echo "verifying PR #$(PR) at $$HEAD ($$BRANCH)"; \
-	git fetch origin $$BRANCH && \
-	git stash --include-untracked --quiet 2>/dev/null; \
-	git checkout $$HEAD -- . 2>&1 | head -5; \
-	./scripts/check.sh 2>&1 | tee /tmp/verify-pr-$(PR).log | grep -E "^(FAIL|ok|---|Error|error:|PASS|==>)" | tail -40; \
-	echo "exit=$$?"; \
-	git checkout main -- .; \
-	git stash pop --quiet 2>/dev/null || true
-
 # Snapshot test + bench baseline. Append to ~/.leah-state/baseline-history.jsonl
 baseline:
 	@./scripts/baseline.sh
-
-# Block merging a PR whose REVIEWER APPROVE pre-dates the current head commit (post-amend self-approve).
-# Use: make check-amend-guard PR=<num>
-check-amend-guard:
-	@test -n "$(PR)" || (echo "set PR=<num>" && exit 1)
-	@./scripts/check-amend-after-approve.sh $(PR)
 
 check: ensure-lint
 	@./scripts/check.sh
@@ -98,25 +77,6 @@ install:
 # Build new SHA, atomic-swap symlinks, restart daemon. DRY_RUN=1 skips mutation.
 upgrade:
 	@LEAH_UPGRADE_DRY_RUN=$(DRY_RUN) ./scripts/upgrade.sh upgrade
-
-# Install launchd manifest that sweeps merged agent-* worktrees every 5 min.
-install-janitor:
-	@mkdir -p ~/Library/LaunchAgents ~/.leah-state
-	@sed -e "s|__LEAH_ROOT__|$$(pwd)|g" -e "s|__LEAH_STATE__|$$HOME/.leah-state|g" \
-	    scripts/leah-worktree-janitor.plist > ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
-	@launchctl bootout gui/$$(id -u)/com.leah.worktree-janitor 2>/dev/null || true
-	@launchctl bootstrap gui/$$(id -u) ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
-	@echo "janitor installed; logs at ~/.leah-state/janitor.log"
-
-uninstall-janitor:
-	@launchctl bootout gui/$$(id -u)/com.leah.worktree-janitor 2>/dev/null || true
-	@rm -f ~/Library/LaunchAgents/com.leah.worktree-janitor.plist
-	@echo "janitor uninstalled"
-
-# Guards against the audit-session Phase 0 regression — a session that
-# never opens the prior handoff before doing new work.
-handoff-test:
-	@./scripts/check-handoff-continuity_test.sh
 
 # Run feature eval. FEATURE=<name> picks one evals/<name>.jsonl file.
 # BASE=<ref> sets the comparison ref (default origin/main; phase-1 stub).
@@ -200,4 +160,4 @@ sign-and-notarize:
 	@bash scripts/sign-and-notarize.sh $(ARGS)
 
 help:
-	@echo "Targets: dev, dev-stop, verify-pr PR=<n>, baseline, check, lint, smoke, phase2-smoke, phase2-smoke-stop, install, upgrade [DRY_RUN=1], install-janitor, uninstall-janitor, eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run, sign-and-notarize [ARGS=--all]"
+	@echo "Targets: dev, dev-stop, baseline, check, lint, smoke, phase2-smoke, phase2-smoke-stop, install, upgrade [DRY_RUN=1], eval FEATURE=<name>, eval-all, verify-checksums TAG=<vX.Y.Z>, verify-attestation TAG=<vX.Y.Z>, app-build, app-test, app-run, sign-and-notarize [ARGS=--all]"

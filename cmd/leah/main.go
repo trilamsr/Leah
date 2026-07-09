@@ -239,8 +239,6 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		return runSlack(ctx, rest, stdout)
 	case "open":
 		return runOpen(ctx, rest, stdout)
-	case "specs":
-		return runSpecs(rest, stdout)
 	case "find":
 		return runFind(ctx, rest, stdout)
 	case "strategist":
@@ -712,7 +710,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  review-queue [--org X] [--json]  PRs awaiting your review, oldest-first")
 	_, _ = fmt.Fprintln(os.Stderr, "  slack <send|list|thread|search>  wraps the slack adapter for CLI use")
 	_, _ = fmt.Fprintln(os.Stderr, "  open <target>             launch streaming/social via macOS open (netflix, spotify, linkedin, …)")
-	_, _ = fmt.Fprintln(os.Stderr, "  specs [--stale-only]      list docs/engineer/specs/*.md as SHIPPED / PARTIAL / STALE")
 	_, _ = fmt.Fprintln(os.Stderr, "  find [--region XX] <title...>  which streaming services carry a title (TMDB)")
 	_, _ = fmt.Fprintln(os.Stderr, "  strategist <post|next|inbox|queue|doctor>  social-post pipeline (text+image+clip via higgsfield)")
 	_, _ = fmt.Fprintln(os.Stderr, "  version                   show version")
