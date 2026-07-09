@@ -214,7 +214,7 @@ func main() {
 	sockPath := filepath.Join(home, "Library", "Caches", "Leah", "leah.sock")
 	sonnet, err := reasoner.NewAnthropicClient()
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: anthropic: %v (IPC stream will error until key is set)\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: reasoning backend init: %v (ask/answer path will error until key is set)\n", err)
 		sonnet = nil
 	}
 	// store.DB() already has conversation_turn from the schema migration above.

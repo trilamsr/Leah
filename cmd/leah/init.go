@@ -62,7 +62,7 @@ func runInit(ctx context.Context, args []string, w io.Writer, in io.Reader) int 
 		}
 	}
 
-	_, _ = fmt.Fprintln(w, "Welcome to Leah — personal AI chief-of-staff.")
+	_, _ = fmt.Fprintln(w, "Welcome to Leah — personal chief-of-staff.")
 	_, _ = fmt.Fprintln(w, "")
 	_, _ = fmt.Fprintln(w, "Step 1: macos-integration daemon")
 

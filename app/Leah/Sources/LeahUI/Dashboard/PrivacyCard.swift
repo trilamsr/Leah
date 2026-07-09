@@ -19,7 +19,7 @@ public struct PrivacyCard: View {
   // Mirrors internal/budget.Bucket enum order. Kept here as the operator-visible
   // surface — daemon IPC will replace placeholderTrends() once the wire is up.
   public static let bucketOrder: [PrivacyBucketTrend] = [
-    PrivacyBucketTrend(id: "cloud.llm.tokens",     label: "LLM",     weekSpend: Array(repeating: 0, count: 7)),
+    PrivacyBucketTrend(id: "cloud.llm.tokens",     label: "Reasoning",     weekSpend: Array(repeating: 0, count: 7)),
     PrivacyBucketTrend(id: "cloud.embed.bytes",    label: "Embed",   weekSpend: Array(repeating: 0, count: 7)),
     PrivacyBucketTrend(id: "cloud.stt.seconds",    label: "STT",     weekSpend: Array(repeating: 0, count: 7)),
     PrivacyBucketTrend(id: "cloud.tts.chars",      label: "TTS",     weekSpend: Array(repeating: 0, count: 7)),

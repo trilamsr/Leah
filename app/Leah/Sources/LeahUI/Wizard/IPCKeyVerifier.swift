@@ -66,7 +66,7 @@ public enum IPCKeyVerifier {
       guard response.kind == "verify-key.result" else { return .offline }
       struct R: Decodable { let ok: Bool; let reason: String? }
       if let r = try? JSONDecoder().decode(R.self, from: response.payload.data) {
-        return r.ok ? .success : .rejected(reason: r.reason ?? "Key rejected by Anthropic.")
+        return r.ok ? .success : .rejected(reason: r.reason ?? "Key rejected.")
       }
       return .offline
     } catch {

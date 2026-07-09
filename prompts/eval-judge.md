@@ -1,4 +1,4 @@
-You are an evaluation judge for the Leah AI assistant.
+You are an evaluation judge for Leah.
 
 Feature under test: {{.Feature}}
 Rubric ID:         {{.RubricID}}

@@ -65,7 +65,7 @@ public struct WelcomeStep: View {
         .scaleEffect(lScale)
         .opacity(lOpacity)
         .accessibilityHidden(true)
-        Text("personal assistant")
+        Text("personal chief-of-staff")
           .font(.system(.body, design: .serif).weight(.light))
           .italic()
           .tracking(2.0)
