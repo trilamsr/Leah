@@ -25,11 +25,11 @@ Phase 1 stood up Layers 1–4 (audit / memory / decide / dispatch). Phase 2 adde
 │  Layer 3 — DECIDE (operator-model + patterns + self-learn)          │
 │  internal/operatormodel/ — Wave2-J                                  │
 │  internal/patterns/ — Wave1-D                                       │
-│  internal/selflearn/ — Wave1-B                                      │
+│  internal/learn/ — Wave1-B (recommend + retro; single-tenant repo)  │
 │  → operatormodel.Recommend(profile, ctx, time) → []Recommendation   │
 │  → patterns.Detect(audit) → []Cluster → skill candidates            │
-│  → selflearn.Resolver.Run() → back-fills outcome                    │
-│  → selflearn.Retro.Generate(week) → markdown report                 │
+│  → learn.Resolver.Run() → back-fills outcome                        │
+│  → learn.Retro.Generate(week) → markdown report                     │
 │  Plus daemon weekly cron fires all 3 → state files in ~/.leah-state │
 └─────────────────────────────────────────────────────────────────────┘
                           ▲
@@ -66,7 +66,7 @@ Phase 1 stood up Layers 1–4 (audit / memory / decide / dispatch). Phase 2 adde
               │  internal/regattaclient│
               │  internal/reviewer/    │
               │  internal/watchdog/    │
-              │  internal/notify/      │
+              │  internal/comms/out/   │
               │  internal/web/         │
               └────────────────────────┘
 

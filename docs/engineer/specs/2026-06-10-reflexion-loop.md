@@ -2,14 +2,14 @@
 
 Date: 2026-06-10
 Scope: MVP-5 (Wave-8 S5)
-Owners: `internal/dispatcher/`, `internal/selflearn/`, `internal/audit/`
+Owners: `internal/dispatcher/`, `internal/learn/`, `internal/audit/`
 
 Companion docs:
 - `docs/engineer/briefs/2026-06-10-wave-8-aiml-upgrade.md` (§S5)
 - `docs/engineer/specs/2026-06-10-eval-pipeline.md` (S1 sibling)
 - `docs/engineer/dispatch-templates/{reviewer,designer,implementer}.md`
 - `docs/engineer/autonomous-session-prompt.md`
-- `internal/audit/audit.go`, `internal/selflearn/{resolver,retro}.go`
+- `internal/audit/audit.go`, `internal/learn/{resolver,retro}.go`
 
 ## 1. Goal
 
@@ -241,7 +241,7 @@ S11.0 per-field allowlist + per-peer attestation gate.
 
 ## 5. Selflearn aggregation
 
-### 5.1 `internal/selflearn/scorecard.go`
+### 5.1 `internal/learn/scorecard.go`
 
 ```go
 type ScorecardAggregate struct {
@@ -266,7 +266,7 @@ func (w *ScorecardWalker) Aggregate(window time.Duration) ([]ScorecardAggregate,
 
 ### 5.2 Degradation detection
 
-`internal/selflearn/retro.go:Generate` gains a `## Dispatch template
+`internal/learn/retro.go:Generate` gains a `## Dispatch template
 scorecard` section with two tables:
 
 1. **Current 30d window** — one row per `(template, role)` showing
@@ -306,7 +306,7 @@ repeatedly are signaling template drift, which the scorecard catches.
 | Wave | Touches | TDD anchors |
 |------|---------|-------------|
 | W105 | `internal/audit/scorecard.go` (+ test). Encodes Scorecard sub-object into `Entry.Detail`; no field changes. | `TestScorecard_RoundTrip`, `TestScorecard_RejectsUnknownFields`, `TestScorecard_NilFieldsByRole` |
-| W106 | `internal/selflearn/scorecard.go` (+ test); retro report `## Dispatch template scorecard` section. | `TestScorecardWalker_AggregatesByTemplateRole`, `TestScorecardWalker_DegradationWindow`, `TestRetro_ScorecardSectionRendersDelta` |
+| W106 | `internal/learn/scorecard.go` (+ test); retro report `## Dispatch template scorecard` section. | `TestScorecardWalker_AggregatesByTemplateRole`, `TestScorecardWalker_DegradationWindow`, `TestRetro_ScorecardSectionRendersDelta` |
 | W107 | `internal/dispatcher/` reads env flags + PR-body sentinels; conditional reflexion/tournament dispatch; emits `reviewer_turn`, `arbiter_turn`, `reflexion_dispatch`, `tournament_escalation`. Lockstep edit to `docs/engineer/dispatch-templates/reviewer.md` LOAD-BEARING CARVE-OUT (README.md root-file rule — single owner). | `TestDispatcher_ReflexionFiresOnBlockOnly`, `TestDispatcher_TournamentLoadBearingOnly`, `TestDispatcher_SentinelOverridesEnvFlag`, `TestDispatcher_EscalationCapAtThreeRounds` |
 | W108 | `cmd/leah retro --scorecard` flag wires §5 into CLI. | `TestRetroCLI_ScorecardFlagRendersTable` |
 

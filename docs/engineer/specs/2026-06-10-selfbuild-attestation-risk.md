@@ -101,7 +101,7 @@ are seeded from wave 1-7 audit history (n=312 self-build PRs): 68% scored
 chosen so a fresh operator sees roughly that distribution; meaningful drift
 flags habituation or formula drift.
 
-Nightly cron `internal/selflearn/rebalance.go` (no operator approval —
+Nightly cron `internal/learn/rebalance.go` (no operator approval —
 emits proposed boundaries as audit row `kind=selflearn.tier_rebalance
 outcome=proposed detail=low_max=<x> medium_max=<y>`; operator manually
 edits the constants if accepted, closing open Q §13.3):
@@ -149,7 +149,7 @@ repos).
 ## 5. `historical_failure_rate` computation
 
 ```go
-// internal/selflearn/riskscore.go
+// internal/learn/riskscore.go
 func HistoricalFailureRate(audit []audit.Entry, kind string, now time.Time) float64 {
     window := now.Add(-90 * 24 * time.Hour)
     var total, blocked int
@@ -263,7 +263,7 @@ silently degrading the signal. Detection tries paths in order:
 
 ### Aggregation
 
-`internal/selflearn/subagent.go` walks `subagent.turn` rows and emits per
+`internal/learn/subagent.go` walks `subagent.turn` rows and emits per
 (role, parent-Kind) cells:
 
 - `reviewer_finding_rate{kind=self-build}` — findings per review.
@@ -353,10 +353,10 @@ operator with >90% same-question answers in 30d (habituation symptom).
 
 | Wave  | Files                                                              | Scope                                                     |
 |-------|--------------------------------------------------------------------|-----------------------------------------------------------|
-| W116  | `internal/selflearn/riskscore.go` + `_test.go`                     | `RiskScore`, `HistoricalFailureRate`, `DiffLOC` pure fns  |
+| W116  | `internal/learn/riskscore.go` + `_test.go`                     | `RiskScore`, `HistoricalFailureRate`, `DiffLOC` pure fns  |
 | W117  | `internal/attestation/pool.go` (extend) + `pool_weighted_test.go` + `prompts/attestation-{easy,hard,critical}.txt` | Recency-weighted `PickWeighted`; pool file split          |
 | W118  | `internal/dispatcher/selfbuild.go` (extend) + `selfbuild_risk_test.go` | Wire risk score → tier → pool selection in `Run`          |
-| W119  | `internal/subagent/audit.go` + `_test.go` + `internal/selflearn/subagent.go` + `_test.go` | Sub-PR retro audit row writer + selflearn aggregator     |
+| W119  | `internal/subagent/audit.go` + `_test.go` + `internal/learn/subagent.go` + `_test.go` | Sub-PR retro audit row writer + selflearn aggregator     |
 
 W116-W118 parallelize up to 3 (file-disjoint per README.md dispatch rule).
 W119 serializes after W118 because the `selfbuild.go` audit-row format is

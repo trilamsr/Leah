@@ -54,10 +54,10 @@ func TestFeedbackObserverDrainClears(t *testing.T) {
 	}
 }
 
-// TestOperatormodelDoesNotImportSelflearn is the load-bearing import-arrow
-// guard: the feedback edge MUST stay one-way (selflearn -> operatormodel via
-// callback), never operatormodel -> selflearn, to avoid an import cycle.
-func TestOperatormodelDoesNotImportSelflearn(t *testing.T) {
+// TestOperatormodelDoesNotImportLearn is the load-bearing import-arrow
+// guard: the feedback edge MUST stay one-way (learn -> operatormodel via
+// callback), never operatormodel -> learn, to avoid an import cycle.
+func TestOperatormodelDoesNotImportLearn(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatalf("read dir: %v", err)
@@ -73,8 +73,8 @@ func TestOperatormodelDoesNotImportSelflearn(t *testing.T) {
 			t.Fatalf("parse %s: %v", name, err)
 		}
 		for _, imp := range f.Imports {
-			if strings.Contains(imp.Path.Value, "internal/selflearn") {
-				t.Errorf("%s imports selflearn (%s) — breaks one-way feedback arrow", name, imp.Path.Value)
+			if strings.Contains(imp.Path.Value, "internal/learn") {
+				t.Errorf("%s imports learn (%s) — breaks one-way feedback arrow", name, imp.Path.Value)
 			}
 		}
 	}

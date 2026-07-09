@@ -286,7 +286,7 @@ over the last 90d of `recommend_feedback`. Pick `argmax score(hl)`.
 The replay loop is a single in-package function `MetaLearnHalflife`
 in `internal/recommend/metalearn.go`; it reads `recommend_feedback`
 rows directly via the existing `storage.go` connection — no new
-storage primitive, no `evals/` package, no `internal/selflearn/`
+storage primitive, no `evals/` package, no `internal/learn/`
 dependency.
 
 ### 7.2 Scheduling

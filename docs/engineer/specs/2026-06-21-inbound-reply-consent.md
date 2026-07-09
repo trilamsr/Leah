@@ -55,11 +55,11 @@ spec; sections 3 and 5 are the plumbing around it.
 
 ### 3.1 Shape
 
-One new package `internal/inbound` owns the channel-agnostic router; the two
+One new package `internal/comms/in` owns the channel-agnostic router; the two
 transports stay in their adapter packages and feed it normalized messages.
 
 ```go
-// internal/inbound/router.go
+// internal/comms/in/router.go
 type Reply struct {
     Channel   string // "discord" | "whatsapp"
     PeerID    string // discord AuthorID / whatsapp sender — the consent subject
@@ -87,7 +87,7 @@ When F2 pushes a recommendation to a channel, it records the correlation so the
 reply can find its target:
 
 ```go
-// internal/inbound/pending.go
+// internal/comms/in/pending.go
 type Pending struct {
     RecID    string
     Channel  string
@@ -126,7 +126,7 @@ type PendingStore interface {
   The operator has **not** authorized public-endpoint/tunnel infra. So this
   variant is **deferred**, mirroring MAY-126's reasoning: ship the loopback-safe
   transport now, defer the one that needs an inbound public port until tunnel
-  infra is explicitly authorized. The `internal/inbound` router is transport-
+  infra is explicitly authorized. The `internal/comms/in` router is transport-
   agnostic by design, so the whatsapp feed is purely additive later.
 
 ## 4. Per-action consent contract (load-bearing)
@@ -144,7 +144,7 @@ shared thread, a spoofed forward) would drive `Apply` — including a
 ### 4.2 Two-layer gate
 
 ```go
-// internal/inbound/consent.go
+// internal/comms/in/consent.go
 type ConsentGate interface {
     // Enrolled reports whether the operator one-time-authorized this channel+peer
     // to answer recommendations at all (layer 1). Fail-closed.
@@ -221,7 +221,7 @@ consent gate, so a misclassification can never escalate privilege (the gate
 already cleared on intent class, and `unknown` is fail-safe).
 
 ```go
-// internal/inbound/classify.go
+// internal/comms/in/classify.go
 type Intent int // IntentAccept | IntentReject | IntentDefer | IntentUnknown
 type Classifier interface {
     Classify(ctx context.Context, text string) (Intent, error)
@@ -306,7 +306,7 @@ Wiring:
 
 ## 9. Dependency order
 
-1. **Router + pending store** (`internal/inbound/router.go`, `pending.go`) —
+1. **Router + pending store** (`internal/comms/in/router.go`, `pending.go`) —
    transport-agnostic, no consent yet; pure mapping + state, fully unit-testable.
 2. **Consent contract** (`consent.go` + `attestation/scopes.go` new scopes +
    `leah inbound enroll` CLI) — the gate. Nothing acts until this lands.
