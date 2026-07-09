@@ -36,8 +36,8 @@ func runConnectRegatta(ctx context.Context, args []string, w io.Writer, p *conne
 		p.Exec = osExecRunner{}
 	}
 
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
-	p.Audit = &regattaAuditAdapter{logger: a}
+	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	p.Audit = &regattaAuditAdapter{logger: logger}
 
 	att := newConnectAttestor()
 	if err := p.Connect(ctx, att); err != nil {

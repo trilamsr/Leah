@@ -29,7 +29,7 @@ func runDecision(args []string) int {
 		return 1
 	}
 	defer func() { _ = store.Close() }()
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
+	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
 
 	switch args[0] {
 	case "add":
@@ -62,7 +62,7 @@ func runDecision(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah decision add: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "decision.add", ArgsHash: d.ID, BlastRadius: 1, Outcome: "success", Detail: d.Topic})
+		_ = logger.Append(audit.Entry{Kind: "decision.add", ArgsHash: d.ID, BlastRadius: 1, Outcome: "success", Detail: d.Topic})
 		printDecision(os.Stdout, d, *jsonOut)
 	case "list":
 		jsonOut := hasFlag(args[1:], "--json")
@@ -71,7 +71,7 @@ func runDecision(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah decision list: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "decision.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(ds))})
+		_ = logger.Append(audit.Entry{Kind: "decision.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(ds))})
 		if jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(ds)
 			return 0
@@ -94,7 +94,7 @@ func runDecision(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah decision show: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "decision.show", ArgsHash: d.ID, BlastRadius: 0, Outcome: "success"})
+		_ = logger.Append(audit.Entry{Kind: "decision.show", ArgsHash: d.ID, BlastRadius: 0, Outcome: "success"})
 		printDecision(os.Stdout, d, jsonOut)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "leah decision: unknown action %q\n", args[0])

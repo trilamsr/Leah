@@ -28,7 +28,7 @@ func runContact(args []string) int {
 		return 1
 	}
 	defer func() { _ = store.Close() }()
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
+	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl")}
 
 	switch args[0] {
 	case "add":
@@ -49,7 +49,7 @@ func runContact(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah contact add: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "contact.add", ArgsHash: c.ID, BlastRadius: 1, Outcome: "success", Detail: c.Name})
+		_ = logger.Append(audit.Entry{Kind: "contact.add", ArgsHash: c.ID, BlastRadius: 1, Outcome: "success", Detail: c.Name})
 		printContact(os.Stdout, c, *jsonOut)
 	case "list":
 		jsonOut := hasFlag(args[1:], "--json")
@@ -58,7 +58,7 @@ func runContact(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah contact list: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "contact.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(cs))})
+		_ = logger.Append(audit.Entry{Kind: "contact.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(cs))})
 		if jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(cs)
 			return 0
@@ -81,7 +81,7 @@ func runContact(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah contact show: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "contact.show", ArgsHash: c.ID, BlastRadius: 0, Outcome: "success"})
+		_ = logger.Append(audit.Entry{Kind: "contact.show", ArgsHash: c.ID, BlastRadius: 0, Outcome: "success"})
 		printContact(os.Stdout, c, jsonOut)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "leah contact: unknown action %q\n", args[0])

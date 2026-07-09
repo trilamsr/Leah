@@ -51,7 +51,7 @@ func runConnect(ctx context.Context, args []string, w io.Writer) int {
 		return 2
 	}
 
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 	att := newConnectAttestor()
 
 	prompt := func(verificationURL, userCode string) {
@@ -59,7 +59,7 @@ func runConnect(ctx context.Context, args []string, w io.Writer) int {
 	}
 
 	if _, err := connect.Authorize(ctx, p, att, prompt); err != nil {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_" + name,
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -68,7 +68,7 @@ func runConnect(ctx context.Context, args []string, w io.Writer) int {
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect %s: %v\n", name, err)
 		return 1
 	}
-	_ = a.Append(audit.Entry{Kind: "connect_" + name, BlastRadius: 2, Outcome: "success"})
+	_ = logger.Append(audit.Entry{Kind: "connect_" + name, BlastRadius: 2, Outcome: "success"})
 	_, _ = fmt.Fprintf(w, "ok: %s authorized → %s\n", name, p.TokenPath())
 	return 0
 }
