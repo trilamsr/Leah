@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/discord"
 	"github.com/trilam/leah/internal/adapters/gcal"
 	"github.com/trilam/leah/internal/adapters/gmail"
 	"github.com/trilam/leah/internal/brief"
@@ -32,7 +31,7 @@ import (
 // so a hung regattaclient.List call cannot block the weekly goroutine
 // until daemon shutdown. Soft-fails per surface: TTS error never gates
 // the file write, file-write error never gates voice/desktop.
-func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File, discordAdpt *discord.Adapter) daemonloop.WeeklyTask {
+func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
 		data := pullBriefSnapshot(ctx, sd, rc, out)
 		// Only push when proactive delivery is opted in — the daemon brief
@@ -41,7 +40,7 @@ func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File, discor
 			taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
 			summary := brief.VoiceSummary(data)
-			if err := buildBriefNotifier(discordAdpt).Notify(taskCtx, "Morning brief", summary); err != nil {
+			if err := buildBriefNotifier().Notify(taskCtx, "Morning brief", summary); err != nil {
 				_, _ = fmt.Fprintf(out, "leah-daemon: brief push error: %v\n", err)
 			}
 		}
@@ -69,18 +68,12 @@ func buildDegradedPullTask(sd string, rc daemonloop.RegattaClient, out *os.File)
 
 // buildBriefNotifier fans the brief across every configured push channel;
 // each remote joins only when configured so an unset channel stays silent.
-func buildBriefNotifier(discordAdpt *discord.Adapter) *commsout.Fanout {
+func buildBriefNotifier() *commsout.Fanout {
 	ns := []contracts.Notifier{commsout.NewDesktop(), commsout.NewVoice()}
 	pushoverUser, _ := keychain.LoadPushoverUser()
 	pushoverToken, _ := keychain.LoadPushoverToken()
 	if pushoverUser != "" && pushoverToken != "" {
 		ns = append(ns, commsout.NewPushover())
-	}
-	if d := newDiscordNotifier(discordAdpt); d != nil {
-		ns = append(ns, d)
-	}
-	if w := newWhatsAppNotifier(); w != nil {
-		ns = append(ns, w)
 	}
 	return &commsout.Fanout{Notifiers: ns}
 }
@@ -102,7 +95,6 @@ func briefOpts(sd string) brief.GatherOpts {
 			o.Gcal = c
 		}
 	}
-	wireWorkTools(&o)
 	if q := newWatchlistQuoter(sd); q != nil {
 		o.Watchlist = q
 	}

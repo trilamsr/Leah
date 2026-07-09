@@ -17,12 +17,6 @@ const (
 
 	// ScopeSelfUpgrade gates `leah self-upgrade`; distinct from ScopeSelfBuild so PR-merge habituation can't authorize a silent binary swap.
 	ScopeSelfUpgrade = "self-upgrade"
-
-	// ScopeShipTool gates `leah ship --<tool>` outward writes (post/create in
-	// Slack, Jira, Notion, Linear, Teams). Distinct scope so habituation on the
-	// PR-merge or binary-swap gates can't authorize an irreversible external post.
-	ScopeShipTool = "ship-tool"
-
 	// ScopeInboundEnroll gates the one-time loopback authorization that lets a
 	// remote (channel,peer) pair answer pushed recommendations at all (F3 §4.2
 	// layer 1). Distinct from any per-action scope so granting "this channel
@@ -39,5 +33,5 @@ const (
 // AllScopes lists every registered attestation scope. Wire one Pool with this
 // slice and every authorised callsite picks from the same questions file.
 func AllScopes() []string {
-	return []string{ScopeSelfBuild, ScopeSelfBuildA2A, CostOverrideScope, ScopeSelfUpgrade, ScopeShipTool, ScopeInboundEnroll, ScopeInboundApply}
+	return []string{ScopeSelfBuild, ScopeSelfBuildA2A, CostOverrideScope, ScopeSelfUpgrade, ScopeInboundEnroll, ScopeInboundApply}
 }
