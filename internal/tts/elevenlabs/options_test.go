@@ -24,7 +24,7 @@ func stubMissingSecurity(t *testing.T) {
 	t.Cleanup(func() { keychain.SetSecurityBin(prev) })
 }
 
-// FromEnv requires the Anthropic Keychain slot OR LEAH_ELEVENLABS_API_KEY.
+// FromEnv requires the ElevenLabs Keychain slot OR LEAH_ELEVENLABS_API_KEY.
 func TestFromEnv_MissingKey(t *testing.T) {
 	t.Setenv("LEAH_ELEVENLABS_API_KEY", "")
 	t.Setenv("LEAH_ELEVENLABS_VOICE_ID", "")
