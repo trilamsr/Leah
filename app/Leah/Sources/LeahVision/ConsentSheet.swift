@@ -64,10 +64,10 @@ public struct ConsentSheet: View {
 
     public static func title(forMode mode: String) -> String {
         switch mode {
-        case "screenshot": return "Send this screenshot to Claude?"
-        case "live_screen": return "Stream your screen to Claude?"
-        case "live_camera": return "Stream your camera to Claude?"
-        default: return "Send this frame to Claude?"
+        case "screenshot": return "Send this screenshot to the cloud?"
+        case "live_screen": return "Stream your screen to the cloud?"
+        case "live_camera": return "Stream your camera to the cloud?"
+        default: return "Send this frame to the cloud?"
         }
     }
 

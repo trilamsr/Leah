@@ -1,6 +1,6 @@
 # Leah
 
-Personal AI chief-of-staff. Single-operator macOS native app + CLI + always-on daemon. Phase 3 ship — v3.3.0; see `CHANGELOG.md` for the latest delta.
+Personal chief-of-staff for macOS. Single-operator macOS native app + CLI + always-on daemon. Phase 3 ship — v3.3.0; see `CHANGELOG.md` for the latest delta.
 
 - Architecture: `ARCHITECTURE.md`
 - Specs: `docs/specs/` (design rationale) + `docs/superpowers/specs/` (UI design)

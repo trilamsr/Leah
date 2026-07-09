@@ -17,7 +17,7 @@ public enum InboundMCPScope: String, CaseIterable, Identifiable, Equatable {
         case .memoryRead:   return "Memory read"
         case .calendarRead: return "Calendar read"
         case .repoRead:     return "Repo read"
-        case .askRun:       return "Ask (charges Anthropic budget)"
+        case .askRun:       return "Ask (charges reasoning budget)"
         case .widgetRender: return "Widget render"
         }
     }

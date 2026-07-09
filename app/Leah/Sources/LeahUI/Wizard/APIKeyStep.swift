@@ -24,7 +24,7 @@ public struct APIKeyStep: View {
 
   public var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text("Add your Anthropic API key.")
+      Text("Add your API key.")
         .font(.title2.weight(.medium))
         .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
       Text("Get one at console.anthropic.com → API Keys.")

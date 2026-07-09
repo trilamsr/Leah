@@ -4,7 +4,7 @@ Single-file architecture overview. Operator-facing reference for "where does X l
 
 ## Goal
 
-Leah is a single-operator personal AI chief-of-staff that closes the loop on her own evolution: she observes her own behavior (audit + obs), remembers what happened (memory.db + ctxmgr), decides what to do next (patterns + selflearn + operatormodel), and dispatches regatta to ship her own next feature (dispatcher.SelfBuild). Tri runs Leah; Leah runs Leah. Multi-user / SaaS / autonomous money or merge are explicitly out of scope.
+Leah is a single-operator personal chief-of-staff that closes the loop on her own evolution: she observes her own behavior (audit + obs), remembers what happened (memory.db + ctxmgr), decides what to do next (patterns + selflearn + operatormodel), and dispatches regatta to ship her own next feature (dispatcher.SelfBuild). Tri runs Leah; Leah runs Leah. Multi-user / SaaS / autonomous money or merge are explicitly out of scope.
 
 ## Layer model (Phase 1 → Phase 3)
 
