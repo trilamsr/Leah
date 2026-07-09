@@ -1,5 +1,5 @@
 class Leah < Formula
-  desc "Personal AI assistant — CLI, daemon, and HUD"
+  desc "Personal chief-of-staff for macOS — CLI, daemon, and HUD"
   homepage "https://github.com/trilamsr/Leah"
   url "https://github.com/trilamsr/Leah/releases/download/v0.0.1-mvp5/leah-v0.0.1-mvp5-src.tar.gz"
   version "0.0.1-mvp5"

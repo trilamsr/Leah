@@ -480,7 +480,7 @@ func TestIPCHandlerFetchesContext(t *testing.T) {
 		if k != 5 {
 			t.Errorf("fetch k: got %d, want 5", k)
 		}
-		return []knowledge.Chunk{{ID: "c1", Text: "Leah is a personal AI assistant."}}, nil
+		return []knowledge.Chunk{{ID: "c1", Text: "Leah is a personal chief-of-staff."}}, nil
 	}
 
 	var capturedPrompt string
@@ -506,7 +506,7 @@ func TestIPCHandlerFetchesContext(t *testing.T) {
 	if !fetchCalled {
 		t.Fatal("SearchRelevant was not called")
 	}
-	if !strings.Contains(capturedPrompt, "Leah is a personal AI assistant.") {
+	if !strings.Contains(capturedPrompt, "Leah is a personal chief-of-staff.") {
 		t.Fatalf("prompt missing retrieved context: %q", capturedPrompt)
 	}
 	if !strings.Contains(capturedPrompt, "what is leah") {

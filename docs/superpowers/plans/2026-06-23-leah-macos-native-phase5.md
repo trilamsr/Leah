@@ -686,7 +686,7 @@ func QueryFrontmost() (Element, error) {
 - Create: `internal/research/cite.go`
 - Create: `internal/research/report.go`
 
-**Why this exists:** §2 mandates a deep-research workflow with per-claim citation verification. The orchestrator fan-outs web queries via the existing `internal/feeds/` + a new `internal/web/search.go` adapter, the verifier confirms each claim against the cited source, and the emitter writes a cited markdown report. Without verification this is just "web search summary" — every other AI assistant ships that; the differentiation is adversarial verification.
+**Why this exists:** §2 mandates a deep-research workflow with per-claim citation verification. The orchestrator fan-outs web queries via the existing `internal/feeds/` + a new `internal/web/search.go` adapter, the verifier confirms each claim against the cited source, and the emitter writes a cited markdown report. Without verification this is just "web search summary" — every other tool in this space ships that; the differentiation is adversarial verification.
 
 **Interfaces:**
 - Produces:
