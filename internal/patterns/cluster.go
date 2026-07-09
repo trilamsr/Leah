@@ -1,6 +1,5 @@
 // Package patterns clusters audit-log entries to surface repeated operator
 // actions as skill candidates. Reads audit.jsonl directly — no new storage.
-// Spec: docs/specs/2026-06-09-pattern-recognition.md.
 package patterns
 
 import (
@@ -16,7 +15,7 @@ import (
 
 // HashPrefixLen is the args_hash prefix length used for clustering.
 // 8 hex chars = 32 bits, birthday-collision domain ~65k events — well above
-// any single-operator 30-day audit volume (spec §2 rationale).
+// any single-operator 30-day audit volume.
 const HashPrefixLen = 8
 
 // DefaultMinCount is the floor for emitting a cluster. Configurable per-run.

@@ -10,8 +10,7 @@ created: 2026-06-21
 ## 1. Goal
 
 Prove — mechanically, with a single command — that the 9-step self-build loop
-(`docs/specs/2026-06-09-roadmap-overview.md` §Closed-loop validation) fires
-end-to-end for one real feature, and surface a pass/fail receipt. The
+fires end-to-end for one real feature, and surface a pass/fail receipt. The
 substrate is all shipped; what is missing is a way to *assert the loop closed*
 rather than eyeballing the audit log. Without this, "closed loop runnable"
 (M2 exit) is a claim, not a verified state.

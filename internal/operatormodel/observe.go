@@ -1,15 +1,13 @@
 // Package operatormodel observes operator behavior from the audit log
 // and the context-switch log, then ranks likely next actions.
 //
-// Three observation classes (spec §2.1):
+// Three observation classes:
 //   - time_of_day: per action-kind, which 24h hour does this happen most
 //   - context_transition: per (from_context), which action-kind tends to follow
 //   - cadence: per action-kind, which weekday does this happen most
 //
 // All observers are pure functions over inputs — no DB / file IO — so they
 // can be tested + composed by Profile.Update().
-//
-// See docs/specs/2026-06-09-operator-model.md.
 package operatormodel
 
 import (

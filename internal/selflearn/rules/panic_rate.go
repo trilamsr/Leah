@@ -13,9 +13,8 @@ import (
 
 // PanicRateRule scans the obs metrics snapshot for per-goroutine-name
 // panic-counter growth since the last baseline. Crossing Threshold emits
-// a Candidate for the bug-fix self-build hook
-// (see docs/specs/2026-06-09-bug-fix-self-build-hook.md). Detect is
-// safe to call from the weekly selflearn tick.
+// a Candidate for the bug-fix self-build hook. Detect is safe to call
+// from the weekly selflearn tick.
 type PanicRateRule struct {
 	// Threshold is the minimum per-name delta that emits a Candidate.
 	// Default 3 — empirically large enough to filter single-run noise

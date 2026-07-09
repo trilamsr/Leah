@@ -15,10 +15,9 @@ import (
 //
 // Workspace is the operator-facing noun for the dimension implemented in
 // internal/ctxmgr (where the persisted entity is named "context"; mapping
-// rule context.name == workspace_id per docs/specs/2026-06-09-context-manager.md
-// §2.1). The list/new/switch/show subcommands are thin aliases that delegate
-// to runCtx so behavior stays single-sourced; persona set/show is new and
-// owned here.
+// rule context.name == workspace_id). The list/new/switch/show subcommands
+// are thin aliases that delegate to runCtx so behavior stays single-sourced;
+// persona set/show is new and owned here.
 func runWorkspace(args []string) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah workspace <list|new|switch|show|persona> [args...]")

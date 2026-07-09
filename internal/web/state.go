@@ -1,6 +1,5 @@
 // Package web serves the JARVIS-aesthetic personal-use dashboard.
-// Single endpoint (/api/state), single page (/dashboard). See
-// docs/specs/2026-06-09-jarvis-ui.md.
+// Single endpoint (/api/state), single page (/dashboard).
 package web
 
 import (

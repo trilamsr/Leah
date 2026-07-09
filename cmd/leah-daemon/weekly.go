@@ -164,8 +164,7 @@ func buildOperatorModelTask(sd, auditPath string, out *os.File, feedback *operat
 // candidate w/ UTC timestamp), counts new vs sentinel, and notifies the
 // operator when new > 0. NEVER auto-dispatches to regatta — operator
 // reads the file + manually runs `leah self-build` (the only structural
-// defense against self-modification drift; see
-// docs/specs/2026-06-09-bug-fix-self-build-hook.md).
+// defense against self-modification drift).
 func buildPanicDetectTask(sd string, out *os.File) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
 		detectors := []rules.PanicRateRule{{}}

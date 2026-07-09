@@ -3,11 +3,6 @@
 // Memory schema v5 (workspace_persona) keys one row per workspace; an
 // unconfigured workspace falls back to package-level Defaults so Load
 // always returns a usable Persona without forcing callers to nil-check.
-//
-// See docs/specs/2026-06-09-context-manager.md §6 (deferred until now —
-// activated for the workspace-dimension rollout) and the overview
-// docs/specs/2026-06-09-leah-overview.md §3.5 bullet 4 (per-workspace
-// persona keyed on tone / signature / voice).
 package persona
 
 import (

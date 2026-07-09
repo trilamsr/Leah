@@ -1,16 +1,16 @@
 # Leah — Architecture
 
-Single-file architecture overview. Operator-facing reference for "where does X live, what depends on Y, what writes to Z". Reflects v3.3.0 (Phase 3 shipped — voice + push-source + KG citations + MCP publish + Sparkle EdDSA). Phase-1 layers 1–4 are unchanged; Phase-2 layer 5 (UI shell) and Phase-3 layer 6 (Voice + Push) are tracked under "Phase 2 + 3 deltas". The full design rationale lives under `docs/specs/`; this doc is the map.
+Single-file architecture overview. Operator-facing reference for "where does X live, what depends on Y, what writes to Z". Reflects v3.3.0 (Phase 3 shipped — voice + push-source + KG citations + MCP publish + Sparkle EdDSA). Phase-1 layers 1–4 are unchanged; Phase-2 layer 5 (UI shell) and Phase-3 layer 6 (Voice + Push) are tracked under "Phase 2 + 3 deltas". This doc is the map; Phase 2/3 implementation plans under `docs/superpowers/plans/` are the design rationale.
 
 ## Goal
 
-Leah is a single-operator personal AI chief-of-staff that closes the loop on her own evolution: she observes her own behavior (audit + obs), remembers what happened (memory.db + ctxmgr), decides what to do next (patterns + selflearn + operatormodel), and dispatches regatta to ship her own next feature (dispatcher.SelfBuild). Tri runs Leah; Leah runs Leah. Multi-user / SaaS / autonomous money or merge are explicitly out of scope (see `docs/specs/2026-06-09-leah-phase-x-multi-operator-roadmap.md`).
+Leah is a single-operator personal AI chief-of-staff that closes the loop on her own evolution: she observes her own behavior (audit + obs), remembers what happened (memory.db + ctxmgr), decides what to do next (patterns + selflearn + operatormodel), and dispatches regatta to ship her own next feature (dispatcher.SelfBuild). Tri runs Leah; Leah runs Leah. Multi-user / SaaS / autonomous money or merge are explicitly out of scope.
 
 ## Layer model (Phase 1 → Phase 3)
 
 Phase 1 stood up Layers 1–4 (audit / memory / decide / dispatch). Phase 2 added Layer 5 (UI shell — widget envelope + HUD tile registry + Ambient + notification toast + pin flow + light mode + BGE ONNX retrieval). Phase 3 added Layer 6 (Voice + Push — ElevenLabs/Apple TTS chain + wake-word + VAD + suppression + push-to-talk + push-source IPC fan + KG citation join + MCP read-only publish + Sparkle EdDSA verify + Dashboard).
 
-Layers 1–4 ported from `docs/specs/2026-06-09-closed-loop-architecture.md`. Layers 5–6 cross-referenced in `docs/superpowers/plans/2026-06-22-leah-macos-native-phase2.md` + `…-phase3.md`.
+Layers 5–6 cross-referenced in `docs/superpowers/plans/2026-06-22-leah-macos-native-phase2.md` + `…-phase3.md`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -228,7 +228,7 @@ End-to-end example showing every package the flow touches.
 8. **Watcher** — `Ship.watch` polls `regattaclient.Client.List` every 30s, pings `watchdog.Heartbeat`, fires `notify.Desktop` on terminal transition.
 9. **Regatta picks up** — outside Leah's process: regatta sees the labelled issue + opens a PR.
 10. **Review** — operator runs `leah review trilamsr/Leah <PR#>`. `reviewer.Reviewer.Review` dispatches `AnthropicSubagent` with the reviewer prompt + diff + linked-issue body. Parses `Reviewer-recommendation:` + `Reviewer-agent-id:` lines; `ValidateAgentID` rejects non-canonical IDs.
-11. **Operator merge** — manual `gh pr merge` (automerge is BANNED on self-build PRs per `docs/specs/2026-06-09-closed-loop-architecture.md` §risk). Attestation comment required.
+11. **Operator merge** — manual `gh pr merge` (automerge is BANNED on self-build PRs; blast radius = 4). Attestation comment required.
 12. **Daemon transition** — `daemonloop.Loop.tick` notices the regatta agent state went `merged` → writes `kind=daemon.transition outcome=observed` audit row + fires `Notifier.Notify`.
 13. **Weekly retro** — next Sunday 9am, `daemonloop` fires `selflearn.Resolver` (back-fills the original `ship` row's outcome via `selflearn/rules.RegattaPR`), `patterns.Detect`, `selflearn.Retro.Generate`, `operatormodel.UpdateProfile`. Reports land under `~/.leah-state/`.
 
@@ -282,24 +282,5 @@ Phase 2 + 3 implementation plans + ship log:
 - Phase 2 plan: [`docs/superpowers/plans/2026-06-22-leah-macos-native-phase2.md`](docs/superpowers/plans/2026-06-22-leah-macos-native-phase2.md)
 - Phase 3 plan: [`docs/superpowers/plans/2026-06-22-leah-macos-native-phase3.md`](docs/superpowers/plans/2026-06-22-leah-macos-native-phase3.md)
 - v3.3.0 ship log: [`CHANGELOG.md`](CHANGELOG.md)
-
-Authoritative design docs under `docs/specs/`:
-
-- Closed-loop architecture: [`docs/specs/2026-06-09-closed-loop-architecture.md`](docs/specs/2026-06-09-closed-loop-architecture.md)
-- Leah overview: [`docs/specs/2026-06-09-leah-overview.md`](docs/specs/2026-06-09-leah-overview.md)
-- Fast-path roadmap: [`docs/specs/2026-06-09-roadmap-overview.md`](docs/specs/2026-06-09-roadmap-overview.md)
-- Memory M2: [`docs/specs/2026-06-09-memory-m2-minimal.md`](docs/specs/2026-06-09-memory-m2-minimal.md)
-- Self-learning: [`docs/specs/2026-06-09-self-learning-personal.md`](docs/specs/2026-06-09-self-learning-personal.md)
-- Context manager: [`docs/specs/2026-06-09-context-manager.md`](docs/specs/2026-06-09-context-manager.md)
-- Pattern recognition: [`docs/specs/2026-06-09-pattern-recognition.md`](docs/specs/2026-06-09-pattern-recognition.md)
-- Self-building via regatta: [`docs/specs/2026-06-09-self-building-via-regatta.md`](docs/specs/2026-06-09-self-building-via-regatta.md)
-- JARVIS UI: [`docs/specs/2026-06-09-jarvis-ui.md`](docs/specs/2026-06-09-jarvis-ui.md)
-- Operator model: [`docs/specs/2026-06-09-operator-model.md`](docs/specs/2026-06-09-operator-model.md)
-- Observability: [`docs/specs/2026-06-09-observability.md`](docs/specs/2026-06-09-observability.md)
-- Phase X deferrals: [`docs/specs/2026-06-09-leah-phase-x-multi-operator-roadmap.md`](docs/specs/2026-06-09-leah-phase-x-multi-operator-roadmap.md)
-- Tier 1 self-improvement: [`docs/specs/2026-06-09-leah-tier1-self-improvement.md`](docs/specs/2026-06-09-leah-tier1-self-improvement.md)
-- Tier 2 SWE productivity: [`docs/specs/2026-06-09-leah-tier2-swe-productivity.md`](docs/specs/2026-06-09-leah-tier2-swe-productivity.md)
-- Tier 3 schedule + comms: [`docs/specs/2026-06-09-leah-tier3-schedule-comms-multi-account.md`](docs/specs/2026-06-09-leah-tier3-schedule-comms-multi-account.md)
-- Remaining tiers reordered: [`docs/specs/2026-06-09-leah-remaining-tiers-reordered.md`](docs/specs/2026-06-09-leah-remaining-tiers-reordered.md)
 
 Operator rules for any agent (main + subagents): [`CLAUDE.md`](CLAUDE.md).

@@ -11,14 +11,14 @@ In leah, the autonomous session IS the orchestrator — the operator + Claude ma
 ## Prompt
 
 ```
-Continue leah development autonomously. Operate INDEFINITELY in auto mode — execute don't ask, ship don't explain, automerge once adversarial-reviewed, stop only when externally interrupted. NEVER ask for clarification; decide via subagent + memory rules per the decision priority in CLAUDE.md (UX > performance > long-term benefits; default simpler). PR is NOT terminal — merge is, and the loop continues across merges. Read roadmap (`docs/engineer/specs/`, `docs/engineer/briefs/`, `ARCHITECTURE.md`, `PRINCIPLES.md`, GH issues) freely to pick next work. Run up to 6 concurrent subagents across design / plan / impl / review / roadmap-planning. Anticipate bottlenecks + preempt them. When blocked: file [followup] issue + add to watch-triggers list + pick next priority. Pause only for genuinely irreversible action (tag signing, secret rotation, branch-protection downgrade, force-push to main).
+Continue leah development autonomously. Operate INDEFINITELY in auto mode — execute don't ask, ship don't explain, automerge once adversarial-reviewed, stop only when externally interrupted. NEVER ask for clarification; decide via subagent + memory rules per the decision priority in CLAUDE.md (UX > performance > long-term benefits; default simpler). PR is NOT terminal — merge is, and the loop continues across merges. Read roadmap (`docs/engineer/specs/`, `docs/engineer/briefs/`, `ARCHITECTURE.md`, GH issues) freely to pick next work. Run up to 6 concurrent subagents across design / plan / impl / review / roadmap-planning. Anticipate bottlenecks + preempt them. When blocked: file [followup] issue + add to watch-triggers list + pick next priority. Pause only for genuinely irreversible action (tag signing, secret rotation, branch-protection downgrade, force-push to main).
 
 BOOT
 1. cd /Users/treedesk/Desktop/Projects/leah && git fetch && git pull --ff-only origin main
 2. ./scripts/check.sh   # leah's CI gate aggregator (build + test + vet + lint + density + close-keyword)
 3. git worktree list | awk '/agent-/ {print $1}' | xargs -I{} git worktree remove --force --force {} ; git worktree prune
 4. gh pr list --repo trilamsr/Leah --state open --json number,title,state,mergeStateStatus,statusCheckRollup,isDraft,headRefName -L 20
-5. Read CLAUDE.md + ARCHITECTURE.md + PRINCIPLES.md. Specs in `docs/engineer/specs/` are canonical for execution.
+5. Read CLAUDE.md + ARCHITECTURE.md. Specs in `docs/engineer/specs/` are canonical for execution.
 
 PRIORITY
 Pick the highest-priority unblocked item from the issue tracker on `trilamsr/Leah`. When no explicit roadmap is loaded into context, default to the order: critical-path blockers (`label:blocker`) → in-flight wave items the operator named in the seed prompt → `label:followup` sweep → architectural reviews. Trigger-gated items (`label:phase-x`, `label:soak-gated`) STAY parked; do NOT pre-build them.
@@ -80,7 +80,7 @@ PREEMPTIVE UNBLOCK
   - CI flake → on second hit, file [followup] + pin to root-cause subagent, don't retry blindly.
   - Roadmap drain (<2 unblocked items) → spawn roadmap-planner subagent to read `docs/engineer/specs/`, `docs/engineer/briefs/`, open issues, and write next-wave priority list to `docs/engineer/briefs/YYYY-MM-DD-next-wave.md` (same convention as design briefs). Main thread reads that file on return.
   - Spec-PR fan-out → **serialize** spec PRs (1 at a time). Spec PRs all add files under `docs/engineer/specs/` and `docs/engineer/briefs/`; parallel spec PRs branched off the same main produce stale-base regressions (PR-B's diff against new-main appears to delete PR-A's just-merged files). Code PRs touching disjoint `internal/<pkg>/` packages parallelize freely up to the 6-agent cap. Rule: at most ONE in-flight spec PR; queue subsequent spec design tasks until the current one merges. Implementation waves (touching disjoint packages) do NOT trigger this serialization.
-- Roadmap + feature-set authority: main thread MAY read `docs/engineer/specs/`, `docs/engineer/briefs/`, `docs/engineer/roadmap*.md`, `ARCHITECTURE.md`, `PRINCIPLES.md`, GH issue tracker, and milestone labels FREELY to pick next work. No user round-trip required to pull next item.
+- Roadmap + feature-set authority: main thread MAY read `docs/engineer/specs/`, `docs/engineer/briefs/`, `docs/engineer/roadmap*.md`, `ARCHITECTURE.md`, GH issue tracker, and milestone labels FREELY to pick next work. No user round-trip required to pull next item.
 - Fan-out target: keep ≥4 of 6 slots filled whenever roadmap has supply. If <4 active, dispatch from preempt-queue immediately.
 
 LOOP SKILL INTEGRATION

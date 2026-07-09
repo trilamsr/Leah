@@ -117,7 +117,7 @@ go test -tags integration ./internal/reviewer/ -v
 
 ## What's NOT in scope
 
-Deferred to Phase 4+ or explicitly deferred forever. See `docs/specs/2026-06-09-leah-phase-x-multi-operator-roadmap.md` for the full list and reopen triggers.
+Deferred to Phase 4+ or explicitly deferred forever.
 
 - Multi-user / SaaS — never without explicit re-evaluation.
 - Autonomous money movement, autonomous merge — never without explicit re-evaluation.
