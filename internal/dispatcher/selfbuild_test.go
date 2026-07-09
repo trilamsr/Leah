@@ -408,12 +408,9 @@ func TestSelfBuildClarifyAbortFilesNoIssue(t *testing.T) {
 	}
 }
 
-// hookGh wraps fakeGh and fires a callback the moment CreateIssue returns.
-// Used by TestSelfBuildAuditsDispatchedBeforeWatcher to snapshot the audit
-// log at the exact point gh-create succeeds — proving the dispatched row
-// landed BEFORE the watcher ran (Defect-2 from closed-loop-live-validation
-// research). The callback must NOT block CreateIssue's return — the watcher
-// is what we want to delay, not gh.
+// hookGh fires a callback the moment CreateIssue returns so tests can
+// snapshot the audit log and prove the dispatched row landed BEFORE the
+// watcher ran. The callback must NOT block CreateIssue's return.
 type hookGh struct {
 	createURL string
 	onCreate  func()

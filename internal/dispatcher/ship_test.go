@@ -463,13 +463,9 @@ func TestShipRun_NeutralizesCommentCloseInDraft(t *testing.T) {
 	}
 }
 
-// TestShipAutoCreatesMissingLabel asserts that when the first `gh issue
-// create` fails because `ready-for-agent` does not exist on the target repo,
-// Ship.Run calls EnsureLabel and retries CreateIssue exactly once. The
-// retry MUST succeed end-to-end: audit row written as pending, URL printed
-// to Out, no error returned. Closes Defect-1 in
-// docs/research/2026-06-09-closed-loop-live-validation.md (operator burned
-// $0.029 on a Reasoner draft + manual retry when the label was missing).
+// TestShipAutoCreatesMissingLabel: first gh-create fails on missing
+// `ready-for-agent` label, EnsureLabel runs, retry succeeds end-to-end
+// (pending audit row, URL to Out, no error).
 func TestShipAutoCreatesMissingLabel(t *testing.T) {
 	dir := t.TempDir()
 	auditPath := dir + "/audit.jsonl"

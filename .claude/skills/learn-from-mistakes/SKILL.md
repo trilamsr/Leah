@@ -31,7 +31,7 @@ False negatives are fine. False positives train the user to dismiss prompts — 
 
 ## Read flow (every session)
 
-`CLAUDE.md` is auto-loaded at session start. When session work touches a topic listed in either topic index (`docs/engineer/lessons/INDEX.md` or `.claude/notes/INDEX.md`), read the corresponding topic note *before* taking the first action in that area.
+`CLAUDE.md` is auto-loaded at session start. When session work touches a topic listed in the topic index (`.claude/notes/INDEX.md`) or matches a `docs/engineer/lessons/<topic>.md` file, read the corresponding topic note *before* taking the first action in that area.
 
 **Verify before acting on a cited lesson.** If a lesson cites a file + line, test name, flag, or command, confirm it still exists/applies in the current tree before following the lesson. If stale, propose an update or removal via the capture flow.
 
@@ -50,7 +50,7 @@ Compose:
 ### 2. Pick destination
 
 - **Load-bearing.** The lesson belongs in every session's prompt. Destination: `CLAUDE.md` under a load-bearing section. Promotion into this section requires the user to explicitly say "load-bearing" or equivalent — default to a topic note.
-- **Topic note — repo-wide.** A lesson a human contributor would care about (CI, code style, PR workflow, reproducibility, branch protection, code review, dispatch templates). Destination: `docs/engineer/lessons/<topic>.md`. If the topic file does not exist, create it and add one index line to `docs/engineer/lessons/INDEX.md`.
+- **Topic note — repo-wide.** A lesson a human contributor would care about (CI, code style, PR workflow, reproducibility, branch protection, code review, dispatch templates). Destination: `docs/engineer/lessons/<topic>.md`. If the topic file does not exist, create it.
 - **Topic note — agent-internal.** A lesson a human contributor would not encounter: slash-command side effects, classifier behavior, durable agent memory, skill authoring, multi-agent review patterns, background-job session hygiene, self-approval gaps. Destination: `.claude/notes/<topic>.md`. If the topic file does not exist, create it and add one index line to `.claude/notes/INDEX.md`.
 - **Operator-personal `feedback_*` slug.** Cross-cutting agent behavior rule (e.g. `feedback_no_self_approve_after_edits`). Destination: `~/.claude/projects/<hash>/memory/feedback_<slug>.md` + index line in `MEMORY.md` (per leah memory convention).
 
@@ -98,7 +98,7 @@ No automatic pruning. Entries only leave a file via a user-approved diff.
 ## Pointers
 
 - Load-bearing rules: `CLAUDE.md` at repo root.
-- Repo-wide topic notes (human + agent): `docs/engineer/lessons/<topic>.md` + `docs/engineer/lessons/INDEX.md`.
+- Repo-wide topic notes (human + agent): `docs/engineer/lessons/<topic>.md`.
 - Agent-internal topic notes: `.claude/notes/<topic>.md` + `.claude/notes/INDEX.md`.
 - Operator-personal feedback slugs: `~/.claude/projects/<hash>/memory/feedback_<slug>.md` + `MEMORY.md` index.
 - Audit-session cross-ref: `.claude/skills/audit-session/SKILL.md` Phase 7.
