@@ -293,7 +293,7 @@ func openCostBreaker() reasoner.Breaker {
 	}
 	store, err := monthly.OpenAt(filepath.Join(stateDir(), "cost-month.json"), cap, time.Now())
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "leah: costmonth open non-fatal: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah: monthly-cost open non-fatal: %v\n", err)
 		return nil
 	}
 	return monthly.NewBreaker(store)

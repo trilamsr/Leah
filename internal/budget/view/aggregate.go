@@ -32,8 +32,8 @@ type Bucket struct {
 }
 
 // auditRow mirrors the on-disk audit.Entry shape but only the fields
-// costview reads. Decoupled from audit.Entry so a schema extension does
-// not force a costview recompile (and to admit the future "model" field
+// this package reads. Decoupled from audit.Entry so a schema extension
+// does not force a recompile here (and to admit the future "model" field
 // without a circular import in tests).
 type auditRow struct {
 	TS    string  `json:"ts"`
