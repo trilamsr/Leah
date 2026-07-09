@@ -281,6 +281,8 @@ func readPassphrase(envKey string) (string, error) {
 }
 
 // leahVersionString returns a best-effort version tag for archive provenance.
+// LEAH_VERSION is injected by the release build (real git SHA); local dev
+// builds fall through to "dev".
 func leahVersionString() string {
 	if v := os.Getenv("LEAH_VERSION"); v != "" {
 		return v

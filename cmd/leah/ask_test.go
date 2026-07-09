@@ -229,7 +229,8 @@ func TestRunAskWith_SuccessWritesAuditRow(t *testing.T) {
 	}
 }
 
-// TestRunAskWith_StampsLLMDimFields pins the LLM-dim audit-stamp: when the
+// TestRunAskWith_StampsLLMDimFields is the sentinel for the LLM-dim
+// audit-stamp contract (replaces a dropped dispatcher.Ask.Run test): when the
 // streamer implements dispatcher.LLMDimReporter, runAskWith copies every
 // CallInfo field onto the audit row.
 func TestRunAskWith_StampsLLMDimFields(t *testing.T) {
