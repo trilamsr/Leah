@@ -37,6 +37,37 @@ type cloudDeps struct {
 	Allowlist []string
 }
 
+// logCloudFail records a failed connect_regatta_cloud audit entry with the
+// given detail suffix. The kind + BlastRadius are frozen at the call site so
+// callers can't drift the audit shape.
+func logCloudFail(logger *audit.Logger, detail string) {
+	_ = logger.Append(audit.Entry{
+		Kind:        "connect_regatta_cloud",
+		BlastRadius: 2,
+		Outcome:     "failed",
+		Detail:      detail,
+	})
+}
+
+// validateCloudURL parses u and checks scheme/host/userinfo/allowlist. Returns
+// the parsed URL, the effective allowlist, and an audit-detail tag on failure.
+// Pure — the caller lands the audit row and stderr line.
+func validateCloudURL(raw string, allowlist []string) (*url.URL, string) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return nil, "url_not_https"
+	}
+	// userinfo would land credentials in the 0o600 mode file AND ship
+	// Basic + Bearer simultaneously on every healthz call.
+	if u.User != nil {
+		return nil, "url_has_userinfo"
+	}
+	if !hostAllowed(u.Hostname(), allowlist) {
+		return u, "host_not_allowlisted:" + u.Hostname()
+	}
+	return u, ""
+}
+
 // runConnectRegattaCloud — ordering is load-bearing: attest → URL/allowlist →
 // confirm → healthz → token+mode write → audit. Any failure short-circuits
 // before token bytes touch disk.
@@ -77,63 +108,33 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 
 	if err := deps.Attestor.Attest(ctx, "connect:regatta:cloud"); err != nil {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      "attestation_denied",
-		})
+		logCloudFail(logger, "attestation_denied")
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: %v\n", err)
 		return 1
 	}
 
-	u, err := url.Parse(*urlFlag)
-	if err != nil || u.Scheme != "https" || u.Host == "" {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      "url_not_https",
-		})
-		_, _ = fmt.Fprintln(os.Stderr, "leah connect regatta --cloud: --url must be a valid https:// URL")
-		return 1
-	}
-	// userinfo would land credentials in the 0o600 mode file AND ship
-	// Basic + Bearer simultaneously on every healthz call.
-	if u.User != nil {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      "url_has_userinfo",
-		})
-		_, _ = fmt.Fprintln(os.Stderr, "leah connect regatta --cloud: --url must not include userinfo (user:pass@)")
-		return 1
-	}
 	allow := deps.Allowlist
 	if len(allow) == 0 {
 		allow = cloudAllowlistFromEnv()
 	}
-	if !hostAllowed(u.Hostname(), allow) {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      "host_not_allowlisted:" + u.Hostname(),
-		})
-		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: host %q not in cloud allowlist\n", u.Hostname())
+	u, failTag := validateCloudURL(*urlFlag, allow)
+	if failTag != "" {
+		logCloudFail(logger, failTag)
+		switch failTag {
+		case "url_not_https":
+			_, _ = fmt.Fprintln(os.Stderr, "leah connect regatta --cloud: --url must be a valid https:// URL")
+		case "url_has_userinfo":
+			_, _ = fmt.Fprintln(os.Stderr, "leah connect regatta --cloud: --url must not include userinfo (user:pass@)")
+		default:
+			_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: host %q not in cloud allowlist\n", u.Hostname())
+		}
 		return 1
 	}
 
 	canonURL := canonicalCloudURL(u)
 
 	if !confirmCost(w, deps.ConfirmFn) {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      "cost_declined:" + u.Hostname(),
-		})
+		logCloudFail(logger, "cost_declined:"+u.Hostname())
 		_, _ = fmt.Fprintln(os.Stderr, "leah connect regatta --cloud: declined cost prompt")
 		return 1
 	}
@@ -143,24 +144,14 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 	healthURL.Fragment = ""
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL.String(), nil)
 	if err != nil {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      "request_build_failed:" + u.Hostname(),
-		})
+		logCloudFail(logger, "request_build_failed:"+u.Hostname())
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: %v\n", err)
 		return 1
 	}
 	req.Header.Set("Authorization", "Bearer "+*tokenFlag)
 	resp, err := deps.HTTP.Do(req)
 	if err != nil {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      "healthz_transport:" + u.Hostname(),
-		})
+		logCloudFail(logger, "healthz_transport:"+u.Hostname())
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: healthz: %v\n", err)
 		return 1
 	}
@@ -169,24 +160,14 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 		_ = resp.Body.Close()
 	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      fmt.Sprintf("healthz_status_%d:%s", resp.StatusCode, u.Hostname()),
-		})
+		logCloudFail(logger, fmt.Sprintf("healthz_status_%d:%s", resp.StatusCode, u.Hostname()))
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: healthz returned %d\n", resp.StatusCode)
 		return 1
 	}
 
 	secretsDir := filepath.Join(stateDir(), "secrets")
 	if err := os.MkdirAll(secretsDir, 0o700); err != nil {
-		_ = logger.Append(audit.Entry{
-			Kind:        "connect_regatta_cloud",
-			BlastRadius: 2,
-			Outcome:     "failed",
-			Detail:      "secrets_mkdir_failed:" + u.Hostname(),
-		})
+		logCloudFail(logger, "secrets_mkdir_failed:"+u.Hostname())
 		_, _ = fmt.Fprintf(os.Stderr, "leah connect regatta --cloud: %v\n", err)
 		return 1
 	}

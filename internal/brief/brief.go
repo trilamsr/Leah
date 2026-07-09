@@ -377,49 +377,8 @@ func Render(d Data) string {
 	// pinned order: weather → calendar → mail → news → market.
 	renderWeather(&b, d)
 
-	if d.CalendarUnavailable || len(d.TodayEvents) > 0 {
-		fmt.Fprintln(&b, "## Calendar")
-		if d.CalendarUnavailable {
-			fmt.Fprintln(&b, "  (unavailable)")
-		} else {
-			max := gcalCap
-			if len(d.TodayEvents) < max {
-				max = len(d.TodayEvents)
-			}
-			fmt.Fprintf(&b, "  %d events\n", len(d.TodayEvents))
-			for _, ev := range d.TodayEvents[:max] {
-				fmt.Fprintf(&b, "  - %s %s\n", ev.Start.Format("15:04"), ev.Summary)
-			}
-			if len(d.TodayEvents) > max {
-				fmt.Fprintf(&b, "  …and %d more\n", len(d.TodayEvents)-max)
-			}
-		}
-		fmt.Fprintln(&b)
-	}
-
-	if d.MailUnavailable || d.UnreadMailTotal > 0 || len(d.UnreadMail) > 0 {
-		fmt.Fprintln(&b, "## Mail")
-		if d.MailUnavailable {
-			fmt.Fprintln(&b, "  (unavailable)")
-		} else {
-			total := d.UnreadMailTotal
-			if total == 0 {
-				total = len(d.UnreadMail)
-			}
-			shown := len(d.UnreadMail)
-			if shown > gmailCap {
-				shown = gmailCap
-			}
-			fmt.Fprintf(&b, "  %d unread\n", total)
-			for _, s := range d.UnreadMail[:shown] {
-				fmt.Fprintf(&b, "  - %s\n", s)
-			}
-			if total > shown {
-				fmt.Fprintf(&b, "  …and %d more\n", total-shown)
-			}
-		}
-		fmt.Fprintln(&b)
-	}
+	renderCalendar(&b, d)
+	renderMail(&b, d)
 
 	renderWorkSection(&b, "Jira", d.JiraItems, d.JiraUnavailable)
 	renderWorkSection(&b, "Linear", d.LinearItems, d.LinearUnavailable)
@@ -436,6 +395,62 @@ func Render(d Data) string {
 	fmt.Fprintf(&b, "  projected mo  $%.4f\n", d.ProjectedMonthly)
 
 	return b.String()
+}
+
+// renderCalendar mirrors the feeds pattern: silent when unwired, "(unavailable)"
+// on runtime failure, else the capped event list with an overflow marker.
+func renderCalendar(b *strings.Builder, d Data) {
+	if !d.CalendarUnavailable && len(d.TodayEvents) == 0 {
+		return
+	}
+	fmt.Fprintln(b, "## Calendar")
+	if d.CalendarUnavailable {
+		fmt.Fprintln(b, "  (unavailable)")
+		fmt.Fprintln(b)
+		return
+	}
+	max := gcalCap
+	if len(d.TodayEvents) < max {
+		max = len(d.TodayEvents)
+	}
+	fmt.Fprintf(b, "  %d events\n", len(d.TodayEvents))
+	for _, ev := range d.TodayEvents[:max] {
+		fmt.Fprintf(b, "  - %s %s\n", ev.Start.Format("15:04"), ev.Summary)
+	}
+	if len(d.TodayEvents) > max {
+		fmt.Fprintf(b, "  …and %d more\n", len(d.TodayEvents)-max)
+	}
+	fmt.Fprintln(b)
+}
+
+// renderMail mirrors renderCalendar; UnreadMailTotal falls back to slice len
+// when the adapter didn't report a total (pre-cap count).
+func renderMail(b *strings.Builder, d Data) {
+	if !d.MailUnavailable && d.UnreadMailTotal == 0 && len(d.UnreadMail) == 0 {
+		return
+	}
+	fmt.Fprintln(b, "## Mail")
+	if d.MailUnavailable {
+		fmt.Fprintln(b, "  (unavailable)")
+		fmt.Fprintln(b)
+		return
+	}
+	total := d.UnreadMailTotal
+	if total == 0 {
+		total = len(d.UnreadMail)
+	}
+	shown := len(d.UnreadMail)
+	if shown > gmailCap {
+		shown = gmailCap
+	}
+	fmt.Fprintf(b, "  %d unread\n", total)
+	for _, s := range d.UnreadMail[:shown] {
+		fmt.Fprintf(b, "  - %s\n", s)
+	}
+	if total > shown {
+		fmt.Fprintf(b, "  …and %d more\n", total-shown)
+	}
+	fmt.Fprintln(b)
 }
 
 // renderWorkSection mirrors the mail/calendar gating: silent when the tool

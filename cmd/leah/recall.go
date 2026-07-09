@@ -76,29 +76,10 @@ func runRecall(ctx context.Context, args []string) int {
 	}
 	defer func() { _ = store.Close() }()
 
-	var results []recallResult
-	if useSemantic {
-		semHits, err := semanticRecall(ctx, store.DB(), query)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "leah recall: semantic: %v\n", err)
-			return 1
-		}
-		results = semHits
-	} else {
-		auditHits, err := grepAudit(a.Path, query, 30*24*time.Hour, time.Now())
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "leah recall: audit scan: %v\n", err)
-			return 1
-		}
-		memHits, err := grepMemory(store.DB(), query)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "leah recall: memory scan: %v\n", err)
-			return 1
-		}
-		results = append(auditHits, memHits...)
-		sort.SliceStable(results, func(i, j int) bool {
-			return results[i].Timestamp > results[j].Timestamp
-		})
+	results, errTag, err := gatherRecallHits(ctx, store.DB(), a.Path, query, useSemantic)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "leah recall: %s: %v\n", errTag, err)
+		return 1
 	}
 
 	if !sinceT.IsZero() {
@@ -165,6 +146,32 @@ func runRecall(ctx context.Context, args []string) int {
 		Detail:      fmt.Sprintf("matches=%d llm=1", len(results)),
 	})
 	return 0
+}
+
+// gatherRecallHits runs Tier-1 search: --semantic path returns cosine hits,
+// default path unions audit+memory greps sorted by timestamp descending. On
+// error, errTag names the failing phase for the caller's stderr prefix.
+func gatherRecallHits(ctx context.Context, db *sql.DB, auditPath, query string, useSemantic bool) ([]recallResult, string, error) {
+	if useSemantic {
+		hits, err := semanticRecall(ctx, db, query)
+		if err != nil {
+			return nil, "semantic", err
+		}
+		return hits, "", nil
+	}
+	auditHits, err := grepAudit(auditPath, query, 30*24*time.Hour, time.Now())
+	if err != nil {
+		return nil, "audit scan", err
+	}
+	memHits, err := grepMemory(db, query)
+	if err != nil {
+		return nil, "memory scan", err
+	}
+	results := append(auditHits, memHits...)
+	sort.SliceStable(results, func(i, j int) bool {
+		return results[i].Timestamp > results[j].Timestamp
+	})
+	return results, "", nil
 }
 
 // recallStreamReasoner is the AskStream-only slice of *reasoner.Reasoner the
