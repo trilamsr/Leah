@@ -11,10 +11,10 @@ import (
 )
 
 // ErrUnknownScope is returned by Pick when scope was not registered at Load time (fail-closed).
-var ErrUnknownScope = errors.New("attestation: scope not registered with pool")
+var ErrUnknownScope = errors.New("attest: scope not registered with pool")
 
 // ErrEmptyPool signals the question file yielded zero usable lines; validation gate at Load.
-var ErrEmptyPool = errors.New("attestation: question pool is empty")
+var ErrEmptyPool = errors.New("attest: question pool is empty")
 
 // Pool holds parsed questions + the scope set authorized to draw from them.
 type Pool struct {
@@ -26,7 +26,7 @@ type Pool struct {
 func Load(path string, scopes ...string) (*Pool, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("open attestation file: %w", err)
+		return nil, fmt.Errorf("open attest file: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 	var qs []string
@@ -39,7 +39,7 @@ func Load(path string, scopes ...string) (*Pool, error) {
 		qs = append(qs, line)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan attestation file: %w", err)
+		return nil, fmt.Errorf("scan attest file: %w", err)
 	}
 	if len(qs) == 0 {
 		return nil, ErrEmptyPool
