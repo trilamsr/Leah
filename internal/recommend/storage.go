@@ -53,9 +53,8 @@ CREATE INDEX IF NOT EXISTS feedback_pattern_idx ON feedback(pattern);
 
 // SQLiteEngine is the persistent twin of MemoryEngine — same Engine surface
 // (Propose / Accept / Reject / Apply) but pending and accepted state survive
-// process restart. Action closures still live in memory: the spec deliberately
-// stores only the row data; per-pattern Actions get reattached at boot via the
-// registry (W18+).
+// process restart. Action closures still live in memory: only row data is
+// persisted; per-pattern Actions get reattached at boot via the registry.
 type SQLiteEngine struct {
 	audit *audit.Logger
 	db    *sql.DB
@@ -66,7 +65,7 @@ type SQLiteEngine struct {
 	lastFiredAt map[string]time.Time // V8: pattern → last OnSignal fire
 	now         func() time.Time     // test seam; default time.Now().UTC()
 
-	banditFloor banditFloorCache // W101: lazy ≥20×≥5 gate
+	banditFloor banditFloorCache // lazy ≥20×≥5 gate
 }
 
 // NewSQLiteEngine opens (creating if needed) the SQLite file at path with
@@ -122,8 +121,8 @@ func (e *SQLiteEngine) migrate() error {
 	if _, err := e.db.Exec(sqliteDDL); err != nil {
 		return fmt.Errorf("exec schema: %w", err)
 	}
-	// v1→v2: feedback.pattern landed in W100 for propose-time blending.
-	// PRAGMA-based probe avoids re-running ALTER on already-migrated dbs.
+	// v1→v2: feedback.pattern added for propose-time blending. PRAGMA-based
+	// probe avoids re-running ALTER on already-migrated dbs.
 	hasPattern, err := columnExists(e.db, "feedback", "pattern")
 	if err != nil {
 		return fmt.Errorf("probe feedback.pattern: %w", err)
@@ -136,7 +135,7 @@ func (e *SQLiteEngine) migrate() error {
 			return fmt.Errorf("backfill feedback.pattern: %w", err)
 		}
 	}
-	// v2→v3 (W101): per-pattern Beta posterior table for Thompson sampling.
+	// v2→v3: per-pattern Beta posterior table for Thompson sampling.
 	if err := applyBanditMigration(e.db); err != nil {
 		return err
 	}
@@ -200,9 +199,9 @@ func (e *SQLiteEngine) Seed(rec Recommendation) error {
 }
 
 // Propose returns pending (not-yet-accepted) recommendations with persisted
-// per-pattern feedback blended into Confidence (W100). When bandit is on AND
-// the cold-start floor has cleared (≥20 rows × ≥5 patterns), top-K is taken
-// over Thompson-sampled posteriors instead of greedy point-estimate (W101).
+// per-pattern feedback blended into Confidence. When bandit is on AND the
+// cold-start floor has cleared (≥20 rows × ≥5 patterns), top-K is taken over
+// Thompson-sampled posteriors instead of greedy point-estimate.
 func (e *SQLiteEngine) Propose(ctx context.Context) ([]Recommendation, error) {
 	rows, err := e.db.QueryContext(ctx, `
 		SELECT id, pattern, tier, source, confidence, created_at
@@ -463,7 +462,7 @@ func (e *SQLiteEngine) OnSignal(ctx context.Context, sig Signal) ([]Recommendati
 // RecordFeedback persists one feedback row keyed by recommendation id; the
 // signal/kind shape mirrors spec §8 (Accept=+1.0, Reject=-0.5, Ignore=-0.1,
 // Apply.success=+0.2, Apply.failed=-0.3). Pattern is denormalized onto the row
-// so the W100 propose-time blender survives a later Reject of the parent rec.
+// so the propose-time blender survives a later Reject of the parent rec.
 func (e *SQLiteEngine) RecordFeedback(ctx context.Context, recID, kind string, signal float64) error {
 	id, err := newFeedbackID()
 	if err != nil {
@@ -481,7 +480,7 @@ func (e *SQLiteEngine) RecordFeedback(ctx context.Context, recID, kind string, s
 	if err != nil {
 		return fmt.Errorf("record feedback: %w", err)
 	}
-	// W101: roll the per-pattern (α, β) posterior forward in lockstep.
+	// Roll the per-pattern (α, β) posterior forward in lockstep.
 	return updateBetaPosterior(ctx, e.db, pattern, FeedbackKind(kind), now)
 }
 

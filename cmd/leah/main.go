@@ -283,8 +283,7 @@ func writeInterruptedAudit(ctx context.Context, auditPath string) {
 
 // openCostBreaker opens the per-operator monthly cost ledger and wraps it
 // in a reasoner.Breaker. Non-fatal: a nil breaker is acceptable — the
-// Router will skip the gate and the CLI invocation will run uncapped, the
-// same behavior as pre-W94.
+// Router will skip the gate and the CLI invocation will run uncapped.
 func openCostBreaker() reasoner.Breaker {
 	cap := 50.0
 	if v := os.Getenv("LEAH_COST_MONTH_CAP"); v != "" {
@@ -665,7 +664,7 @@ func reviewerPromptDir() string {
 }
 
 func usage() {
-	_, _ = fmt.Fprintln(os.Stderr, "Leah — personal chief-of-staff (MVP-5)")
+	_, _ = fmt.Fprintln(os.Stderr, "Leah — personal chief-of-staff")
 	_, _ = fmt.Fprintln(os.Stderr, "")
 	_, _ = fmt.Fprintln(os.Stderr, "usage: leah <command> [args...]")
 	_, _ = fmt.Fprintln(os.Stderr, "")

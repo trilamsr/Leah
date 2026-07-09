@@ -19,7 +19,6 @@ const (
 )
 
 // Config is operator-tunable HUD state persisted at ~/.leah-state/hud-config.json.
-// Spec: docs/engineer/specs/2026-06-10-hud-ui.md W37.
 type Config struct {
 	AccentColor   string
 	Hotkey        string

@@ -283,9 +283,9 @@ func TestEventStore_SchemaVersion_IntParse(t *testing.T) {
 	_ = s2.Close()
 }
 
-// Guards against re-introduction of a second Event type (e.g. W77 SSE pre-W75 stub):
-// the spec mandates ONE canonical struct. Build alone catches duplicate symbols;
-// this test catches silent shape drift if a future PR reshapes the canonical type.
+// Guards against re-introduction of a second Event type: exactly ONE canonical
+// struct. Build alone catches duplicate symbols; this test catches silent
+// shape drift if a future PR reshapes the canonical type.
 func TestEvent_CanonicalSchemaShape(t *testing.T) {
 	type field struct{ name, typ, tag string }
 	want := []field{

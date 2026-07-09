@@ -1,5 +1,4 @@
-// Package hud is the operator-overlay surface state + IPC layer. See
-// docs/engineer/specs/2026-06-10-hud-ui.md.
+// Package hud is the operator-overlay surface state + IPC layer.
 package hud
 
 import (

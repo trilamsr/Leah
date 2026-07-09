@@ -20,8 +20,8 @@ import (
 
 const maxSearchRows = 200
 
-// Tools holds the read-only tool surface (S11 W138). Hosts the four
-// /tools/* handlers registered onto a *Server.
+// Tools holds the read-only tool surface. Hosts the four /tools/* handlers
+// registered onto a *Server.
 type Tools struct {
 	Server    *Server
 	MemoryDir string

@@ -1,4 +1,4 @@
-// Package mcp serves Leah's loopback MCP surface (S11). Bind invariant: 127.0.0.1 only.
+// Package mcp serves Leah's loopback MCP surface. Bind invariant: 127.0.0.1 only.
 package mcp
 
 import (
@@ -35,8 +35,8 @@ type Server struct {
 	RatePerMin       int // 0 → defaultRatePerMin
 	GlobalPendingCap int // 0 → defaultGlobalPending
 
-	// A2A (W139) — agent-card + SelfBuild task endpoint. nil-safe: routes
-	// only register when set.
+	// A2A agent-card + SelfBuild task endpoint. nil-safe: routes only
+	// register when set.
 	A2A *A2AHandler
 
 	tokenMu sync.RWMutex
@@ -174,7 +174,7 @@ func bearerFrom(r *http.Request) string {
 	return strings.TrimSpace(h[len(p):])
 }
 
-// PeerHash exposes the 8-hex peer fingerprint for W138/W139 audit details.
+// PeerHash exposes the 8-hex peer fingerprint for audit details.
 func PeerHash(token string) string { return peerHash(token) }
 
 func peerHash(token string) string {
@@ -185,8 +185,8 @@ func peerHash(token string) string {
 	return hex.EncodeToString(sum[:4])
 }
 
-// allowRate: per-peer rolling-60s req cap. Read = 60/min; W139 write-tool
-// attestation gets its own 1/min gate (spec §2.3) — not in this scope.
+// allowRate: per-peer rolling-60s req cap. Read = 60/min; write-tool
+// attestation gets its own 1/min gate — not in this scope.
 func (s *Server) allowRate(peer string) bool {
 	cap := s.RatePerMin
 	if cap == 0 {
@@ -214,7 +214,7 @@ func (s *Server) allowRate(peer string) bool {
 	return true
 }
 
-// EnqueuePending reserves a write-tool slot (W139). capScope="global" when
+// EnqueuePending reserves a write-tool slot. capScope="global" when
 // ok=false. The per-peer cap was dropped: per-peer attestation rate-limit
 // (1/min) already prevents a single peer from holding >1 in-flight slot.
 func (s *Server) EnqueuePending(peer string) (release func(), ok bool, capScope string) {

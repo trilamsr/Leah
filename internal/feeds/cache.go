@@ -6,15 +6,15 @@ import (
 )
 
 // Cache is the TTL-bounded read-through surface synthesizers + the morning
-// brief share. SQLite-backed implementation is deferred to W32; MVP ships an
-// in-memory map so the weather adapter has a place to land without a schema.
+// brief share. SQLite-backed implementation is a follow-up; the current
+// in-memory map gives the weather adapter a place to land without a schema.
 type Cache interface {
 	Get(key string) (any, bool)
 	Set(key string, val any, ttl time.Duration)
 }
 
 // MemCache is a process-local sync.Mutex-guarded map. Expiry is lazy — a stale
-// entry is only evicted when next Get'd; bounded memory is W32's problem.
+// entry is only evicted when next Get'd; bounded memory is a follow-up.
 type MemCache struct {
 	mu      sync.Mutex
 	entries map[string]memEntry

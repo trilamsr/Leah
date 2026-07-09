@@ -18,15 +18,14 @@ import (
 	"github.com/trilam/leah/internal/sync/discovery"
 )
 
-// phase4Producers holds the Phase 4 subsystems constructed at the daemon
-// composition root. Field-disjoint from main.go so parallel agents wiring
-// Recommendations / Budget / A2A / Plugins IPC each add their handler edge
-// against this struct without colliding on main.go.
+// phase4Producers holds the optional subsystems constructed at the daemon
+// composition root. Field-disjoint from main.go so parallel wiring PRs
+// each add their handler edge against this struct without colliding.
 //
-// Default-OFF invariant (Phase 4 §0.2 #3): Sync discovery, A2A server, and
-// continuous vision/voice capture are constructed but NOT started here.
-// Settings → Sync / Settings → Peers / Settings → Vision toggles drive
-// Start() — operator-explicit, never on by default.
+// Default-OFF invariant: Sync discovery, A2A server, and continuous
+// vision/voice capture are constructed but NOT started here. Settings
+// → Sync / Settings → Peers / Settings → Vision toggles drive Start() —
+// operator-explicit, never on by default.
 type phase4Producers struct {
 	Recommender learn.Recommender
 	Budget      *budget.Budget
@@ -39,13 +38,13 @@ type phase4Producers struct {
 	MCPInbound  *mcpInbound.Server // default OFF; Settings → Connections issues tokens + starts transport
 }
 
-// wirePhase4Producers constructs each Phase 4 producer with deps drawn from
-// the daemon's existing composition root. Failures here are non-fatal: a
-// stub producer is held in place so downstream IPC edges can probe-and-skip
+// wirePhase4Producers constructs each producer with deps drawn from the
+// daemon's existing composition root. Failures here are non-fatal: a stub
+// producer is held in place so downstream IPC edges can probe-and-skip
 // rather than crash on nil. Stubs are logged so post-deploy diagnostics
 // surface "feature constructed but degraded" without an operator-side panic.
 //
-// STUBBED (Phase 4 infra not yet shipped):
+// STUBBED:
 //   - attest.Config.SelfPath / SelfExpectedSHA256 / SelfSignedBy — release
 //     signing pipeline ships separately; verifier returns Unknown until then.
 //   - a2a.Server.Identity — ephemeral ed25519 keypair per process; persistent

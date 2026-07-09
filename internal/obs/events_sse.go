@@ -1,7 +1,7 @@
-// SSE transport for the structured-event stream (W77) + in-process Broadcaster
-// fan-out so EmitEvent reaches live subscribers with no SQLite round trip
-// (V2/W87). Canonical Event lives in events.go. Keep-alive comment every 15s
-// per event-timeline.md §7; client disconnect (ctx done) tears down the sub.
+// SSE transport for the structured-event stream + in-process Broadcaster
+// fan-out so EmitEvent reaches live subscribers with no SQLite round trip.
+// Canonical Event lives in events.go. Keep-alive comment every 15s; client
+// disconnect (ctx done) tears down the sub.
 
 package obs
 
@@ -220,7 +220,7 @@ func DefaultBroadcaster() *Broadcaster {
 }
 
 // Publish fans e out to the default broadcaster's live subscribers. No-op
-// when unset — keeps SQLite-only callers (W75 store path) untouched.
+// when unset — keeps SQLite-only callers (store path) untouched.
 func Publish(e Event) {
 	defaultBroadcasterMu.RLock()
 	b := defaultBroadcaster

@@ -266,7 +266,7 @@ func Gather(ctx context.Context, now time.Time, sd string, rc RegattaLister, opt
 
 // gatherWork fans one work-tool lister into its own goroutine, writing a
 // disjoint pair of Data fields so the errgroup needs no lock and one tool's
-// failure flips only its own Unavailable flag (MAY-8 isolation).
+// failure flips only its own Unavailable flag.
 func gatherWork(ctx context.Context, g *errgroup.Group, l WorkLister, items *[]WorkItem, unavail *bool) {
 	if l == nil {
 		return

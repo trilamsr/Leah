@@ -22,9 +22,9 @@ import (
 //
 // Routing rules (mirror the intent package):
 //   - KindAsk    → runAsk(transcript)
-//   - KindShip   → print transcript + prompt operator for repo (Phase 1
-//                  does not auto-pick a repo — every ship is a load-bearing
-//                  irreversible action)
+//   - KindShip   → print transcript + prompt operator for repo (no
+//                  auto-pick — every ship is a load-bearing irreversible
+//                  action)
 //   - KindReview → parse pr# from transcript + dispatch runReview
 //   - KindStatus → forward to runStatus equivalent (audit-log printout)
 //

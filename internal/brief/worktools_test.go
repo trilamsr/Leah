@@ -88,7 +88,7 @@ func TestRenderWorkToolUnavailable(t *testing.T) {
 }
 
 // TestGatherWorkToolErrorIsolation asserts one work tool's error marks only
-// its own flag — the errgroup fan-out keeps siblings alive (MAY-8).
+// its own flag — the errgroup fan-out keeps siblings alive.
 func TestGatherWorkToolErrorIsolation(t *testing.T) {
 	dir := t.TempDir()
 	opts := GatherOpts{

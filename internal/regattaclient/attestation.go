@@ -6,8 +6,8 @@ import (
 	"github.com/trilam/leah/internal/contracts"
 )
 
-// W41: scope strings the GatedClient passes to the operator-attestation prompt.
-// Status is intentionally NOT gated — read-only per regatta-integration spec.
+// Scope strings the GatedClient passes to the operator-attestation prompt.
+// Status is intentionally NOT gated — read-only.
 const (
 	ScopeShip   = "regatta:ship"
 	ScopeReview = "regatta:review"
@@ -15,7 +15,7 @@ const (
 
 // ShipRequest / ShipResponse / ReviewRequest / ReviewResponse / Status are the
 // structural surface the gated wrapper exposes. Concrete fields are filled by
-// the wave that implements each transport — W41 only needs the seam shape.
+// the transport implementer; the seam only needs the shape.
 type ShipRequest struct {
 	Branch string
 }

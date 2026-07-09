@@ -26,7 +26,7 @@ const (
 	defaultTopK         = 10
 	maxNearbyRadiusM    = 1500
 	// drivingSpeedMPS approximates urban driving for detour-minute budget
-	// math. The spec calls for a real Distance Matrix call (W57+); until that
+	// math. A real Distance Matrix call is a follow-up; until that
 	// surface lands we use a flat speed so the algorithm + filter still gate
 	// on operator-meaningful minutes, not raw meters.
 	drivingSpeedMPS = 13.9 // ~50 km/h

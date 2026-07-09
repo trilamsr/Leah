@@ -528,8 +528,8 @@ func SetDefaultEventStore(store EventStore) {
 }
 
 // EmitEvent enqueues e against the default store AND fans it out to the
-// default Broadcaster's live SSE subscribers (V2/W87). Either side is a no-op
-// when its sink is unset, so this stays safe for callers that only wire one.
+// default Broadcaster's live SSE subscribers. Either side is a no-op when
+// its sink is unset, so this stays safe for callers that only wire one.
 func EmitEvent(ctx context.Context, e Event) {
 	if e.TS.IsZero() {
 		e.TS = time.Now().UTC()

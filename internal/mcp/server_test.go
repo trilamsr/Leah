@@ -165,7 +165,7 @@ func TestMCPServer_TokenRotate_RevokesOldBearer(t *testing.T) {
 }
 
 func TestMCPServer_PendingTaskCap_RejectsExcess(t *testing.T) {
-	// Pending-task semaphore underpins W139 attestation queue (§2.3).
+	// Pending-task semaphore underpins the attestation queue.
 	// Global cap=5; 6th reservation (any peer) returns capScope=global.
 	// Per-peer cap was dropped — per-peer attestation rate-limit (1/min) makes it dead.
 	s, _, _ := newTestServer(t)

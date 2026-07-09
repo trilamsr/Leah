@@ -13,10 +13,10 @@ import (
 	"sync"
 )
 
-// Outbound MCP publish surface (Phase 3 Wave 4 Task 14). Gated by
-// LEAH_MCP_PUBLISH=1; Phase 4 wires tools/call into the daemon IPC. Until
-// then, tools/call returns -32601-adjacent "not implemented" so peer agents
-// can discover the surface without hitting unsafe execution paths.
+// Outbound MCP publish surface. Gated by LEAH_MCP_PUBLISH=1. tools/call
+// currently returns -32601-adjacent "not implemented" so peer agents can
+// discover the surface without hitting unsafe execution paths; daemon-IPC
+// wiring is a follow-up.
 
 const (
 	envPublishGate     = "LEAH_MCP_PUBLISH"
@@ -176,7 +176,7 @@ func handlePublishRPC(raw json.RawMessage) rpcReply {
 	case "tools/list":
 		reply.Result = map[string]any{"tools": publishedTools}
 	case "tools/call":
-		reply.Error = &rpcError{Code: codeNotImplemented, Message: "tools/call dispatch deferred to Phase 4"}
+		reply.Error = &rpcError{Code: codeNotImplemented, Message: "tools/call dispatch not implemented"}
 	default:
 		reply.Error = &rpcError{Code: codeMethodNotFound, Message: "method not found: " + env.Method}
 	}

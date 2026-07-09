@@ -27,7 +27,7 @@ import (
 // snapshot, quarterly verify-drill.
 //
 // Each task is built by a per-subsystem helper so future parallel agents
-// touch their own file (split closes Wave 7 god-file retros KK / JJ / MM).
+// touch their own file.
 func buildWeeklyTasks(sd, auditPath string, a *audit.Logger, out *os.File) []daemonloop.WeeklyTask {
 	// One-way feedback edge: resolver outcomes feed the operator model so
 	// recommendations reflect recent ship results. The resolver task runs
@@ -134,7 +134,7 @@ func buildRetroTask(sd, auditPath string, out *os.File) daemonloop.WeeklyTask {
 }
 
 // buildOperatorModelTask rebuilds operator_profile rows from the audit
-// window (Wave 2-J). The ctxmgr handle wires context_transition observations
+// window. The ctxmgr handle wires context_transition observations
 // — without it the class stays silently zero (#10). Cold-start gate inside
 // Update() ensures Ready stays false until 50 rows + 7d.
 func buildOperatorModelTask(sd, auditPath string, out *os.File, feedback *operatormodel.FeedbackObserver) daemonloop.WeeklyTask {

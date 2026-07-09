@@ -1,10 +1,10 @@
-// Package connectadapter wraps the leah_connect_* series (spec §4.7) for
-// per-provider adapters. One factory call per adapter replaces ~28 lines
-// of near-identical boilerplate per package.
+// Package connectadapter wraps the leah_connect_* series for per-provider
+// adapters. One factory call per adapter replaces ~28 lines of near-identical
+// boilerplate per package.
 //
 // Separation matters: ObserveAPI bumps api_call_total + api_latency_seconds,
-// ObserveExchange bumps exchange_total only. Conflating them — as the
-// initial W80 backfill did — would propagate to every adapter wiring PR.
+// ObserveExchange bumps exchange_total only. Conflating them would propagate
+// to every adapter wiring PR.
 package connectadapter
 
 import "github.com/trilam/leah/internal/obs"

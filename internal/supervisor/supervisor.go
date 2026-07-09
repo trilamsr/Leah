@@ -1,4 +1,4 @@
-// Package supervisor implements Phase 4 design §9 — restart, circuit-breaker, RSS leak detect,
+// Package supervisor implements restart, circuit-breaker, RSS leak detect,
 // and PSI eviction. Failed self attestation (internal/attest) blocks all restarts.
 package supervisor
 

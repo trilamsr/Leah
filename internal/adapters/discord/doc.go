@@ -1,9 +1,9 @@
 // Package discord is Leah's Discord adapter — operator-attested REST posting,
-// channel enumeration, and gateway Subscribe against Discord API v10. W65
-// covered PostMessage + ListChannels; W66 adds Subscribe via a pluggable
+// channel enumeration, and gateway Subscribe against Discord API v10. Current
+// surface: PostMessage, ListChannels, and Subscribe via a pluggable
 // WebSocketDialer seam so tests stay hermetic and the real gorilla/websocket
-// (or discordgo) binding can land in the wiring wave without churning this
-// adapter's surface. Voice attachments land in a follow-up wave.
+// (or discordgo) binding can land later without churning this adapter's
+// surface. Voice attachments are a follow-up.
 //
 // Every RPC routes through Attestor.Attest(scope) BEFORE the bot token leaves
 // the TokenSource; token-load on a denied call would leak the secret into a

@@ -1,12 +1,11 @@
 package brief
 
 // Watchlist is the per-symbol price-and-change strip rendered in the morning
-// brief. The polymath audit (MAY-203) called out that an operator tracking
-// AAPL/MSFT/etc. wants the same one-glance shape that the Market pulse uses
-// for the broad index — but driven by a personal symbol list at
-// ~/.leah-state/watchlist.json, not a fixed feed.
+// brief. An operator tracking AAPL/MSFT/etc. wants the same one-glance shape
+// that the Market pulse uses for the broad index — but driven by a personal
+// symbol list at ~/.leah-state/watchlist.json, not a fixed feed.
 //
-// Mirrors the feeds composer (W33) and worktools (W53) patterns:
+// Mirrors the feeds composer and worktools patterns:
 //   - Brief-local interface; the wire site adapts feeds.Market.FetchAll onto it.
 //   - Silent absence when the watchlist file is missing or its symbol list is
 //     empty — operator has not opted in. The runtime-failure "(unavailable)"

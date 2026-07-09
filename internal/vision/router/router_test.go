@@ -87,7 +87,7 @@ func TestAsk_LocalMode_NoSonnetCallNoConsent(t *testing.T) {
 // VisionLocal must surface OCR text via the Ask channel rather than returning
 // an empty stream — handleVisionSnap (cmd/leah-daemon/ipc_vision.go) routes
 // every mode through Ask, so a silent empty channel renders as a blank HUD
-// reply. Regression guard for the Phase 4 v1.1 router-OCR gap.
+// reply. Regression guard for the router-OCR gap.
 func TestAsk_LocalMode_StreamsOCRText(t *testing.T) {
 	ocr := &fakeOCR{blocks: []vision.TextBlock{
 		{Text: "hello"},

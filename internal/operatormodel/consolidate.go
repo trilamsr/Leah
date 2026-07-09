@@ -14,12 +14,11 @@ import (
 	"github.com/trilam/leah/internal/memory"
 )
 
-// ConsolidatePass is the W125 nightly summary pass. Stability-gated
-// (class, key, slot) cells collapse into operator_profile_consolidated;
-// raw audit rows older than the age floor migrate to ArchivePath; the
-// live audit.jsonl is rewritten in place via tmp+rename under the
-// audit.Logger quiesce contract so concurrent Append calls cannot
-// orphan rows on the pre-rename inode (spec §4 step 7).
+// ConsolidatePass is the nightly summary pass. Stability-gated (class, key,
+// slot) cells collapse into operator_profile_consolidated; raw audit rows
+// older than the age floor migrate to ArchivePath; the live audit.jsonl is
+// rewritten in place via tmp+rename under the audit.Logger quiesce contract
+// so concurrent Append calls cannot orphan rows on the pre-rename inode.
 type ConsolidatePass struct {
 	Now         func() time.Time
 	Store       *memory.Store
@@ -219,9 +218,9 @@ func (cp *ConsolidatePass) tz() *time.Location {
 }
 
 // cellAggregate groups raw audit rows by the three observation classes the
-// W125 pass cares about. context_transition is folded in by W126 once the
-// SwitchSource plumbing matches; W124/W125 cover the two slot-derivable
-// classes that need no extra DB read.
+// pass cares about. context_transition is folded in later once the
+// SwitchSource plumbing matches; the two slot-derivable classes need no
+// extra DB read.
 type cellAggregate struct {
 	class string
 	key   string

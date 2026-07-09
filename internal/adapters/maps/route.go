@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// directionsResponse mirrors the Google Directions API JSON; W56 only decodes
-// the overview polyline + first leg's distance/duration/steps surface.
+// directionsResponse mirrors the Google Directions API JSON; only decodes the
+// overview polyline + first leg's distance/duration/steps surface.
 type directionsResponse struct {
 	Status string `json:"status"`
 	Routes []struct {

@@ -99,7 +99,7 @@ type Client struct {
 
 // New refuses construction when any policy collaborator is missing; the
 // audit sink stays optional because not every wiring path needs structured
-// rows yet (W51 connects audit.jsonl).
+// rows yet.
 func New(cfg Config) (*Client, error) {
 	if cfg.Attestor == nil {
 		return nil, errors.New("msteams: Config.Attestor required (operator-attestation gate)")

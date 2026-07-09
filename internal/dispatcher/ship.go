@@ -190,7 +190,7 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 // exhausted), or "cancelled" (ctx.Done) — and the terminal agent's PR (0
 // for non-transition exits). SelfBuild records the PR on its
 // kind=self-build.outcome row so the daemon can bind a later merge
-// transition back to this dispatch's ArgsHash (MAY-265).
+// transition back to this dispatch's ArgsHash.
 func (s *Ship) watch(ctx context.Context) (string, int) {
 	lg := obs.LoggerFromCtx(ctx).With("package", "dispatcher")
 	polls := 0

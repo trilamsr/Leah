@@ -21,7 +21,7 @@ var ErrForgetAttestationDenied = errors.New("forget: attestation denied")
 // Operator-attested (scope `recommend:forget`). On success, wipes the
 // operator_profile + operator_profile_meta tables (when `all`) or no DB
 // touch for a single pattern — the engine-side quarantine + audit row
-// carry the signal forward until W16 wires recommend_pattern_state.
+// carry the signal forward.
 func runForget(ctx context.Context, args []string, w io.Writer) int {
 	if shouldShowHelp(args) {
 		printForgetUsage(w)
@@ -97,7 +97,7 @@ func runForget(ctx context.Context, args []string, w io.Writer) int {
 	return 0
 }
 
-// wipeOperatorProfile truncates the W4 operatormodel tables. Soft-fail on a
+// wipeOperatorProfile truncates the operatormodel tables. Soft-fail on a
 // missing DB file — first-run operators may call `leah forget all` before
 // any observe pass has materialized the tables.
 func wipeOperatorProfile() error {

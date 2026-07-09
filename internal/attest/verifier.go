@@ -1,7 +1,7 @@
 // Package attest implements continuous runtime integrity verification of the
-// daemon binary, ML model files, plugin bundles, and the Sparkle appcast per
-// Phase 4 design §6. Verdict drives behavior: Failed on self blocks watchdog
-// restart; Failed on plugin blocks plugin load; Stale only warns.
+// daemon binary, ML model files, plugin bundles, and the Sparkle appcast.
+// Verdict drives behavior: Failed on self blocks watchdog restart; Failed on
+// plugin blocks plugin load; Stale only warns.
 package attest
 
 import (

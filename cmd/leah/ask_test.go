@@ -18,8 +18,8 @@ import (
 
 // fakeAskStreamer scripts a delta channel for runAskWith — mirrors what
 // reasoner.AskStream returns to runAsk in production. When info is set
-// it also satisfies dispatcher.LLMDimReporter so the W94 audit-stamp
-// branch in runAskWith is exercised.
+// it also satisfies dispatcher.LLMDimReporter so the audit-stamp branch
+// in runAskWith is exercised.
 type fakeAskStreamer struct {
 	deltas []string
 	err    error
@@ -229,11 +229,10 @@ func TestRunAskWith_SuccessWritesAuditRow(t *testing.T) {
 	}
 }
 
-// TestRunAskWith_StampsLLMDimFields pins the W94 audit-stamp contract:
-// when the streamer implements dispatcher.LLMDimReporter (production
-// *reasoner.Reasoner does), runAskWith MUST copy every CallInfo field
-// onto the audit row. Replaces the dropped dispatcher.Ask.Run test of
-// the same invariant.
+// TestRunAskWith_StampsLLMDimFields is the sentinel for the LLM-dim
+// audit-stamp contract (replaces a dropped dispatcher.Ask.Run test): when the
+// streamer implements dispatcher.LLMDimReporter, runAskWith copies every
+// CallInfo field onto the audit row.
 func TestRunAskWith_StampsLLMDimFields(t *testing.T) {
 	info := reasoner.CallInfo{
 		Model:        "claude-sonnet-4-6",

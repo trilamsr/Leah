@@ -4,7 +4,7 @@
 // switches append to context_switch_log. Backed by the shared memory.db
 // (see internal/memory/schema.sql, schema_version 2).
 //
-// Personal-use Phase 1: zero concurrent contexts, no auto-infer, no
+// Personal-use scope: zero concurrent contexts, no auto-infer, no
 // cross-context queries.
 package ctxmgr
 

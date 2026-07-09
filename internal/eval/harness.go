@@ -186,9 +186,9 @@ func (h *Harness) RunAll(ctx context.Context, featurePaths, basePaths []string) 
 			}
 			row.Total++
 
-			// TODO(W83): swap to a real BASE checkout; phase-1 calls Base.Ask
-			// on the same code path. The dual-asker shape is wired now so
-			// W83 only adds the checkout, not a signature break.
+			// TODO: swap to a real BASE checkout; currently Base.Ask runs on
+			// the same code path. The dual-asker shape is wired so the
+			// checkout is a non-breaking addition.
 			headActual, err := h.Head.Ask(ctx, string(tr.Input))
 			if err != nil {
 				return dt, fmt.Errorf("eval: head ask %s: %w", tr.ID, err)
@@ -331,12 +331,11 @@ func EvaluateTrace(ctx context.Context, tr Trace, actual string, j Judge) TraceR
 	return TraceResult{TraceID: tr.ID, Pass: pass, Score: res.Score, Reason: res.Reason}
 }
 
-// CacheKey is sha256(base_sha || trace_id || judge_prompt_sha || judge_model)
-// per spec §5.2. Editing prompts/eval-judge.md OR bumping JudgeModel MUST
-// bust the cache — both inputs are folded in to enforce that.
-// W82 ships the key + Harness.CacheDir; the on-disk read/write lookup that
-// actually skips re-judging cached BASE results lands in W83 alongside the
-// real BASE-checkout asker.
+// CacheKey is sha256(base_sha || trace_id || judge_prompt_sha || judge_model).
+// Editing prompts/eval-judge.md OR bumping JudgeModel MUST bust the cache —
+// both inputs are folded in to enforce that. On-disk read/write lookup that
+// skips re-judging cached BASE results lands with the real BASE-checkout
+// asker.
 func CacheKey(baseSHA string, r JudgeRequest, judgePromptSHA, judgeModel string) string {
 	h := sha256.New()
 	h.Write([]byte(baseSHA))

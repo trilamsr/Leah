@@ -16,7 +16,7 @@ import (
 // ErrPurgeAttestationDenied fires when the operator declines the BR=4 prompt.
 var ErrPurgeAttestationDenied = errors.New("purge: attestation denied")
 
-// runPurge is `leah purge --everything` (S10/M2 trust-moat). BR=4 attested.
+// runPurge is `leah purge --everything`. BR=4 attested.
 // Stages: provider OAuth revoke → rm -rf state dir → distribution-cleanup hints.
 // Failure to reach a provider does NOT block local deletion — single-blast-radius
 // guarantee is the design intent, brew/PATH cleanup is hints (never auto-exec).

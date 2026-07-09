@@ -99,10 +99,10 @@ func TestRunDisconnect_NotConnected_CleanExit(t *testing.T) {
 	}
 }
 
-// TestRunDisconnect_WorkTools_RemoveTokenAndAudit proves each of the 6 work
-// tools registered by MAY-197 is disconnectable through the generic path: a
-// token-paste provider has no remote revoke, so disconnect is a clean local
-// delete plus a success audit row.
+// TestRunDisconnect_WorkTools_RemoveTokenAndAudit proves each work-tool
+// provider is disconnectable through the generic path: a token-paste
+// provider has no remote revoke, so disconnect is a clean local delete
+// plus a success audit row.
 func TestRunDisconnect_WorkTools_RemoveTokenAndAudit(t *testing.T) {
 	for _, name := range []string{"confluence", "jira", "slack", "notion", "linear", "msteams"} {
 		t.Run(name, func(t *testing.T) {

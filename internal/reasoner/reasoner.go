@@ -47,8 +47,8 @@ type Client interface {
 }
 
 // ToolUseEvent surfaces an SDK content_block_start with type=tool_use during
-// streaming. Reserved for W17+ skill wiring; AskStream suppresses it from the
-// text channel so callers consuming `<-chan string` see text-only deltas.
+// streaming. Reserved for future skill wiring; AskStream suppresses it from
+// the text channel so callers consuming `<-chan string` see text-only deltas.
 type ToolUseEvent struct {
 	Name string
 	ID   string
@@ -101,14 +101,14 @@ type Reasoner struct {
 // Reasoner per CLI invocation (see package doc).
 func (r *Reasoner) LastCallInfo() CallInfo { return r.lastCall }
 
-// AskStream returns a text-only delta channel for the streaming voice path
-// (W109). The underlying Client must implement StreamingClient; non-streaming
-// Clients return an error so callers can fall back to Ask.
+// AskStream returns a text-only delta channel for the streaming voice path.
+// The underlying Client must implement StreamingClient; non-streaming Clients
+// return an error so callers can fall back to Ask.
 //
-// Tool-use deltas are suppressed from the returned channel — they belong to
-// the skill surface (W17+) which has not landed; for now they're a no-op.
-// Budget charging is deferred until Stream surfaces the Final delta because
-// token counts aren't known until the stream completes.
+// Tool-use deltas are suppressed from the returned channel — the skill
+// surface has not landed. Budget charging is deferred until Stream surfaces
+// the Final delta because token counts aren't known until the stream
+// completes.
 func (r *Reasoner) AskStream(ctx context.Context, user string) (<-chan string, error) {
 	sc, ok := r.Client.(StreamingClient)
 	if !ok {

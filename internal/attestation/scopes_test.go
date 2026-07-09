@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// W94 spec §7.3: cost_override scope MUST be registerable so Pool.Pick
-// does not fail-closed on the override flow. Test loads a Pool with
-// CostOverrideScope and asserts Pick returns a real question.
+// The cost_override scope MUST be registerable so Pool.Pick does not
+// fail-closed on the override flow. Test loads a Pool with CostOverrideScope
+// and asserts Pick returns a real question.
 func TestAttestationPool_CostOverrideScopeRegistered(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "questions.txt")

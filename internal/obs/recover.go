@@ -82,7 +82,7 @@ func captureStack() string {
 
 // writePanicFile drops a per-panic .txt under $LEAH_STATE_DIR/panics/.
 // Best-effort: write errors are swallowed (we just panicked — disk
-// failure on top is not fixable here). selflearn (Wave 3) reads these
+// failure on top is not fixable here). selflearn reads these
 // files when drafting Leah self-bug regatta issues.
 func writePanicFile(name string, panicVal any, stack string) {
 	stateDir := os.Getenv("LEAH_STATE_DIR")

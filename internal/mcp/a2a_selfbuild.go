@@ -18,8 +18,8 @@ import (
 
 // ErrSelfBuildClarify signals the reasoner returned clarifying questions
 // instead of a spec. A2A surfaces it as 403 + clarify_required without filing
-// a PR (spec §5 clarify branch). Production wiring (W140) translates
-// dispatcher.ErrSelfBuildClarify into this sentinel via the runner adapter.
+// a PR. Production wiring translates dispatcher.ErrSelfBuildClarify into this
+// sentinel via the runner adapter.
 var ErrSelfBuildClarify = errors.New("mcp: reasoner requested clarification")
 
 // ErrAttestationPoolUnconfigured is returned when the A2A handler is invoked
@@ -29,15 +29,14 @@ var ErrAttestationPoolUnconfigured = errors.New("mcp: attestation question pool 
 
 // SelfBuildRunner is the dispatcher.SelfBuild contract from the A2A layer.
 // Imported as an interface to keep internal/mcp file-disjoint from
-// internal/dispatcher (spec §10 wave plan). out captures the reasoner's
-// clarify text when Run returns ErrSelfBuildClarify (spec §5).
+// internal/dispatcher. out captures the reasoner's clarify text when Run
+// returns ErrSelfBuildClarify.
 type SelfBuildRunner interface {
 	Run(ctx context.Context, intent string, out io.Writer) error
 }
 
 // TTYConfirmer prompts the operator via /dev/tty and returns true on accept,
-// false on deny / timeout. HUD popup-confirm path is W140.5 follow-up; v1 is
-// TTY-only (spec §2.3).
+// false on deny / timeout. HUD popup-confirm is a follow-up; v1 is TTY-only.
 type TTYConfirmer interface {
 	Confirm(ctx context.Context, peer, tool, args, question string) bool
 }
@@ -192,9 +191,9 @@ func (s *Server) handleA2ATask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Synchronous flow (spec §5): TTY attestation → reasoner via SelfBuild.Run →
-	// HTTP response carries the terminal verdict. The task-result callback path
-	// (A2A 1.0 §6.3) is deferred to W140.5 alongside the HUD popup-confirm.
+	// Synchronous flow: TTY attestation → reasoner via SelfBuild.Run → HTTP
+	// response carries the terminal verdict. The task-result callback path
+	// (A2A 1.0 §6.3) is deferred alongside the HUD popup-confirm.
 	timeout := a.AttestationTimeout
 	if timeout == 0 {
 		timeout = 60 * time.Second
@@ -217,8 +216,8 @@ func (s *Server) handleA2ATask(w http.ResponseWriter, r *http.Request) {
 		"peer="+peer+" tool=self_build attest=true task="+taskID, 4, "ok")
 
 	// Run synchronously so a clarify return can be surfaced as 403 + clarify_required
-	// (spec §5: clarify → no PR filed). Reasoner+gh latency holds the HTTP request open;
-	// acceptable for loopback v1, revisited when callback URLs ship in W140.5+.
+	// (clarify → no PR filed). Reasoner+gh latency holds the HTTP request open;
+	// acceptable for loopback v1, revisited when callback URLs ship.
 	defer release()
 	if a.SelfBuild == nil {
 		a.auditRow("mcp_call", "peer="+peer+" tool=self_build task="+taskID+" err=no_runner", 4, "failed")

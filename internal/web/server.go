@@ -41,15 +41,15 @@ type Server struct {
 	// nil is safe; /health returns 503 in that case.
 	Health *obs.HealthRegistry
 
-	// EventsSubscribe wires /events SSE streaming to an event source (W77).
-	// nil is safe; /events returns 503 in that case. The daemon wires this
-	// to obs.EventStore.Subscribe once W75 lands.
+	// EventsSubscribe wires /events SSE streaming to an event source. nil is
+	// safe; /events returns 503 in that case. The daemon wires this to
+	// obs.EventStore.Subscribe.
 	EventsSubscribe obs.SSESubscribeFunc
 
 	// SpamStats, when non-nil, returns one row per connected adapter's
 	// outbound rate-limiter (sends + cumulative denials) for the dashboard
 	// spam panel. nil is safe; the panel renders empty. Daemon wires this to
-	// the live adapter limiters (MAY-169/W24).
+	// the live adapter limiters.
 	SpamStats func() []SpamStat
 
 	// HealthProbeTimeout caps each SelfCheck call; zero defaults to 2s so a

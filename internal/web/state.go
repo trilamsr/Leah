@@ -148,7 +148,7 @@ func (s *Server) Snapshot(ctx context.Context) State {
 
 // computeSnapshot does the full aggregation without consulting the cache.
 // Kept separate from Snapshot so the caching path stays small + obvious.
-// Publishes a hud.state event so live SSE subscribers (V2/W87) skip /api/state
+// Publishes a hud.state event so live SSE subscribers skip /api/state
 // XHR polls — only fires on actual recompute, not cache hits.
 func (s *Server) computeSnapshot(ctx context.Context) State {
 	out := State{

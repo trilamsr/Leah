@@ -1,5 +1,5 @@
-// Package whatsapp is the WhatsApp Business Cloud API adapter (W68 skeleton).
-// Direct REST only — Web-protocol automation is an explicit non-goal (spec §1).
+// Package whatsapp is the WhatsApp Business Cloud API adapter.
+// Direct REST only — Web-protocol automation is an explicit non-goal.
 package whatsapp
 
 import (

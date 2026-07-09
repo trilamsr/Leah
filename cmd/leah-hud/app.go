@@ -96,8 +96,8 @@ func (a *App) handleState(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(stateResp{State: a.State.State().String()})
 }
 
-// handleEvents relays the daemon /events SSE stream to the browser (V2/W87)
-// so HUD widgets push-update without 5s/15s XHR polls. When the daemon is
+// handleEvents relays the daemon /events SSE stream to the browser so HUD
+// widgets push-update without 5s/15s XHR polls. When the daemon is
 // unreachable we fall back to a local 15s state heartbeat so the EventSource
 // stays connected — clients still get a recent state without storming.
 func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {

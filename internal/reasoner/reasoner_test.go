@@ -16,7 +16,7 @@ type fakeClient struct {
 	respText    string
 	respCostUSD float64
 	respErr     error
-	// Optional LLM-dim fields surfaced through CompleteResult (W94).
+	// Optional LLM-dim fields surfaced through CompleteResult.
 	respModel  string
 	respIn     int
 	respOut    int
@@ -130,10 +130,9 @@ func TestAskEmptyPersonaPrefixUnchanged(t *testing.T) {
 	}
 }
 
-// TestReasoner_WritesLLMDimFields asserts Ask captures the W94 LLM-dim
-// data (model, prompt_sha, input/output tokens, latency, egress, cache
-// hit) into LastCallInfo so dispatcher.Ask.Run can stamp it on the
-// audit row.
+// TestReasoner_WritesLLMDimFields asserts Ask captures the LLM-dim data
+// (model, prompt_sha, input/output tokens, latency, egress, cache hit) into
+// LastCallInfo so dispatcher.Ask.Run can stamp it on the audit row.
 func TestReasoner_WritesLLMDimFields(t *testing.T) {
 	c := &fakeClient{
 		respText:    "hi",

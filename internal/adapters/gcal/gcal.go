@@ -172,8 +172,8 @@ func (a *Adapter) CreateEvent(ctx context.Context, ev Event) (*Event, error) {
 // gateAndToken runs the attestation gate first; only on consent does the
 // token leave the TokenSource. Ordering matters — token-load before
 // attestation would leak the secret into a logger / panic trace even when
-// the operator denies the action. Nil TokenSource is tolerated until the
-// W9 wiring wave injects one — production wiring fails earlier at New.
+// the operator denies the action. Nil TokenSource is tolerated for tests —
+// production wiring fails earlier at New.
 func (a *Adapter) gateAndToken(ctx context.Context, scope string) (string, error) {
 	if err := a.att.Attest(ctx, scope); err != nil {
 		return "", fmt.Errorf("%w: %v", ErrAttestationDenied, err)
