@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS operator_profile_snapshot (
 );
 
 -- schema_version: 9 (additive — Phase 1 conversation auto-capture)
--- See docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md §19 Phase 1 deliverable 3.
+-- See docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md §19 Phase 1 deliverable 3.
 CREATE TABLE IF NOT EXISTS conversation_turn (
   id              TEXT PRIMARY KEY,
   user_text       TEXT NOT NULL,

@@ -2728,7 +2728,7 @@ Reviewer dispatch — verify: existing `scripts/dev/{ipc-send,inject-hotkey,scre
 ### Task 19: Phase 3 docs parity + CHANGELOG
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` (§18 changelog — add `v3.3.0` entry noting Phase 3 ship)
+- Modify: `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` (§18 changelog — add `v3.3.0` entry noting Phase 3 ship)
 - Modify: `CHANGELOG.md` (root, if it exists; otherwise create)
 - Modify: `scripts/check-spec-parity.sh` (single addition — add Phase 3 keyword guard list: "Phase 3 ship criterion", "wake-leah.mlmodel", "tts.cloud.frame")
 
@@ -2765,7 +2765,7 @@ bash scripts/check-spec-parity.sh
 - [ ] **Step 5: Commit + PR + reviewer**
 
 ```bash
-git add docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md CHANGELOG.md scripts/check-spec-parity.sh
+git add docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md CHANGELOG.md scripts/check-spec-parity.sh
 git commit -m "docs(phase3): v3.3.0 changelog + parity-check Phase 3 keyword guards"
 gh pr create --title "docs(phase3): v3.3.0 changelog + parity guards" \
   --body "Phase 3 Task 19. Single-purpose docs update closing the phase boundary. What got smaller: zero — pure docs."

@@ -112,7 +112,7 @@ mkdir -p "$SUPPORT_DIR" "$(dirname "$SOCK")" "$(dirname "$PIDFILE")"
 cp "$THIS/phase2-fixtures/widget-registry.json" "$SUPPORT_DIR/widget-registry.json"
 
 # -- locate spec file ------------------------------------------------------
-SPEC="$REPO/docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md"
+SPEC="$REPO/docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md"
 if [ ! -f "$SPEC" ]; then
   step_fail 8 "spec file missing: $SPEC"
 fi

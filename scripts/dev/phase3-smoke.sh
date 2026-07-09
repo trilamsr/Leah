@@ -293,7 +293,7 @@ fi
 echo "phase3-smoke: (9) ok — dashboard surface reuses WidgetTileRegistry (Swift test passed)"
 
 # -- Invariant 10: spec-parity holds -------------------------------------
-SPEC="$REPO/docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md"
+SPEC="$REPO/docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md"
 if [ ! -f "$SPEC" ]; then
   step_fail 10 "spec file missing: $SPEC"
 fi

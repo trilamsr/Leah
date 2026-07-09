@@ -2,7 +2,7 @@
 
 > Author: senior UX designer (Linear onboarding / Notion first-run / Things permissions / Arc setup / Cron-Notion-Calendar lineage)
 > Date: 2026-06-21
-> Status: companion spec to `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md`. Honors that doc's palette, sigil, motion, NSPanel chamber model, and accessibility rules.
+> Status: companion spec to `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md`. Honors that doc's palette, sigil, motion, NSPanel chamber model, and accessibility rules.
 > Scope: two surfaces only — (A) first-launch wizard, (B) Settings preferences pane.
 
 ---

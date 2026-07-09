@@ -6,7 +6,7 @@
 # the spec body never enumerates its own banned tokens (which would self-match).
 #
 # Usage:
-#   scripts/check-spec-parity.sh docs/superpowers/specs/<spec>.md
+#   scripts/check-spec-parity.sh docs/superpowers/designs/<spec>.md
 #
 # Allow-list (sections that may legitimately cite the historical names):
 #   §14 (decisions log) · §15 (anti-patterns) · §16.7 (this rule's spec home) ·

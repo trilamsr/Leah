@@ -1,5 +1,5 @@
 // Package markets is the Alpha Vantage GLOBAL_QUOTE widget adapter — wave 1
-// of the Phase 2 widget-adapter rollout (see docs/superpowers/specs/
+// of the Phase 2 widget-adapter rollout (see docs/superpowers/designs/
 // 2026-06-21-leah-macos-native-ui-design.md §10.6). The 5 req/min default
 // matches Alpha Vantage's free-tier ceiling; lift only when the operator has
 // paid for a higher key.
