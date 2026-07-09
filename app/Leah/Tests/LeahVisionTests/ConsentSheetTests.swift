@@ -62,8 +62,8 @@ final class ConsentSheetTests: XCTestCase {
     }
 
     func testCopyForModeMatchesSpec() {
-        XCTAssertEqual(ConsentSheet.title(forMode: "screenshot"), "Send this screenshot to Claude?")
-        XCTAssertEqual(ConsentSheet.title(forMode: "live_screen"), "Stream your screen to Claude?")
-        XCTAssertEqual(ConsentSheet.title(forMode: "live_camera"), "Stream your camera to Claude?")
+        XCTAssertEqual(ConsentSheet.title(forMode: "screenshot"), "Send this screenshot to the cloud?")
+        XCTAssertEqual(ConsentSheet.title(forMode: "live_screen"), "Stream your screen to the cloud?")
+        XCTAssertEqual(ConsentSheet.title(forMode: "live_camera"), "Stream your camera to the cloud?")
     }
 }
