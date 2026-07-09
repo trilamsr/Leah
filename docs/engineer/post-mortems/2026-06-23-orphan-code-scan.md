@@ -60,7 +60,7 @@ Total LOC across deletion candidates (impl only): ~7.4k. Phase-3-pending TTS pro
 
 ## Cross-reference
 
-Supersession audit `docs/engineer/audits/2026-06-22-internal-voice-supersession.md` already identified `voice/session` + `voice/wake` + `voice/intents` (~2.7k LOC including their cascading callers in `voice` parent + `voice/loop`) as deletable pending Phase 3 owner confirmation. This scan confirms zero non-test callers across all three.
+Supersession audit `docs/engineer/post-mortems/2026-06-22-internal-voice-supersession.md` already identified `voice/session` + `voice/wake` + `voice/intents` (~2.7k LOC including their cascading callers in `voice` parent + `voice/loop`) as deletable pending Phase 3 owner confirmation. This scan confirms zero non-test callers across all three.
 
 ## Recommended immediate follow-up PRs
 
