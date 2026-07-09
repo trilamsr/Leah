@@ -9,8 +9,8 @@ import (
 
 	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/connect"
 	commsin "github.com/trilam/leah/internal/comms/in"
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // runInbound dispatches `leah inbound <verb>`. Today only `enroll` is wired;
@@ -36,9 +36,9 @@ func runInbound(ctx context.Context, args []string, w io.Writer) int {
 // to ~/.leah-state/inbound-enroll.json. The act of granting a remote surface
 // the right to act is itself a local-loopback attestation (spec §4.4).
 //
-// Signature takes a connect.Attestor seam so tests can drive the success +
+// Signature takes a contracts.Attestor seam so tests can drive the success +
 // denial paths without wiring stdin.
-func runInboundEnroll(ctx context.Context, args []string, w io.Writer, att connect.Attestor) int {
+func runInboundEnroll(ctx context.Context, args []string, w io.Writer, att contracts.Attestor) int {
 	if shouldShowHelp(args) || len(args) < 2 {
 		printInboundUsage(w)
 		if shouldShowHelp(args) {

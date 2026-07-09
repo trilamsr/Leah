@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/obs/obstest"
 )
@@ -47,7 +48,7 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name    string
-		http    HTTPClient
+		http    contracts.HTTPClient
 		wantErr bool
 	}{
 		{"send_text success", okHTTP{}, false},

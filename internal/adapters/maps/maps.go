@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
@@ -96,18 +97,12 @@ type Route struct {
 	Tolls     []Toll
 }
 
-// Attestor is Leah's operator-attestation gate; every Maps RPC calls
-// Attest(scope) before issuing the HTTP request.
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
 // Config carries the adapter's collaborators. HTTPClient is injectable so
 // tests use httptest without hitting the real Google endpoints. BaseURL is
 // also injectable for tests; production callers leave it empty to use the
 // real Google Maps endpoints.
 type Config struct {
-	Attestor   Attestor
+	Attestor   contracts.Attestor
 	HTTPClient *http.Client
 	APIKey     string
 	BaseURL    string
@@ -121,7 +116,7 @@ type Config struct {
 // Adapter is the Maps adapter the rest of Leah depends on. No background
 // goroutines; lifecycle is owned by the caller.
 type Adapter struct {
-	att     Attestor
+	att     contracts.Attestor
 	http    *http.Client
 	apiKey  string
 	baseURL string

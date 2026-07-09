@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // fakeAttestor records scope so tests can assert per-RPC gate routing.
@@ -27,7 +29,7 @@ func (f *fakeAttestor) Attest(_ context.Context, scope string) error {
 	return f.err
 }
 
-func newTestAdapter(t *testing.T, att Attestor, srv *httptest.Server) *Adapter {
+func newTestAdapter(t *testing.T, att contracts.Attestor, srv *httptest.Server) *Adapter {
 	t.Helper()
 	a, err := New(Config{
 		Attestor:   att,

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/feeds"
 )
 
@@ -100,7 +101,7 @@ func bundleNames() []string {
 // route through feeds.News; `research` swaps in feeds.Arxiv (Paper→Article
 // adapter); `dev` swaps in feeds.Releases (Article-native). Centralizing the
 // adapter pick here keeps runNews() flat — no per-kind branching downstream.
-func bundleArticles(ctx context.Context, name string, client *http.Client, att feeds.Attestor) ([]feeds.Article, bool, error) {
+func bundleArticles(ctx context.Context, name string, client *http.Client, att contracts.Attestor) ([]feeds.Article, bool, error) {
 	switch name {
 	case "research":
 		cats := arxivResearchCategories
@@ -143,7 +144,7 @@ func bundleArticles(ctx context.Context, name string, client *http.Client, att f
 
 // fetchNews runs the RSS adapter for the news/tech/ai bundles + the
 // operator-config default path.
-func fetchNews(ctx context.Context, client *http.Client, att feeds.Attestor, sources []feeds.NewsSource) ([]feeds.Article, bool, error) {
+func fetchNews(ctx context.Context, client *http.Client, att contracts.Attestor, sources []feeds.NewsSource) ([]feeds.Article, bool, error) {
 	n, err := feeds.NewNews(feeds.NewsConfig{Attestor: att, HTTPClient: client, Sources: sources})
 	if err != nil {
 		return nil, true, err

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 	"github.com/trilam/leah/internal/ratelimit"
 )
@@ -57,14 +58,6 @@ type IssueReq struct {
 	Priority    int
 }
 
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
-type TokenSource interface {
-	Token(ctx context.Context) (string, error)
-}
-
 type Transport interface {
 	ListMyIssues(ctx context.Context, bearer string) ([]Issue, error)
 	GetIssue(ctx context.Context, bearer, id string) (Issue, error)
@@ -73,8 +66,8 @@ type Transport interface {
 }
 
 type Config struct {
-	Attestor    Attestor
-	TokenSource TokenSource
+	Attestor    contracts.Attestor
+	TokenSource contracts.TokenSource
 	Transport   Transport
 	Now         func() time.Time
 	// Metrics is optional — nil is a no-op (connectadapter contract), so
@@ -83,8 +76,8 @@ type Config struct {
 }
 
 type Client struct {
-	att     Attestor
-	ts      TokenSource
+	att     contracts.Attestor
+	ts      contracts.TokenSource
 	tr      Transport
 	m       *connectadapter.Metrics
 	limiter *ratelimit.Window

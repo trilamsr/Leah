@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // fakeAttestor counts invocations and returns a canned error.
@@ -50,7 +52,7 @@ type recordingSink struct {
 
 func (r *recordingSink) Record(row AuditRow) { r.rows = append(r.rows, row) }
 
-func newAdapter(t *testing.T, att Attestor, ex OSExec, sink AuditSink, now func() time.Time) *Adapter {
+func newAdapter(t *testing.T, att contracts.Attestor, ex OSExec, sink AuditSink, now func() time.Time) *Adapter {
 	t.Helper()
 	a, err := New(Config{Attestor: att, OSExec: ex, Audit: sink, Now: now})
 	if err != nil {

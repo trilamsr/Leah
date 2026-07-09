@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 type fakeAttestor struct {
@@ -83,7 +85,7 @@ func (f *failingTokenSource) Token(_ context.Context) (string, error) {
 	return "", nil
 }
 
-func newTestClient(t *testing.T, att Attestor, ts TokenSource, tr Transport) *Client {
+func newTestClient(t *testing.T, att contracts.Attestor, ts contracts.TokenSource, tr Transport) *Client {
 	t.Helper()
 	c, err := New(Config{Attestor: att, TokenSource: ts, Transport: tr})
 	if err != nil {

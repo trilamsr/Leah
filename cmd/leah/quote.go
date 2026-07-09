@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/feeds"
 )
 
@@ -131,7 +132,7 @@ func normalizeSymbols(in []string) []string {
 // daemon-driven brief don't block on stdin; otherwise prompts the operator.
 type feedsAttestor struct{}
 
-func newFeedsAttestor() feeds.Attestor { return feedsAttestor{} }
+func newFeedsAttestor() contracts.Attestor { return feedsAttestor{} }
 
 func (feedsAttestor) Attest(_ context.Context, scope string) error {
 	if v := os.Getenv("LEAH_FEEDS_AUTO_ATTEST"); v == "1" {

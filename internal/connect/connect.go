@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 var (
@@ -28,10 +30,6 @@ var (
 // oauthHTTPClient bounds OAuth device-code + poll round trips so a hung IdP
 // can't park the connect wizard indefinitely.
 var oauthHTTPClient = &http.Client{Timeout: 10 * time.Second}
-
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
 
 type PromptFn func(verificationURL, userCode string)
 
@@ -50,7 +48,7 @@ type Status struct {
 
 // Authorize: attestation FIRST, then device-code exchange, then on-disk
 // write. Denied attestation MUST short-circuit before the network call.
-func Authorize(ctx context.Context, p Provider, att Attestor, prompt PromptFn) (*oauth2.Token, error) {
+func Authorize(ctx context.Context, p Provider, att contracts.Attestor, prompt PromptFn) (*oauth2.Token, error) {
 	if err := att.Attest(ctx, "connect:"+p.Name()); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrAttestationDenied, err)
 	}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // ErrPurgeAttestationDenied fires when the operator declines the BR=4 prompt.
@@ -118,13 +119,13 @@ func purgeAttest() error {
 	return ErrPurgeAttestationDenied
 }
 
-// purgeAutoAttestor satisfies connect.Attestor by always permitting — the
+// purgeAutoAttestor satisfies contracts.Attestor by always permitting — the
 // BR=4 purge-everything prompt already attested the operator; the provider-side
 // Disconnect's attestation gate would otherwise re-prompt per provider, which
 // breaks the single-prompt UX guarantee.
 type purgeAutoAttestor struct{}
 
-func newPurgeAutoAttestor() connect.Attestor { return purgeAutoAttestor{} }
+func newPurgeAutoAttestor() contracts.Attestor { return purgeAutoAttestor{} }
 
 func (purgeAutoAttestor) Attest(_ context.Context, _ string) error { return nil }
 

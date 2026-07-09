@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 const (
@@ -28,10 +30,6 @@ var (
 	ErrRegattaHealthTimeout     = errors.New("connect: regatta healthz budget exhausted")
 	ErrRegattaUseConnectRegatta = errors.New("connect: regatta uses Connect(), not Authorize()")
 )
-
-type OSExec interface {
-	Run(ctx context.Context, name string, args ...string) (stdout, stderr []byte, err error)
-}
 
 type AuditEntry struct {
 	Kind        string
@@ -53,7 +51,7 @@ type ModeFile struct {
 }
 
 type RegattaProvider struct {
-	Exec         OSExec
+	Exec         contracts.OSExec
 	HealthzURL   string
 	HealthzPoll  time.Duration
 	HealthBudget time.Duration
@@ -81,7 +79,7 @@ func (p *RegattaProvider) authorize(_ context.Context, _ PromptFn) (*oauth2.Toke
 
 // Connect ordering is load-bearing: attest → info → pull → run → healthz → mode-file.
 // A success after `run` arms a deferred teardown; later failures cannot leak a leah-regatta.
-func (p *RegattaProvider) Connect(ctx context.Context, att Attestor) (retErr error) {
+func (p *RegattaProvider) Connect(ctx context.Context, att contracts.Attestor) (retErr error) {
 	if err := att.Attest(ctx, "connect:regatta"); err != nil {
 		p.audit(AuditEntry{Kind: "connect_regatta_docker", Reason: "attestation_denied"})
 		return fmt.Errorf("%w: %v", ErrAttestationDenied, err)

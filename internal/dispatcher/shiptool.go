@@ -7,11 +7,8 @@ import (
 
 	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/contracts"
 )
-
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
 
 type ToolWriter interface {
 	Write(ctx context.Context, title string) error
@@ -20,7 +17,7 @@ type ToolWriter interface {
 // ShipTool attests before dispatching an irreversible outward write to one tool.
 type ShipTool struct {
 	Tool     string
-	Attestor Attestor
+	Attestor contracts.Attestor
 	Writer   ToolWriter
 	Audit    *audit.Logger
 	Out      io.Writer

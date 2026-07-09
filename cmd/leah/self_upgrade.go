@@ -10,11 +10,11 @@ import (
 
 	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/contracts"
 )
 
 type upgradeDeps struct {
-	Attestor connect.Attestor
+	Attestor contracts.Attestor
 	Run      func(context.Context) error
 }
 
@@ -64,7 +64,7 @@ func printSelfUpgradeUsage(w io.Writer) {
 
 type selfUpgradeAttestor struct{}
 
-func newSelfUpgradeAttestor() connect.Attestor { return selfUpgradeAttestor{} }
+func newSelfUpgradeAttestor() contracts.Attestor { return selfUpgradeAttestor{} }
 
 // The drawn pool question forces operator reflection; the env seam mirrors connectAttestor for non-interactive runs.
 func (selfUpgradeAttestor) Attest(_ context.Context, scope string) error {

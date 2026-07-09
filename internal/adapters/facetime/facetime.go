@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 	"github.com/trilam/leah/internal/ratelimit"
 )
@@ -32,10 +33,6 @@ const (
 
 var calleeRE = regexp.MustCompile(`^[+\w@.-]+$`)
 
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
 type OSExec interface {
 	Run(ctx context.Context, name string, args []string, stdin []byte) ([]byte, error)
 }
@@ -58,7 +55,7 @@ type noopSink struct{}
 func (noopSink) Audit(AuditRow) {}
 
 type Config struct {
-	Attestor Attestor
+	Attestor contracts.Attestor
 	OSExec   OSExec
 	Sink     Sink
 	Now      func() time.Time
@@ -68,7 +65,7 @@ type Config struct {
 }
 
 type Adapter struct {
-	att     Attestor
+	att     contracts.Attestor
 	ex      OSExec
 	sink    Sink
 	now     func() time.Time

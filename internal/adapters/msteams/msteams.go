@@ -56,11 +56,6 @@ type Result struct {
 	URL       string
 }
 
-// Attestor is Leah's operator-attestation gate; mirror of internal/contracts.
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
 // AuditRow omits plaintext channel ID, message body, query, and snippets by
 // design (spec §7). TeamID is plaintext (tenant-scoped GUID, not human-readable).
 type AuditRow struct {
@@ -78,7 +73,7 @@ type AuditSink interface {
 }
 
 type Config struct {
-	Attestor    Attestor
+	Attestor    contracts.Attestor
 	TokenSource contracts.TokenSource
 	HTTPClient  contracts.HTTPClient
 	Audit       AuditSink
@@ -89,7 +84,7 @@ type Config struct {
 }
 
 type Client struct {
-	att   Attestor
+	att   contracts.Attestor
 	ts    contracts.TokenSource
 	http  contracts.HTTPClient
 	audit AuditSink

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 type fakeAttestor struct {
@@ -109,7 +111,7 @@ func (s *recordingSink) snapshot() []AuditRow {
 	return out
 }
 
-func newTestClient(t *testing.T, att Attestor, ts TokenSource, tr Transport, sink AuditSink, now func() time.Time) *Adapter {
+func newTestClient(t *testing.T, att contracts.Attestor, ts TokenSource, tr Transport, sink AuditSink, now func() time.Time) *Adapter {
 	t.Helper()
 	a, err := New(Config{Attestor: att, TokenSource: ts, Transport: tr, Audit: sink, Now: now})
 	if err != nil {

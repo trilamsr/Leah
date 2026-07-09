@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 	"github.com/trilam/leah/internal/ratelimit"
 )
@@ -39,10 +40,6 @@ type Message struct {
 	Body string
 }
 
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
 // OSExec carries the script via stdin so AppleScript never enters argv.
 type OSExec interface {
 	Run(ctx context.Context, name string, args []string, stdin []byte) ([]byte, error)
@@ -62,7 +59,7 @@ type AuditSink interface {
 }
 
 type Config struct {
-	Attestor Attestor
+	Attestor contracts.Attestor
 	OSExec   OSExec
 	Audit    AuditSink
 	Now      func() time.Time
@@ -72,7 +69,7 @@ type Config struct {
 }
 
 type Adapter struct {
-	att     Attestor
+	att     contracts.Attestor
 	exec    OSExec
 	audit   AuditSink
 	m       *connectadapter.Metrics

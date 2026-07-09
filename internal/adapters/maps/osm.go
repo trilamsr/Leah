@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
@@ -26,7 +27,7 @@ const (
 // OSMConfig.BaseURL overrides BOTH Nominatim and OSRM hosts (tests); empty in
 // prod. MinGap overrides the 1 req/s throttle (tests); zero keeps the policy gap.
 type OSMConfig struct {
-	Attestor   Attestor
+	Attestor   contracts.Attestor
 	HTTPClient *http.Client
 	BaseURL    string
 	MinGap     time.Duration
@@ -35,7 +36,7 @@ type OSMConfig struct {
 
 // OSM is the keyless Nominatim/OSRM-backed Provider (sovereign posture).
 type OSM struct {
-	att         Attestor
+	att         contracts.Attestor
 	http        *http.Client
 	geocodeBase string
 	routeBase   string
