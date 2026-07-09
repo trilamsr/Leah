@@ -22,7 +22,7 @@ import (
 // dispatcher; CLI cannot override).
 func runSelfBuild(ctx context.Context, intent string) int {
 	auditPath := filepath.Join(stateDir(), "audit.jsonl")
-	a := &audit.Logger{Path: auditPath}
+	logger := &audit.Logger{Path: auditPath}
 	b := budget.New()
 
 	promptPath := filepath.Join(promptDir(), "self-build-feature.md")
@@ -54,7 +54,7 @@ func runSelfBuild(ctx context.Context, intent string) int {
 	sb := &dispatcher.SelfBuild{
 		Reasoner:                 r,
 		GH:                       ghclient.New(),
-		Audit:                    a,
+		Audit:                    logger,
 		Budget:                   b,
 		Out:                      os.Stdout,
 		TmpDir:                   tmp,

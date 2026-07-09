@@ -54,7 +54,7 @@ func runForget(ctx context.Context, args []string, w io.Writer) int {
 		return 2
 	}
 
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 
 	if dryRun {
 		_, _ = fmt.Fprintf(w, "dry-run: would forget %q (operator_profile + recommend pending)\n", target)
@@ -63,7 +63,7 @@ func runForget(ctx context.Context, args []string, w io.Writer) int {
 
 	if !autoYes {
 		if err := forgetAttest(target); err != nil {
-			_ = a.Append(audit.Entry{
+			_ = logger.Append(audit.Entry{
 				Kind:        "recommendation_forget",
 				BlastRadius: 2,
 				Outcome:     "failed",
@@ -76,7 +76,7 @@ func runForget(ctx context.Context, args []string, w io.Writer) int {
 
 	if target == recommend.ForgetAll {
 		if err := wipeOperatorProfile(); err != nil {
-			_ = a.Append(audit.Entry{
+			_ = logger.Append(audit.Entry{
 				Kind:        "recommendation_forget",
 				BlastRadius: 2,
 				Outcome:     "failed",
@@ -87,7 +87,7 @@ func runForget(ctx context.Context, args []string, w io.Writer) int {
 		}
 	}
 
-	_ = a.Append(audit.Entry{
+	_ = logger.Append(audit.Entry{
 		Kind:        "recommendation_forget",
 		BlastRadius: 2,
 		Outcome:     "success",

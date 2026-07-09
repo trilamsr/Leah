@@ -87,12 +87,12 @@ func runExport(_ context.Context, args []string, errW io.Writer) int {
 	}
 
 	sd := stateDir()
-	a := &audit.Logger{Path: filepath.Join(sd, "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	logger := &audit.Logger{Path: filepath.Join(sd, "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 
 	pass, err := readPassphrase("LEAH_EXPORT_PASSPHRASE")
 	if err != nil {
 		_, _ = fmt.Fprintf(errW, "leah export: %v\n", err)
-		_ = a.Append(audit.Entry{Kind: "export_all", BlastRadius: 3, Outcome: "failed", Detail: "passphrase_read: " + err.Error()})
+		_ = logger.Append(audit.Entry{Kind: "export_all", BlastRadius: 3, Outcome: "failed", Detail: "passphrase_read: " + err.Error()})
 		return 1
 	}
 
@@ -105,11 +105,11 @@ func runExport(_ context.Context, args []string, errW io.Writer) int {
 	// provenance row — operator can grep `audit.jsonl` post-import and see
 	// when the snapshot was taken. The failure-path audit row below is the
 	// only one that lands post-tar.
-	_ = a.Append(audit.Entry{Kind: "export_all", BlastRadius: 3, Outcome: "success", Detail: dst})
+	_ = logger.Append(audit.Entry{Kind: "export_all", BlastRadius: 3, Outcome: "success", Detail: dst})
 
 	if err := writeEncryptedArchive(sd, dst, pass); err != nil {
 		_, _ = fmt.Fprintf(errW, "leah export: %v\n", err)
-		_ = a.Append(audit.Entry{Kind: "export_all", BlastRadius: 3, Outcome: "failed", Detail: err.Error()})
+		_ = logger.Append(audit.Entry{Kind: "export_all", BlastRadius: 3, Outcome: "failed", Detail: err.Error()})
 		return 1
 	}
 

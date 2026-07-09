@@ -74,10 +74,10 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 		deps.Now = func() time.Time { return time.Now().UTC() }
 	}
 
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 
 	if err := deps.Attestor.Attest(ctx, "connect:regatta:cloud"); err != nil {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -89,7 +89,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 
 	u, err := url.Parse(*urlFlag)
 	if err != nil || u.Scheme != "https" || u.Host == "" {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -101,7 +101,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 	// userinfo would land credentials in the 0o600 mode file AND ship
 	// Basic + Bearer simultaneously on every healthz call.
 	if u.User != nil {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -115,7 +115,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 		allow = cloudAllowlistFromEnv()
 	}
 	if !hostAllowed(u.Hostname(), allow) {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -128,7 +128,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 	canonURL := canonicalCloudURL(u)
 
 	if !confirmCost(w, deps.ConfirmFn) {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -143,7 +143,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 	healthURL.Fragment = ""
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL.String(), nil)
 	if err != nil {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -155,7 +155,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 	req.Header.Set("Authorization", "Bearer "+*tokenFlag)
 	resp, err := deps.HTTP.Do(req)
 	if err != nil {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -169,7 +169,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 		_ = resp.Body.Close()
 	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -181,7 +181,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 
 	secretsDir := filepath.Join(stateDir(), "secrets")
 	if err := os.MkdirAll(secretsDir, 0o700); err != nil {
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "connect_regatta_cloud",
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -206,7 +206,7 @@ func runConnectRegattaCloud(ctx context.Context, args []string, w io.Writer, dep
 		return 1
 	}
 
-	_ = a.Append(audit.Entry{
+	_ = logger.Append(audit.Entry{
 		Kind:        "connect_regatta_cloud",
 		BlastRadius: 2,
 		Outcome:     "success",

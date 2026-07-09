@@ -30,7 +30,7 @@ func runCtx(args []string) int {
 	// ctx.show etc. rows are tagged. After Switch executes, subsequent
 	// Append calls observe the NEW active workspace — that's the desired
 	// audit semantics ("the row was emitted while in workspace X").
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 
 	switch args[0] {
 	case "new":
@@ -48,7 +48,7 @@ func runCtx(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx new: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "ctx.new", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
+		_ = logger.Append(audit.Entry{Kind: "ctx.new", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
 		fmt.Printf("created context %q\n", *name)
 	case "switch":
 		fs := flag.NewFlagSet("ctx switch", flag.ContinueOnError)
@@ -65,7 +65,7 @@ func runCtx(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx switch: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "ctx.switch", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
+		_ = logger.Append(audit.Entry{Kind: "ctx.switch", ArgsHash: *name, BlastRadius: 1, Outcome: "success", Detail: *name})
 		fmt.Printf("switched to %q\n", *name)
 	case "show":
 		jsonOut := hasFlag(args[1:], "--json")
@@ -74,7 +74,7 @@ func runCtx(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx show: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "ctx.show", BlastRadius: 0, Outcome: "success", Detail: c.Name})
+		_ = logger.Append(audit.Entry{Kind: "ctx.show", BlastRadius: 0, Outcome: "success", Detail: c.Name})
 		if jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(c)
 			return 0
@@ -94,7 +94,7 @@ func runCtx(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx history: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "ctx.history", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(hist))})
+		_ = logger.Append(audit.Entry{Kind: "ctx.history", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(hist))})
 		if *jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(hist)
 			return 0
@@ -118,7 +118,7 @@ func runCtx(args []string) int {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx list: %v\n", err)
 			return 1
 		}
-		_ = a.Append(audit.Entry{Kind: "ctx.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(cs))})
+		_ = logger.Append(audit.Entry{Kind: "ctx.list", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("count=%d", len(cs))})
 		if jsonOut {
 			_ = json.NewEncoder(os.Stdout).Encode(cs)
 			return 0

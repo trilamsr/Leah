@@ -56,7 +56,7 @@ func runBackup(parent context.Context, args []string) int {
 	defer cancel()
 
 	sd := stateDir()
-	a := &audit.Logger{Path: filepath.Join(sd, "audit.jsonl")}
+	logger := &audit.Logger{Path: filepath.Join(sd, "audit.jsonl")}
 
 	repos := selectRepos(*target)
 	if len(repos) == 0 {
@@ -70,7 +70,7 @@ func runBackup(parent context.Context, args []string) int {
 		if dst == "" {
 			dst = "./leah-restore-" + time.Now().UTC().Format("20060102-150405")
 		}
-		if err := doRestore(ctx, r, repos, dst, a); err != nil {
+		if err := doRestore(ctx, r, repos, dst, logger); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah backup --restore: %v\n", err)
 			return 1
 		}
@@ -80,12 +80,12 @@ func runBackup(parent context.Context, args []string) int {
 		for _, repo := range repos {
 			if err := r.Verify(ctx, repo); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "verify %s: %v\n", repo, err)
-				_ = a.Append(audit.Entry{Kind: "backup.verify", ArgsHash: repo, BlastRadius: 1, Outcome: "failed", Detail: err.Error()})
+				_ = logger.Append(audit.Entry{Kind: "backup.verify", ArgsHash: repo, BlastRadius: 1, Outcome: "failed", Detail: err.Error()})
 				failed++
 				continue
 			}
 			_, _ = fmt.Printf("verify %s: ok\n", repo)
-			_ = a.Append(audit.Entry{Kind: "backup.verify", ArgsHash: repo, BlastRadius: 1, Outcome: "success"})
+			_ = logger.Append(audit.Entry{Kind: "backup.verify", ArgsHash: repo, BlastRadius: 1, Outcome: "success"})
 		}
 		if failed > 0 {
 			return 1
@@ -95,12 +95,12 @@ func runBackup(parent context.Context, args []string) int {
 		for _, repo := range repos {
 			if err := r.Snapshot(ctx, repo, sd); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "snapshot %s: %v\n", repo, err)
-				_ = a.Append(audit.Entry{Kind: "backup.snapshot", ArgsHash: repo, BlastRadius: 2, Outcome: "failed", Detail: err.Error()})
+				_ = logger.Append(audit.Entry{Kind: "backup.snapshot", ArgsHash: repo, BlastRadius: 2, Outcome: "failed", Detail: err.Error()})
 				failed++
 				continue
 			}
 			_, _ = fmt.Printf("snapshot %s: ok\n", repo)
-			_ = a.Append(audit.Entry{Kind: "backup.snapshot", ArgsHash: repo, BlastRadius: 2, Outcome: "success"})
+			_ = logger.Append(audit.Entry{Kind: "backup.snapshot", ArgsHash: repo, BlastRadius: 2, Outcome: "success"})
 		}
 		if failed > 0 {
 			return 1
@@ -137,7 +137,7 @@ func dirExists(path string) bool {
 
 // doRestore tries each repo in order, returning on first success. local
 // repo is tried before B2 (LAN latency < internet) when both are listed.
-func doRestore(ctx context.Context, r *backup.Restic, repos []string, dst string, a *audit.Logger) error {
+func doRestore(ctx context.Context, r *backup.Restic, repos []string, dst string, logger *audit.Logger) error {
 	if err := os.MkdirAll(dst, 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dst, err)
 	}
@@ -145,10 +145,10 @@ func doRestore(ctx context.Context, r *backup.Restic, repos []string, dst string
 	for _, repo := range repos {
 		err := r.Restore(ctx, repo, dst)
 		if err == nil {
-			_ = a.Append(audit.Entry{Kind: "backup.restore", ArgsHash: repo, BlastRadius: 2, Outcome: "success", Detail: dst})
+			_ = logger.Append(audit.Entry{Kind: "backup.restore", ArgsHash: repo, BlastRadius: 2, Outcome: "success", Detail: dst})
 			return nil
 		}
-		_ = a.Append(audit.Entry{Kind: "backup.restore", ArgsHash: repo, BlastRadius: 2, Outcome: "failed", Detail: err.Error()})
+		_ = logger.Append(audit.Entry{Kind: "backup.restore", ArgsHash: repo, BlastRadius: 2, Outcome: "failed", Detail: err.Error()})
 		lastErr = err
 	}
 	if lastErr == nil {

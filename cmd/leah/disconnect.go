@@ -44,18 +44,18 @@ func runDisconnect(ctx context.Context, args []string, w io.Writer) int {
 		return 2
 	}
 
-	a := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
+	logger := &audit.Logger{Path: filepath.Join(stateDir(), "audit.jsonl"), DefaultWorkspace: activeWorkspace}
 	att := newConnectAttestor()
 
 	if err := connect.Disconnect(ctx, p, att); err != nil {
 		// No token on disk = already disconnected. Re-running disconnect must be
 		// a clean no-op, not an error, or operators can't trust idempotency.
 		if errors.Is(err, connect.ErrTokenFileNotFound) {
-			_ = a.Append(audit.Entry{Kind: "disconnect_" + name, BlastRadius: 2, Outcome: "noop", Detail: "not_connected"})
+			_ = logger.Append(audit.Entry{Kind: "disconnect_" + name, BlastRadius: 2, Outcome: "noop", Detail: "not_connected"})
 			_, _ = fmt.Fprintf(w, "%s not connected — already removed or was never authorized\n", name)
 			return 0
 		}
-		_ = a.Append(audit.Entry{
+		_ = logger.Append(audit.Entry{
 			Kind:        "disconnect_" + name,
 			BlastRadius: 2,
 			Outcome:     "failed",
@@ -64,7 +64,7 @@ func runDisconnect(ctx context.Context, args []string, w io.Writer) int {
 		_, _ = fmt.Fprintf(os.Stderr, "leah disconnect %s: %v\n", name, err)
 		return 1
 	}
-	_ = a.Append(audit.Entry{Kind: "disconnect_" + name, BlastRadius: 2, Outcome: "success"})
+	_ = logger.Append(audit.Entry{Kind: "disconnect_" + name, BlastRadius: 2, Outcome: "success"})
 	_, _ = fmt.Fprintf(w, "ok: %s disconnected (token removed: %s)\n", name, p.TokenPath())
 	return 0
 }

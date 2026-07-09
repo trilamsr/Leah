@@ -34,8 +34,8 @@ func runPatterns(args []string) int {
 		return 1
 	}
 
-	a := &audit.Logger{Path: auditPath}
-	_ = a.Append(audit.Entry{Kind: "patterns", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("clusters=%d window=%s", len(clusters), window)})
+	logger := &audit.Logger{Path: auditPath}
+	_ = logger.Append(audit.Entry{Kind: "patterns", BlastRadius: 0, Outcome: "success", Detail: fmt.Sprintf("clusters=%d window=%s", len(clusters), window)})
 	fmt.Print(patterns.Propose(clusters))
 	return 0
 }
