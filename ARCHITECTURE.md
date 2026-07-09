@@ -87,7 +87,6 @@ Layers 5–6 cross-referenced in `docs/superpowers/plans/2026-06-22-leah-macos-n
                           ▲
 ┌─────────────────────────┴───────────────────────────────────────────┐
 │  Layer 5 — UI (Phase 2)                                             │
-│  internal/widget/ — envelope + WidgetAdapter + pure renderers       │
 │  internal/hud/ — tile registry + recommendations + pinned + focus   │
 │  app/Leah/Sources/LeahUI — MenubarItem, HotkeyManager, FocusPanel,  │
 │    Notifications, Settings/, Dashboard/, Wizard/                    │
@@ -134,17 +133,15 @@ The Phase-1 table above is unchanged. Phase 2 + 3 added the packages, targets, a
 
 | Package | Layer | Purpose | Cross-ref |
 |---|---|---|---|
-| `widget` | 5 | Envelope schema + `WidgetAdapter` + pure renderers (no UIKit/AppKit); `registry.go` is the canonical kind→renderer table | Phase 2 plan §widget envelope |
 | `hud` | 5 | Tile registry + recommendations + pinned widgets + focus-state + push-source widget stream; daemon-side state HUD subscribes to | Phase 2 §HUD recompose |
 | `tts` | 6 | `provider.go` chain (cloud → local fallback) + `classifier.go` (privacy gate; daemon-only) | Phase 3 §17.17 |
 | `tts/elevenlabs` | 6 | ElevenLabs Flash v2.5 SSE client; emits `tts.cloud.frame` chunks | Phase 3 §17.17 |
 | `tts/apple` | 6 | Apple Ava Premium voice trigger; emits a single `tts.apple.speak` IPC (HUD does playback) | Phase 3 §17.17 |
-| `voice` | 6 | Wake-word + VAD + per-app suppression + listener + session loop + intents (`internal/voice/{wake,listener,loop,session,intents}`) | Phase 3 §wake + VAD |
+| `voice` | 6 | TTS listener + duplex + loop (`internal/voice/{listener,duplex,loop}`) | Phase 3 §voice |
 | `embed` | 2/5 | Embedding backend selector (`SelectGenerator`); accepts `LEAH_EMBED_BACKEND=hash|openai|bge`, default `hash` (deterministic 256d). `bge` loads BGE-small-en-v1.5 via ONNX Runtime (CGo only). Per-(model,dim) physical tables (`embeddings_bge_small_en_v1_5_384`, …) keep cloud↔local toggles re-embed-free. Voyage path scaffolded in table names only, no generator implemented | Phase 2 §retrieval |
 | `eval` | 3 | Closed-loop bootstrap traces + harness + LLM judge + scheduler + store (Phase-3 quality gate) | Phase 3 §eval |
 | `mcp` | 4 | Read-only MCP server: tool publish, A2A card, self-build A2A, redaction; mutations not exposed | Phase 3 §MCP publish |
 | `knowledge` | 2 | KG citation join over memory.db + embeddings; feeds streaming answer-engine | Phase 3 §KG citations |
-| `markets`, `flights`, `weather`, `maps`, `web/meta` | surface | Phase-2 widget data sources backing `hud` tiles (markets/flights/weather/places/link-preview) | Phase 2 plan §tile pack |
 
 ### New Swift targets (`app/Leah/Package.swift`)
 

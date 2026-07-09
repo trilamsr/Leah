@@ -15,7 +15,7 @@ import (
 	"github.com/trilam/leah/internal/adapters/maps"
 )
 
-// runTrip surfaces the tripplanner+maps+flights infra as one CLI verb.
+// runTrip surfaces the maps+flights infra as one CLI verb.
 // Geocodes origin+dest via OSM, asks OSRM for a driving route, and (when
 // the operator has connected flights) appends the top-3 cheapest offers.
 //
@@ -170,8 +170,7 @@ func tryFlights(ctx context.Context, origin, dest maps.Place) []flights.FlightOf
 	if err != nil {
 		return nil
 	}
-	// Lead time + return symmetric with tripplanner.suggestDepartLeadDays so the
-	// brief surface and CLI surface land on comparable offer windows.
+	// Two-week lead time gives realistic offer windows without staleness.
 	depart := time.Now().AddDate(0, 0, 14)
 	ret := depart.AddDate(0, 0, 1)
 	offers, err := ad.SearchOffers(ctx, flights.SearchReq{
