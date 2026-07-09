@@ -26,7 +26,6 @@ gh auth login
 export ANTHROPIC_API_KEY=sk-ant-...                # required
 export LEAH_BUDGET_DOLLARS=5                       # optional, default $5
 export LEAH_PROMPT_DIR=$HOME/code/leah/prompts     # required if leah is on $PATH
-export LEAH_REVIEWER_PROMPT_DIR=$HOME/code/leah/reviewer-prompts
 export LEAH_STATE_DIR=$HOME/.leah-state            # optional, default ~/.leah-state
 export LEAH_PUSHOVER_USER=...                      # optional, phone push
 export LEAH_PUSHOVER_TOKEN=...

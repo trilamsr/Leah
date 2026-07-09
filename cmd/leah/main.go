@@ -543,7 +543,7 @@ func runReview(ctx context.Context, repo string, prNum int) int {
 	a := &audit.Logger{Path: auditPath, DefaultWorkspace: activeWorkspace}
 	b := budget.New()
 
-	sysPrompt, err := os.ReadFile(filepath.Join(reviewerPromptDir(), "independent-reviewer.md"))
+	sysPrompt, err := os.ReadFile(filepath.Join(promptDir(), "reviewer-independent-reviewer.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read reviewer prompt: %v\n", err)
 		return 1
@@ -654,13 +654,6 @@ func promptDir() string {
 		return d
 	}
 	return "prompts"
-}
-
-func reviewerPromptDir() string {
-	if d := os.Getenv("LEAH_REVIEWER_PROMPT_DIR"); d != "" {
-		return d
-	}
-	return "reviewer-prompts"
 }
 
 func usage() {
