@@ -52,7 +52,7 @@ func runDisconnect(ctx context.Context, args []string, w io.Writer) int {
 		// a clean no-op, not an error, or operators can't trust idempotency.
 		if errors.Is(err, connect.ErrTokenFileNotFound) {
 			_ = a.Append(audit.Entry{Kind: "disconnect_" + name, BlastRadius: 2, Outcome: "noop", Detail: "not_connected"})
-			_, _ = fmt.Fprintf(w, "%s not connected (nothing to remove)\n", name)
+			_, _ = fmt.Fprintf(w, "%s not connected — already removed or was never authorized\n", name)
 			return 0
 		}
 		_ = a.Append(audit.Entry{

@@ -18,7 +18,7 @@ import (
 // a fake-Exec-backed provider.
 func runConnectRegatta(ctx context.Context, args []string, w io.Writer, p *connect.RegattaProvider) int {
 	if shouldShowHelp(args) {
-		_, _ = fmt.Fprintln(w, "usage: leah connect regatta [--cloud --url <https://...> --token <bearer>]")
+		_, _ = fmt.Fprintln(w, "usage: leah connect regatta [--cloud --url URL --token TOKEN] (local Docker default)")
 		_, _ = fmt.Fprintln(w, "")
 		_, _ = fmt.Fprintln(w, "Default: start a local Docker container running regatta. --cloud points Leah at a hosted")
 		_, _ = fmt.Fprintln(w, "regatta and is billed per use; requires a separate cost-implication consent prompt.")

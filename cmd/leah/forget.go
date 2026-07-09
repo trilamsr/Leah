@@ -139,6 +139,7 @@ func printForgetUsage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "usage: leah forget <pattern-id>")
 	_, _ = fmt.Fprintln(w, "       leah forget all")
 	_, _ = fmt.Fprintln(w, "       leah forget --dry-run <pattern-id|all>")
+	_, _ = fmt.Fprintln(w, "(use --yes to skip confirmation; --dry-run shows effect without changing state)")
 	_, _ = fmt.Fprintln(w, "")
 	_, _ = fmt.Fprintln(w, "Wipe a pattern (or everything) from operator-model recommendations.")
 	_, _ = fmt.Fprintln(w, "Operator-attested. Re-prompt skipped via --yes or LEAH_FORGET_AUTO_ATTEST=1.")

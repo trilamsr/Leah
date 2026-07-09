@@ -31,7 +31,9 @@ func runBackup(parent context.Context, args []string) int {
 	restorePath := fs.String("restore-to", "", "restore destination (default ./leah-restore-<ts>)")
 	verify := fs.Bool("verify", false, "run `restic check` on target repos instead of snapshotting")
 	fs.Usage = func() {
-		_, _ = fmt.Fprintln(os.Stderr, "usage: leah backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: leah backup")
+		_, _ = fmt.Fprintln(os.Stderr, "  restore mode: --restore [--restore-to PATH]")
+		_, _ = fmt.Fprintln(os.Stderr, "  snapshot mode (default): [--target local|b2|both] [--verify]")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {

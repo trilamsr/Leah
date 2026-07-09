@@ -242,7 +242,7 @@ func runNews(parent context.Context, args []string, w io.Writer) int {
 func printNewsHelp(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "usage: leah news [--bundle <name>] [--since <RFC3339>]")
 	_, _ = fmt.Fprintln(w, "")
-	_, _ = fmt.Fprintln(w, "Fetch + synthesize a top-3 news digest from RSS sources.")
+	_, _ = fmt.Fprintln(w, "Fetches top items from configured sources by recency + engagement, synthesized into a digest.")
 	_, _ = fmt.Fprintln(w, "Sources default to HN + Google News; override by writing")
 	_, _ = fmt.Fprintln(w, "$LEAH_STATE_DIR/feeds-news.json.")
 	_, _ = fmt.Fprintln(w, "")
