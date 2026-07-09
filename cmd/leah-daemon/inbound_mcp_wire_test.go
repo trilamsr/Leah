@@ -1,19 +1,25 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
 
+	mcpInbound "github.com/trilam/leah/internal/mcp/inbound"
 	_ "modernc.org/sqlite"
 )
 
 // TestPhase4Producers_InboundMCPWired asserts wirePhase4Producers constructs
-// the inbound MCP server + registers the §5.3 first-party toolset. The pre-fix
-// path left MCPInbound nil (PR #459 shipped internal/mcp/inbound but the
-// composition root never instantiated it — same v3.3.0 shipped-but-not-wired
-// pattern that Phase 4 T19 was supposed to catch).
+// the inbound MCP server AND registers the §5.3 first-party toolset. Pre-fix
+// left MCPInbound nil (PR #459 shipped internal/mcp/inbound but composition
+// root never instantiated it — same v3.3.0 shipped-but-not-wired pattern
+// Phase 4 T19 was supposed to catch). Duplicate-register probe catches the
+// subtle regression where the server is constructed but RegisterFirstParty
+// gets skipped — a nil-check alone would miss that.
 func TestPhase4Producers_InboundMCPWired(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
@@ -28,5 +34,12 @@ func TestPhase4Producers_InboundMCPWired(t *testing.T) {
 	}
 	if p.MCPInbound.Tokens() == nil {
 		t.Fatal("MCPInbound.Tokens() nil — token store not attached")
+	}
+	err = p.MCPInbound.Register(mcpInbound.MCPTool{
+		Name:    "leah.memory.search",
+		Handler: func(context.Context, json.RawMessage) (any, error) { return nil, nil },
+	})
+	if !errors.Is(err, mcpInbound.ErrDuplicateTool) {
+		t.Fatalf("first-party tools not registered; re-register leah.memory.search = %v, want ErrDuplicateTool", err)
 	}
 }
