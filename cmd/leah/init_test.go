@@ -173,6 +173,8 @@ func TestRunInit_ReaderErrorContinues(t *testing.T) {
 	t.Setenv("LEAH_STATE_DIR", dir)
 	t.Setenv("HOME", dir)
 	t.Setenv("LEAH_INIT_SKIP_LAUNCHCTL", "1")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	defer keychain.SetSecurityBin(keychain.SetSecurityBin(fakeSecurityBin(t)))
 
 	var buf bytes.Buffer
 	if code := runInit(context.Background(), nil, &buf, errReader{err: errBrokenPipe{}}); code != 0 {

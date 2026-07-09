@@ -686,7 +686,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  connect <integration>|--list  first-launch OAuth device-code for shipped adapters (gmail, gcal)")
 	_, _ = fmt.Fprintln(os.Stderr, "  disconnect <integration>|--list  revoke + remove on-disk token for a shipped adapter")
 	_, _ = fmt.Fprintln(os.Stderr, "  call <callee> [--audio]   initiate a FaceTime video call (default) or audio call with [--audio]")
-	_, _ = fmt.Fprintln(os.Stderr, "  slack <send|list|thread|search>  wraps the slack adapter for CLI use")
 	_, _ = fmt.Fprintln(os.Stderr, "  open <target>             launch streaming/social via macOS open (netflix, spotify, linkedin, …)")
 	_, _ = fmt.Fprintln(os.Stderr, "  inbound enroll <channel> <peerID>  one-time loopback authorization for remote replies (F3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  watch [<sym>|--rm <sym>]  manage watchlist symbols read by the morning brief")
