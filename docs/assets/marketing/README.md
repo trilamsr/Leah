@@ -23,4 +23,4 @@ Drop the real exports in place — same filename, same path. `scripts/check-mark
 
 ## Spec refs
 
-- `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` §17.12 (hero captures), §13.14 (Mark sizes).
+- `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` §17.12 (hero captures), §13.14 (Mark sizes).

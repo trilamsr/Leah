@@ -1,7 +1,7 @@
 # Leah Phase 4 — Multi-modal + multi-agent layer
 
 **Version:** v1.0 (2026-06-22). Authoritative for Phase 4 dispatch.
-**Predecessor:** `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` v3.2.2 (§19 sequenced Phases 1–3 + named Phase 4 as the multi-modal + multi-agent layer; this doc is the full Phase 4 build).
+**Predecessor:** `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` v3.2.2 (§19 sequenced Phases 1–3 + named Phase 4 as the multi-modal + multi-agent layer; this doc is the full Phase 4 build).
 **Thin sketches superseded:** `docs/engineer/specs/2026-06-10-voice-frontier.md` · `docs/engineer/specs/2026-06-10-learn-recommend-apply.md` · `docs/engineer/specs/2026-06-10-mcp-a2a-publish.md`. Those files remain for archival rationale; this spec is the canonical Phase 4 contract.
 **Phase boundary:** Phase 4 PRs do not start until Phase 3 (v1.0 public launch per §19) ships and runs on the operator's machine for ≥ 7 days. Phase 4 ends with v1.1 public launch.
 

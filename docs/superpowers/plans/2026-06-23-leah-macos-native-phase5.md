@@ -1,10 +1,10 @@
 # Leah macOS Native UI — Phase 5 Implementation Plan
 
-> **Authored from candidate set — operator may revise once the Phase 5 design spec lands.** This plan was drafted in parallel with the spec (sibling agent on branch `phase5-design-spec-local-v2`). The candidate deliverable set was derived from (a) the Phase 4 spec executive summary "what Phase 4 is not" exclusions, (b) `memory/research_ai_capability_domains_2026.md` Leah-gap list, (c) `memory/research_ai_assistants_*.md` competitor inventories, and (d) `memory/project_residual_backlog_2026-06-23.md` survivor set. When the spec lands at `docs/superpowers/specs/2026-06-23-leah-phase5-design.md`, every section header below should be reconciled against it; mismatches are spec-wins.
+> **Authored from candidate set — operator may revise once the Phase 5 design spec lands.** This plan was drafted in parallel with the spec (sibling agent on branch `phase5-design-spec-local-v2`). The candidate deliverable set was derived from (a) the Phase 4 spec executive summary "what Phase 4 is not" exclusions, (b) `memory/research_ai_capability_domains_2026.md` Leah-gap list, (c) `memory/research_ai_assistants_*.md` competitor inventories, and (d) `memory/project_residual_backlog_2026-06-23.md` survivor set. When the spec lands at `docs/superpowers/designs/2026-06-23-leah-phase5-design.md`, every section header below should be reconciled against it; mismatches are spec-wins.
 
 > **For agentic workers:** REQUIRED SUB-SKILL — Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every Go-side dispatch MUST reference `docs/engineer/dispatch-templates/implementer-adapter.md` by path; every Swift-side dispatch MUST reference `docs/engineer/dispatch-templates/implementer.md` by path. Every reviewer dispatch MUST prepend `.claude/notes/reviewer-header.md` and return its verdict via the subagent transcript channel — NOT `gh pr comment` (same-session reviewer posting to GH inherits author identity = self-approval). Resolve the live reviewer-header path with `find . -name reviewer-header.md -path '*/notes/*' -not -path '*/.git/*'`.
 
-**Goal:** Land Phase 5 ("Agentic operator + lifestyle integrations") from candidate spec `docs/superpowers/specs/2026-06-23-leah-phase5-design.md` (in flight). Nine deliverables, five build waves, twenty-one implementer tasks. v1.2 ship after W5.
+**Goal:** Land Phase 5 ("Agentic operator + lifestyle integrations") from candidate spec `docs/superpowers/designs/2026-06-23-leah-phase5-design.md` (in flight). Nine deliverables, five build waves, twenty-one implementer tasks. v1.2 ship after W5.
 
 1. **Computer-use loop** (§1) — daemon-driven on-device browser + UI automation: invoke a sandboxed WebKit browser controlled by Claude Computer Use; macOS Accessibility API tap for native-app actions; per-action consent ladder + recording.
 2. **Deep-research workflow** (§2) — multi-source web fan-out + per-claim citation verifier + adversarial reviewer + cited markdown report, surfaced as a Dashboard "Research" card.
@@ -2569,7 +2569,7 @@ All must pass — `orphan-scan.sh` exits 0, lint clean, tests PASS.
 - Delete: `docs/engineer/specs/2026-06-10-mobile-bridge-sketch.md` (create-if-absent first)
 - Modify: `scripts/check-spec-parity.sh` — add Phase-5 forbidden phrases
 - Modify: `CHANGELOG.md` — append `## v1.2.0 — 2026-XX-XX` block
-- Modify: `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` (predecessor §19 update — sequence Phases 5 + 6)
+- Modify: `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` (predecessor §19 update — sequence Phases 5 + 6)
 
 **Why this exists:** Phase 5 spec §14 mandates the deletion of the two thin sketches and §0 sets the v1.2 ship line as the wave-5 exit gate. T19 (composition-root) and T21 (this) are the two non-skippable Wave-5 gates.
 

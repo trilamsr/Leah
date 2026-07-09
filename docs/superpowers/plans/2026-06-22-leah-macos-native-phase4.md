@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL — Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Every Go-side dispatch MUST reference `docs/engineer/dispatch-templates/implementer-adapter.md` by path; every Swift-side dispatch MUST reference `docs/engineer/dispatch-templates/implementer.md` by path. Every reviewer dispatch MUST prepend `.claude/notes/reviewer-header.md` and return its verdict via the subagent transcript channel — NOT `gh pr comment` (same-session reviewer posting to GH inherits author identity = self-approval). Resolve the live reviewer-header path with `find . -name reviewer-header.md -path '*/notes/*' -not -path '*/.git/*'`.
 
-**Goal:** Land Phase 4 ("Multi-modal + multi-agent layer") from spec `docs/superpowers/specs/2026-06-22-leah-phase4-design.md` v1.0. Nine deliverables, five build waves, twenty implementer tasks. v1.1 ship after W5.
+**Goal:** Land Phase 4 ("Multi-modal + multi-agent layer") from spec `docs/superpowers/designs/2026-06-22-leah-phase4-design.md` v1.0. Nine deliverables, five build waves, twenty implementer tasks. v1.1 ship after W5.
 
 1. **Voice frontier runtime** (§1) — full-duplex voice convo with Whisper-large-v3 ONNX local STT, barge-in, voice-only mode, continuous wake, per-app suppression learning.
 2. **Multi-device sync** (§2) — peer Mac CRDT sync via Bonjour + mTLS + iCloud Keychain shared secret. No server, no account.
@@ -3192,7 +3192,7 @@ Expected: all subtests PASS.
 - Delete (via `git rm`): `docs/engineer/specs/2026-06-10-mcp-a2a-publish.md`
 - Modify: `CHANGELOG.md` — v1.1 entry
 - Modify: `scripts/check-spec-parity.sh` — include Phase 4 spec
-- Modify: `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` — §19 set "Phase 4 status: SHIPPED"
+- Modify: `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` — §19 set "Phase 4 status: SHIPPED"
 
 **Why this exists:** §14 mandates the deletion of the three thin sketches and §0 sets the v1.1 ship line as the wave-5 exit gate. T19 (composition-root) and T21 (this) are the two single-owner serialized tasks in Wave 5.
 
@@ -3249,12 +3249,12 @@ Expected: clean. If forbidden phrases surface, fix code/tests/docs in this same 
 
 - [ ] **Step 5: Predecessor §19 update**
 
-In `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` §19, change "Phase 4 (Multi-modal + multi-agent layer) — designed in `2026-06-22-leah-phase4-design.md`" to add "; status SHIPPED <date> v1.1.0".
+In `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` §19, change "Phase 4 (Multi-modal + multi-agent layer) — designed in `2026-06-22-leah-phase4-design.md`" to add "; status SHIPPED <date> v1.1.0".
 
 - [ ] **Step 6: Final reviewer pass**
 
 ```bash
-git add docs/superpowers/phase4-ship-checklist.md CHANGELOG.md scripts/check-spec-parity.sh docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md
+git add docs/superpowers/phase4-ship-checklist.md CHANGELOG.md scripts/check-spec-parity.sh docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md
 git commit -m "phase4: ship checklist + parity guard + v1.1 CHANGELOG
 
 Closes Phase 4. v1.1 ship line.

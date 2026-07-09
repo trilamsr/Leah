@@ -1,7 +1,7 @@
 # Leah Phase 5 — Distribution + ambient awareness layer
 
 **Version:** v1.0 (2026-06-23). Authoritative for Phase 5 dispatch.
-**Predecessor:** `docs/superpowers/specs/2026-06-22-leah-phase4-design.md` v1.0 — Phase 4 closes with v1.1 (voice frontier, multi-device sync, learn-recommend pass-2, camera+vision, multi-agent A2A, attestation, plugin SDK, privacy budget, watchdog supervisor).
+**Predecessor:** `docs/superpowers/designs/2026-06-22-leah-phase4-design.md` v1.0 — Phase 4 closes with v1.1 (voice frontier, multi-device sync, learn-recommend pass-2, camera+vision, multi-agent A2A, attestation, plugin SDK, privacy budget, watchdog supervisor).
 **Phase boundary:** Phase 5 PRs do not start until Phase 4 (v1.1 public launch per predecessor §0) ships and runs on the operator's machine for ≥ 14 days. Phase 5 ends with v1.2 public launch.
 
 > **Spec parity:** this file is checked by `scripts/check-spec-parity.sh`. Forbidden phrases (renamed terms, killed cosmetics) are not used in normative body.
@@ -2202,11 +2202,11 @@ Items flagged for operator confirmation per `memory/feedback_audit_recommended_n
 | Phase | Spec | Status |
 |---|---|---|
 | Phase 0 (foundation) | `docs/engineer/specs/2026-06-04-foundation.md` | Shipped |
-| Phase 1 (macOS native UI v1) | `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` | Shipped (v0.x) |
+| Phase 1 (macOS native UI v1) | `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` | Shipped (v0.x) |
 | Phase 2 (closed-loop core) | (predecessor §0 of `2026-06-22-leah-phase4-design.md` references) | Shipped (v0.9) |
 | Phase 3 (v1.0 public launch — voice + polish + sign+notarize+Sparkle) | `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md` | Shipped (v1.0) |
-| Phase 4 (multi-modal + multi-agent) | `docs/superpowers/specs/2026-06-22-leah-phase4-design.md` | In flight (v1.1 target) |
-| **Phase 5 (distribution + ambient awareness)** | **`docs/superpowers/specs/2026-06-23-leah-phase5-design.md`** | **This file (v1.2 target)** |
+| Phase 4 (multi-modal + multi-agent) | `docs/superpowers/designs/2026-06-22-leah-phase4-design.md` | In flight (v1.1 target) |
+| **Phase 5 (distribution + ambient awareness)** | **`docs/superpowers/designs/2026-06-23-leah-phase5-design.md`** | **This file (v1.2 target)** |
 | Phase 6 (v1.3) | Not yet authored | Future |
 
 ---
@@ -2790,7 +2790,7 @@ Template: docs/engineer/dispatch-templates/implementer-go.md
 
 Task: W2-T1 — Implement CalendarContext interface + cache + working-hours model + redact rules.
 
-Spec: docs/superpowers/specs/2026-06-23-leah-phase5-design.md §3.3, §3.4, §3.5, §3.11, §3.12, §3.13, §3.14, §3.15, §3.16, §3.17.
+Spec: docs/superpowers/designs/2026-06-23-leah-phase5-design.md §3.3, §3.4, §3.5, §3.11, §3.12, §3.13, §3.14, §3.15, §3.16, §3.17.
 
 Files to create:
 - internal/calendar/context.go
@@ -2827,7 +2827,7 @@ Template: docs/engineer/dispatch-templates/reviewer.md
 
 PR: #<num> — w3(marketplace): Installer with verify+sandbox+register
 
-Spec: docs/superpowers/specs/2026-06-23-leah-phase5-design.md §1.3, §1.6, §1.7, §1.8.
+Spec: docs/superpowers/designs/2026-06-23-leah-phase5-design.md §1.3, §1.6, §1.7, §1.8.
 
 Dimensions to evaluate (ALL must clear for APPROVE):
 1. Correctness — does Install() block on attestation? abort on sig mismatch?
@@ -2982,4 +2982,4 @@ Phase 5 PRs that modify this spec must follow the same rules.
 
 ---
 
-End of `docs/superpowers/specs/2026-06-23-leah-phase5-design.md`.
+End of `docs/superpowers/designs/2026-06-23-leah-phase5-design.md`.

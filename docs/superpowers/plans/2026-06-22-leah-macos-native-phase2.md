@@ -1,6 +1,6 @@
 # Leah macOS Native UI — Phase 2 Implementation Plan
 
-> **Plan version:** v1.0 (2026-06-22). Source spec: `docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md` (v3.2.2, 2954 lines). Predecessor: `docs/superpowers/plans/2026-06-21-leah-macos-native-phase1.md`. Phase boundary is a merge gate — every Phase 1 task must be merged + the operator's smoke run must be green before Phase 2 starts (spec §19).
+> **Plan version:** v1.0 (2026-06-22). Source spec: `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` (v3.2.2, 2954 lines). Predecessor: `docs/superpowers/plans/2026-06-21-leah-macos-native-phase1.md`. Phase boundary is a merge gate — every Phase 1 task must be merged + the operator's smoke run must be green before Phase 2 starts (spec §19).
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -20,7 +20,7 @@
 - **Gold accent budget 3× max** per rendered panel (spec §10.0 canvas invariant). Every widget view test asserts ≤ 3 gold-tinted regions by counting `Color.leahGold` materializations via flood-fill on the rendered PNG.
 - **Minimal mode toggle in Settings → Appearance** (the toggle ships in Phase 2 even though the runtime effect — "strip grain + italic + gold-accent" — also lands in Phase 3 per spec §19; the toggle wiring is owned here so the Phase 3 implementation only flips a boolean).
 - **`make dev` is the runtime feedback loop.** Every task that touches the SwiftUI app MUST after `swift build` (or `make app-build`) observe the live app via `scripts/dev/screenshot.sh` → `/tmp/leah-task-<N>.png` AND `scripts/dev/ipc-send.sh` (when the task wires a new IPC frame) AND `scripts/dev/tail-logs.sh --duration 5s`. The Step-4 "verify it passes" block of every UI task contains the literal commands. See `docs/engineer/runbooks/phase2-dev-loop.md`.
-- **Spec parity guard.** Every task's verify step runs `scripts/check-spec-parity.sh docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md`. Forbidden-phrase regression at any step = hard fail.
+- **Spec parity guard.** Every task's verify step runs `scripts/check-spec-parity.sh docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md`. Forbidden-phrase regression at any step = hard fail.
 
 ## Global Constraints (delta from Phase 1)
 
@@ -171,7 +171,7 @@ Expected: `no Go files in internal/widget` (package doesn't exist).
 
 ```bash
 cd /Users/treedesk/Desktop/Projects/leah && go test ./internal/widget/... ./internal/ipc/... 2>&1 | tail -10
-scripts/check-spec-parity.sh docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md
+scripts/check-spec-parity.sh docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md
 ```
 Expected: `ok` both packages; `check-spec-parity: ok`.
 

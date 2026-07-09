@@ -2464,7 +2464,7 @@ Single fake adapter + in-memory state + in-memory IPC channel:
 
 ```makefile
 check-spec-parity:
-	@scripts/check-spec-parity.sh docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md
+	@scripts/check-spec-parity.sh docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md
 
 check: check-spec-parity
 ```

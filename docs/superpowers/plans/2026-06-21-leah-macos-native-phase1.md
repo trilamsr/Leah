@@ -833,7 +833,7 @@ git commit -m "feat(reasoner): Haiku widget-intent classifier with chat-fallback
 **SQL for schema_version 8 (append to `internal/memory/schema.sql`):**
 ```sql
 -- schema_version: 8 (additive — knowledge store for Phase 1 answer engine)
--- See docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md §17.10 / §17.16
+-- See docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md §17.10 / §17.16
 -- v3.2.2 F1: sqlite-vec via modernc.org/sqlite/vec (pure-Go in-tree port).
 -- Activation = blank import "_ modernc.org/sqlite/vec" in internal/sqlstore/.
 -- No CGo, no sqlite3_load_extension, no driver swap from mattn/go-sqlite3.
@@ -1269,7 +1269,7 @@ git commit -m "feat(embed): Voyage 3.5-lite generator (1024d, cloud)"
 **SQL for schema_version 9 (append to `internal/memory/schema.sql`):**
 ```sql
 -- schema_version: 9 (additive — Phase 1 conversation auto-capture)
--- See docs/superpowers/specs/2026-06-21-leah-macos-native-ui-design.md §19 Phase 1 deliverable 3.
+-- See docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md §19 Phase 1 deliverable 3.
 CREATE TABLE IF NOT EXISTS conversation_turn (
   id              TEXT PRIMARY KEY,
   user_text       TEXT NOT NULL,

@@ -202,7 +202,7 @@ MEMORY.md sync: diff new `feedback_*` slugs vs MEMORY.md index → write missing
 
 Pointers freshness: `git diff --stat origin/main -- docs/engineer/`; ≥3 doc moves → flag stale-pointer audit.
 
-**Phase 4 v1.1 spec-parity check (binding when session touches `docs/superpowers/specs/2026-06-22-leah-phase4-design.md`).** The Phase 4 design spec has 9 §-sections (§1 Voice, §2 Sync, §3 Learn, §4 Vision, §5 A2A, §6 Attest, §7 Plugin, §8 Budget, §9 Supervisor). Each must back into an `internal/<pkg>/` directory with ≥1 non-test file. The pure-spec ship-with-no-code failure mode (audit-recommended-not-autonomous) is the symptom this catches.
+**Phase 4 v1.1 spec-parity check (binding when session touches `docs/superpowers/designs/2026-06-22-leah-phase4-design.md`).** The Phase 4 design spec has 9 §-sections (§1 Voice, §2 Sync, §3 Learn, §4 Vision, §5 A2A, §6 Attest, §7 Plugin, §8 Budget, §9 Supervisor). Each must back into an `internal/<pkg>/` directory with ≥1 non-test file. The pure-spec ship-with-no-code failure mode (audit-recommended-not-autonomous) is the symptom this catches.
 
 ```bash
 spec_pkgs=(voice sync learn vision a2a attest plugin budget supervisor)

@@ -3,7 +3,7 @@
 Personal chief-of-staff for macOS. Single-operator macOS native app + CLI + always-on daemon. Phase 3 ship — v3.3.0; see `CHANGELOG.md` for the latest delta.
 
 - Architecture: `ARCHITECTURE.md`
-- Specs: `docs/specs/` (design rationale) + `docs/superpowers/specs/` (UI design)
+- Specs: `docs/specs/` (design rationale) + `docs/superpowers/designs/` (UI design)
 - Operator rules: `CLAUDE.md`
 - Phase plans: `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md`
 - Work tracker: [Linear — Leah](https://linear.app/themaydow/project/leah-a8d553e8cc88)
