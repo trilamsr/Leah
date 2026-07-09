@@ -14,7 +14,7 @@ import (
 )
 
 // fakeSubscriber feeds the handler a controllable event stream so the SSE
-// transport can be exercised without the W75 SQLite EventStore.
+// transport can be exercised without the SQLite EventStore.
 type fakeSubscriber struct {
 	mu        sync.Mutex
 	ch        chan Event

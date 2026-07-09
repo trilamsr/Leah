@@ -16,7 +16,7 @@ const ScopeNewsFetch = "feeds:news:fetch"
 
 // Article is the synthesizer-facing payload. Stays narrow — title, link,
 // publication time, source attribution. Synthesizer ranks on these fields
-// alone (recency + source-trust); body summarization defers to W33+.
+// alone (recency + source-trust); body summarization is a follow-up.
 type Article struct {
 	Title     string
 	URL       string

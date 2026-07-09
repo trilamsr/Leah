@@ -9,9 +9,9 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
-// MemoryEngine is the W15 hermetic implementation: pending recs and
-// acceptance state live in maps, audit rows go to the injected Logger.
-// W16 replaces this with a SQLite-backed engine — same Engine surface.
+// MemoryEngine is the hermetic implementation: pending recs and acceptance
+// state live in maps, audit rows go to the injected Logger. SQLiteEngine
+// replaces this for persistence — same Engine surface.
 type MemoryEngine struct {
 	audit *audit.Logger
 
@@ -82,9 +82,8 @@ func (e *MemoryEngine) OnSignal(ctx context.Context, sig Signal) ([]Recommendati
 
 // Seed inserts a Recommendation into the pending pool. Provided for tests
 // and for surface-layer callers that compose Engine with an external
-// pattern-matcher; W18 replaces hand-seeding with the propose-loop. Publishes
-// a recommendation.propose event so live HUD widgets (V2/W87) update without
-// the 15s XHR poll.
+// pattern-matcher. Publishes a recommendation.propose event so live HUD
+// widgets update without the 15s XHR poll.
 func (e *MemoryEngine) Seed(rec Recommendation) {
 	e.mu.Lock()
 	e.pending[rec.ID] = rec
@@ -100,8 +99,7 @@ func (e *MemoryEngine) Seed(rec Recommendation) {
 	})
 }
 
-// Propose returns the queued pending recommendations. Empty in W15 because
-// the pattern-matcher landing in W18 has not been wired yet.
+// Propose returns the queued pending recommendations.
 func (e *MemoryEngine) Propose(ctx context.Context) ([]Recommendation, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -126,7 +124,7 @@ func (e *MemoryEngine) Accept(ctx context.Context, id string) error {
 }
 
 // Reject removes the rec from pending and audits the decision. The reason
-// detail field stays empty in W15 — surfaces gain a reason argument in W19.
+// detail field is empty pending a surface-layer reason argument.
 func (e *MemoryEngine) Reject(ctx context.Context, id string) error {
 	e.mu.Lock()
 	rec, ok := e.pending[id]

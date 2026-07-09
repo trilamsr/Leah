@@ -14,12 +14,9 @@ import (
 )
 
 // TestPhase4Producers_InboundMCPWired asserts wirePhase4Producers constructs
-// the inbound MCP server AND registers the §5.3 first-party toolset. Pre-fix
-// left MCPInbound nil (PR #459 shipped internal/mcp/inbound but composition
-// root never instantiated it — same v3.3.0 shipped-but-not-wired pattern
-// Phase 4 T19 was supposed to catch). Duplicate-register probe catches the
-// subtle regression where the server is constructed but RegisterFirstParty
-// gets skipped — a nil-check alone would miss that.
+// the inbound MCP server AND registers the first-party toolset. Duplicate-
+// register probe catches the regression where the server is constructed but
+// RegisterFirstParty gets skipped — a nil-check alone would miss that.
 func TestPhase4Producers_InboundMCPWired(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {

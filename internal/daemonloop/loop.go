@@ -438,7 +438,7 @@ func (l *Loop) notifyTransition(ctx context.Context, id, from, to string, agents
 	_ = l.Audit.Append(audit.Entry{
 		Kind: "daemon.transition",
 		// Bind the transition to its originating self-build so the closed-loop
-		// classifier can satisfy the merged checkpoint (MAY-265). The dispatch's
+		// classifier can satisfy the merged checkpoint. The dispatch's
 		// self-build.outcome row carries pr=<N>; an empty hash (no match) leaves
 		// the loop PENDING — never falsely CLOSED.
 		ArgsHash:    l.argsHashForPR(pr),

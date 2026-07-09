@@ -30,10 +30,9 @@ type Entry struct {
 	// are treated as the implicit "default" workspace by downstream readers.
 	Workspace string `json:"workspace,omitempty"`
 
-	// W92+W93 LLM-dim schema extension (S2 §2). All omitempty so legacy
-	// rows stay byte-identical and pre-W92 readers ignore unknown keys.
-	// LatencyMS / EgressBytes are int64 per spec §2 — guards against a
-	// hypothetical 32-bit build target silently truncating.
+	// LLM-dim schema extension. All omitempty so legacy rows stay byte-identical
+	// and older readers ignore unknown keys. LatencyMS / EgressBytes are int64 —
+	// guards against a hypothetical 32-bit build target silently truncating.
 	Model        string `json:"model,omitempty"`
 	PromptSHA    string `json:"prompt_sha,omitempty"`
 	InputTokens  int    `json:"input_tokens,omitempty"`
@@ -117,7 +116,7 @@ func (l *Logger) Append(e Entry) (retErr error) {
 }
 
 // QuiesceForConsolidation blocks new Append calls and returns a release
-// handle. Callers (the W125 ConsolidatePass) hold the exclusive lock while
+// handle. Callers (the ConsolidatePass) hold the exclusive lock while
 // rewriting audit.jsonl via tmp+rename so an Append racing the swap cannot
 // land on the orphaned pre-rename inode. The returned func is idempotent —
 // double-fire is a no-op rather than a double-unlock panic.

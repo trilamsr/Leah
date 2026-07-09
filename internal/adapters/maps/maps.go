@@ -81,7 +81,7 @@ type Step struct {
 	DurationS    int
 }
 
-// Toll is reserved for the Routes-API v2 toll surface; left empty in W56.
+// Toll is reserved for the Routes-API v2 toll surface; left empty.
 type Toll struct {
 	Currency string
 	Amount   float64

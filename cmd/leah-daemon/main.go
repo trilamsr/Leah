@@ -3,8 +3,7 @@
 // attestation adapter) lives in sibling files (notify.go, weekly.go,
 // backup.go, brief.go, dashboard.go, obs.go, attestation.go, state.go) so
 // parallel agents adding new daemon wiring touch their own file instead of
-// stacking diffs onto this one (Wave 7 god-file retro: KK Fanout / JJ
-// brief cron / MM backup tasks all collided on main.go).
+// stacking diffs onto this one.
 package main
 
 import (
@@ -116,11 +115,10 @@ func main() {
 	wireObs(registry, health, a, store, loop, chain)
 	wireConsolidation(loop, store, a, auditPath, sd)
 
-	// Phase 4 producers: constructed at the composition root so the orphan-
+	// Optional producers constructed at the composition root so the orphan-
 	// package scan sees them live; ambient capture (sync, a2a, vision live)
-	// stays OFF until operator toggles via Settings (Phase 4 §0.2 #3).
-	// Field-disjoint owner: composition_root.go; IPC edges land separately
-	// without colliding on main.go.
+	// stays OFF until operator toggles via Settings. Field-disjoint owner:
+	// composition_root.go; IPC edges land separately without colliding.
 	p4 := wirePhase4Producers(store.DB(), os.Stderr, lg)
 	defer func() {
 		if p4.Discovery != nil {
@@ -138,10 +136,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// W41: detect regatta mode at boot, wire Gated wrapper if a transport is
+	// Detect regatta mode at boot, wire Gated wrapper if a transport is
 	// available; ModeNone is a graceful skip (operator runs `leah connect
 	// regatta`). Return value is intentionally discarded — no daemon-side
-	// caller consumes Ship/Review yet; subsequent waves will thread it through.
+	// caller consumes Ship/Review yet.
 	if _, err := bootRegatta(ctx, bootRegattaOpts{
 		Attestor: noopAttestor{},
 		Audit:    newAuditLoggerSink(a),
@@ -175,9 +173,9 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: signal bridge non-fatal: %v\n", err)
 	}
 
-	// W94: spec §6.3 mandates a daemon-side 1-minute rollover timer so a
-	// daemon-idle midnight rolls the month within ≤60 s. Cap defaults to
-	// $50; LEAH_COST_MONTH_CAP overrides per spec §7.1.
+	// Daemon-side 1-minute rollover timer so an idle daemon rolls the month
+	// within ≤60 s of midnight. Cap defaults to $50; LEAH_COST_MONTH_CAP
+	// overrides.
 	cmCap := 50.0
 	if v := os.Getenv("LEAH_COST_MONTH_CAP"); v != "" {
 		if parsed, err := strconv.ParseFloat(v, 64); err == nil && parsed > 0 {
@@ -218,7 +216,7 @@ func main() {
 		sonnet = nil
 	}
 	// store.DB() already has conversation_turn from the schema migration above.
-	// knowledge.Graph wiring is Phase 2; nil skips RAG prepend.
+	// knowledge.Graph wiring is deferred; nil skips RAG prepend.
 	ttsClass := tts.NewBlockwordClassifier()
 	ttsCloud, ttsLocal := buildTTSProviders()
 	ipcDeps := IPCDeps{

@@ -281,7 +281,6 @@ func readPassphrase(envKey string) (string, error) {
 }
 
 // leahVersionString returns a best-effort version tag for archive provenance.
-// v1 just emits "dev"; the GHA release build (W135) wires the real git SHA.
 func leahVersionString() string {
 	if v := os.Getenv("LEAH_VERSION"); v != "" {
 		return v

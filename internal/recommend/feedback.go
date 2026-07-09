@@ -69,7 +69,7 @@ type feedbackEvent struct {
 
 // feedbackStore is the per-engine signal ledger. SQLiteEngine reads the
 // same shape directly out of the feedback table; MemoryEngine carries the
-// store as a field (W100 collapsed the sync.Map indirection).
+// store as a field.
 type feedbackStore struct {
 	mu        sync.Mutex
 	events    map[string][]feedbackEvent // pattern → events
@@ -109,8 +109,7 @@ func (e *MemoryEngine) Feedback(ctx context.Context, id string, kind FeedbackKin
 }
 
 // RankedPropose returns the pending pool sorted by decay-adjusted
-// confidence (descending). Pure read — Propose itself is untouched so
-// callers that don't care about feedback see the W15 surface unchanged.
+// confidence (descending). Pure read — Propose itself is untouched.
 func (e *MemoryEngine) RankedPropose(ctx context.Context) ([]Recommendation, error) {
 	recs, err := e.Propose(ctx)
 	if err != nil {

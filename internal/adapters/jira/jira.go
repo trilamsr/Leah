@@ -75,8 +75,8 @@ type TokenSource interface {
 
 // Transport is the seam between the adapter's policy layer (attestation,
 // validation, error mapping) and the Atlassian Cloud REST v3 calls. Keeping
-// it an interface defers the SDK require to the W50 combined tidy so MVP
-// scaffolding does not block on a go.mod edit.
+// it an interface defers the SDK require until a combined tidy so scaffolding
+// does not block on a go.mod edit.
 type Transport interface {
 	ListMyIssues(ctx context.Context, bearer string) ([]Issue, error)
 	GetIssue(ctx context.Context, bearer, key string) (Issue, error)
@@ -209,7 +209,7 @@ func (c *Client) gateAndToken(ctx context.Context, scope string) (string, error)
 	return tok, nil
 }
 
-// HTTPTransport is the default Transport: hand-rolled Atlassian Cloud REST v3 (go-atlassian SDK deferred to W50, adopt-over-build).
+// HTTPTransport is the default Transport: hand-rolled Atlassian Cloud REST v3 (go-atlassian SDK adoption deferred).
 type HTTPTransport struct {
 	hc      *http.Client
 	baseURL string

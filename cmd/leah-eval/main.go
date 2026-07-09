@@ -1,6 +1,6 @@
-// leah-eval is the make-target driver for the eval harness. Phase-1 scope
-// (W82): renders a delta table for one or all features against the same
-// JSONL on both sides — BASE-checkout wiring lands in a later wave.
+// leah-eval is the make-target driver for the eval harness. Current scope:
+// renders a delta table for one or all features against the same JSONL on
+// both sides — BASE-checkout wiring is deferred.
 package main
 
 import (
@@ -18,11 +18,11 @@ func main() {
 	var feature, base, evalsDir string
 	var jsonOut bool
 	flag.StringVar(&feature, "feature", "", "single feature name, or empty for all")
-	flag.StringVar(&base, "base", "origin/main", "base ref (reserved; phase-1 reads same JSONL on both sides)")
+	flag.StringVar(&base, "base", "origin/main", "base ref (reserved; currently reads same JSONL on both sides)")
 	flag.StringVar(&evalsDir, "evals-dir", "evals", "directory holding <feature>.jsonl")
-	flag.BoolVar(&jsonOut, "json", false, "emit machine-readable output (reserved; phase-1 prints human table only)")
+	flag.BoolVar(&jsonOut, "json", false, "emit machine-readable output (reserved; currently prints human table only)")
 	flag.Parse()
-	_ = jsonOut // W83 wires the JSON renderer; flag accepted now so wave-driver scripts don't break.
+	_ = jsonOut // reserved; flag accepted so driver scripts don't break.
 
 	paths, err := resolveFeatures(evalsDir, feature)
 	if err != nil {
@@ -34,9 +34,9 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Phase-1: stub asker + stub judge so `make eval` exits cleanly without
-	// a live API key. The wiring point for the real reasoner + judge lands
-	// in W83 when the first non-trivial evaluation runs in CI.
+	// Stub asker + stub judge so `make eval` exits cleanly without a live
+	// API key. The wiring point for the real reasoner + judge lands when the
+	// first non-trivial evaluation runs in CI.
 	h := &eval.Harness{
 		Head:    stubAsker{},
 		Base:    stubAsker{},

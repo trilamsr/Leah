@@ -9,7 +9,7 @@ import (
 
 // CitationEnrichment attaches source-domain and KG-entity metadata to a
 // citation widget tile so a rendered tile can show its origin (paper /
-// repo / project) without the UI re-resolving the URL. Phase 3 §10.1.
+// repo / project) without the UI re-resolving the URL.
 //
 // Empty EntityKey means the URL parsed but had no KG match — the tile
 // still gets Domain + (when applicable) ArxivID so the UI is useful

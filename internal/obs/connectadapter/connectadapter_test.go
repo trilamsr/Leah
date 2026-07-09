@@ -39,8 +39,8 @@ func TestRegister_AllSeriesPresent(t *testing.T) {
 	}
 }
 
-// TestObserveAPI_DoesNotBumpExchange is the regression for the W80
-// double-bump bug: ObserveAPI must NOT touch exchange_total.
+// TestObserveAPI_DoesNotBumpExchange guards against a double-bump regression:
+// ObserveAPI must NOT touch exchange_total.
 func TestObserveAPI_DoesNotBumpExchange(t *testing.T) {
 	r := obs.NewRegistry()
 	For("slack", r).ObserveAPI("ListUnread", 0.1)

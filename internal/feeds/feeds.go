@@ -18,7 +18,7 @@ type Item struct {
 }
 
 // Feed is the contract every adapter satisfies. Narrow on purpose — operator-
-// facing synthesis (W32+) consumes []Item uniformly.
+// facing synthesis consumes []Item uniformly.
 type Feed interface {
 	Name() string
 	Fetch(ctx context.Context) ([]Item, error)

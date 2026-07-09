@@ -9,9 +9,9 @@ import (
 )
 
 // memoryPath is the canonical sqlite file used by memory + selflearn + ctxmgr.
-// All three packages share one *sql.DB via memory.Store.DB() (see Wave 2-G
-// schema reconciliation: schema_version 3 owns contact/project/decision +
-// context/operator_state/context_switch_log + mistake_log).
+// All three packages share one *sql.DB via memory.Store.DB(); schema_version 3
+// owns contact/project/decision + context/operator_state/context_switch_log +
+// mistake_log.
 func memoryPath() string { return filepath.Join(stateDir(), "memory.db") }
 
 // openMemoryStore opens (creating if needed) the shared memory DB at

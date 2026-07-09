@@ -14,7 +14,7 @@ import (
 )
 
 // HTTPTransport is the default Transport: hand-rolled Confluence Cloud REST.
-// The go-atlassian SDK is deferred to the W50 combined tidy (adopt-over-build).
+// The go-atlassian SDK is deferred to a combined tidy.
 type HTTPTransport struct {
 	hc      *http.Client
 	baseURL string

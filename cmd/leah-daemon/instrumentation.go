@@ -54,7 +54,7 @@ func wireObs(
 	registry.Counter("leah_attestation_attempts_total").Add(map[string]string{"scope": "cold", "outcome": "cold"}, 0)
 	registry.Counter("leah_web_requests_total").Add(map[string]string{"path": "cold", "status": "0"}, 0)
 
-	// W80 metric inventory backfill — register per-package series.
+	// Metric inventory backfill — register per-package series.
 	gmail.RegisterMetrics(registry)
 	gcal.RegisterMetrics(registry)
 	imessage.RegisterMetrics(registry)

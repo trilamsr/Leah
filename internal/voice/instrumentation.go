@@ -206,9 +206,9 @@ func (tt *TurnTimer) MarkReasonerAsk(at time.Time) {
 	tt.stage.Store(&s)
 }
 
-// MarkReasonerFirstToken records the reasoner_first_token stage (W109/V10):
-// reasoner-ask → first text delta. The stage histogram targets ≤300ms p95
-// per the voice-frontier spec §2.5. Intentional no-op if MarkReasonerAsk
+// MarkReasonerFirstToken records the reasoner_first_token stage:
+// reasoner-ask → first text delta. The stage histogram targets ≤300ms p95.
+// Intentional no-op if MarkReasonerAsk
 // hasn't fired (out-of-order call) or first-token has already been recorded
 // on this turn — runStreamingTurn always Marks Ask first, so this is a guard
 // against misuse, not a defensive default.

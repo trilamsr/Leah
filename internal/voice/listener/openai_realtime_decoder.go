@@ -1,14 +1,12 @@
 // OpenAIRealtimeDecoder is a frame-decoder seam for the OpenAI Realtime STT
-// websocket. It DOES NOT send audio — W14 ships only the read path because
-// spec §3.3 picks Whisper-local as the chosen MVP backend and defers the
-// OpenAI Realtime path behind a future LEAH_VOICE_ALLOW_OPENAI_STT opt-in.
-// The mic→input_audio_buffer.append uplink ships in W14b. Production session
-// code MUST NOT wire this decoder until W14b lands; SendAudio panics so any
+// websocket. It DOES NOT send audio — only the read path is wired because
+// Whisper-local is the chosen backend and the OpenAI Realtime path sits
+// behind a future LEAH_VOICE_ALLOW_OPENAI_STT opt-in. Production session code
+// MUST NOT wire this decoder until the send path lands; SendAudio panics so
 // premature wiring fails loud instead of blocking silently.
 //
-// W14b checklist: session.update on connect, input_audio_buffer.append with
-// base64 PCM frames, WSS reconnect/backoff, leah connect openai onboarding
-// (per memory rule leah_first_launch_integration_auth.md).
+// Uplink checklist: session.update on connect, input_audio_buffer.append with
+// base64 PCM frames, WSS reconnect/backoff, leah connect openai onboarding.
 
 package listener
 

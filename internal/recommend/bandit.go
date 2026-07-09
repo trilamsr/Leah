@@ -15,7 +15,7 @@ import (
 	"github.com/trilam/leah/internal/audit"
 )
 
-// W101 — Beta posterior + Thompson sampling. Per-pattern (α, β) lives in
+// Beta posterior + Thompson sampling. Per-pattern (α, β) lives in
 // recommend_pattern_state; each Propose draws one sample per candidate and
 // sorts top-K by sample, not point estimate. Floor + kill-switch guard the
 // noise floor before bandit math drives ranking.

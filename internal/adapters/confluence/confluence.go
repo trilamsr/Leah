@@ -50,7 +50,7 @@ type TokenSource interface {
 
 // Transport is the seam between the adapter's policy layer (attestation,
 // validation, error mapping) and the Atlassian REST / go-atlassian SDK calls.
-// Keeping it an interface defers the SDK require to the W50 combined tidy.
+// Keeping it an interface defers the SDK require until a combined tidy.
 type Transport interface {
 	ListRecent(ctx context.Context, bearer, space string) ([]Page, error)
 	GetPage(ctx context.Context, bearer, id string) (Page, error)

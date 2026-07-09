@@ -24,8 +24,8 @@ func runConnectRegatta(ctx context.Context, args []string, w io.Writer, p *conne
 		_, _ = fmt.Fprintln(w, "regatta and is billed per use; requires a separate cost-implication consent prompt.")
 		return 0
 	}
-	// --cloud dispatches to the W43 cloud branch; the docker branch sees a
-	// reduced argv with --cloud stripped (currently nil deps = production wiring).
+	// --cloud dispatches to the cloud branch; the docker branch sees a reduced
+	// argv with --cloud stripped (nil deps = production wiring).
 	for _, a := range args {
 		if a == "--cloud" {
 			return runConnectRegattaCloud(ctx, args, w, nil)

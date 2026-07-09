@@ -43,8 +43,8 @@ type Headline struct {
 }
 
 // SummarizeNews ranks by recency (zero-time sorts last as "unknown age") and
-// returns the top-3. Source-trust and dedup-cluster ranking from spec §3
-// defer to W33 — MVP ships pure recency, fast and deterministic.
+// returns the top-3. Source-trust and dedup-cluster ranking are follow-ups;
+// current output is pure recency, fast and deterministic.
 func SummarizeNews(items []Article) DailyDigest {
 	if len(items) == 0 {
 		return DailyDigest{}
@@ -90,8 +90,8 @@ type MarketPulse struct {
 
 // SummarizeMarket renders per-symbol % change. Format is deliberately
 // boring — "AAPL +1.7% @ 203.40" — to short-circuit any operator
-// interpretation as a recommendation. Anomaly-flagging (|Δ| > 3σ vs 30d)
-// from spec §3 defers to W33; MVP keeps it purely descriptive.
+// interpretation as a recommendation. Anomaly-flagging (|Δ| > 3σ vs 30d) is
+// a follow-up; current output is purely descriptive.
 func SummarizeMarket(items []Quote) MarketPulse {
 	if len(items) == 0 {
 		return MarketPulse{}

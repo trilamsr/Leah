@@ -1,8 +1,8 @@
-// Package budget owns two distinct meters. The original Budget/Charge enforces
-// a per-process dollar ceiling on Reasoner + reviewer API spend (Phase 1–3).
-// Runtime (spec §8) adds per-bucket privacy meters — bytes, seconds, tokens —
-// that gate every cloud call site, persist samples to SQLite, and degrade per
-// the §8.4 ladder when caps are approached.
+// Package budget owns two distinct meters. Budget/Charge enforces a
+// per-process dollar ceiling on Reasoner + reviewer API spend. Runtime adds
+// per-bucket privacy meters — bytes, seconds, tokens — that gate every cloud
+// call site, persist samples to SQLite, and degrade per the ladder when caps
+// are approached.
 package budget
 
 import (

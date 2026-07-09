@@ -20,15 +20,13 @@ const (
 )
 
 // Action is the callable the Engine fires on Apply. Kept as a plain
-// function (not interface) for W15 — adapters wrap their own state in a
-// closure and we avoid an Undo path until W17 introduces the rate-limiter.
+// function (not interface): adapters wrap their own state in a closure and
+// there is no Undo path yet.
 type Action func(ctx context.Context) error
 
-// Recommendation is one suggested next action.
-//
-// W15 surface — Source is a single string (selflearn|operatormodel|patterns);
-// the multi-source ranking from spec §5 lands in W18 once feedback writes are
-// wired. Reason/ExpiresAt likewise wait for the surface layer (W19).
+// Recommendation is one suggested next action. Source is a single string
+// (selflearn|operatormodel|patterns); multi-source ranking, Reason, and
+// ExpiresAt are follow-ups.
 type Recommendation struct {
 	ID         string
 	Pattern    string
@@ -55,9 +53,8 @@ var (
 )
 
 // Engine is the loop entrypoint. One singleton per daemon process.
-//
-// W15 ships a hermetic in-memory implementation (see NewMemoryEngine);
-// W16 swaps the backing store for SQLite without changing this interface.
+// NewMemoryEngine is the hermetic in-memory implementation; SQLiteEngine
+// swaps the backing store without changing this interface.
 type Engine interface {
 	Propose(ctx context.Context) ([]Recommendation, error)
 	Accept(ctx context.Context, id string) error
@@ -65,9 +62,9 @@ type Engine interface {
 	Apply(ctx context.Context, rec Recommendation) error
 }
 
-// Signal is the event-driven trigger that replaces W18's 60s daemon-tick
-// poll (Wave-9 brief V8). Context is operatormodel.ctxmgr.Current() at fire
-// time; Detail carries the bundle ID / event UUID / per-kind payload.
+// Signal is the event-driven trigger that replaced the 60s daemon-tick poll.
+// Context is operatormodel.ctxmgr.Current() at fire time; Detail carries the
+// bundle ID / event UUID / per-kind payload.
 type Signal struct {
 	Kind    string
 	Context string

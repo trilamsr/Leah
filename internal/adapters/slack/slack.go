@@ -71,7 +71,7 @@ type TokenSource interface {
 }
 
 // Transport is the seam to slack-go/slack (or a raw HTTP client). Keeping it
-// an interface defers the SDK require to the W50 tidy wave.
+// an interface defers the SDK require until a combined tidy.
 type Transport interface {
 	ListChannels(ctx context.Context, bot string) ([]Channel, error)
 	PostMessage(ctx context.Context, bot, channel, text string) error

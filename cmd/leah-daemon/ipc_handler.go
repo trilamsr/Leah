@@ -22,7 +22,7 @@ import (
 // errVerifyFailed is returned by pingFn when the API key is rejected.
 var errVerifyFailed = errors.New("api key rejected")
 
-// VisionIPC, SyncIPC, RecommendIPC, PluginIPC, A2AIPC are the Phase 4
+// VisionIPC, SyncIPC, RecommendIPC, PluginIPC, A2AIPC are the optional
 // dispatch seams. Concrete handlers live in sibling files (ipc_vision.go,
 // ipc_sync.go, ipc_recommend.go, ipc_plugin.go, ipc_a2a.go) and are bound
 // to these surfaces at composition time. Switch arms call methods on
@@ -64,10 +64,10 @@ type A2AIPC interface {
 	PeerUnpair(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
 }
 
-// IPCDeps groups Phase 4 dispatch seams so the production constructor's
-// argument list does not balloon further each task. Nil fields are safe —
-// the switch returns an error frame so the HUD sees a structured failure
-// instead of a closed conn.
+// IPCDeps groups the optional dispatch seams so the production constructor's
+// argument list does not balloon further. Nil fields are safe — the switch
+// returns an error frame so the HUD sees a structured failure instead of a
+// closed conn.
 type IPCDeps struct {
 	Vision    VisionIPC
 	Sync      SyncIPC
@@ -94,10 +94,10 @@ type fetchFn func(ctx context.Context, query string, k int) ([]knowledge.Chunk, 
 // Errors degrade silently — the widget tile still mounts without enrichment.
 type enrichFn func(ctx context.Context, citationURL string) (*knowledge.CitationEnrichment, error)
 
-// newIPCHandlerWithDeps is the Phase-4 production constructor. Same as the
-// pre-fold constructor plus the dispatch seams for sync / recommend / plugin /
-// a2a / vision. Composition-root binds non-nil deps once their backing
-// services boot.
+// newIPCHandlerWithDeps is the production constructor. Same as the pre-fold
+// constructor plus the dispatch seams for sync / recommend / plugin / a2a /
+// vision. Composition-root binds non-nil deps once their backing services
+// boot.
 func newIPCHandlerWithDeps(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier, voiceSess duplex.DuplexSession, deps IPCDeps) ipc.Handler {
 	return newIPCHandlerWithClassifyEnrichDeps(db,
 		liveStreamFn(sonnet),
@@ -153,7 +153,7 @@ func newIPCHandlerWithClassify(
 }
 
 // newIPCHandlerWithClassifyEnrich is kept for the citation-enrichment test
-// fixtures; forwards to the Phase-4 deps-aware variant with empty IPCDeps.
+// fixtures; forwards to the deps-aware variant with empty IPCDeps.
 func newIPCHandlerWithClassifyEnrich(
 	db *sql.DB,
 	sonnetStream, opusStream streamFn,
@@ -172,7 +172,7 @@ func newIPCHandlerWithClassifyEnrich(
 }
 
 // newIPCHandlerWithClassifyEnrichDeps is the full injection point — all
-// production wiring and Phase 4 dispatch tests route through here.
+// production wiring and dispatch tests route through here.
 func newIPCHandlerWithClassifyEnrichDeps(
 	db *sql.DB,
 	sonnetStream, opusStream streamFn,
@@ -193,7 +193,7 @@ func newIPCHandlerWithClassifyEnrichDeps(
 		if req.TurnID == "" && req.Kind != ipc.KindDiag {
 			return errFrame(req, "turn_id required"), nil
 		}
-		// seq must be non-negative — Phase 3 spec §10.7 says monotonic per turn.
+		// seq must be non-negative — monotonic per turn.
 		if req.Seq < 0 {
 			return errFrame(req, fmt.Sprintf("seq must be >= 0, got %d", req.Seq)), nil
 		}

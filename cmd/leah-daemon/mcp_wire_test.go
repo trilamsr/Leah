@@ -35,7 +35,7 @@ func TestMCPPublishWired_GatedOn(t *testing.T) {
 }
 
 // TestMCPPublishWired_GatedOff asserts startMCPPublishAt creates no socket
-// when the env var is unset — the Phase 3 default-off ship gate.
+// when the env var is unset — the default-off gate.
 func TestMCPPublishWired_GatedOff(t *testing.T) {
 	_ = os.Unsetenv("LEAH_MCP_PUBLISH")
 	sock := shortSockPath(t)

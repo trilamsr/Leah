@@ -135,10 +135,8 @@ func (g *BGEGenerator) embedOne(text string) ([]float32, error) {
 }
 
 // bgeTokenize is a whitespace-with-hashed-vocab tokenizer. BERT-WordPiece
-// parity is a Phase 3 follow-up; at single-operator personal-corpus scale
-// the relevance gap vs. true WordPiece is below the cosine-search noise
-// floor — confirmed against the same docs/research embedding-vector report
-// that sets the MTEB 62.17 target.
+// parity is a follow-up; at single-operator personal-corpus scale the
+// relevance gap vs. true WordPiece is below the cosine-search noise floor.
 func bgeTokenize(text string, maxLen int) (ids, mask, types []int64) {
 	const (
 		clsID = 101

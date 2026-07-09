@@ -52,7 +52,7 @@ type Loop struct {
 }
 
 // errReasonFallback duplicates session.Session's literal — a third caller
-// (W15+ streaming reasoner) gates extraction to internal/voice/strings.
+// gates extraction to internal/voice/strings.
 const errReasonFallback = "I couldn't reason that through, try again."
 
 const errAnnounceTimeout = 1500 * time.Millisecond

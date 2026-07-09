@@ -28,7 +28,7 @@ var ddl string
 type Chunk struct {
 	ID   string
 	Text string
-	// Distance is reserved for Phase 2 sqlite-vec ranking; currently always 0.
+	// Distance is reserved for sqlite-vec ranking; currently always 0.
 	Distance float64
 }
 
@@ -281,7 +281,7 @@ func (s *storage) deleteEntity(kind EntityKind, key string) (bool, error) {
 // SearchRelevant retrieves top-k chunks ranked by term-overlap score. Chunks
 // containing more query terms rank higher; ties fall back to insertion order.
 // Empty query returns the first k by insertion order. Semantic-vector ranking
-// (sqlite-vec MATCH) is Phase 2.
+// (sqlite-vec MATCH) is a follow-up.
 func (s *storage) SearchRelevant(ctx context.Context, query string, k int) ([]Chunk, error) {
 	if k <= 0 {
 		return []Chunk{}, nil

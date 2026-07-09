@@ -148,10 +148,10 @@ func TestAppendDefaultWorkspaceCallback(t *testing.T) {
 	}
 }
 
-// TestEntry_NewFields_OmitEmptyOnZero asserts the seven W94 LLM-dim
-// fields (Model, PromptSHA, InputTokens, OutputTokens, LatencyMS,
-// EgressBytes, CacheHit) all carry omitempty so legacy rows stay
-// byte-for-byte identical when callers leave them zero.
+// TestEntry_NewFields_OmitEmptyOnZero asserts the seven LLM-dim fields
+// (Model, PromptSHA, InputTokens, OutputTokens, LatencyMS, EgressBytes,
+// CacheHit) all carry omitempty so legacy rows stay byte-for-byte identical
+// when callers leave them zero.
 func TestEntry_NewFields_OmitEmptyOnZero(t *testing.T) {
 	buf, err := json.Marshal(Entry{Kind: "ask", Outcome: "success"})
 	if err != nil {
@@ -196,10 +196,10 @@ func TestEntry_NewFields_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestEntry_DecodesLegacyEntries asserts pre-W94 audit.jsonl rows
-// (no model/prompt_sha/token/latency/egress/cache_hit keys) decode
-// cleanly with zero values for the new fields — back-compat for
-// patterns.Detect, selflearn.Resolver, operatormodel.Observe*.
+// TestEntry_DecodesLegacyEntries asserts legacy audit.jsonl rows (no
+// model/prompt_sha/token/latency/egress/cache_hit keys) decode cleanly with
+// zero values for the new fields — back-compat for patterns.Detect,
+// selflearn.Resolver, operatormodel.Observe*.
 func TestEntry_DecodesLegacyEntries(t *testing.T) {
 	legacy := []byte(`{"ts":"2023-11-14T22:13:20Z","kind":"ask","args_hash":"abc","blast_radius":0,"outcome":"success","cost_dollars":0.012}`)
 	var e Entry

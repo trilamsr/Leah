@@ -21,12 +21,9 @@ const announceTopN = 3
 const announceScope = "recommend:announce"
 
 // VoiceAnnouncer speaks the top recommendations through the TTS chain on
-// operator pull ("what should I do") and — once W36 wires the focus-block
-// hook — on idle push. The announce path is gated by contracts.Attestor
-// so a stolen mic cannot exfiltrate learned patterns through the speaker.
-//
-// W19 ships the Announce method only; the focus-block trigger and the
-// operator-toggle plumbing land in W36 HUD where the session lifecycle lives.
+// operator pull ("what should I do") and — once the focus-block hook lands
+// — on idle push. The announce path is gated by contracts.Attestor so a
+// stolen mic cannot exfiltrate learned patterns through the speaker.
 type VoiceAnnouncer struct {
 	tts    voice.TTS
 	attest contracts.Attestor

@@ -298,7 +298,7 @@ func (s *SelfBuild) appendAuditOutcome(intent, state, issueURL string, pr int) {
 	if pr > 0 {
 		// pr=<N> is the daemon's join key: a later daemon.transition to=merged
 		// for an agent with this PR copies this row's ArgsHash so the closed-loop
-		// classifier can bind merged→loop (MAY-265).
+		// classifier can bind merged→loop.
 		detail += fmt.Sprintf(" pr=%d", pr)
 	}
 	_ = s.Audit.Append(audit.Entry{

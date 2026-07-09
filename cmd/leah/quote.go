@@ -15,9 +15,9 @@ import (
 	"github.com/trilam/leah/internal/feeds"
 )
 
-// runQuote prints a MarketPulse for the given symbols. Per spec §6 the AV
-// key sits at $LEAH_STATE_DIR/secrets/alphavantage-key.json (mode 0600);
-// `leah connect alphavantage` (W37) will provision it.
+// runQuote prints a MarketPulse for the given symbols. The AV key sits at
+// $LEAH_STATE_DIR/secrets/alphavantage-key.json (mode 0600); provisioned
+// by `leah connect alphavantage`.
 func runQuote(parent context.Context, args []string, w io.Writer) int {
 	if shouldShowHelp(args) {
 		_, _ = fmt.Fprintln(w, "usage: leah quote <symbol> [<symbol>...]")

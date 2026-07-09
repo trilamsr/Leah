@@ -139,7 +139,7 @@ func TestLoopNotifiesOnTerminalTransition(t *testing.T) {
 
 // TestTransitionBindsOriginatingArgsHash asserts a merged daemon.transition
 // for an agent whose PR was recorded by a prior self-build dispatch row carries
-// that dispatch's ArgsHash so selfbuildstatus.Classify reaches CLOSED (MAY-265).
+// that dispatch's ArgsHash so selfbuildstatus.Classify reaches CLOSED.
 func TestTransitionBindsOriginatingArgsHash(t *testing.T) {
 	dir := t.TempDir()
 	a := &audit.Logger{Path: dir + "/audit.jsonl"}

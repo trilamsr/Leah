@@ -128,7 +128,7 @@ func (s *Store) archive(prior state) error {
 }
 
 // ErrNegativeCharge surfaces a negative-dollar Charge — refunds belong
-// in `leah cost refund` (W95+), not the hot-path Charge call.
+// in `leah cost refund`, not the hot-path Charge call.
 var ErrNegativeCharge = errors.New("cost-month: negative charge — use refund flow")
 
 // Charge adds dollars to kind's bucket and flushes to disk. Zero is a

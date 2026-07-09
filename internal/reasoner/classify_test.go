@@ -14,7 +14,7 @@ func (h *haikuStub) OneShot(ctx context.Context, system, user string) (string, e
 
 func TestClassifyWidgetIntent(t *testing.T) {
 	stub := &haikuStub{resp: `{"kind":"widget","widget":"stat","confidence":0.92}`}
-	got, err := classifyWith(context.Background(), stub, "what's the status of MAY-19?")
+	got, err := classifyWith(context.Background(), stub, "what's the status of the release?")
 	if err != nil {
 		t.Fatalf("classify: %v", err)
 	}

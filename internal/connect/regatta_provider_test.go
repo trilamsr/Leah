@@ -362,9 +362,9 @@ func TestRegattaProvider_NameAndTokenPath(t *testing.T) {
 	}
 }
 
-// TestRegattaRevoke_StopsAndRemovesContainer pins MAY-188: Revoke is the hook
-// the generic Disconnect calls — it must `docker stop` then `docker rm` the
-// pinned container, in that argv order.
+// TestRegattaRevoke_StopsAndRemovesContainer: Revoke is the hook the generic
+// Disconnect calls — it must `docker stop` then `docker rm` the pinned
+// container, in that argv order.
 func TestRegattaRevoke_StopsAndRemovesContainer(t *testing.T) {
 	fx := &fakeExec{script: []fakeExecResp{{}, {}}}
 	p := &RegattaProvider{Exec: fx}

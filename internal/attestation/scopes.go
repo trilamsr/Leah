@@ -7,9 +7,9 @@ const (
 	// ScopeSelfBuild gates the GitHub-PR merge attestation (existing).
 	ScopeSelfBuild = "self-build"
 
-	// ScopeSelfBuildA2A gates inbound A2A self_build task delegation (W139).
+	// ScopeSelfBuildA2A gates inbound A2A self_build task delegation.
 	// Distinct from ScopeSelfBuild so habituation on one cannot satisfy the
-	// other and audit rows stay separable (spec §2.3).
+	// other and audit rows stay separable.
 	ScopeSelfBuildA2A = "self-build-a2a"
 
 	// CostOverrideScope guards the `leah cost override` flow (llm-ops spec §7.3).

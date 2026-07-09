@@ -9,7 +9,7 @@ import (
 )
 
 // TestDefaultRegistry_NativeMacResolvable proves imessage + facetime are
-// connectable — Lookup must NOT return ErrUnknownProvider (the MAY-167 gap).
+// connectable — Lookup must NOT return ErrUnknownProvider.
 func TestDefaultRegistry_NativeMacResolvable(t *testing.T) {
 	reg := DefaultRegistry()
 	for _, name := range []string{"imessage", "facetime"} {

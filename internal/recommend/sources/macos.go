@@ -64,8 +64,8 @@ func (s *MacosMirrorSource) Name() string { return "macos-mirror" }
 
 // Recommendations bins app-opens by (app, hour-of-day) and surfaces any bucket
 // crossing MinOccur. Confidence = count / window-days, clamped to (0, 1].
-// Tier is TierConfirm — every cadence proposal stays operator-gated until the
-// pattern adapter (W18+) ships its own rubric mapping.
+// Tier is TierConfirm — every cadence proposal stays operator-gated until a
+// pattern adapter ships its own rubric mapping.
 func (s *MacosMirrorSource) Recommendations(ctx context.Context) ([]recommend.Recommendation, error) {
 	since := s.opts.Now().Add(-s.opts.Window)
 	events, err := s.seam.AppOpens(ctx, since)

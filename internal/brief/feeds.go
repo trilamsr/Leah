@@ -1,7 +1,6 @@
 // Package brief — feeds composer.
 //
-// W33 wires the morning brief to the info-feeds layer (weather, news,
-// market) defined in docs/engineer/specs/2026-06-10-info-feeds.md.
+// Wires the morning brief to the info-feeds layer (weather, news, market).
 //
 // Design lessons inherited from PR #65 (gmail + gcal):
 //   - Brief-local structural-typed interfaces — wiring code maps the concrete
@@ -34,8 +33,8 @@ type Forecast struct {
 }
 
 // Article is the brief-local headline payload. One article surfaces in the
-// brief — the synth layer (W32) picks the top item from the multi-source
-// digest before handing it across.
+// brief — the synth layer picks the top item from the multi-source digest
+// before handing it across.
 type Article struct {
 	Title   string
 	Source  string
@@ -76,7 +75,7 @@ type MarketReporter interface {
 
 // gatherFeeds populates the feeds-related Data fields. Each feed soft-fails
 // independently and the three run concurrently — serial HTTP fetches here
-// were the 2-3s morning-brief stall flagged in the UX audit (MAY-8).
+// were the 2-3s morning-brief stall flagged in the UX audit.
 func gatherFeeds(ctx context.Context, d *Data, o GatherOpts) {
 	var g errgroup.Group
 	if o.Weather != nil {

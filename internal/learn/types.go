@@ -1,5 +1,5 @@
-// Package learn wraps the Phase 3 Thompson kernel in the recommendation
-// pass-2 lifecycle: confidence floor, pacing caps, and §3.5 decay.
+// Package learn wraps the Thompson kernel in the recommendation pass-2
+// lifecycle: confidence floor, pacing caps, and decay.
 package learn
 
 import (

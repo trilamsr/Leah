@@ -1,8 +1,8 @@
-// Package duplex orchestrates STT (T01) + reasoner + TTS (Phase 3) into a
-// single streaming voice session with barge-in. Spec §1.3 mandates a single
-// DuplexSession that halts TTS within 80ms when mic VAD detects voice during
-// playback. The T08 budget.Runtime is injected via constructor so cloud.stt.seconds
-// and cloud.tts.chars Charge calls land in the same store as CLI commands.
+// Package duplex orchestrates STT + reasoner + TTS into a single streaming
+// voice session with barge-in. DuplexSession halts TTS within 80ms when mic
+// VAD detects voice during playback. budget.Runtime is injected via
+// constructor so cloud.stt.seconds and cloud.tts.chars Charge calls land in
+// the same store as CLI commands.
 package duplex
 
 import (
