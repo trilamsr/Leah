@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.tri.leah</string>
+    <string>com.leah.daemon</string>
 
     <key>ProgramArguments</key>
     <array>

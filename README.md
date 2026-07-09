@@ -1,6 +1,6 @@
 # Leah
 
-Personal chief-of-staff for macOS. Single-operator macOS native app + CLI + always-on daemon. Phase 3 ship — v3.3.0; see `CHANGELOG.md` for the latest delta.
+Personal chief-of-staff for macOS — ask questions, ship code, run adapters — offline-first, from your menubar. Single-operator macOS native app + CLI + always-on daemon. Phase 3 ship — v3.3.0; see `CHANGELOG.md` for the latest delta.
 
 - Architecture: `ARCHITECTURE.md`
 - Specs: `docs/specs/` (design rationale) + `docs/superpowers/designs/` (UI design)
@@ -8,42 +8,13 @@ Personal chief-of-staff for macOS. Single-operator macOS native app + CLI + alwa
 - Phase plans: `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md`
 - Work tracker: [Linear — Leah](https://linear.app/themaydow/project/leah-a8d553e8cc88)
 
-## Getting started (macOS)
+## Install
 
 ```sh
-git clone <repo> ~/code/leah && cd ~/code/leah
-
-# 1. Build CLI + daemon + HUD app
-go build -o leah ./cmd/leah
-go build -o leah-daemon ./cmd/leah-daemon
-make app-build
-
-# 2. Install required CLIs
-brew install gh
-gh auth login
-
-# 3. Configure env vars in ~/.zshrc
-export ANTHROPIC_API_KEY=sk-ant-...                # required
-export LEAH_BUDGET_DOLLARS=5                       # optional, default $5
-export LEAH_PROMPT_DIR=$HOME/code/leah/prompts     # required if leah is on $PATH
-export LEAH_STATE_DIR=$HOME/.leah-state            # optional, default ~/.leah-state
-export LEAH_PUSHOVER_USER=...                      # optional, phone push
-export LEAH_PUSHOVER_TOKEN=...
-export LEAH_HEALTHCHECK_URL=https://hc-ping.com/<uuid>  # optional, daemon heartbeat
-# Phase 3 — voice/TTS:
-export LEAH_ELEVENLABS_API_KEY=...                 # optional, cloud TTS primary
-# Phase 3 — features off by default:
-export LEAH_MCP_PUBLISH=0                          # 1 enables peer-agent MCP publish
-export LEAH_RECOMMEND_BANDIT=0                     # 1 enables bandit recommender
-
-source ~/.zshrc
-
-# 4. Verify
-leah version
-leah                 # prints usage; ~50 subcommands listed
-leah status          # last 20 audit rows
-./leah-daemon        # foreground; or install via launchd (see below)
+brew tap trilamsr/leah && brew install leah && leah init
 ```
+
+`leah init` walks the first-launch wizard: prompts for `ANTHROPIC_API_KEY`, installs the launchd daemon plist, and offers to connect Gmail / Google Calendar.
 
 | Credential | Where to get |
 |---|---|
@@ -83,14 +54,53 @@ State lives in `$LEAH_STATE_DIR` (default `~/.leah-state/`): `audit.jsonl`, `mem
 
 ```sh
 install -m 0755 leah-daemon /usr/local/bin/leah-daemon
-cp scripts/leah.plist ~/Library/LaunchAgents/com.tri.leah.plist
+cp scripts/leah.plist ~/Library/LaunchAgents/com.leah.daemon.plist
 # Edit plist EnvironmentVariables to inject LEAH_HEALTHCHECK_URL + LEAH_STATE_DIR
-launchctl load ~/Library/LaunchAgents/com.tri.leah.plist
+launchctl load ~/Library/LaunchAgents/com.leah.daemon.plist
 ```
 
-Stop: `launchctl unload ~/Library/LaunchAgents/com.tri.leah.plist`. Logs at `/tmp/leah.stdout.log` + `/tmp/leah.stderr.log`.
+Stop: `launchctl unload ~/Library/LaunchAgents/com.leah.daemon.plist`. Logs at `/tmp/leah.stdout.log` + `/tmp/leah.stderr.log`.
 
 ## Development
+
+Manual build from source (contributors / no-brew hosts):
+
+```sh
+git clone https://github.com/trilamsr/Leah ~/code/leah && cd ~/code/leah
+
+# 1. Build CLI + daemon + HUD app
+go build -o leah ./cmd/leah
+go build -o leah-daemon ./cmd/leah-daemon
+make app-build
+
+# 2. Install required CLIs
+brew install gh
+gh auth login
+
+# 3. Configure env vars in ~/.zshrc
+export ANTHROPIC_API_KEY=sk-ant-...                # required
+export LEAH_BUDGET_DOLLARS=5                       # optional, default $5
+export LEAH_PROMPT_DIR=$HOME/code/leah/prompts     # required if leah is on $PATH
+export LEAH_STATE_DIR=$HOME/.leah-state            # optional, default ~/.leah-state
+export LEAH_PUSHOVER_USER=...                      # optional, phone push
+export LEAH_PUSHOVER_TOKEN=...
+export LEAH_HEALTHCHECK_URL=https://hc-ping.com/<uuid>  # optional, daemon heartbeat
+# Phase 3 — voice/TTS:
+export LEAH_ELEVENLABS_API_KEY=...                 # optional, cloud TTS primary
+# Phase 3 — features off by default:
+export LEAH_MCP_PUBLISH=0                          # 1 enables peer-agent MCP publish
+export LEAH_RECOMMEND_BANDIT=0                     # 1 enables bandit recommender
+
+source ~/.zshrc
+
+# 4. Verify
+leah version
+leah                 # prints usage
+leah status          # last 20 audit rows
+./leah-daemon        # foreground; or install via launchd (see above)
+```
+
+Dev loop:
 
 ```sh
 ./scripts/check.sh                  # build + test + vet + lint

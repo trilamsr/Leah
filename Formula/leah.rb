@@ -1,8 +1,10 @@
 class Leah < Formula
   desc "Personal chief-of-staff for macOS — CLI, daemon, and HUD"
   homepage "https://github.com/trilamsr/Leah"
-  url "https://github.com/trilamsr/Leah/releases/download/v0.0.1-mvp5/leah-v0.0.1-mvp5-src.tar.gz"
-  version "0.0.1-mvp5"
+  url "https://github.com/trilamsr/Leah/releases/download/v3.3.0/leah-v3.3.0-src.tar.gz"
+  version "3.3.0"
+  # TODO(release-runbook): fill sha256 after `shasum -a 256 leah-v3.3.0-src.tar.gz`.
+  # sha256 ""
   license "MIT"
   head "https://github.com/trilamsr/Leah.git", branch: "main"
 
@@ -19,6 +21,6 @@ class Leah < Formula
   end
 
   test do
-    assert_match "0.0.1-mvp5", shell_output("#{bin}/leah version")
+    assert_match "3.3.0", shell_output("#{bin}/leah version")
   end
 end

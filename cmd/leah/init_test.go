@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/trilam/leah/internal/keychain"
 )
 
 func TestRunInit_WritesMarkerAndPlist(t *testing.T) {
@@ -126,7 +128,11 @@ func TestRunInit_InteractiveYesPath(t *testing.T) {
 	t.Setenv("LEAH_STATE_DIR", dir)
 	t.Setenv("HOME", dir)
 	t.Setenv("LEAH_INIT_SKIP_LAUNCHCTL", "1")
+	t.Setenv("ANTHROPIC_API_KEY", "")
 	// No AUTO_ACCEPT — exercise the live prompt.
+	// Fake security bin so a real Keychain hit on a dev machine can't
+	// short-circuit the wizard's step 1 before the adapter prompt.
+	defer keychain.SetSecurityBin(keychain.SetSecurityBin(fakeSecurityBin(t)))
 
 	// "y" + blanks for the rest. Without OAuth secrets, runConnect for gmail
 	// returns non-zero; the wizard catches it and prints the (skipped) hint.
@@ -145,6 +151,8 @@ func TestRunInit_EOFStopsPrompting(t *testing.T) {
 	t.Setenv("LEAH_STATE_DIR", dir)
 	t.Setenv("HOME", dir)
 	t.Setenv("LEAH_INIT_SKIP_LAUNCHCTL", "1")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	defer keychain.SetSecurityBin(keychain.SetSecurityBin(fakeSecurityBin(t)))
 
 	var buf bytes.Buffer
 	// Empty stdin → first ReadString returns io.EOF on prompt #1.
@@ -172,5 +180,99 @@ func TestRunInit_ReaderErrorContinues(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "input error") {
 		t.Fatalf("error branch not exercised: %s", buf.String())
+	}
+}
+
+// fakeSecurityBin writes a shell script that impersonates security(1):
+// find-generic-password → exit 44 (missing sentinel); add-generic-password →
+// exit 0. Enough surface to exercise the wizard's Load-miss + Save-hit path
+// without touching the real Keychain (unavailable in CI).
+func fakeSecurityBin(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "security")
+	script := `#!/bin/sh
+sub=$1; shift
+case "$sub" in
+find-generic-password)
+  echo "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain." 1>&2
+  exit 44 ;;
+add-generic-password) exit 0 ;;
+delete-generic-password) exit 0 ;;
+esac
+exit 2
+`
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake security: %v", err)
+	}
+	return bin
+}
+
+// Valid sk-ant-* key → keychain.Save invoked; "stored in Keychain." emitted.
+func TestRunInit_AnthropicKeyStored(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("HOME", dir)
+	t.Setenv("LEAH_INIT_SKIP_LAUNCHCTL", "1")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	defer keychain.SetSecurityBin(keychain.SetSecurityBin(fakeSecurityBin(t)))
+
+	fakeKey := "sk-ant-api03-" + strings.Repeat("x", 40)
+	in := strings.NewReader(fakeKey + "\n" + strings.Repeat("\n", 20))
+	var buf bytes.Buffer
+	if code := runInit(context.Background(), nil, &buf, in); code != 0 {
+		t.Fatalf("exit %d, out=%s", code, buf.String())
+	}
+	if !strings.Contains(buf.String(), "stored in Keychain.") {
+		t.Fatalf("stored acknowledgment missing: %s", buf.String())
+	}
+}
+
+// Malformed input must NOT reach keychain.Save — regex mirrors phase-5 design.
+func TestRunInit_AnthropicKeyRejectsMalformed(t *testing.T) {
+	cases := map[string]string{
+		"short":       "y",
+		"shortBody":   "sk-ant-tooshort",
+		"wrongPfx":    "not-a-key-" + strings.Repeat("x", 40),
+		"bannedChars": "sk-ant-!!!!" + strings.Repeat("x", 40),
+	}
+	for name, in := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("LEAH_STATE_DIR", dir)
+			t.Setenv("HOME", dir)
+			t.Setenv("LEAH_INIT_SKIP_LAUNCHCTL", "1")
+			t.Setenv("ANTHROPIC_API_KEY", "")
+			defer keychain.SetSecurityBin(keychain.SetSecurityBin(fakeSecurityBin(t)))
+
+			var buf bytes.Buffer
+			if code := runInit(context.Background(), nil, &buf, strings.NewReader(in+"\n"+strings.Repeat("\n", 20))); code != 0 {
+				t.Fatalf("exit %d", code)
+			}
+			if !strings.Contains(buf.String(), "does not look like an Anthropic API key") {
+				t.Fatalf("malformed-input guard not exercised: %s", buf.String())
+			}
+			if strings.Contains(buf.String(), "stored in Keychain.") {
+				t.Fatalf("malformed input incorrectly reached keychain.Save")
+			}
+		})
+	}
+}
+
+// Env var already set → skip prompt entirely; no bytes consumed from stdin.
+func TestRunInit_AnthropicKeySkippedWhenEnvSet(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LEAH_STATE_DIR", dir)
+	t.Setenv("HOME", dir)
+	t.Setenv("LEAH_INIT_SKIP_LAUNCHCTL", "1")
+	t.Setenv("LEAH_INIT_AUTO_ACCEPT", "1")
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-preexisting")
+
+	var buf bytes.Buffer
+	if code := runInit(context.Background(), nil, &buf, strings.NewReader("")); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if !strings.Contains(buf.String(), "already set in environment") {
+		t.Fatalf("env-set skip branch not hit: %s", buf.String())
 	}
 }
