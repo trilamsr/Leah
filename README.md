@@ -104,7 +104,7 @@ make dev                            # build daemon + app, wait for socket, tail 
 make dev-stop                       # kill daemon + quit app
 ```
 
-Dev harness runbook: `docs/engineer/runbooks/phase2-dev-loop.md` (covers Phase 2 + Phase 3). Sign + notarize for distribution: `docs/engineer/runbooks/signing-and-notarization.md`.
+Sign + notarize for distribution: `docs/engineer/runbooks/signing-and-notarization.md`.
 
 Integration tests (require `ANTHROPIC_API_KEY`):
 
@@ -130,7 +130,6 @@ Task-specific operator docs live under [`docs/operator/`](docs/operator/):
 - [`install-brew.md`](docs/operator/install-brew.md) — Homebrew tap + formula install path
 - [`release-runbook.md`](docs/operator/release-runbook.md) — tag → sign → notarize → Sparkle appcast
 - [`reproducible-build.md`](docs/operator/reproducible-build.md) — deterministic build verification
-- [`ci-gates.md`](docs/operator/ci-gates.md) — required checks + branch-protection recreate commands
 
 ## Troubleshooting
 

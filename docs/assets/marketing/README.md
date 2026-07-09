@@ -21,6 +21,3 @@ Canonical home for the Leah hero PNGs and Mark in all required sizes. Bundle slo
 
 Drop the real exports in place — same filename, same path. `scripts/check-marketing-assets.sh` runs in CI (`.github/workflows/check.yml`) and gates only file presence + non-empty bytes; real Figma exports will be orders-of-magnitude larger than the 68-byte / 423-byte placeholders, so the gate passes trivially once swapped.
 
-## Spec refs
-
-- `docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md` §17.12 (hero captures), §13.14 (Mark sizes).

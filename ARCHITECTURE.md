@@ -10,8 +10,6 @@ Leah is a single-operator personal chief-of-staff that closes the loop on her ow
 
 Phase 1 stood up Layers 1–4 (audit / memory / decide / dispatch). Phase 2 added Layer 5 (UI shell — widget envelope + HUD tile registry + Ambient + notification toast + pin flow + light mode + BGE ONNX retrieval). Phase 3 added Layer 6 (Voice + Push — ElevenLabs/Apple TTS chain + wake-word + VAD + suppression + push-to-talk + push-source IPC fan + KG citation join + MCP read-only publish + Sparkle EdDSA verify + Dashboard).
 
-Layers 5–6 cross-referenced in `docs/superpowers/plans/2026-06-22-leah-macos-native-phase2.md` + `…-phase3.md`.
-
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Layer 4 — ACT (regatta dispatch)                                   │
@@ -274,10 +272,6 @@ Pre-push (composite):
 
 ## Cross-refs
 
-Phase 2 + 3 implementation plans + ship log:
-
-- Phase 2 plan: [`docs/superpowers/plans/2026-06-22-leah-macos-native-phase2.md`](docs/superpowers/plans/2026-06-22-leah-macos-native-phase2.md)
-- Phase 3 plan: [`docs/superpowers/plans/2026-06-22-leah-macos-native-phase3.md`](docs/superpowers/plans/2026-06-22-leah-macos-native-phase3.md)
-- v3.3.0 ship log: [`CHANGELOG.md`](CHANGELOG.md)
-
-Operator rules for any agent (main + subagents): [`CLAUDE.md`](CLAUDE.md).
+- Forward roadmap: [`docs/superpowers/plans/2026-06-23-leah-macos-native-phase5.md`](docs/superpowers/plans/2026-06-23-leah-macos-native-phase5.md)
+- Ship log: [`CHANGELOG.md`](CHANGELOG.md)
+- Operator rules for any agent (main + subagents): [`CLAUDE.md`](CLAUDE.md).

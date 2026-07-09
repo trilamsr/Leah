@@ -11,7 +11,6 @@
 - Plugin SDK: host + sandbox + quota meter. Weather plugin as reference.
 - Privacy budget runtime (`budget.NewRuntime`) — shared ledger debited by A2A, recommend, vision.
 - Watchdog supervisor: heartbeat + circuit breaker + leak detector.
-- Deleted three superseded sketches (`docs/engineer/specs/2026-06-10-{voice-frontier,learn-recommend-apply,mcp-a2a-publish}.md`) subsumed by `docs/superpowers/designs/2026-06-22-leah-phase4-design.md`.
 
 ## v3.3.0 (2026-06-23)
 
