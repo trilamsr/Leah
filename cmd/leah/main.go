@@ -29,7 +29,12 @@ import (
 	"github.com/trilam/leah/internal/watchdog"
 )
 
-const version = "0.0.1-mvp5"
+const Version = "3.3.0"
+
+// version is the legacy lowercase alias kept for existing internal call sites
+// (`leah version`, `leah -v`, `leah --version`, snapshot metrics). Exported
+// `Version` is the source of truth referenced by the usage banner + tests.
+const version = Version
 
 func main() { os.Exit(run()) }
 
@@ -128,7 +133,7 @@ func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
 		}
 		var prNum int
 		if _, err := fmt.Sscanf(rest[1], "%d", &prNum); err != nil {
-			_, _ = fmt.Fprintln(os.Stderr, "pr# must be an integer")
+			_, _ = fmt.Fprintf(os.Stderr, "expected a PR number, got %q\n", rest[1])
 			return 2
 		}
 		return runReview(ctx, rest[0], prNum)
@@ -640,17 +645,33 @@ func promptDir() string {
 }
 
 func usage() {
-	_, _ = fmt.Fprintln(os.Stderr, "Leah — personal chief-of-staff")
+	_, _ = fmt.Fprintln(os.Stderr, "Leah — personal chief-of-staff (v"+Version+")")
 	_, _ = fmt.Fprintln(os.Stderr, "")
 	_, _ = fmt.Fprintln(os.Stderr, "usage: leah <command> [args...]")
 	_, _ = fmt.Fprintln(os.Stderr, "")
-	_, _ = fmt.Fprintln(os.Stderr, "commands:")
-	_, _ = fmt.Fprintln(os.Stderr, "  init [--force]            first-launch wizard (plist + adapters)")
+	_, _ = fmt.Fprintln(os.Stderr, "First-launch:")
+	_, _ = fmt.Fprintln(os.Stderr, "  init [--force]            first-launch wizard (plist + api key + adapters)")
+	_, _ = fmt.Fprintln(os.Stderr, "")
+	_, _ = fmt.Fprintln(os.Stderr, "Ask:")
 	_, _ = fmt.Fprintln(os.Stderr, "  ask \"<query>\"             ask a question and stream the answer")
+	_, _ = fmt.Fprintln(os.Stderr, "  recall [--llm] <query>    search your history and memory")
+	_, _ = fmt.Fprintln(os.Stderr, "  brief [--voice] [--silent]   daily morning brief (recap + backlog + recs + cost)")
+	_, _ = fmt.Fprintln(os.Stderr, "  news                      synthesized daily news digest (RSS sources)")
+	_, _ = fmt.Fprintln(os.Stderr, "  paper <save|list|read>    arXiv read-later queue (id or arxiv.org URL)")
+	_, _ = fmt.Fprintln(os.Stderr, "  quote <symbol>...         market quotes for given symbols (Alpha Vantage)")
+	_, _ = fmt.Fprintln(os.Stderr, "  find [--region XX] <title...>  which streaming services carry a title (TMDB)")
+	_, _ = fmt.Fprintln(os.Stderr, "  suggest [--context X] [--llm]   suggest what to do next based on your recent activity")
+	_, _ = fmt.Fprintln(os.Stderr, "")
+	_, _ = fmt.Fprintln(os.Stderr, "Ship:")
 	_, _ = fmt.Fprintln(os.Stderr, "  ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"  file regatta issue + watch + narrate")
-	_, _ = fmt.Fprintln(os.Stderr, "  call <callee> [--audio]   initiate a FaceTime video call (default) or audio call with [--audio]")
 	_, _ = fmt.Fprintln(os.Stderr, "  review <repo> <pr#>       independent review verdict on a pull request")
-	_, _ = fmt.Fprintln(os.Stderr, "  status [--json]           recent activity from audit log")
+	_, _ = fmt.Fprintln(os.Stderr, "  self-build \"<intent>\"     dispatch a regatta self-build PR")
+	_, _ = fmt.Fprintln(os.Stderr, "  self-build-status         status of the latest self-build")
+	_, _ = fmt.Fprintln(os.Stderr, "  pr-state <N>|--open|--queue  one-line PR readiness (state, CI, review, mergeable)")
+	_, _ = fmt.Fprintln(os.Stderr, "  review-queue [--org X] [--json]  PRs awaiting your review, oldest-first")
+	_, _ = fmt.Fprintln(os.Stderr, "  backlog [repo] [--json]   active agents + ready issues + recent PRs")
+	_, _ = fmt.Fprintln(os.Stderr, "")
+	_, _ = fmt.Fprintln(os.Stderr, "Memory:")
 	_, _ = fmt.Fprintln(os.Stderr, "  contact <add|list|show>   manage contacts (memory)")
 	_, _ = fmt.Fprintln(os.Stderr, "  project <add|list|show>   manage projects (memory)")
 	_, _ = fmt.Fprintln(os.Stderr, "  decision <add|list|show>  log + recall decisions (memory)")
@@ -659,27 +680,26 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  mistake add --audit-id <id> --root-cause <tag> --prevention <text>")
 	_, _ = fmt.Fprintln(os.Stderr, "  retro [--week YYYY-WW]    weekly retro markdown")
 	_, _ = fmt.Fprintln(os.Stderr, "  patterns [--weekly]       skill-candidate clusters from audit")
-	_, _ = fmt.Fprintln(os.Stderr, "  suggest [--context X] [--llm]   suggest what to do next based on your recent activity")
-	_, _ = fmt.Fprintln(os.Stderr, "  backlog [repo] [--json]   active agents + ready issues + recent PRs")
-	_, _ = fmt.Fprintln(os.Stderr, "  recall [--llm] <query>    search your history and memory")
-	_, _ = fmt.Fprintln(os.Stderr, "  self-build \"<intent>\"     dispatch a regatta self-build PR")
-	_, _ = fmt.Fprintln(os.Stderr, "  cost [--since D] [--by kind|day|model] [--json]  aggregate spend")
-	_, _ = fmt.Fprintln(os.Stderr, "  brief [--voice] [--silent]   daily morning brief (recap + backlog + recs + cost)")
-	_, _ = fmt.Fprintln(os.Stderr, "  listen [--duration D] [--model M] [--repo R]   push-to-talk → whisper.cpp → intent dispatch")
-	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]   restic snapshot of state dir")
+	_, _ = fmt.Fprintln(os.Stderr, "  forget <pattern-id|all> [--dry-run] [--yes]  wipe learned patterns from your recommendations")
+	_, _ = fmt.Fprintln(os.Stderr, "")
+	_, _ = fmt.Fprintln(os.Stderr, "Adapters:")
 	_, _ = fmt.Fprintln(os.Stderr, "  connect <integration>|--list  first-launch OAuth device-code for shipped adapters (gmail, gcal)")
 	_, _ = fmt.Fprintln(os.Stderr, "  disconnect <integration>|--list  revoke + remove on-disk token for a shipped adapter")
-	_, _ = fmt.Fprintln(os.Stderr, "  forget <pattern-id|all> [--dry-run] [--yes]  wipe learned patterns from your recommendations")
-	_, _ = fmt.Fprintln(os.Stderr, "  purge --everything        BR=4: OAuth revoke + rm -rf ~/.leah-state/ + brew/PATH hints")
-	_, _ = fmt.Fprintln(os.Stderr, "  news                      synthesized daily news digest (RSS sources)")
-	_, _ = fmt.Fprintln(os.Stderr, "  oncall [--since D] [--kind SUBSTR]  alarming audit signals from last 1h (default)")
-	_, _ = fmt.Fprintln(os.Stderr, "  paper <save|list|read>    arXiv read-later queue (id or arxiv.org URL)")
-	_, _ = fmt.Fprintln(os.Stderr, "  quote <symbol>...         market quotes for given symbols (Alpha Vantage)")
+	_, _ = fmt.Fprintln(os.Stderr, "  call <callee> [--audio]   initiate a FaceTime video call (default) or audio call with [--audio]")
+	_, _ = fmt.Fprintln(os.Stderr, "  open <target>             launch streaming/social via macOS open (netflix, spotify, linkedin, …)")
+	_, _ = fmt.Fprintln(os.Stderr, "  inbound enroll <channel> <peerID>  one-time loopback authorization for remote replies (F3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  watch [<sym>|--rm <sym>]  manage watchlist symbols read by the morning brief")
+	_, _ = fmt.Fprintln(os.Stderr, "  strategist <post|next|inbox|queue|doctor>  social-post pipeline (text+image+clip via higgsfield)")
+	_, _ = fmt.Fprintln(os.Stderr, "")
+	_, _ = fmt.Fprintln(os.Stderr, "Ops:")
+	_, _ = fmt.Fprintln(os.Stderr, "  status [--json]           recent activity from audit log")
+	_, _ = fmt.Fprintln(os.Stderr, "  cost [--since D] [--by kind|day|model] [--json]  aggregate spend")
+	_, _ = fmt.Fprintln(os.Stderr, "  oncall [--since D] [--kind SUBSTR]  alarming audit signals from last 1h (default)")
+	_, _ = fmt.Fprintln(os.Stderr, "  listen [--duration D] [--model M] [--repo R]   push-to-talk → whisper.cpp → intent dispatch")
+	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]   restic snapshot of state dir")
 	_, _ = fmt.Fprintln(os.Stderr, "  whoami [--full]           print workspace + integrations, or enumerate persisted state (M1)")
 	_, _ = fmt.Fprintln(os.Stderr, "  export --all [--out PATH]  encrypted archive of ~/.leah-state (M3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  import <archive> [--overwrite]  restore encrypted archive (M3)")
-	_, _ = fmt.Fprintln(os.Stderr, "  inbound enroll <channel> <peerID>  one-time loopback authorization for remote replies (F3)")
 	_, _ = fmt.Fprintln(os.Stderr, "  self-upgrade              attested rebuild + atomic symlink-swap of ~/bin/leah (BR=4)")
 	_, _ = fmt.Fprintln(os.Stderr, "  pr-state <N>|--open|--queue  one-line PR readiness (state, CI, review, mergeable)")
 	_, _ = fmt.Fprintln(os.Stderr, "  review-queue [--org X] [--json]  PRs awaiting your review, oldest-first")
