@@ -12,6 +12,7 @@ import (
 	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/budget"
 	"github.com/trilam/leah/internal/learn"
+	mcpInbound "github.com/trilam/leah/internal/mcp/inbound"
 	"github.com/trilam/leah/internal/plugin"
 	"github.com/trilam/leah/internal/supervisor"
 	"github.com/trilam/leah/internal/sync/discovery"
@@ -35,6 +36,7 @@ type phase4Producers struct {
 	A2AConsent  *a2a.ConsentStore
 	PluginHost  plugin.Host
 	Supervisor  *supervisor.Supervisor
+	MCPInbound  *mcpInbound.Server // default OFF; Settings → Connections issues tokens + starts transport
 }
 
 // wirePhase4Producers constructs each Phase 4 producer with deps drawn from
@@ -50,6 +52,9 @@ type phase4Producers struct {
 //     identity ships with the pair-setup CLI.
 //   - plugin.Sandbox uses default TaskPolicy{} — bundle-specific policy
 //     arrives with the manifest schema v1.
+//   - mcp/inbound TokenStore uses InMemory backend — sqlstore mcp_token
+//     migration ships with the Settings → Connections issue flow; tokens
+//     re-issue on restart until then (server stays OFF by default).
 func wirePhase4Producers(db *sql.DB, errOut io.Writer, lg *slog.Logger) phase4Producers {
 	p := phase4Producers{
 		Recommender: learn.New(db),
@@ -58,7 +63,20 @@ func wirePhase4Producers(db *sql.DB, errOut io.Writer, lg *slog.Logger) phase4Pr
 		Discovery:   discovery.New(),                     // constructed only — operator toggles Start
 		A2AConsent:  a2a.NewConsentStore(db),
 		Supervisor:  supervisor.New(supervisor.Config{}),
+		MCPInbound:  mcpInbound.New(mcpInbound.NewTokenStore(mcpInbound.InMemory())),
 	}
+	// nil deps → tools error at call (loud misconfig); Settings wires real deps.
+	// Recover matches the plugin/a2a soft-fail pattern — a MustRegister collision
+	// must not crash the daemon at boot.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				_, _ = fmt.Fprintf(errOut, "leah-daemon: mcp inbound register non-fatal: %v\n", r)
+				p.MCPInbound = nil
+			}
+		}()
+		mcpInbound.RegisterFirstParty(p.MCPInbound, mcpInbound.FirstPartyDeps{})
+	}()
 
 	// a2a.Server: ephemeral identity (STUB — persistent key arrives with pair
 	// flow). Handler is nil here; daemon-side ipc edge sets it before Listen.
@@ -89,6 +107,7 @@ func wirePhase4Producers(db *sql.DB, errOut io.Writer, lg *slog.Logger) phase4Pr
 		"a2a_server", p.A2A != nil,
 		"plugin_host", p.PluginHost != nil,
 		"supervisor", p.Supervisor != nil,
+		"mcp_inbound", p.MCPInbound != nil,
 		"ambient_capture", "off",
 	)
 	return p
