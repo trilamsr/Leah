@@ -300,7 +300,7 @@ func importAttest() error {
 	if v := os.Getenv("LEAH_IMPORT_AUTO_ATTEST"); v == "1" {
 		return nil
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "Type %q to authorize overwrite: ", importAttestPhrase)
+	_, _ = fmt.Fprintf(os.Stderr, "This will overwrite existing state. Confirm by typing: %s\n> ", importAttestPhrase)
 	r := bufio.NewReader(os.Stdin)
 	line, err := r.ReadString('\n')
 	if err != nil && err != io.EOF {

@@ -320,7 +320,7 @@ func runAsk(ctx context.Context, reg *obs.Registry, query string) int {
 	br := openCostBreaker()
 	client, err := reasoner.NewRoutedClient("reasoner", br, b, nil)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah ask: %v\n", err)
 		return 1
 	}
 	r := &reasoner.Reasoner{Client: client, Budget: b, SystemPrompt: string(systemPrompt), PersonaPrefix: personaPrefixForActive()}
@@ -554,7 +554,7 @@ func runReview(ctx context.Context, repo string, prNum int) int {
 
 	sub, err := reviewer.NewAnthropicSubagent()
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "leah review: %v\n", err)
 		return 1
 	}
 	sink := newFlushingSink(os.Stdout)
@@ -675,7 +675,7 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  init [--force]            first-launch wizard (plist + adapters)")
 	_, _ = fmt.Fprintln(os.Stderr, "  ask \"<query>\"             direct query to Reasoner")
 	_, _ = fmt.Fprintln(os.Stderr, "  ship [--from-pr N] [--from-issue N] [--from-thread Wc|Wm] <repo> \"<intent>\"  file regatta issue + watch + narrate")
-	_, _ = fmt.Fprintln(os.Stderr, "  call <callee> [--audio]   place a FaceTime video (default) or audio call")
+	_, _ = fmt.Fprintln(os.Stderr, "  call <callee> [--audio]   initiate a FaceTime video call (default) or audio call with [--audio]")
 	_, _ = fmt.Fprintln(os.Stderr, "  review <repo> <pr#>       independent reviewer subagent on PR")
 	_, _ = fmt.Fprintln(os.Stderr, "  status [--json]           recent activity from audit log")
 	_, _ = fmt.Fprintln(os.Stderr, "  contact <add|list|show>   manage contacts (memory)")
@@ -694,7 +694,6 @@ func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "  brief [--voice] [--silent]   daily morning brief (recap + backlog + recs + cost)")
 	_, _ = fmt.Fprintln(os.Stderr, "  listen [--duration D] [--model M] [--repo R]   push-to-talk → whisper.cpp → intent dispatch")
 	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]   restic snapshot of state dir")
-	_, _ = fmt.Fprintln(os.Stderr, "  backup [--target local|b2|both] [--restore [--restore-to PATH]] [--verify]  restic snapshot of ~/.leah-state")
 	_, _ = fmt.Fprintln(os.Stderr, "  connect <integration>|--list  first-launch OAuth device-code for shipped adapters (gmail, gcal)")
 	_, _ = fmt.Fprintln(os.Stderr, "  disconnect <integration>|--list  revoke + remove on-disk token for a shipped adapter")
 	_, _ = fmt.Fprintln(os.Stderr, "  forget <pattern-id|all> [--dry-run] [--yes]  wipe pattern(s) from operator-model recs")

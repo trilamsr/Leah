@@ -67,7 +67,7 @@ func runInit(ctx context.Context, args []string, w io.Writer, in io.Reader) int 
 	_, _ = fmt.Fprintln(w, "Step 1: macos-integration daemon")
 
 	if err := installPlist(w); err != nil {
-		_, _ = fmt.Fprintf(w, "  plist install failed: %v\n", err)
+		_, _ = fmt.Fprintf(w, "  plist install failed — ensure ~/Library/LaunchAgents is writable (%v)\n", err)
 		return 1
 	}
 	if os.Getenv("LEAH_INIT_SKIP_LAUNCHCTL") != "1" {
@@ -85,7 +85,7 @@ func runInit(ctx context.Context, args []string, w io.Writer, in io.Reader) int 
 		return 1
 	}
 	_, _ = fmt.Fprintln(w, "")
-	_, _ = fmt.Fprintln(w, "Done. Run `leah connect <adapter>` anytime to add more.")
+	_, _ = fmt.Fprintln(w, "Done. To add integrations (Gmail, Slack, etc), run `leah connect --list`")
 	return 0
 }
 

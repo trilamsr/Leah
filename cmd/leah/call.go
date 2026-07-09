@@ -30,6 +30,10 @@ func (nativeExec) Run(ctx context.Context, name string, args []string, stdin []b
 	return out, err
 }
 
+func printCallUsage() {
+	fmt.Fprintln(os.Stderr, "usage: leah call <callee> [--audio]")
+}
+
 func runCall(ctx context.Context, args []string) int {
 	audio := false
 	var callee string
@@ -38,14 +42,14 @@ func runCall(ctx context.Context, args []string) int {
 		case a == "--audio":
 			audio = true
 		case a == "-h" || a == "--help":
-			fmt.Fprintln(os.Stderr, "usage: leah call <callee> [--audio]")
+			printCallUsage()
 			return 0
 		case callee == "":
 			callee = a
 		}
 	}
 	if callee == "" {
-		fmt.Fprintln(os.Stderr, "usage: leah call <callee> [--audio]")
+		printCallUsage()
 		return 2
 	}
 	return runCallWith(ctx, newConnectAttestor(), nativeExec{}, callee, audio)
