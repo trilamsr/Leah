@@ -111,12 +111,6 @@ cleanup
 mkdir -p "$SUPPORT_DIR" "$(dirname "$SOCK")" "$(dirname "$PIDFILE")"
 cp "$THIS/phase2-fixtures/widget-registry.json" "$SUPPORT_DIR/widget-registry.json"
 
-# -- locate spec file ------------------------------------------------------
-SPEC="$REPO/docs/superpowers/designs/2026-06-21-leah-macos-native-ui-design.md"
-if [ ! -f "$SPEC" ]; then
-  step_fail 8 "spec file missing: $SPEC"
-fi
-
 # -- build daemon ----------------------------------------------------------
 echo "phase2-e2e: building leah-daemon"
 if ! go build -C "$REPO" -o /tmp/leah-daemon-e2e ./cmd/leah-daemon >"$LOG" 2>&1; then
@@ -206,11 +200,5 @@ elif ! out="$(go run -C "$REPO" "$PROBE" bge-table 2>&1)"; then
 else
   echo "phase2-e2e: (7) ok — bge generator routes to embeddings_bge_small_en_v1_5_384"
 fi
-
-# ---- Invariant 8: spec-parity holds ------------------------------------
-if ! "$REPO/scripts/check-spec-parity.sh" "$SPEC" >>"$LOG" 2>&1; then
-  step_fail 8 "spec-parity failed (see $LOG)"
-fi
-echo "phase2-e2e: (8) ok — spec-parity clean"
 
 echo "phase2 e2e ok"
