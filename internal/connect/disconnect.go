@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 var ErrTokenFileNotFound = errors.New("connect: token file not found")
@@ -21,7 +23,7 @@ type Revoker interface {
 // upstream revoke (best-effort), then on-disk token removal. Ordering matches
 // Authorize's "consent before side effects" rule — a denied attestation MUST
 // NOT delete the token file.
-func Disconnect(ctx context.Context, p Provider, att Attestor) error {
+func Disconnect(ctx context.Context, p Provider, att contracts.Attestor) error {
 	if err := att.Attest(ctx, "disconnect:"+p.Name()); err != nil {
 		return fmt.Errorf("%w: %v", ErrAttestationDenied, err)
 	}

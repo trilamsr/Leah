@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // fakeService is a hand-rolled stub of calendarService so tests do not need
@@ -78,8 +80,8 @@ func TestListTodayTable(t *testing.T) {
 	tests := []struct {
 		name      string
 		svc       *fakeService
-		att       Attestor
-		ts        TokenSource
+		att       contracts.Attestor
+		ts        contracts.TokenSource
 		wantLen   int
 		wantErrIs error
 	}{
@@ -132,8 +134,8 @@ func TestCreateEventTable(t *testing.T) {
 		name      string
 		in        Event
 		svc       *fakeService
-		att       Attestor
-		ts        TokenSource
+		att       contracts.Attestor
+		ts        contracts.TokenSource
 		wantErrIs error
 	}{
 		{

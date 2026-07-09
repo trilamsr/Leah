@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
@@ -58,10 +59,6 @@ type Result struct {
 	URL     string
 }
 
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
 // TokenSource yields per-token-class bearers. Search needs UserToken (Bot
 // Tokens cannot search); everything else uses BotToken. Empty UserToken is a
 // declined-User-Token signal, not an error.
@@ -93,7 +90,7 @@ type AuditSink interface {
 }
 
 type Config struct {
-	Attestor    Attestor
+	Attestor    contracts.Attestor
 	TokenSource TokenSource
 	Transport   Transport
 	Audit       AuditSink
@@ -104,7 +101,7 @@ type Config struct {
 }
 
 type Adapter struct {
-	att   Attestor
+	att   contracts.Attestor
 	ts    TokenSource
 	tr    Transport
 	audit AuditSink

@@ -14,6 +14,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
@@ -23,10 +24,6 @@ var (
 )
 
 const ScopeQuery = "macos:contacts:query"
-
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
 
 // Item mirrors the spec §6 cross-app normalized shape so the future
 // internal/macos package can hoist it without changing this adapter.
@@ -45,12 +42,12 @@ type Query struct {
 }
 
 type Config struct {
-	Attestor Attestor
+	Attestor contracts.Attestor
 	DBPath   string
 }
 
 type Adapter struct {
-	att    Attestor
+	att    contracts.Attestor
 	dbPath string
 }
 

@@ -9,6 +9,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/macos/sqliteopen"
 )
 
@@ -65,7 +66,7 @@ func seedFixture(t *testing.T, path string) {
 	}
 }
 
-func newTestAdapter(t *testing.T, att Attestor, dbPath string) *Adapter {
+func newTestAdapter(t *testing.T, att contracts.Attestor, dbPath string) *Adapter {
 	t.Helper()
 	a, err := New(Config{Attestor: att, DBPath: dbPath})
 	if err != nil {

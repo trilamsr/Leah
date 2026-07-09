@@ -9,6 +9,8 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // ScopeWeatherFetch is the operator-attestation scope the gate sees on a
@@ -22,12 +24,6 @@ const defaultOWMBaseURL = "https://api.openweathermap.org/data/2.5/weather"
 // ErrAttestationDenied wraps the Attestor's rejection so callers can
 // errors.Is on it. Same shape as gmail/gcal.
 var ErrAttestationDenied = errors.New("feeds: attestation denied")
-
-// Attestor mirrors the gmail / gcal gate. Structural-typed so wiring code
-// passes one concrete implementation across every adapter.
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
 
 // Forecast is the weather payload the synth layer + HUD widget read. Fields
 // chosen to feed the brief one-liner ("18C / 9C, light rain expected, bring
@@ -43,7 +39,7 @@ type Forecast struct {
 // WeatherConfig wires the adapter. Attestor + HTTPClient + APIKey + Location
 // are required; BaseURL defaults to OpenWeatherMap prod when blank.
 type WeatherConfig struct {
-	Attestor   Attestor
+	Attestor   contracts.Attestor
 	HTTPClient *http.Client
 	APIKey     string
 	Location   string
@@ -53,7 +49,7 @@ type WeatherConfig struct {
 // Weather is the OpenWeatherMap adapter. Lifecycle is owned by the caller —
 // the constructor MUST NOT start goroutines so daemon shutdown stays clean.
 type Weather struct {
-	att     Attestor
+	att     contracts.Attestor
 	client  *http.Client
 	apiKey  string
 	loc     string

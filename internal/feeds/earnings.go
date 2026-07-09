@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // ScopeEarningsFetch is the operator-attestation scope for a per-symbol
@@ -39,7 +41,7 @@ type EarningsEvent struct {
 // shape as MarketConfig — caller reads APIKey from the 0600 secrets file
 // and passes it in. BaseURL blank → AV prod; Now blank → wall clock.
 type EarningsConfig struct {
-	Attestor   Attestor
+	Attestor   contracts.Attestor
 	HTTPClient *http.Client
 	APIKey     string
 	BaseURL    string
@@ -49,7 +51,7 @@ type EarningsConfig struct {
 // Earnings is the AV EARNINGS_CALENDAR adapter. Stateless — daemon owns
 // lifecycle.
 type Earnings struct {
-	att     Attestor
+	att     contracts.Attestor
 	client  *http.Client
 	apiKey  string
 	baseURL string

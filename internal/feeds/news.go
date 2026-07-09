@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // ScopeNewsFetch is the operator-attestation scope for a news pull. Distinct
@@ -36,7 +38,7 @@ type NewsSource struct {
 // are required; constructor refuses half-wired wiring so a missing gate never
 // silently leaks a network call.
 type NewsConfig struct {
-	Attestor   Attestor
+	Attestor   contracts.Attestor
 	HTTPClient *http.Client
 	Sources    []NewsSource
 }
@@ -44,7 +46,7 @@ type NewsConfig struct {
 // News is the multi-source RSS adapter. Lifecycle is caller-owned; no
 // background goroutines so daemon shutdown stays clean.
 type News struct {
-	att     Attestor
+	att     contracts.Attestor
 	client  *http.Client
 	sources []NewsSource
 }

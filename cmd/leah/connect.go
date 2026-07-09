@@ -10,6 +10,7 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // runConnect is `leah connect`. w is stdout (test seam); stderr stays
@@ -97,7 +98,7 @@ func printConnectUsage(w io.Writer) {
 
 type connectAttestor struct{}
 
-func newConnectAttestor() connect.Attestor { return connectAttestor{} }
+func newConnectAttestor() contracts.Attestor { return connectAttestor{} }
 
 func (connectAttestor) Attest(_ context.Context, scope string) error {
 	if v := os.Getenv("LEAH_CONNECT_AUTO_ATTEST"); v == "1" {

@@ -9,9 +9,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
-func newTestOSM(t *testing.T, att Attestor, srv *httptest.Server) *OSM {
+func newTestOSM(t *testing.T, att contracts.Attestor, srv *httptest.Server) *OSM {
 	t.Helper()
 	o, err := NewOSM(OSMConfig{Attestor: att, HTTPClient: srv.Client(), BaseURL: srv.URL})
 	if err != nil {

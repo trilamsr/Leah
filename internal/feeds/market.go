@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // ScopeMarketFetch is the operator-attestation scope for a market-quote pull.
@@ -38,7 +40,7 @@ type Quote struct {
 // blank (defaults to AV prod); APIKey is read by the caller from
 // $HOME/.leah-state/secrets/alphavantage-key.json (mode 0600) and passed in.
 type MarketConfig struct {
-	Attestor   Attestor
+	Attestor   contracts.Attestor
 	HTTPClient *http.Client
 	APIKey     string
 	BaseURL    string
@@ -47,7 +49,7 @@ type MarketConfig struct {
 // Market is the Alpha Vantage adapter. No background goroutines — lifecycle
 // owned by the caller so daemon shutdown is clean.
 type Market struct {
-	att     Attestor
+	att     contracts.Attestor
 	client  *http.Client
 	apiKey  string
 	baseURL string

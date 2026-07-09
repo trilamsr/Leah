@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // fakeAttestor records scope invocations and optionally rejects them; the
@@ -52,7 +54,7 @@ type fakeSink struct {
 
 func (f *fakeSink) Audit(r AuditRow) { f.rows = append(f.rows, r) }
 
-func newTestAdapter(t *testing.T, att Attestor, ex OSExec, sink Sink, now func() time.Time) *Adapter {
+func newTestAdapter(t *testing.T, att contracts.Attestor, ex OSExec, sink Sink, now func() time.Time) *Adapter {
 	t.Helper()
 	a, err := New(Config{Attestor: att, OSExec: ex, Sink: sink, Now: now})
 	if err != nil {

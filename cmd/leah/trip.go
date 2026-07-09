@@ -13,6 +13,7 @@ import (
 
 	"github.com/trilam/leah/internal/adapters/flights"
 	"github.com/trilam/leah/internal/adapters/maps"
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // runTrip surfaces the maps+flights infra as one CLI verb.
@@ -190,7 +191,7 @@ func tryFlights(ctx context.Context, origin, dest maps.Place) []flights.FlightOf
 // brief daemon and tests non-interactive; otherwise prompt the operator.
 type mapsAttestor struct{}
 
-func newMapsAttestor() maps.Attestor { return mapsAttestor{} }
+func newMapsAttestor() contracts.Attestor { return mapsAttestor{} }
 
 func (mapsAttestor) Attest(_ context.Context, scope string) error {
 	if os.Getenv("LEAH_MAPS_AUTO_ATTEST") == "1" {

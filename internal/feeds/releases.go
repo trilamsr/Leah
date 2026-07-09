@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // ScopeReleasesFetch is the operator-attestation scope for a release-notes
@@ -28,7 +30,7 @@ type ReleaseSource struct {
 // constructor refuses half-wired wiring so a missing gate never silently
 // leaks a network call.
 type ReleasesConfig struct {
-	Attestor   Attestor
+	Attestor   contracts.Attestor
 	HTTPClient *http.Client
 	Sources    []ReleaseSource
 }
@@ -37,7 +39,7 @@ type ReleasesConfig struct {
 // only for activity feeds; per-repo release feeds are Atom 1.0, so this needs
 // its own parser distinct from the news RSS path.
 type Releases struct {
-	att     Attestor
+	att     contracts.Attestor
 	client  *http.Client
 	sources []ReleaseSource
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
@@ -47,22 +48,6 @@ type Event struct {
 	Location string
 }
 
-// Attestor is Leah's operator-attestation gate. Every secret-touching RPC
-// calls Attest(scope) before the token leaves the TokenSource; a non-nil
-// return aborts the RPC with ErrAttestationDenied (wrapped). Mirrors the
-// gmail adapter's gate so wiring code can pass one Attestor implementation
-// to both adapters.
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
-// TokenSource yields the OAuth bearer token. Production wiring reads it from
-// $HOME/.leah-state/secrets/gcal-token.json (path documented in the spec);
-// tests inject a fake to keep the suite hermetic.
-type TokenSource interface {
-	Token(ctx context.Context) (string, error)
-}
-
 // Config is the constructor input. TokenPath + Attestor are required;
 // production wiring sets the other knobs and tests leave them zero.
 type Config struct {
@@ -78,12 +63,12 @@ type Config struct {
 
 	// Attestor is the operator-consent gate; missing → New refuses
 	// construction because a nil gate would silently bypass attestation.
-	Attestor Attestor
+	Attestor contracts.Attestor
 
 	// TokenSource yields the (auto-refreshing) bearer. When set, New builds
 	// the production HTTP calendarService; when nil the adapter stays a
 	// gate-only stub (tests inject svc directly).
-	TokenSource TokenSource
+	TokenSource contracts.TokenSource
 
 	// BaseURL overrides the Google Calendar host for tests (httptest). Empty
 	// → the production v3 endpoint.
@@ -108,8 +93,8 @@ type calendarService interface {
 type Adapter struct {
 	cfg Config
 	svc calendarService
-	att Attestor
-	ts  TokenSource
+	att contracts.Attestor
+	ts  contracts.TokenSource
 	now func() time.Time
 	m   *connectadapter.Metrics
 }

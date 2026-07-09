@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 var (
@@ -48,29 +50,21 @@ type Result struct {
 	Buy      []Provider
 }
 
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
-type TokenSource interface {
-	Token(ctx context.Context) (string, error)
-}
-
 type Transport interface {
 	Search(ctx context.Context, key, query string) ([]SearchHit, error)
 	WatchProviders(ctx context.Context, key, mediaType string, id int, region string) (ProviderSet, error)
 }
 
 type Config struct {
-	Attestor    Attestor
-	TokenSource TokenSource
+	Attestor    contracts.Attestor
+	TokenSource contracts.TokenSource
 	Transport   Transport
 	Region      string
 }
 
 type Adapter struct {
-	att    Attestor
-	ts     TokenSource
+	att    contracts.Attestor
+	ts     contracts.TokenSource
 	tr     Transport
 	region string
 }

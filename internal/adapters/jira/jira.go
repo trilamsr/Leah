@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/adapters/atlassian"
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
@@ -58,21 +59,6 @@ type IssueReq struct {
 	IssueType   string // "Task", "Bug", "Story"
 }
 
-// Attestor is Leah's operator-attestation gate. Every secret-touching RPC
-// calls Attest(scope) before the token leaves the TokenSource; a non-nil
-// return aborts the RPC with ErrAttestationDenied (wrapped).
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
-// TokenSource yields the Atlassian API-token bearer (email+token base64 pair
-// at wiring time). Production wiring reads it from
-// $HOME/.leah-state/secrets/jira-token.json (path documented in the spec);
-// tests inject a fake to keep the suite hermetic.
-type TokenSource interface {
-	Token(ctx context.Context) (string, error)
-}
-
 // Transport is the seam between the adapter's policy layer (attestation,
 // validation, error mapping) and the Atlassian Cloud REST v3 calls. Keeping
 // it an interface defers the SDK require until a combined tidy so scaffolding
@@ -88,8 +74,8 @@ type Transport interface {
 // New refuses to construct a half-wired Client because a missing Attestor
 // would silently bypass the operator-consent gate.
 type Config struct {
-	Attestor    Attestor
-	TokenSource TokenSource
+	Attestor    contracts.Attestor
+	TokenSource contracts.TokenSource
 	Transport   Transport
 	BaseURL     string // e.g. https://acme.atlassian.net
 	// Metrics is optional — nil is a no-op (connectadapter contract), so
@@ -101,8 +87,8 @@ type Config struct {
 // pools, token refresh) is owned by the caller — the constructor MUST NOT
 // start background goroutines so daemon shutdown stays deterministic.
 type Client struct {
-	att     Attestor
-	ts      TokenSource
+	att     contracts.Attestor
+	ts      contracts.TokenSource
 	tr      Transport
 	baseURL string
 	m       *connectadapter.Metrics

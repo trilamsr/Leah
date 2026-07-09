@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
@@ -60,19 +61,6 @@ type Props struct {
 	Fields map[string]string
 }
 
-// Attestor is Leah's operator-attestation gate; every RPC calls
-// Attest(scope) before the integration secret leaves the TokenSource.
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
-// TokenSource yields the Notion integration secret. Production wiring reads
-// it from $HOME/.leah-state/secrets/notion-token.json (path documented in
-// the spec); tests inject a fake to stay hermetic.
-type TokenSource interface {
-	Token(ctx context.Context) (string, error)
-}
-
 // Transport is the seam between the adapter's policy layer (attestation,
 // validation, error mapping) and the api.notion.com/v1 REST calls. Keeping
 // it an interface lets the wiring wave plug in either hand-rolled net/http
@@ -88,8 +76,8 @@ type Transport interface {
 // refuses construction without an Attestor because that would silently
 // bypass the operator-consent gate.
 type Config struct {
-	Attestor    Attestor
-	TokenSource TokenSource
+	Attestor    contracts.Attestor
+	TokenSource contracts.TokenSource
 	Transport   Transport
 	// Metrics is optional — nil is a no-op (connectadapter contract), so
 	// existing callers keep working without a registry.
@@ -99,8 +87,8 @@ type Config struct {
 // Adapter is the Notion adapter. No background goroutines; lifecycle is
 // owned by the caller.
 type Adapter struct {
-	att Attestor
-	ts  TokenSource
+	att contracts.Attestor
+	ts  contracts.TokenSource
 	tr  Transport
 	m   *connectadapter.Metrics
 }

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
@@ -42,20 +43,12 @@ type Message struct {
 	Timestamp time.Time
 }
 
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
 // TokenSource splits secrets so a leaked bearer cannot also forge webhooks.
 type TokenSource interface {
 	Token(ctx context.Context) (string, error)
 	VerifyToken(ctx context.Context) (string, error)
 	AppSecret(ctx context.Context) (string, error)
 	PhoneNumberID(ctx context.Context) (string, error)
-}
-
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
 }
 
 // AuditRow hashes recipient and records body by length only.
@@ -72,9 +65,9 @@ type AuditSink interface {
 }
 
 type Config struct {
-	Attestor           Attestor
+	Attestor           contracts.Attestor
 	TokenSource        TokenSource
-	HTTP               HTTPClient
+	HTTP               contracts.HTTPClient
 	Audit              AuditSink
 	RecipientAllowlist []string
 	// Metrics is optional — nil is a no-op (connectadapter contract), so
@@ -83,9 +76,9 @@ type Config struct {
 }
 
 type Adapter struct {
-	att   Attestor
+	att   contracts.Attestor
 	ts    TokenSource
-	http  HTTPClient
+	http  contracts.HTTPClient
 	audit AuditSink
 	allow map[string]struct{}
 	m     *connectadapter.Metrics

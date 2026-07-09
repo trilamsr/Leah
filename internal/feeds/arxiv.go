@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // ScopeArxivFetch is the operator-attestation scope per arXiv pull. Distinct
@@ -43,7 +45,7 @@ type ArxivCategory struct {
 // abstract does not contain it (case-insensitive substring) are dropped
 // before dedup so the operator-facing list stays topical.
 type ArxivConfig struct {
-	Attestor        Attestor
+	Attestor        contracts.Attestor
 	HTTPClient      *http.Client
 	Categories      []ArxivCategory
 	AbstractKeyword string
@@ -52,7 +54,7 @@ type ArxivConfig struct {
 // Arxiv is the multi-category arXiv RSS adapter. Lifecycle is caller-owned;
 // no background goroutines so daemon shutdown stays clean.
 type Arxiv struct {
-	att        Attestor
+	att        contracts.Attestor
 	client     *http.Client
 	categories []ArxivCategory
 	keyword    string

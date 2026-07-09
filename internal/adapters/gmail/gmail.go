@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/obs/connectadapter"
 )
 
@@ -36,20 +37,6 @@ type Message struct {
 	Body    string
 }
 
-// Attestor is Leah's operator-attestation gate. Every secret-touching RPC
-// calls Attest(scope) before the token leaves the TokenSource; a non-nil
-// return aborts the RPC with ErrAttestationDenied (wrapped).
-type Attestor interface {
-	Attest(ctx context.Context, scope string) error
-}
-
-// TokenSource yields the OAuth bearer token. Production wiring reads it from
-// $HOME/.leah-state/secrets/gmail-token.json (path documented in the spec);
-// tests inject a fake to keep the suite hermetic.
-type TokenSource interface {
-	Token(ctx context.Context) (string, error)
-}
-
 // Transport is the seam between the adapter's policy layer (attestation,
 // validation, error mapping) and the gmail/v1 SDK calls. Keeping it an
 // interface defers the google.golang.org/api/gmail/v1 require until the
@@ -64,8 +51,8 @@ type Transport interface {
 // required; New refuses to construct a half-wired Client because a missing
 // Attestor would silently bypass the operator-consent gate.
 type Config struct {
-	Attestor    Attestor
-	TokenSource TokenSource
+	Attestor    contracts.Attestor
+	TokenSource contracts.TokenSource
 	Transport   Transport
 	// Metrics is optional — nil is a no-op (connectadapter contract), so
 	// existing callers keep working without a registry.
@@ -77,8 +64,8 @@ type Config struct {
 // constructor MUST NOT start background goroutines so daemon shutdown stays
 // deterministic.
 type Client struct {
-	att Attestor
-	ts  TokenSource
+	att contracts.Attestor
+	ts  contracts.TokenSource
 	tr  Transport
 	m   *connectadapter.Metrics
 }

@@ -91,7 +91,7 @@ type captureAudit struct {
 
 func (c *captureAudit) Record(r AuditRow) { c.rows = append(c.rows, r) }
 
-func newClient(t *testing.T, att Attestor, ts contracts.TokenSource, h contracts.HTTPClient, audit AuditSink) *Client {
+func newClient(t *testing.T, att contracts.Attestor, ts contracts.TokenSource, h contracts.HTTPClient, audit AuditSink) *Client {
 	t.Helper()
 	c, err := New(Config{Attestor: att, TokenSource: ts, HTTPClient: h, Audit: audit})
 	if err != nil {
