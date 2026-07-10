@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // TestBGEGenerator_NameAndDim asserts the BGE generator self-identifies as

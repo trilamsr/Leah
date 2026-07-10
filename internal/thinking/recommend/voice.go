@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/voice"
+	"github.com/trilam/leah/internal/platform/contracts"
+	"github.com/trilam/leah/internal/input/voice"
 )
 
 // announceTopN bounds the spoken recs per spec §7 voice mode — the morning

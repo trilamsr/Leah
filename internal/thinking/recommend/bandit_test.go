@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // TestBetaUpdateOnAccept asserts Accept feedback writes α+=1 to recommend_pattern_state.

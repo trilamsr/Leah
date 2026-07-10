@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // TestAppendEmitsAuditAppendToBroadcaster drives a real Append and asserts the

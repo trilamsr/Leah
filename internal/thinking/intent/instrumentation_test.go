@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // TestClassifyTimedRecordsHistogram covers every Kind so a label-routing bug

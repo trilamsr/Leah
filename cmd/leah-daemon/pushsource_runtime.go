@@ -13,13 +13,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/macos/activeapp"
-	"github.com/trilam/leah/internal/macos/contacts"
-	"github.com/trilam/leah/internal/macos/focus"
-	"github.com/trilam/leah/internal/macos/mail"
-	"github.com/trilam/leah/internal/macos/sqliteopen"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/osevent"
+	"github.com/trilam/leah/internal/platform/macos/activeapp"
+	"github.com/trilam/leah/internal/platform/macos/contacts"
+	"github.com/trilam/leah/internal/platform/macos/focus"
+	"github.com/trilam/leah/internal/platform/macos/mail"
+	"github.com/trilam/leah/internal/platform/macos/sqliteopen"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/input/osevent"
 )
 
 // runPushSourcesFromChan is the test seam. Production runPushSources composes

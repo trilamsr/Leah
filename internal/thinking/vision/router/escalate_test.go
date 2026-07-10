@@ -3,7 +3,7 @@ package router
 import (
 	"testing"
 
-	"github.com/trilam/leah/internal/vision"
+	"github.com/trilam/leah/internal/thinking/vision"
 )
 
 func img(w, h int) vision.Image {

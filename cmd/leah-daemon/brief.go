@@ -10,15 +10,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/gcal"
-	"github.com/trilam/leah/internal/adapters/gmail"
-	"github.com/trilam/leah/internal/brief"
-	commsout "github.com/trilam/leah/internal/comms/out"
-	"github.com/trilam/leah/internal/connect"
-	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/daemonloop"
-	"github.com/trilam/leah/internal/feeds"
-	"github.com/trilam/leah/internal/keychain"
+	"github.com/trilam/leah/internal/actions/adapters/gcal"
+	"github.com/trilam/leah/internal/actions/adapters/gmail"
+	"github.com/trilam/leah/internal/actions/brief"
+	commsout "github.com/trilam/leah/internal/actions/commsout"
+	"github.com/trilam/leah/internal/actions/connect"
+	"github.com/trilam/leah/internal/platform/contracts"
+	"github.com/trilam/leah/internal/platform/daemonloop"
+	"github.com/trilam/leah/internal/memory/feeds"
+	"github.com/trilam/leah/internal/platform/keychain"
 )
 
 // buildBriefTask returns the morning-brief task (appended to weekly tasks

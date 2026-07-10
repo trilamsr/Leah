@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/connect"
 )
 
 // runDisconnect is `leah disconnect`. Mirrors runConnect's shape (writer seam +

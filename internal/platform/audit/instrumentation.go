@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 func Bind(l *Logger, registry *telemetry.Registry) {

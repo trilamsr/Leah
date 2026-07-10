@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/platform/ipc"
 )
 
 const opusModel = "claude-opus-4-8"

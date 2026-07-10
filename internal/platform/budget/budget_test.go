@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 
 	_ "modernc.org/sqlite"
 )

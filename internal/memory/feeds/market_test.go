@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/memory/feeds"
 )
 
 // avHappyBody mirrors Alpha Vantage's GLOBAL_QUOTE response shape. Field

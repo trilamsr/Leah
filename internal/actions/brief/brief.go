@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/budget/view"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/operatormodel"
-	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/budget/view"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/thinking/operatormodel"
+	"github.com/trilam/leah/internal/actions/regattaclient"
 	"golang.org/x/sync/errgroup"
 )
 

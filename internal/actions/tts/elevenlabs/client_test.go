@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/tts"
-	"github.com/trilam/leah/internal/tts/elevenlabs"
+	"github.com/trilam/leah/internal/actions/tts"
+	"github.com/trilam/leah/internal/actions/tts/elevenlabs"
 )
 
 // Plan §17.17: POST /v1/text-to-speech/<voice>/stream with model_id eleven_flash_v2_5.

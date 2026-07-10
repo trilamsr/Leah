@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/learn"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/thinking/learn"
 )
 
 const maxSearchRows = 200

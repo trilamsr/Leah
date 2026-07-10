@@ -12,8 +12,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
-	"github.com/trilam/leah/internal/keychain"
-	"github.com/trilam/leah/internal/vision"
+	"github.com/trilam/leah/internal/platform/keychain"
+	"github.com/trilam/leah/internal/thinking/vision"
 )
 
 const sonnetVisionModel = "claude-sonnet-4-6"

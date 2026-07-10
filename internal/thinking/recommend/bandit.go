@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // Beta posterior + Thompson sampling. Per-pattern (α, β) lives in

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // cliProgressBuckets — A7 target is felt-latency ≤500ms from dispatch to the

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/papers"
+	"github.com/trilam/leah/internal/memory/papers"
 )
 
 // arxivEndpointOverride is the test-only injection point for FetchMetadata.

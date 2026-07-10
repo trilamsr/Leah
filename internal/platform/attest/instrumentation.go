@@ -1,7 +1,7 @@
 package attest
 
 import (
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 func EmitAttempt(registry *telemetry.Registry, scope, outcome string) {

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/obs/connectadapter"
+	"github.com/trilam/leah/internal/platform/contracts"
+	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
 )
 
 // Sentinel errors are exported so callers can switch on the failure mode

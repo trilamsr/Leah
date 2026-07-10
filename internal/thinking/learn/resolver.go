@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // RetroOutcome is the resolver verdict for a pending audit row.

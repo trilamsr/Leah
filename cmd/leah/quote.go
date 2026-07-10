@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/platform/contracts"
+	"github.com/trilam/leah/internal/memory/feeds"
 )
 
 // runQuote prints a MarketPulse for the given symbols. The AV key sits at

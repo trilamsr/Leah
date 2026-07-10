@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/operatormodel"
+	"github.com/trilam/leah/internal/thinking/operatormodel"
 )
 
 // fakeStreamReasoner emits scripted deltas on AskStream; satisfies the

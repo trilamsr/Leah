@@ -15,8 +15,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/connect"
 )
 
 // whoamiSources is the closed set of persistent stores M1 enumerates.

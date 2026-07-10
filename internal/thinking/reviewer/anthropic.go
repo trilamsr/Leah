@@ -11,7 +11,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 
-	"github.com/trilam/leah/internal/keychain"
+	"github.com/trilam/leah/internal/platform/keychain"
 )
 
 // Anthropic sonnet-4 pricing. Cache writes cost 1.25x base input, cache reads

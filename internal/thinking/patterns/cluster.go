@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // HashPrefixLen is the args_hash prefix length used for clustering.

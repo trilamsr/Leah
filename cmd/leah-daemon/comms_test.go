@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	commsout "github.com/trilam/leah/internal/comms/out"
-	"github.com/trilam/leah/internal/contracts"
+	commsout "github.com/trilam/leah/internal/actions/commsout"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // writeDiscordToken drops a connect-shaped token file so connected() passes.

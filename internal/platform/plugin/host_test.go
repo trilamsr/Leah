@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/platform/attest"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 	"github.com/trilam/leah/pkg/leahplugin"
 
 	_ "modernc.org/sqlite"

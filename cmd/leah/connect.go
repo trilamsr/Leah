@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/connect"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/connect"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // runConnect is `leah connect`. w is stdout (test seam); stderr stays

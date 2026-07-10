@@ -11,7 +11,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/trilam/leah/internal/tts"
+	"github.com/trilam/leah/internal/actions/tts"
 )
 
 const (

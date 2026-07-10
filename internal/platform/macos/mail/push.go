@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/trilam/leah/internal/macos/sqliteopen"
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/macos/sqliteopen"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // PushSource fans WAL-file FSEvents on Envelope Index-wal onto an obs event.

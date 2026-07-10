@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/osevent"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/input/osevent"
 )
 
 // PushSource fans Focus/DnD state-change notifications onto an obs event.

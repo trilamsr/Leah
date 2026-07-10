@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/operatormodel"
-	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/thinking/operatormodel"
+	"github.com/trilam/leah/internal/actions/regattaclient"
 )
 
 // TestRenderIncludesRecap asserts the Yesterday section lists per-kind action

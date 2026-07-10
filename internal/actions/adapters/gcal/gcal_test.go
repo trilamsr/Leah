@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // fakeService is a hand-rolled stub of calendarService so tests do not need

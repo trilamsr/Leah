@@ -3,7 +3,7 @@ package router
 import (
 	"strings"
 
-	"github.com/trilam/leah/internal/vision"
+	"github.com/trilam/leah/internal/thinking/vision"
 )
 
 // reasoningCues are lowercase substrings whose presence in the prompt implies

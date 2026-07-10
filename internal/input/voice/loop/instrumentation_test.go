@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/obs/obstest"
-	"github.com/trilam/leah/internal/testutil"
-	"github.com/trilam/leah/internal/voice/listener"
-	"github.com/trilam/leah/internal/voice/loop"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/platform/telemetry/obstest"
+	"github.com/trilam/leah/internal/platform/testutil"
+	"github.com/trilam/leah/internal/input/voice/listener"
+	"github.com/trilam/leah/internal/input/voice/loop"
 )
 
 // TestRegisterMetrics_AddsSeries pins the intent→first-audio histogram surfaces

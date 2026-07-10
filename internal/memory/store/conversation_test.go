@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 )
 
 // newTurnDB opens a fresh WAL DB with just the conversation_turn schema —

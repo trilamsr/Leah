@@ -9,15 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	commsout "github.com/trilam/leah/internal/comms/out"
-	"github.com/trilam/leah/internal/ctxmgr"
-	"github.com/trilam/leah/internal/daemonloop"
-	"github.com/trilam/leah/internal/learn"
-	"github.com/trilam/leah/internal/learn/rules"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/operatormodel"
-	"github.com/trilam/leah/internal/patterns"
+	"github.com/trilam/leah/internal/platform/audit"
+	commsout "github.com/trilam/leah/internal/actions/commsout"
+	"github.com/trilam/leah/internal/platform/activectx"
+	"github.com/trilam/leah/internal/platform/daemonloop"
+	"github.com/trilam/leah/internal/thinking/learn"
+	"github.com/trilam/leah/internal/thinking/learn/rules"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/thinking/operatormodel"
+	"github.com/trilam/leah/internal/thinking/patterns"
 )
 
 // buildWeeklyTasks returns the per-week tasks fired by daemonloop on the

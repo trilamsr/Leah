@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/oklog/ulid/v2"
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/memory/store"
 	_ "modernc.org/sqlite"
 )
 

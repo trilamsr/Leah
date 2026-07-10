@@ -3,7 +3,7 @@ package intent
 import (
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // classifyBuckets — A3 SLO is p95 ≤50ms, so the top finite bound is 0.05.

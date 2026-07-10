@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/trilam/leah/internal/eval"
+	"github.com/trilam/leah/internal/platform/eval"
 )
 
 func main() {

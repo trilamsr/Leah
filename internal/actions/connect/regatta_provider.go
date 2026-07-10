@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 const (

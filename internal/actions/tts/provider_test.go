@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/trilam/leah/internal/tts"
+	"github.com/trilam/leah/internal/actions/tts"
 )
 
 type stubProvider struct{ name string }

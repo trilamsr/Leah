@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/obs/connectadapter"
-	"github.com/trilam/leah/internal/ratelimit"
+	"github.com/trilam/leah/internal/platform/contracts"
+	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
+	"github.com/trilam/leah/internal/platform/ratelimit"
 )
 
 var (

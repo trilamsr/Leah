@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // Retro renders a weekly markdown report from audit + mistake_log.

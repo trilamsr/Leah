@@ -12,10 +12,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/ghclient"
-	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/actions/ghclient"
+	"github.com/trilam/leah/internal/actions/regattaclient"
 )
 
 // validSpec is a minimally well-formed Reasoner output that selfBuild treats as

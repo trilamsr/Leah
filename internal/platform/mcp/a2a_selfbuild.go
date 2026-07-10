@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/attest"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // ErrSelfBuildClarify signals the reasoner returned clarifying questions

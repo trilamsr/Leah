@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 var ErrTokenFileNotFound = errors.New("connect: token file not found")

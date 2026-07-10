@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/feeds"
-	"github.com/trilam/leah/internal/watchlist"
+	"github.com/trilam/leah/internal/memory/feeds"
+	"github.com/trilam/leah/internal/memory/watchlist"
 )
 
 // runEarnings surfaces upcoming earnings dates.

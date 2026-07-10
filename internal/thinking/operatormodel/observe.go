@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/ctxmgr"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/activectx"
 )
 
 // Observation is one (class, key, slot) cell produced by an observer.

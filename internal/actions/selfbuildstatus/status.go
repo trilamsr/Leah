@@ -4,7 +4,7 @@ package selfbuildstatus
 import (
 	"strings"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // Checkpoint is one observable step of the closed loop.

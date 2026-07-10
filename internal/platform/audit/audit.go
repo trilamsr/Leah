@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // Entry is one audit row. Stable on-disk schema — fields are read by

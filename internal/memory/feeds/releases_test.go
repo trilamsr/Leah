@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/memory/feeds"
 )
 
 // atomReleasesBody mirrors GitHub's per-repo releases.atom shape — entry tags

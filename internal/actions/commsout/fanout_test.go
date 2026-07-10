@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 type fakeNotifier struct {

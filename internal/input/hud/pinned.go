@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/platform/ipc"
 )
 
 // PinnedEntry is one slot in ~/Library/Application Support/Leah/pinned-widgets.json.

@@ -15,7 +15,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 )
 
 // int-parse per PR #58 — lex "10" < "9" is the trap.

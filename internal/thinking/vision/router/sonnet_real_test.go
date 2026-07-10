@@ -6,7 +6,7 @@ import (
 	"image/png"
 	"testing"
 
-	"github.com/trilam/leah/internal/vision"
+	"github.com/trilam/leah/internal/thinking/vision"
 )
 
 func TestEncodeFrameForSonnet_RGBARoundtrip(t *testing.T) {

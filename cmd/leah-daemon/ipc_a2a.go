@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/trilam/leah/internal/a2a"
-	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/platform/a2a"
+	"github.com/trilam/leah/internal/platform/ipc"
 )
 
 // a2aServer is the daemon-side view of internal/a2a.Server — narrow so tests

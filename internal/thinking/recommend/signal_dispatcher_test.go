@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/testutil"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/platform/testutil"
 )
 
 // staticMatcher emits one Recommendation when sig.Kind matches kind.

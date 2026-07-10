@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/hud"
+	"github.com/trilam/leah/internal/input/hud"
 )
 
 // TestWatcher_DebouncesBurstWithin200ms writes the pin file 3 times within 200 ms

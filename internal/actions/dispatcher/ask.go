@@ -10,7 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
-	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/thinking/reasoner"
 )
 
 // LLMDimReporter is the optional rich-info side of Reasoner. Implementations

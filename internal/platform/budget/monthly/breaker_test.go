@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/thinking/reasoner"
 )
 
 // Below the 80 % warn threshold the breaker reports reasoner.StateOK; at or above

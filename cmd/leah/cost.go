@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/budget/view"
+	"github.com/trilam/leah/internal/platform/budget/view"
 )
 
 // defaultCostWindow is the default --since value when the operator does

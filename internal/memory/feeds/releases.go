@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // ScopeReleasesFetch is the operator-attestation scope for a release-notes

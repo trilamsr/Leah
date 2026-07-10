@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/thinking/reasoner"
 )
 
 // OverrideTTL is the in-memory lifetime of an attested `leah cost override`

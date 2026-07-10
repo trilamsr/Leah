@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/trilam/leah/internal/voice"
+	"github.com/trilam/leah/internal/input/voice"
 )
 
 // VoiceNotify speaks notifications via the voice.TTS chain. Use when

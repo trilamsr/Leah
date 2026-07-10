@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/backup"
-	commsout "github.com/trilam/leah/internal/comms/out"
-	"github.com/trilam/leah/internal/daemonloop"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/backup"
+	commsout "github.com/trilam/leah/internal/actions/commsout"
+	"github.com/trilam/leah/internal/platform/daemonloop"
 )
 
 // buildBackupSnapshotTask returns the weekly restic-snapshot task. Iterates

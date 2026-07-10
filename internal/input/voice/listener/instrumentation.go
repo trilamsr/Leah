@@ -1,6 +1,6 @@
 package listener
 
-import "github.com/trilam/leah/internal/obs"
+import "github.com/trilam/leah/internal/platform/telemetry"
 
 // utteranceBuckets — A2 SLO: end-of-utterance → final transcript ≤600ms p50,
 // ≤1.2s p95. Bucket edges straddle both thresholds so the histogram resolves

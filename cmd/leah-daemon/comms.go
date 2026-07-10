@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/trilam/leah/internal/adapters/discord"
-	"github.com/trilam/leah/internal/connect"
-	"github.com/trilam/leah/internal/web"
+	"github.com/trilam/leah/internal/actions/adapters/discord"
+	"github.com/trilam/leah/internal/actions/connect"
+	"github.com/trilam/leah/internal/platform/web"
 )
 
 // connectedDiscordAdapter builds the adapter when discord is connected, else nil.

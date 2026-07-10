@@ -3,7 +3,7 @@ package web
 import (
 	"testing"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // TestEnsureBroadcaster_AdoptsExistingDefault guards the daemon→dashboard

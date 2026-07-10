@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/budget"
 )
 
 // Asserts selfbuild routes through the centralized attestation pool — the

@@ -1,6 +1,6 @@
 package recommend
 
-import "github.com/trilam/leah/internal/obs"
+import "github.com/trilam/leah/internal/platform/telemetry"
 
 func RegisterMetrics(registry *telemetry.Registry) {
 	if registry == nil {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/strategist/store"
+	"github.com/trilam/leah/internal/thinking/strategist/store"
 )
 
 // fakeClipboard captures pbcopy stdin in-process so tests never shell out and

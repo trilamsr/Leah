@@ -7,13 +7,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/discord"
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/daemonloop"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/regattaclient"
-	"github.com/trilam/leah/internal/web"
+	"github.com/trilam/leah/internal/actions/adapters/discord"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/platform/daemonloop"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/actions/regattaclient"
+	"github.com/trilam/leah/internal/platform/web"
 )
 
 // startDashboard boots the JARVIS dashboard HTTP server in a goroutine and

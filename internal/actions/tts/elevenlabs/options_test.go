@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/keychain"
-	"github.com/trilam/leah/internal/tts/elevenlabs"
+	"github.com/trilam/leah/internal/platform/keychain"
+	"github.com/trilam/leah/internal/actions/tts/elevenlabs"
 )
 
 // stubMissingSecurity swaps security(1) for a script that always reports

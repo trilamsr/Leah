@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/ipc"
-	plug "github.com/trilam/leah/internal/plugin"
+	"github.com/trilam/leah/internal/platform/ipc"
+	plug "github.com/trilam/leah/internal/platform/plugin"
 	"github.com/trilam/leah/pkg/leahplugin"
 )
 

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/hud"
+	"github.com/trilam/leah/internal/input/hud"
 )
 
 func TestRegistry_ReadsWidgetRegistryJSON(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/trilam/leah/internal/watchlist"
+	"github.com/trilam/leah/internal/memory/watchlist"
 )
 
 // runWatch is the `leah watch` verb: zero-arg lists, `<sym>` adds,

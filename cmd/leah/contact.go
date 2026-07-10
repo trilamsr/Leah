@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // runContact dispatches `leah contact <action> ...`.

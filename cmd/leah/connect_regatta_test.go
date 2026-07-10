@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/actions/connect"
 )
 
 type tFakeExec struct {

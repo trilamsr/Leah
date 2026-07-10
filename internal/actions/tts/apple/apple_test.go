@@ -6,9 +6,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/tts"
-	"github.com/trilam/leah/internal/tts/apple"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/actions/tts"
+	"github.com/trilam/leah/internal/actions/tts/apple"
 )
 
 // Name is the §2.7 voice-canon provider id; pinned so reasoner routing matches.

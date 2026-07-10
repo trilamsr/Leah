@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/trilam/leah/internal/macos/activeapp"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/osevent"
+	"github.com/trilam/leah/internal/platform/macos/activeapp"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/input/osevent"
 )
 
 func startActiveAppPush(ctx context.Context, lg *slog.Logger, registry *telemetry.Registry, blocklist []string) {

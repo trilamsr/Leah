@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/keychain"
+	"github.com/trilam/leah/internal/platform/keychain"
 )
 
 // fakeSecurity is a test-only replacement for /usr/bin/security. Shell script

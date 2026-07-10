@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // cliFirstByteBuckets — A6 target is p95 ≤200ms exclusive of LLM round-trip,

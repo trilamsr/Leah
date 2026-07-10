@@ -7,7 +7,7 @@
 // to every adapter wiring PR.
 package connectadapter
 
-import "github.com/trilam/leah/internal/obs"
+import "github.com/trilam/leah/internal/platform/telemetry"
 
 var latencyBuckets = []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5}
 

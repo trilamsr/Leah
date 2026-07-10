@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/memory/feeds"
 )
 
 // stubFeed asserts the Feed interface compiles with a minimal value-type.

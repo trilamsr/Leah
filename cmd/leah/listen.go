@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/dispatcher"
-	"github.com/trilam/leah/internal/intent"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/voice"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/dispatcher"
+	"github.com/trilam/leah/internal/thinking/intent"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/input/voice"
 )
 
 // runListen records one push-to-talk utterance, transcribes it via

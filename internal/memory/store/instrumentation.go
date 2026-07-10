@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 func EmitQuery(registry *telemetry.Registry, table string) {

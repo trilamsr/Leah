@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/ctxmgr"
+	"github.com/trilam/leah/internal/platform/activectx"
 )
 
 func openTestStore(t *testing.T) *Store {

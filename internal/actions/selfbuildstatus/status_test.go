@@ -3,7 +3,7 @@ package selfbuildstatus
 import (
 	"testing"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 func cp(loop Loop, name string) Checkpoint {

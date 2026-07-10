@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 func newTestOSM(t *testing.T, att contracts.Attestor, srv *httptest.Server) *OSM {

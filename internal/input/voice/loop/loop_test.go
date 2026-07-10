@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/testutil"
-	"github.com/trilam/leah/internal/voice/listener"
-	"github.com/trilam/leah/internal/voice/loop"
+	"github.com/trilam/leah/internal/platform/testutil"
+	"github.com/trilam/leah/internal/input/voice/listener"
+	"github.com/trilam/leah/internal/input/voice/loop"
 )
 
 // startedListener wraps listener.Fake to publish a ready signal once the

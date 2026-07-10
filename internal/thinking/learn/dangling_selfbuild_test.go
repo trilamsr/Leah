@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // TestDanglingSelfBuild_DetectsAfter7d asserts a dispatched row 8d old with no paired outcome surfaces a candidate.

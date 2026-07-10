@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // Push-source → SignalEngine.OnSignal bridge (MAY-V8). Replaces the 60s

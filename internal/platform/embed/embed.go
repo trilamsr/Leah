@@ -48,7 +48,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/keychain"
+	"github.com/trilam/leah/internal/platform/keychain"
 )
 
 // Generator turns text into fixed-dimension vectors. Implementations MUST

@@ -10,7 +10,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/trilam/leah/internal/vision"
+	"github.com/trilam/leah/internal/thinking/vision"
 )
 
 // VisionMode is the operator preference for a single Ask. VisionAuto lets the

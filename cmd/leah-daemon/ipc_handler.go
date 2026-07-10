@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/knowledge"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/reasoner"
-	"github.com/trilam/leah/internal/tts"
-	"github.com/trilam/leah/internal/voice/duplex"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/thinking/knowledge"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/thinking/reasoner"
+	"github.com/trilam/leah/internal/actions/tts"
+	"github.com/trilam/leah/internal/input/voice/duplex"
 )
 
 // errVerifyFailed is returned by pingFn when the API key is rejected.

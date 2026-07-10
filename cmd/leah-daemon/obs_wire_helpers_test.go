@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/daemonloop"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/web"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/daemonloop"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/platform/web"
 )
 
 // driveProducersForTest exercises the wires so /metrics has live observations

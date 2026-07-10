@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // AttestationGate scans audit.jsonl for dispatched self-build PRs that

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // FeedbackKind enumerates the operator-side signals the engine consumes

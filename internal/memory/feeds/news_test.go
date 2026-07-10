@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/memory/feeds"
 )
 
 // hnRSSBody mirrors Hacker News' RSS shape — title + link + pubDate per item.

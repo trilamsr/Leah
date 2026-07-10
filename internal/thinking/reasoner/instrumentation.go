@@ -1,6 +1,6 @@
 package reasoner
 
-import "github.com/trilam/leah/internal/obs"
+import "github.com/trilam/leah/internal/platform/telemetry"
 
 type CacheOutcome string
 

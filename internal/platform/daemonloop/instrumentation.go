@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 func Bind(l *Loop, registry *telemetry.Registry) {

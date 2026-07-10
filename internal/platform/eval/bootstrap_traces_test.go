@@ -3,7 +3,7 @@ package eval
 import "testing"
 
 func TestBootstrap_ReasonerJSONL_Loads(t *testing.T) {
-	tr, err := loadTraces("../../evals/reasoner.jsonl")
+	tr, err := loadTraces("../../../evals/reasoner.jsonl")
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}

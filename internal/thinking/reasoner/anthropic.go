@@ -11,8 +11,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
-	"github.com/trilam/leah/internal/keychain"
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/keychain"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 const (

@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/discord"
-	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/audit"
-	commsin "github.com/trilam/leah/internal/comms/in"
-	"github.com/trilam/leah/internal/recommend"
-	"github.com/trilam/leah/internal/testutil"
+	"github.com/trilam/leah/internal/actions/adapters/discord"
+	"github.com/trilam/leah/internal/platform/attest"
+	"github.com/trilam/leah/internal/platform/audit"
+	commsin "github.com/trilam/leah/internal/input/commsin"
+	"github.com/trilam/leah/internal/thinking/recommend"
+	"github.com/trilam/leah/internal/platform/testutil"
 )
 
 // fakeDialer satisfies discord.WebSocketDialer with a frame-replaying conn so

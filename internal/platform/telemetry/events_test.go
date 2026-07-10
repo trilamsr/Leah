@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 var osStat = os.Stat

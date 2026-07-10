@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // TestResolverEmitsOutcomeToCallback asserts a resolved row fires the

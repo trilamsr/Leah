@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // auditContainsKind scans the audit JSONL for any row matching kind.

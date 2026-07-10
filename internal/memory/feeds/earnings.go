@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // ScopeEarningsFetch is the operator-attestation scope for a per-symbol

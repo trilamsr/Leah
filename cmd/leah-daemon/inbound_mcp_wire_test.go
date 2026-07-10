@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"testing"
 
-	mcpInbound "github.com/trilam/leah/internal/mcp/inbound"
+	mcpInbound "github.com/trilam/leah/internal/platform/mcp/inbound"
 	_ "modernc.org/sqlite"
 )
 

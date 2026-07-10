@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/regattaclient"
 )
 
 // BUG-7 regression: pre-fix, "weekly skipped" and "daily deferred" printed on

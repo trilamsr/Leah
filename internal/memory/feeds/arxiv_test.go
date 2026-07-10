@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/memory/feeds"
 )
 
 // arxivCSAIBody mirrors arxiv.org's RSS-2.0 emission for a category feed —

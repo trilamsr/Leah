@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/onboarding"
+	"github.com/trilam/leah/internal/platform/onboarding"
 )
 
 // TestMarkInstalled_Idempotent — second call must NOT overwrite first timestamp; A9 SLA anchor cannot reset.

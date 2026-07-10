@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // TestForget_UsageError_ReturnsTwo — no args returns exit 2.

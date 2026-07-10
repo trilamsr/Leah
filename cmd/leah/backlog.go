@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/ghclient"
-	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/actions/ghclient"
+	"github.com/trilam/leah/internal/actions/regattaclient"
 )
 
 // defaultBacklogRepo is the self-build target — operator runs `leah backlog`

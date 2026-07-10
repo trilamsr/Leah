@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/attest"
+	"github.com/trilam/leah/internal/platform/attest"
 )
 
 type stubVerifier struct{ v attest.Attestation }

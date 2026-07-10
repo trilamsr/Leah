@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/attest"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 type upgradeDeps struct {

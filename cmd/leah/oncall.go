@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // defaultOncallWindow is the operator's mental default: "what fired in the

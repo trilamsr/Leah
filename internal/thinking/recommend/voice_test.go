@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/recommend"
+	"github.com/trilam/leah/internal/thinking/recommend"
 )
 
 // fakeTTS captures spoken text so tests can assert what reached the chain.

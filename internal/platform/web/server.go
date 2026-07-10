@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 //go:embed static

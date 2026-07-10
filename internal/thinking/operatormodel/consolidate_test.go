@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // fixedT is the synthetic "now" anchor used across the consolidate tests.

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // autoApplyMaxPerHour bounds runaway auto-tier execution per spec §6.

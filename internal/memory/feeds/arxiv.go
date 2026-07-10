@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // ScopeArxivFetch is the operator-attestation scope per arXiv pull. Distinct

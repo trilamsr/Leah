@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/voice/listener"
+	"github.com/trilam/leah/internal/input/voice/listener"
 )
 
 // ReasonerSeam is the LLM seam — reasoner.Reasoner.Ask satisfies it

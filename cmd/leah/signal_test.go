@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // TestWriteInterruptedAudit_WritesRow asserts the cancel-aware path emits a

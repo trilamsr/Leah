@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/platform/budget"
 )
 
 // fakeStreamClient drives AskStream through a scripted Delta channel.

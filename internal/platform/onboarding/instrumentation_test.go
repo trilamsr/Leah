@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/obs/obstest"
-	"github.com/trilam/leah/internal/onboarding"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/platform/telemetry/obstest"
+	"github.com/trilam/leah/internal/platform/onboarding"
 )
 
 // TestRegisterMetrics_AddsSeries — A9 series surfaces pre-event on /metrics.

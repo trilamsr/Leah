@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/keychain"
+	"github.com/trilam/leah/internal/platform/keychain"
 )
 
 const defaultPushoverAPI = "https://api.pushover.net/1/messages.json"

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // TestAttestationGate_FlagsMissingAttestationComment asserts the gate

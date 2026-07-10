@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/recommend"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/thinking/recommend"
 )
 
 // captureMatcher records every Signal MemoryEngine.OnSignal hands it.

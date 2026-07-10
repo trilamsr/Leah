@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // ConsolidatePass is the nightly summary pass. Stability-gated (class, key,

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/tts"
+	"github.com/trilam/leah/internal/actions/tts"
 )
 
 func TestBlockwordClassifier_DefaultCorpus_FlagsCalendar(t *testing.T) {

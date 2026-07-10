@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // TestReviewEmitsSubagentSpawnAndComplete drives a real Review and asserts the

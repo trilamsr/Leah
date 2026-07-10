@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/tts"
-	"github.com/trilam/leah/internal/voice/stt"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/actions/tts"
+	"github.com/trilam/leah/internal/input/voice/stt"
 )
 
 type DuplexEventKind int

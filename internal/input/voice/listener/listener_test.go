@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/voice/listener"
+	"github.com/trilam/leah/internal/input/voice/listener"
 )
 
 // TestFakeListener_StartStopCycle: enqueued segments arrive in order before ctx cancel closes the channel.

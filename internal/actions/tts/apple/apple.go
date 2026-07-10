@@ -9,8 +9,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/tts"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/actions/tts"
 )
 
 type ctxKey int

@@ -8,8 +8,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/operatormodel"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/thinking/operatormodel"
 )
 
 // TestWeeklyFeedbackEdge_OutcomeReachesProfile runs the real resolver +

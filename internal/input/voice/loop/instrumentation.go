@@ -3,7 +3,7 @@ package loop
 import (
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // intentToFirstAudioBuckets — A4 SLA 700ms; edges straddle so p50/p95 resolves.

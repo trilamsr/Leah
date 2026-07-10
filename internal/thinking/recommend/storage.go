@@ -15,8 +15,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 )
 
 // sqliteSchemaVersion is the embedded DDL version. Parsed-int compare per PR #58

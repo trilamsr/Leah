@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // SnapshotKeys writes r to a tempfile and returns the union of counter,

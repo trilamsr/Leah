@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/sync/discovery"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/platform/sync/discovery"
 )
 
 // syncEngine is the daemon-side surface the IPC sync handlers depend on.

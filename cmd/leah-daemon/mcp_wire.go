@@ -7,8 +7,8 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/trilam/leah/internal/mcp"
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/mcp"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // startMCPPublish binds the outbound MCP Unix socket when LEAH_MCP_PUBLISH=1.

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/testutil"
+	"github.com/trilam/leah/internal/platform/testutil"
 )
 
 // shortSock returns a path under /tmp (not t.TempDir) because macOS

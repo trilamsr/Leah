@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/memory/feeds"
 )
 
 // TestSynth_News_Top3 ranks by recency and trims to top-3 with attribution.

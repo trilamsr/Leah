@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/platform/budget"
 )
 
 // A2APeer is the §5.4.1 peering record. Pubkey + Fingerprint(Pubkey) ==

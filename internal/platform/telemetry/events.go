@@ -18,7 +18,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 )
 
 // Event is one row in the causal timeline — internal sibling to audit.jsonl;

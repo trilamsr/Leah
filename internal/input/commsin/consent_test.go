@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/attest"
+	"github.com/trilam/leah/internal/platform/attest"
 )
 
 // fakeAttestor records every scope it was asked to clear; returns deny when

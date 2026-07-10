@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/trilam/leah/internal/vision"
+	"github.com/trilam/leah/internal/thinking/vision"
 )
 
 type fakeOCR struct {

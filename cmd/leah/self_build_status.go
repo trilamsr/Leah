@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/selfbuildstatus"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/selfbuildstatus"
 )
 
 // runSelfBuildStatus reads the audit log, classifies each self-build into a

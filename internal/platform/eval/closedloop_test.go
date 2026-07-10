@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // jsonlReader is a test fixture audit.Entry stream backed by an inline JSONL

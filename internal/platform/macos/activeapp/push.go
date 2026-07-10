@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/osevent"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/input/osevent"
 )
 
 // DefaultDebounce: rapid cmd-tab through multiple apps fires NSWorkspace events

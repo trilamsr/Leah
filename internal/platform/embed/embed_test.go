@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // TestHashGeneratorEmbedsConsistentVector asserts the offline hash generator

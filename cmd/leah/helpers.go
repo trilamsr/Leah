@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/ctxmgr"
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/platform/activectx"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // memoryPath is the canonical sqlite file used by memory + selflearn + ctxmgr.

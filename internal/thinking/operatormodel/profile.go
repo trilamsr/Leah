@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/ctxmgr"
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/activectx"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // SwitchSource yields the operator's context switches at-or-after a cutoff,

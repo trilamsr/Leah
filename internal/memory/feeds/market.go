@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // ScopeMarketFetch is the operator-attestation scope for a market-quote pull.

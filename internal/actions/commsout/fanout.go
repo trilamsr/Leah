@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // Fanout dispatches one Notify call to every wrapped Notifier and joins

@@ -1,6 +1,6 @@
 package learn
 
-import "github.com/trilam/leah/internal/obs"
+import "github.com/trilam/leah/internal/platform/telemetry"
 
 var resolveLatencyBuckets = []float64{0.01, 0.05, 0.1, 0.5, 1, 5}
 

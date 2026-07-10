@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // fakeOSExec records invocations and replays canned errors per call.

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/trilam/leah/internal/keychain"
+	"github.com/trilam/leah/internal/platform/keychain"
 )
 
 // avaAltoDefaultVoiceID is the built-in mapping for tts.DefaultVoice

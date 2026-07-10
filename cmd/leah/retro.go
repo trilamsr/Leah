@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/learn"
-	"github.com/trilam/leah/internal/learn/rules"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/thinking/learn"
+	"github.com/trilam/leah/internal/thinking/learn/rules"
 )
 
 // runRetro renders the weekly retro markdown to stdout.

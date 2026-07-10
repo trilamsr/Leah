@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/ctxmgr"
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/activectx"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // fakeSwitchSource feeds canned switches to Profile.Update without a real ctxmgr DB.

@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // Status renders the tail of audit.jsonl as either a fixed-width table or

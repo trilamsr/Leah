@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/recommend"
-	"github.com/trilam/leah/internal/testutil"
-	"github.com/trilam/leah/internal/web"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/thinking/recommend"
+	"github.com/trilam/leah/internal/platform/testutil"
+	"github.com/trilam/leah/internal/platform/web"
 )
 
 // fakeSignalEngine satisfies recommend.SignalEngine for wiring-tests; only

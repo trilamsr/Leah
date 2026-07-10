@@ -12,7 +12,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 )
 
 const evalSchemaVersion = "1"

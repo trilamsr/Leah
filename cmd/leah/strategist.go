@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/connect"
-	strategistpersona "github.com/trilam/leah/internal/strategist/persona"
-	"github.com/trilam/leah/internal/strategist/store"
+	"github.com/trilam/leah/internal/actions/connect"
+	strategistpersona "github.com/trilam/leah/internal/thinking/strategist/persona"
+	"github.com/trilam/leah/internal/thinking/strategist/store"
 )
 
 // LLM integration deferred to next PR; this MVP wires the store + UX surface

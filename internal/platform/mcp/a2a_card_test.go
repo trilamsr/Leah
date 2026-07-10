@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/attest"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // Spec §4 wire-format pin. AgentCard JSON must include protocolVersion,

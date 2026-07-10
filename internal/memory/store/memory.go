@@ -16,8 +16,8 @@ import (
 	"github.com/oklog/ulid/v2"
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 )
 
 //go:embed schema.sql

@@ -10,8 +10,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/attest"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // ScopeResolver maps a RecID to the attestation scope that gates Apply for

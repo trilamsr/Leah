@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/learn"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/thinking/learn"
 )
 
 // RegattaPR probes `gh pr view` for a ship-kind audit row whose Detail

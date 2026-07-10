@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // Reader streams audit entries in append order. A tiny iterator (rather than

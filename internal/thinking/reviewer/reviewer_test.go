@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/budget"
+	"github.com/trilam/leah/internal/platform/budget"
 )
 
 var errSubagent = errors.New("synthetic subagent failure")

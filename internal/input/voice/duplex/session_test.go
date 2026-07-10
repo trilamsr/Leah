@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/tts"
-	"github.com/trilam/leah/internal/voice/stt"
+	"github.com/trilam/leah/internal/actions/tts"
+	"github.com/trilam/leah/internal/input/voice/stt"
 )
 
 func TestSession_EndEmitsTerminal(t *testing.T) {

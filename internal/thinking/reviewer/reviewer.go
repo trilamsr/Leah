@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // Subagent is the LLM completion surface used for review. sink, when non-nil,

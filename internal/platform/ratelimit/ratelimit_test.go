@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/ratelimit"
+	"github.com/trilam/leah/internal/platform/ratelimit"
 )
 
 func TestWindowAllowsUpToBudgetThenRejects(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/testutil"
+	"github.com/trilam/leah/internal/platform/testutil"
 )
 
 // fakeSubscriber feeds the handler a controllable event stream so the SSE

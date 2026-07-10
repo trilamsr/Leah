@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/ghclient"
+	"github.com/trilam/leah/internal/actions/ghclient"
 )
 
 // defaultPRStateRepo is the same self-build target backlog uses — the operator

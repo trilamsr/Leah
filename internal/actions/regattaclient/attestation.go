@@ -3,7 +3,7 @@ package regattaclient
 import (
 	"context"
 
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // Scope strings the GatedClient passes to the operator-attestation prompt.

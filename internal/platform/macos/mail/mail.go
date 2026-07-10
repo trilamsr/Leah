@@ -15,8 +15,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/macos/sqliteopen"
+	"github.com/trilam/leah/internal/platform/contracts"
+	"github.com/trilam/leah/internal/platform/macos/sqliteopen"
 )
 
 const Scope = "macos:mail:query"

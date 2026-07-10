@@ -1,8 +1,8 @@
 package maps
 
 import (
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/obs/connectadapter"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
 )
 
 const provider = "maps"
