@@ -42,7 +42,7 @@ func (p *PushSource) Run(ctx context.Context) error {
 			return ctx.Err()
 		case _, ok := <-ch:
 			if !ok {
-				return nil
+				return ctx.Err()
 			}
 			if p.ObsEmit == nil {
 				continue
