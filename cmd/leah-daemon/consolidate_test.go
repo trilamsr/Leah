@@ -13,11 +13,6 @@ import (
 	"github.com/trilam/leah/internal/memory/store"
 )
 
-// TestConsolidation_BriefCoexistence_3am_vs_8am asserts wireConsolidation
-// and wireBriefSchedule with LEAH_BRIEF_DAILY=1 coexist on loop.Daily —
-// each task fires at its own hour via the hourGate wrapper, and the lower
-// global DailyHour + 1h DailyInterval lets the loop re-check the daily gate
-// after the 3am fire so the 8am brief is not locked out for 24h.
 func TestConsolidation_BriefCoexistence_3am_vs_8am(t *testing.T) {
 	t.Setenv("LEAH_BRIEF_DAILY", "1")
 	sd := t.TempDir()
@@ -94,9 +89,6 @@ func TestConsolidation_BriefCoexistence_3am_vs_8am(t *testing.T) {
 	}
 }
 
-// TestHourGate_OncePerDay asserts the per-task tracker prevents a second
-// fire on the same calendar day even when the hour still matches (e.g. a
-// daemon restart at 03:30 after a 03:00 fire).
 func TestHourGate_OncePerDay(t *testing.T) {
 	sd := t.TempDir()
 	tracker := filepath.Join(sd, "last.txt")

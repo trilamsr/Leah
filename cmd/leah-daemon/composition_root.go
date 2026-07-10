@@ -18,10 +18,6 @@ import (
 	"github.com/trilam/leah/internal/platform/sync/discovery"
 )
 
-// phase4Producers holds the optional subsystems constructed at the daemon
-// composition root. Field-disjoint from main.go so parallel wiring PRs
-// each add their handler edge against this struct without colliding.
-//
 // Default-OFF invariant: Sync discovery, A2A server, and continuous
 // vision/voice capture are constructed but NOT started here. Settings
 // → Sync / Settings → Peers / Settings → Vision toggles drive Start() —

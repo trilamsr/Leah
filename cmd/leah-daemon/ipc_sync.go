@@ -13,13 +13,6 @@ import (
 	"github.com/trilam/leah/internal/platform/sync/discovery"
 )
 
-// syncEngine is the daemon-side surface the IPC sync handlers depend on.
-// Browse returns the current snapshot of LAN peers; PairStart drives the
-// mTLS+OTP handshake against the peer whose advertised OTP matches and
-// returns the device id + (peer name, fingerprint) needed by PairAck;
-// PairAck commits a sync_peer row. Split so tests can stub each leg
-// independently and the composition root in main.go can wire the real
-// discovery.Discovery + pair handshake.
 type syncEngine interface {
 	Browse(ctx context.Context) ([]discovery.Peer, error)
 	PairStart(ctx context.Context, otp string) (PairResult, error)

@@ -186,9 +186,6 @@ func (h *Harness) RunAll(ctx context.Context, featurePaths, basePaths []string) 
 			}
 			row.Total++
 
-			// TODO: swap to a real BASE checkout; currently Base.Ask runs on
-			// the same code path. The dual-asker shape is wired so the
-			// checkout is a non-breaking addition.
 			headActual, err := h.Head.Ask(ctx, string(tr.Input))
 			if err != nil {
 				return dt, fmt.Errorf("eval: head ask %s: %w", tr.ID, err)

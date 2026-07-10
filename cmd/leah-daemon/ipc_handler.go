@@ -22,12 +22,6 @@ import (
 // errVerifyFailed is returned by pingFn when the API key is rejected.
 var errVerifyFailed = errors.New("api key rejected")
 
-// VisionIPC, SyncIPC, RecommendIPC, PluginIPC, A2AIPC are the optional
-// dispatch seams. Concrete handlers live in sibling files (ipc_vision.go,
-// ipc_sync.go, ipc_recommend.go, ipc_plugin.go, ipc_a2a.go) and are bound
-// to these surfaces at composition time. Switch arms call methods on
-// possibly-nil interfaces — the switch nil-checks so a daemon booted
-// without (e.g.) sync still answers other kinds normally.
 type VisionIPC interface {
 	Snap(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
 	StreamStart(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
@@ -64,10 +58,6 @@ type A2AIPC interface {
 	PeerUnpair(ctx context.Context, req ipc.Frame) (<-chan ipc.Frame, error)
 }
 
-// IPCDeps groups the optional dispatch seams so the production constructor's
-// argument list does not balloon further. Nil fields are safe — the switch
-// returns an error frame so the HUD sees a structured failure instead of a
-// closed conn.
 type IPCDeps struct {
 	Vision    VisionIPC
 	Sync      SyncIPC

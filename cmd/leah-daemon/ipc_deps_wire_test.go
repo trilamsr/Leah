@@ -9,21 +9,12 @@ import (
 	"github.com/trilam/leah/internal/platform/ipc"
 )
 
-// TestA2AAdapter_NilServerReturnsNil covers the guard that keeps IPCDeps.A2A
-// nil when the daemon boots without an a2a.Server (release build path in
-// wirePhase4Producers where ed25519.GenerateKey failed). The dispatch switch
-// treats a nil interface as "subsystem unavailable" and emits a structured
-// error frame — the pre-BUG-8 regression was that the whole IPCDeps struct
-// was passed empty regardless of producer availability.
 func TestA2AAdapter_NilServerReturnsNil(t *testing.T) {
 	if got := newA2AIPCAdapter(nil); got != nil {
 		t.Fatalf("newA2AIPCAdapter(nil) = %v, want nil", got)
 	}
 }
 
-// TestSyncAdapter_NilDepsReturnsNil covers the same guard for sync — the
-// adapter refuses to bind when either the discovery engine or the sqlite
-// handle is missing so the caller can rely on the dispatch nil-check.
 func TestSyncAdapter_NilDepsReturnsNil(t *testing.T) {
 	if got := newSyncIPCAdapter(nil, nil); got != nil {
 		t.Fatalf("newSyncIPCAdapter(nil, nil) = %v, want nil", got)

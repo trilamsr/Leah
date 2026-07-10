@@ -244,10 +244,6 @@ func TestIPCHandlerClassifiesWidget(t *testing.T) {
 	}
 }
 
-// Citation widget intent must call EnrichCitation exactly once and attach the
-// resulting enrichment (entity_key, arxiv_id, domain) to the widget.mount
-// payload. Enrichment failure / nil return must still emit widget.mount —
-// graceful degradation, not a user-visible error.
 func TestIPCHandlerCitationWidgetEnriches(t *testing.T) {
 	db := newTestTurnDB(t)
 	sonnetStream := func(_ context.Context, _, _ string) (<-chan ipc.Frame, error) {

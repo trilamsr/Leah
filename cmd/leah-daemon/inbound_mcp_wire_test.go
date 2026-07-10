@@ -13,12 +13,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// TestPhase4Producers_InboundMCPWired guards against the shipped-but-not-wired
-// class of regression: a package can land in internal/ but never get
-// instantiated at the composition root. Asserts wirePhase4Producers both
-// constructs the inbound MCP server AND registers the first-party toolset —
-// duplicate-register probe catches the case where the server is constructed
-// but RegisterFirstParty gets skipped (a nil-check alone would miss that).
 func TestPhase4Producers_InboundMCPWired(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
