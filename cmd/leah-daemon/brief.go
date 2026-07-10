@@ -21,16 +21,6 @@ import (
 	"github.com/trilam/leah/internal/platform/keychain"
 )
 
-// buildBriefTask returns the morning-brief task (appended to weekly tasks
-// by default; promoted to the daily list when LEAH_BRIEF_DAILY=1). Composes
-// the same brief the CLI prints, writes it to ~/.leah-state/briefs/
-// YYYY-MM-DD.md (idempotent per-day overwrite — daily re-fire on the same
-// calendar day overwrites the prior file rather than appending), and —
-// when LEAH_VOICE_ENABLED=1 — speaks the 1-sentence summary + pushes a
-// desktop banner. 30s per-task ctx budget mirrors the cmd/leah brief CLI
-// so a hung regattaclient.List call cannot block the weekly goroutine
-// until daemon shutdown. Soft-fails per surface: TTS error never gates
-// the file write, file-write error never gates voice/desktop.
 func buildBriefTask(sd string, rc daemonloop.RegattaClient, out *os.File) daemonloop.WeeklyTask {
 	return func(ctx context.Context) {
 		data := pullBriefSnapshot(ctx, sd, rc, out)

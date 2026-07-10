@@ -24,12 +24,7 @@ const (
 	envInboundDiscordTokenPath = "LEAH_INBOUND_DISCORD_TOKEN_PATH"
 )
 
-// inboundOpts collects daemon-side seams. Pending/Enroll/Dialer/Attestor are
-// optional; production fills Pending+Enroll with persistent defaults, leaves
-// Dialer nil (no production gateway dialer wired in v1 — spec §6 step 4), and
-// defaults Attestor to a fail-closed shim so an opt-in deployment without a
-// real interactive attestor errors on Accept rather than silently mutating
-// (spec §4.2: per-action consent collected locally, never noop).
+// Dialer nil in v1 (spec §6 step 4); Attestor fail-closed shim (spec §4.2 — never noop).
 type inboundOpts struct {
 	StateDir string
 	Engine   *recommend.MemoryEngine
@@ -40,14 +35,6 @@ type inboundOpts struct {
 	Attestor contracts.Attestor
 }
 
-// startInboundDiscord wires the F3 inbound-reply router behind
-// LEAH_INBOUND_DISCORD=1. Default OFF — no env, no subscribe, no token read,
-// no goroutine. Silent absence on missing token or empty channel allowlist
-// matches the F2 notifier connected-and-configured contract: the operator
-// fixes the missing piece without a daemon crash.
-//
-// Returns a stop func the caller defers unconditionally (nil-stop on the
-// silent-absence paths so the caller stays branch-free).
 func startInboundDiscord(ctx context.Context, opts inboundOpts) (func(), error) {
 	noop := func() {}
 	if os.Getenv(envInboundDiscordEnable) != "1" {

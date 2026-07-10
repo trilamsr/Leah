@@ -76,9 +76,6 @@ func writeTokenFile(t *testing.T, sd, integration, token string) string {
 	return path
 }
 
-// TestStartInboundDiscordDisabledByDefault: env unset → no dialer constructed,
-// no error, no goroutine. Default-OFF is the load-bearing safety property
-// (spec §6 — token leak guard in test runs).
 func TestStartInboundDiscordDisabledByDefault(t *testing.T) {
 	sd := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", sd)
@@ -106,9 +103,6 @@ func TestStartInboundDiscordDisabledByDefault(t *testing.T) {
 	}
 }
 
-// TestStartInboundDiscordSilentWhenUnconnected: env on but no discord token →
-// silent absence, no error (matches the F2 notifier connected-and-configured
-// pattern).
 func TestStartInboundDiscordSilentWhenUnconnected(t *testing.T) {
 	sd := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", sd)
@@ -134,9 +128,6 @@ func TestStartInboundDiscordSilentWhenUnconnected(t *testing.T) {
 	}
 }
 
-// TestStartInboundDiscordSilentWhenNoChannels: env on + token, but allowlist
-// empty → silent skip. A subscription with no channels would still attest the
-// subscribe scope — pointless burn.
 func TestStartInboundDiscordSilentWhenNoChannels(t *testing.T) {
 	sd := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", sd)
@@ -164,9 +155,6 @@ func TestStartInboundDiscordSilentWhenNoChannels(t *testing.T) {
 	}
 }
 
-// TestStartInboundDiscordWiresRouter: env on + token + channels + fake frame
-// carrying a known pending reply → router dispatches to engine. Proves the
-// Subscribe → handler → Router.Handle path is live.
 func TestStartInboundDiscordWiresRouter(t *testing.T) {
 	sd := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", sd)
