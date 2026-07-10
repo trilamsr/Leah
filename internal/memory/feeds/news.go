@@ -54,17 +54,17 @@ type News struct {
 // NewNews fails fast on missing deps. An RSS endpoint without an Attestor
 // would silently bypass the operator-consent gate — that's a security bug,
 // not a soft warning.
-func NewNews(cfg NewsConfig) (*News, error) {
-	if cfg.Attestor == nil {
+func NewNews(config NewsConfig) (*News, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("feeds.NewNews: Attestor required (operator-attestation gate)")
 	}
-	if cfg.HTTPClient == nil {
+	if config.HTTPClient == nil {
 		return nil, errors.New("feeds.NewNews: HTTPClient required")
 	}
-	if len(cfg.Sources) == 0 {
+	if len(config.Sources) == 0 {
 		return nil, errors.New("feeds.NewNews: at least one Source required")
 	}
-	return &News{att: cfg.Attestor, client: cfg.HTTPClient, sources: cfg.Sources}, nil
+	return &News{att: config.Attestor, client: config.HTTPClient, sources: config.Sources}, nil
 }
 
 // Name satisfies a future Feed-style registry; the Article-returning Fetch is

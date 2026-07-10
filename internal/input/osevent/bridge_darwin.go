@@ -26,14 +26,14 @@ import (
 
 // NewSource starts the macOS push pump. Exactly one pump runs per process
 // (NSWorkspace observers are global); subsequent calls return the same Source.
-func NewSource(cfg Config) (Source, error) {
-	pumpOnce.Do(func() { pumpErr = startPump(cfg) })
+func NewSource(config Config) (Source, error) {
+	pumpOnce.Do(func() { pumpErr = startPump(config) })
 	if pumpErr != nil {
 		return nil, pumpErr
 	}
 	// Each NewSource call gets its own Blocklist projection over the singleton
 	// pump — operator config is per-Source, not per-process.
-	return &darwinSource{blocklist: append([]string(nil), cfg.Blocklist...)}, nil
+	return &darwinSource{blocklist: append([]string(nil), config.Blocklist...)}, nil
 }
 
 var (

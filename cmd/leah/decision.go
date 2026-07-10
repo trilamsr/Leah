@@ -89,7 +89,7 @@ func runDecision(args []string) int {
 			return 2
 		}
 		jsonOut := hasFlag(args[2:], "--json")
-		d, err := store.GetDecision(args[1])
+		d, err := store.Decision(args[1])
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah decision show: %v\n", err)
 			return 1

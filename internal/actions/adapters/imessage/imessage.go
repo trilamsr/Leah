@@ -12,8 +12,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/platform/contracts"
-	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
 	"github.com/trilam/leah/internal/platform/ratelimit"
+	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
 )
 
 const ScopeSend = "imessage:send"
@@ -76,18 +76,18 @@ type Adapter struct {
 	limiter *ratelimit.Window
 }
 
-func New(cfg Config) (*Adapter, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Adapter, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("imessage: Config.Attestor required (operator-attestation gate)")
 	}
-	if cfg.OSExec == nil {
+	if config.OSExec == nil {
 		return nil, errors.New("imessage: Config.OSExec required")
 	}
-	now := cfg.Now
+	now := config.Now
 	if now == nil {
 		now = time.Now
 	}
-	return &Adapter{att: cfg.Attestor, exec: cfg.OSExec, audit: cfg.Audit, m: cfg.Metrics, limiter: ratelimit.NewWindow(rateWindow, maxSendsPerWindow, now)}, nil
+	return &Adapter{att: config.Attestor, exec: config.OSExec, audit: config.Audit, m: config.Metrics, limiter: ratelimit.NewWindow(rateWindow, maxSendsPerWindow, now)}, nil
 }
 
 // Send order is load-bearing: validate -> rate-limit -> attest -> exec.

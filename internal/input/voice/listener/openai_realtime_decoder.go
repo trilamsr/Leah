@@ -83,8 +83,8 @@ type OpenAIRealtimeDecoder struct {
 	started bool
 }
 
-func NewOpenAIRealtimeDecoder(cfg Config) *OpenAIRealtimeDecoder {
-	return &OpenAIRealtimeDecoder{cfg: cfg}
+func NewOpenAIRealtimeDecoder(config Config) *OpenAIRealtimeDecoder {
+	return &OpenAIRealtimeDecoder{cfg: config}
 }
 
 // Metrics exposes parse-health counters. Safe for concurrent read.

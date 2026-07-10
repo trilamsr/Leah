@@ -57,24 +57,24 @@ type Market struct {
 
 // NewMarket fails fast on a half-wired config; a missing Attestor would
 // silently bypass operator-consent.
-func NewMarket(cfg MarketConfig) (*Market, error) {
-	if cfg.Attestor == nil {
+func NewMarket(config MarketConfig) (*Market, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("feeds.NewMarket: Attestor required (operator-attestation gate)")
 	}
-	if cfg.HTTPClient == nil {
+	if config.HTTPClient == nil {
 		return nil, errors.New("feeds.NewMarket: HTTPClient required")
 	}
-	if cfg.APIKey == "" {
+	if config.APIKey == "" {
 		return nil, errors.New("feeds.NewMarket: APIKey required")
 	}
-	base := cfg.BaseURL
+	base := config.BaseURL
 	if base == "" {
 		base = defaultAlphaVantageBaseURL
 	}
 	return &Market{
-		att:     cfg.Attestor,
-		client:  cfg.HTTPClient,
-		apiKey:  cfg.APIKey,
+		att:     config.Attestor,
+		client:  config.HTTPClient,
+		apiKey:  config.APIKey,
 		baseURL: base,
 	}, nil
 }

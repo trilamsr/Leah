@@ -69,21 +69,21 @@ type Adapter struct {
 	region string
 }
 
-func New(cfg Config) (*Adapter, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Adapter, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("tmdb: Config.Attestor required")
 	}
-	if cfg.TokenSource == nil {
+	if config.TokenSource == nil {
 		return nil, errors.New("tmdb: Config.TokenSource required")
 	}
-	if cfg.Transport == nil {
+	if config.Transport == nil {
 		return nil, errors.New("tmdb: Config.Transport required")
 	}
-	region := cfg.Region
+	region := config.Region
 	if region == "" {
 		region = "US"
 	}
-	return &Adapter{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, region: region}, nil
+	return &Adapter{att: config.Attestor, ts: config.TokenSource, tr: config.Transport, region: region}, nil
 }
 
 func (a *Adapter) Find(ctx context.Context, query string) (Result, error) {

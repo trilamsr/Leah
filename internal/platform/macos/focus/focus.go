@@ -40,18 +40,18 @@ type Focus struct {
 	bin string
 }
 
-func New(cfg Config) (*Focus, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Focus, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("focus: Config.Attestor required")
 	}
-	if cfg.Exec == nil {
+	if config.Exec == nil {
 		return nil, errors.New("focus: Config.Exec required")
 	}
-	bin := cfg.Bin
+	bin := config.Bin
 	if bin == "" {
 		bin = "defaults"
 	}
-	return &Focus{att: cfg.Attestor, ex: cfg.Exec, bin: bin}, nil
+	return &Focus{att: config.Attestor, ex: config.Exec, bin: bin}, nil
 }
 
 func (f *Focus) Name() string { return "Focus" }

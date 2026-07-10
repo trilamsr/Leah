@@ -69,11 +69,11 @@ type verifier struct {
 	subs []chan Attestation
 }
 
-func NewVerifier(cfg Config) Verifier {
-	if cfg.Clock == nil {
-		cfg.Clock = time.Now
+func NewVerifier(config Config) Verifier {
+	if config.Clock == nil {
+		config.Clock = time.Now
 	}
-	return &verifier{cfg: cfg, last: Attestation{State: Unknown}}
+	return &verifier{cfg: config, last: Attestation{State: Unknown}}
 }
 
 func (v *verifier) VerifySelf(ctx context.Context) (Attestation, error) {

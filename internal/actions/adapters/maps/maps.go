@@ -129,22 +129,22 @@ type Adapter struct {
 const defaultBaseURL = "https://maps.googleapis.com/maps/api"
 
 // New validates the wiring contract and returns a ready Adapter; no I/O.
-func New(cfg Config) (*Adapter, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Adapter, error) {
+	if config.Attestor == nil {
 		return nil, ErrAttestorRequired
 	}
-	if cfg.APIKey == "" {
+	if config.APIKey == "" {
 		return nil, ErrAPIKeyRequired
 	}
-	hc := cfg.HTTPClient
+	hc := config.HTTPClient
 	if hc == nil {
 		hc = &http.Client{Timeout: 15 * time.Second}
 	}
-	base := cfg.BaseURL
+	base := config.BaseURL
 	if base == "" {
 		base = defaultBaseURL
 	}
-	return &Adapter{att: cfg.Attestor, http: hc, apiKey: cfg.APIKey, baseURL: base, cache: cfg.Cache, m: cfg.Metrics}, nil
+	return &Adapter{att: config.Attestor, http: hc, apiKey: config.APIKey, baseURL: base, cache: config.Cache, m: config.Metrics}, nil
 }
 
 // gate runs the attestation gate; only on consent does the caller issue HTTP.

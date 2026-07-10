@@ -71,17 +71,17 @@ type Client struct {
 }
 
 // New validates the wiring contract and returns a ready Client; no I/O.
-func New(cfg Config) (*Client, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Client, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("gmail: Config.Attestor required (operator-attestation gate)")
 	}
-	if cfg.TokenSource == nil {
+	if config.TokenSource == nil {
 		return nil, errors.New("gmail: Config.TokenSource required")
 	}
-	if cfg.Transport == nil {
+	if config.Transport == nil {
 		return nil, errors.New("gmail: Config.Transport required")
 	}
-	return &Client{att: cfg.Attestor, ts: cfg.TokenSource, tr: cfg.Transport, m: cfg.Metrics}, nil
+	return &Client{att: config.Attestor, ts: config.TokenSource, tr: config.Transport, m: config.Metrics}, nil
 }
 
 // ListUnread returns the IDs of unread messages in the operator's inbox.

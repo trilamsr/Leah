@@ -27,8 +27,8 @@ type fakeSub struct {
 
 // NewFake returns a hermetic Source carrying cfg.Blocklist. Tests use
 // Inject() to drive events.
-func NewFake(cfg Config) *Fake {
-	return &Fake{blocklist: append([]string(nil), cfg.Blocklist...)}
+func NewFake(config Config) *Fake {
+	return &Fake{blocklist: append([]string(nil), config.Blocklist...)}
 }
 
 // Subscribe returns a buffered channel (16) for events matching kind. The

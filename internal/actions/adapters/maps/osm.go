@@ -47,23 +47,23 @@ type OSM struct {
 	lastCall time.Time
 }
 
-func NewOSM(cfg OSMConfig) (*OSM, error) {
-	if cfg.Attestor == nil {
+func NewOSM(config OSMConfig) (*OSM, error) {
+	if config.Attestor == nil {
 		return nil, ErrAttestorRequired
 	}
-	hc := cfg.HTTPClient
+	hc := config.HTTPClient
 	if hc == nil {
 		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	gb, rb := osmGeocodeBase, osmRouteBase
-	if cfg.BaseURL != "" {
-		gb, rb = cfg.BaseURL, cfg.BaseURL
+	if config.BaseURL != "" {
+		gb, rb = config.BaseURL, config.BaseURL
 	}
-	gap := cfg.MinGap
+	gap := config.MinGap
 	if gap <= 0 {
 		gap = nominatimMinGap
 	}
-	return &OSM{att: cfg.Attestor, http: hc, geocodeBase: gb, routeBase: rb, minGap: gap, m: cfg.Metrics}, nil
+	return &OSM{att: config.Attestor, http: hc, geocodeBase: gb, routeBase: rb, minGap: gap, m: config.Metrics}, nil
 }
 
 func (o *OSM) gate(ctx context.Context, scope string) error {

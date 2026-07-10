@@ -77,26 +77,26 @@ type Graph struct {
 	resolver map[EntityKind]Resolver
 }
 
-func New(cfg Config) (*Graph, error) {
-	if cfg.Path == "" {
+func New(config Config) (*Graph, error) {
+	if config.Path == "" {
 		return nil, fmt.Errorf("knowledge: empty Path")
 	}
-	st, err := openStorage(cfg.Path)
+	st, err := openStorage(config.Path)
 	if err != nil {
 		return nil, err
 	}
-	now := cfg.Now
+	now := config.Now
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	d := cfg.RetentionDays
+	d := config.RetentionDays
 	if d <= 0 {
 		d = 90
 	}
 	return &Graph{
 		store:    st,
 		now:      now,
-		audit:    cfg.AuditLogger,
+		audit:    config.AuditLogger,
 		retainD:  d,
 		resolver: make(map[EntityKind]Resolver),
 	}, nil

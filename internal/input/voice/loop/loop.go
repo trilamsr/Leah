@@ -58,7 +58,7 @@ const errReasonFallback = "I couldn't reason that through, try again."
 const errAnnounceTimeout = 1500 * time.Millisecond
 
 // New returns a Loop ready for Run.
-func New(cfg Config) *Loop { return &Loop{cfg: cfg} }
+func New(config Config) *Loop { return &Loop{cfg: config} }
 
 // Run blocks until ctx is cancelled or the listener channel closes.
 func (l *Loop) Run(ctx context.Context) error {

@@ -16,8 +16,8 @@ import (
 	"github.com/oklog/ulid/v2"
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/platform/telemetry"
 	"github.com/trilam/leah/internal/memory/sqlstore"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 //go:embed schema.sql
@@ -192,8 +192,8 @@ func (s *Store) ListContactsByWorkspace(workspace string) ([]Contact, error) {
 	return out, rows.Err()
 }
 
-// GetContact fetches a single contact by ID.
-func (s *Store) GetContact(id string) (Contact, error) {
+// Contact fetches a single contact by ID.
+func (s *Store) Contact(id string) (Contact, error) {
 	var c Contact
 	err := s.db.QueryRow(
 		`SELECT id, workspace_id, name, COALESCE(email,''), COALESCE(notes,''), created_at, updated_at
@@ -265,8 +265,8 @@ func (s *Store) ListProjectsByWorkspace(workspace string) ([]Project, error) {
 	return out, rows.Err()
 }
 
-// GetProject fetches a single project by ID.
-func (s *Store) GetProject(id string) (Project, error) {
+// Project fetches a single project by ID.
+func (s *Store) Project(id string) (Project, error) {
 	var p Project
 	err := s.db.QueryRow(
 		`SELECT id, workspace_id, name, status, COALESCE(notes,''), created_at, updated_at
@@ -341,8 +341,8 @@ func (s *Store) ListDecisionsByWorkspace(workspace string) ([]Decision, error) {
 	return out, rows.Err()
 }
 
-// GetDecision fetches a single decision by ID.
-func (s *Store) GetDecision(id string) (Decision, error) {
+// Decision fetches a single decision by ID.
+func (s *Store) Decision(id string) (Decision, error) {
 	var d Decision
 	err := s.db.QueryRow(
 		`SELECT id, workspace_id, topic, choice, COALESCE(rationale,''), decided_at, created_at

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/trilam/leah/internal/platform/contracts"
-	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
 	"github.com/trilam/leah/internal/platform/ratelimit"
+	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
 )
 
 var (
@@ -73,22 +73,22 @@ type Adapter struct {
 	limiter *ratelimit.Window
 }
 
-func New(cfg Config) (*Adapter, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Adapter, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("facetime: Config.Attestor required (operator-attestation gate)")
 	}
-	if cfg.OSExec == nil {
+	if config.OSExec == nil {
 		return nil, errors.New("facetime: Config.OSExec required")
 	}
-	sink := cfg.Sink
+	sink := config.Sink
 	if sink == nil {
 		sink = noopSink{}
 	}
-	now := cfg.Now
+	now := config.Now
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &Adapter{att: cfg.Attestor, ex: cfg.OSExec, sink: sink, now: now, m: cfg.Metrics, limiter: ratelimit.NewWindow(rateWindow, rateMax, now)}, nil
+	return &Adapter{att: config.Attestor, ex: config.OSExec, sink: sink, now: now, m: config.Metrics, limiter: ratelimit.NewWindow(rateWindow, rateMax, now)}, nil
 }
 
 func (a *Adapter) InitiateVideo(ctx context.Context, callee string) error {

@@ -60,21 +60,21 @@ type ActiveApp struct {
 	bin   string
 }
 
-func New(cfg Config) (*ActiveApp, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*ActiveApp, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("activeapp: Config.Attestor required")
 	}
-	if cfg.Exec == nil {
+	if config.Exec == nil {
 		return nil, errors.New("activeapp: Config.Exec required")
 	}
-	bin := cfg.Bin
+	bin := config.Bin
 	if bin == "" {
 		bin = "osascript"
 	}
 	return &ActiveApp{
-		att:   cfg.Attestor,
-		ex:    cfg.Exec,
-		block: append([]string(nil), cfg.Blocklist...),
+		att:   config.Attestor,
+		ex:    config.Exec,
+		block: append([]string(nil), config.Blocklist...),
 		bin:   bin,
 	}, nil
 }

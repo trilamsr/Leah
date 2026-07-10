@@ -76,7 +76,7 @@ func runContact(args []string) int {
 			return 2
 		}
 		jsonOut := hasFlag(args[2:], "--json")
-		c, err := store.GetContact(args[1])
+		c, err := store.Contact(args[1])
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah contact show: %v\n", err)
 			return 1

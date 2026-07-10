@@ -63,21 +63,21 @@ type Arxiv struct {
 // NewArxiv fails fast on missing deps — a half-wired arXiv adapter could
 // silently bypass the operator-consent gate, which is a security bug not a
 // soft warning. Same shape as NewNews so wiring-code muscle-memory carries.
-func NewArxiv(cfg ArxivConfig) (*Arxiv, error) {
-	if cfg.Attestor == nil {
+func NewArxiv(config ArxivConfig) (*Arxiv, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("feeds.NewArxiv: Attestor required (operator-attestation gate)")
 	}
-	if cfg.HTTPClient == nil {
+	if config.HTTPClient == nil {
 		return nil, errors.New("feeds.NewArxiv: HTTPClient required")
 	}
-	if len(cfg.Categories) == 0 {
+	if len(config.Categories) == 0 {
 		return nil, errors.New("feeds.NewArxiv: at least one Category required")
 	}
 	return &Arxiv{
-		att:        cfg.Attestor,
-		client:     cfg.HTTPClient,
-		categories: cfg.Categories,
-		keyword:    strings.ToLower(cfg.AbstractKeyword),
+		att:        config.Attestor,
+		client:     config.HTTPClient,
+		categories: config.Categories,
+		keyword:    strings.ToLower(config.AbstractKeyword),
 	}, nil
 }
 

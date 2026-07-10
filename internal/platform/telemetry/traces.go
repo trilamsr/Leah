@@ -49,22 +49,22 @@ type Config struct {
 	MaxTraces  int
 }
 
-func New(cfg Config) (Tracer, error) {
-	if cfg.SampleRate < 0 || cfg.SampleRate > 1 {
-		return nil, fmt.Errorf("obs: sample rate %v out of [0,1]", cfg.SampleRate)
+func New(config Config) (Tracer, error) {
+	if config.SampleRate < 0 || config.SampleRate > 1 {
+		return nil, fmt.Errorf("obs: sample rate %v out of [0,1]", config.SampleRate)
 	}
-	if cfg.MaxTraces <= 0 {
-		cfg.MaxTraces = 4096
+	if config.MaxTraces <= 0 {
+		config.MaxTraces = 4096
 	}
-	coll := newCollector(cfg.MaxTraces)
+	coll := newCollector(config.MaxTraces)
 	var sampler sdktrace.Sampler
 	switch {
-	case cfg.SampleRate <= 0:
+	case config.SampleRate <= 0:
 		sampler = sdktrace.NeverSample()
-	case cfg.SampleRate >= 1:
+	case config.SampleRate >= 1:
 		sampler = sdktrace.AlwaysSample()
 	default:
-		sampler = sdktrace.TraceIDRatioBased(cfg.SampleRate)
+		sampler = sdktrace.TraceIDRatioBased(config.SampleRate)
 	}
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.ParentBased(sampler)),

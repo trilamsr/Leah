@@ -47,17 +47,17 @@ type Releases struct {
 // NewReleases fails fast on missing deps. An Atom endpoint without an
 // Attestor would silently bypass the operator-consent gate — that's a
 // security bug, not a soft warning.
-func NewReleases(cfg ReleasesConfig) (*Releases, error) {
-	if cfg.Attestor == nil {
+func NewReleases(config ReleasesConfig) (*Releases, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("feeds.NewReleases: Attestor required (operator-attestation gate)")
 	}
-	if cfg.HTTPClient == nil {
+	if config.HTTPClient == nil {
 		return nil, errors.New("feeds.NewReleases: HTTPClient required")
 	}
-	if len(cfg.Sources) == 0 {
+	if len(config.Sources) == 0 {
 		return nil, errors.New("feeds.NewReleases: at least one Source required")
 	}
-	return &Releases{att: cfg.Attestor, client: cfg.HTTPClient, sources: cfg.Sources}, nil
+	return &Releases{att: config.Attestor, client: config.HTTPClient, sources: config.Sources}, nil
 }
 
 // Name satisfies the Feed-style registry shape.

@@ -76,7 +76,7 @@ func runProject(args []string) int {
 			return 2
 		}
 		jsonOut := hasFlag(args[2:], "--json")
-		p, err := store.GetProject(args[1])
+		p, err := store.Project(args[1])
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah project show: %v\n", err)
 			return 1

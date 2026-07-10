@@ -117,12 +117,12 @@ type pendingRestart struct {
 	when time.Time
 }
 
-func New(cfg Config) *Supervisor {
-	if cfg.Clock == nil {
-		cfg.Clock = time.Now
+func New(config Config) *Supervisor {
+	if config.Clock == nil {
+		config.Clock = time.Now
 	}
-	if cfg.Leak == (leakConfig{}) {
-		cfg.Leak = leakConfig{
+	if config.Leak == (leakConfig{}) {
+		config.Leak = leakConfig{
 			WarnSlopeMBPerMin:  5,
 			WarnSustain:        10 * time.Minute,
 			EvictSlopeMBPerMin: 20,
@@ -131,9 +131,9 @@ func New(cfg Config) *Supervisor {
 		}
 	}
 	return &Supervisor{
-		cfg:   cfg,
+		cfg:   config,
 		procs: map[ProcessHandle]*procState{},
-		leak:  newLeakDetector(cfg.Leak),
+		leak:  newLeakDetector(config.Leak),
 	}
 }
 

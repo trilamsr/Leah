@@ -65,11 +65,11 @@ type Mail struct {
 	open Opener
 }
 
-func New(cfg Config) (*Mail, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Mail, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("mail: Config.Attestor required")
 	}
-	path := cfg.DBPath
+	path := config.DBPath
 	if path == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -77,11 +77,11 @@ func New(cfg Config) (*Mail, error) {
 		}
 		path = home + "/Library/Mail/V10/MailData/Envelope Index"
 	}
-	open := cfg.Open
+	open := config.Open
 	if open == nil {
 		open = sql.Open
 	}
-	return &Mail{path: path, att: cfg.Attestor, open: open}, nil
+	return &Mail{path: path, att: config.Attestor, open: open}, nil
 }
 
 func (m *Mail) Name() string { return "Mail" }

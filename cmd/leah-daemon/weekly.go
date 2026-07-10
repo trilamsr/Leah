@@ -147,13 +147,13 @@ func buildOperatorModelTask(sd, auditPath string, out *os.File, feedback *operat
 		}
 		defer func() { _ = store.Close() }()
 		// ctxmgr shares memory.db (WAL + busy_timeout co-existence per spec §5.2).
-		mgr, err := activectx.Open(dbPath)
+		manager, err := activectx.Open(dbPath)
 		if err != nil {
 			_, _ = fmt.Fprintf(out, "leah-daemon: weekly operatormodel ctxmgr error: %v\n", err)
 			return
 		}
-		defer func() { _ = mgr.Close() }()
-		if err := operatormodel.UpdateProfile(ctx, store, auditPath, mgr, feedback); err != nil {
+		defer func() { _ = manager.Close() }()
+		if err := operatormodel.UpdateProfile(ctx, store, auditPath, manager, feedback); err != nil {
 			_, _ = fmt.Fprintf(out, "leah-daemon: weekly operatormodel error: %v\n", err)
 		}
 	}

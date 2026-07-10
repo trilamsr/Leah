@@ -102,19 +102,19 @@ type Adapter struct {
 // New constructs an Adapter and validates the TokenPath + Attestor
 // preconditions. Returns a typed error so daemon boot can fail fast rather
 // than surfacing a confusing nil-deref at first morning-brief tick.
-func New(cfg Config) (*Adapter, error) {
-	if cfg.TokenPath == "" {
+func New(config Config) (*Adapter, error) {
+	if config.TokenPath == "" {
 		return nil, errors.New("gcal.New: Config.TokenPath required")
 	}
-	if cfg.Attestor == nil {
+	if config.Attestor == nil {
 		return nil, errors.New("gcal.New: Config.Attestor required (operator-attestation gate)")
 	}
-	if cfg.CalendarID == "" {
-		cfg.CalendarID = "primary"
+	if config.CalendarID == "" {
+		config.CalendarID = "primary"
 	}
-	a := &Adapter{cfg: cfg, att: cfg.Attestor, ts: cfg.TokenSource, now: time.Now, m: cfg.Metrics}
-	if cfg.TokenSource != nil {
-		a.svc = newHTTPService(nil, cfg.BaseURL, cfg.CalendarID)
+	a := &Adapter{cfg: config, att: config.Attestor, ts: config.TokenSource, now: time.Now, m: config.Metrics}
+	if config.TokenSource != nil {
+		a.svc = newHTTPService(nil, config.BaseURL, config.CalendarID)
 	}
 	return a, nil
 }

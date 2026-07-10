@@ -20,12 +20,12 @@ func runCtx(args []string) int {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: leah ctx <new|switch|show|history|list> [args...]")
 		return 2
 	}
-	mgr, err := openCtxManager()
+	manager, err := openCtxManager()
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err.Error())
 		return 1
 	}
-	defer func() { _ = mgr.Close() }()
+	defer func() { _ = manager.Close() }()
 	// DefaultWorkspace pulls active workspace at append time so ctx.switch,
 	// ctx.show etc. rows are tagged. After Switch executes, subsequent
 	// Append calls observe the NEW active workspace — that's the desired
@@ -44,7 +44,7 @@ func runCtx(args []string) int {
 			_, _ = fmt.Fprintln(os.Stderr, "leah ctx new: --name required")
 			return 2
 		}
-		if err := mgr.NewContext(*name, *desc); err != nil {
+		if err := manager.NewContext(*name, *desc); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx new: %v\n", err)
 			return 1
 		}
@@ -61,7 +61,7 @@ func runCtx(args []string) int {
 			_, _ = fmt.Fprintln(os.Stderr, "leah ctx switch: --name required")
 			return 2
 		}
-		if err := mgr.Switch(*name, *reason); err != nil {
+		if err := manager.Switch(*name, *reason); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx switch: %v\n", err)
 			return 1
 		}
@@ -69,7 +69,7 @@ func runCtx(args []string) int {
 		fmt.Printf("switched to %q\n", *name)
 	case "show":
 		jsonOut := hasFlag(args[1:], "--json")
-		c, err := mgr.Active()
+		c, err := manager.Active()
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx show: %v\n", err)
 			return 1
@@ -89,7 +89,7 @@ func runCtx(args []string) int {
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
-		hist, err := mgr.History(*limit)
+		hist, err := manager.History(*limit)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx history: %v\n", err)
 			return 1
@@ -113,7 +113,7 @@ func runCtx(args []string) int {
 		}
 	case "list":
 		jsonOut := hasFlag(args[1:], "--json")
-		cs, err := mgr.List()
+		cs, err := manager.List()
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "leah ctx list: %v\n", err)
 			return 1

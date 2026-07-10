@@ -105,26 +105,26 @@ type watch struct {
 	CreatedAt time.Time
 }
 
-func New(cfg Config) (*Adapter, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Adapter, error) {
+	if config.Attestor == nil {
 		return nil, ErrAttestorRequired
 	}
-	if cfg.TokenSource == nil {
+	if config.TokenSource == nil {
 		return nil, ErrTokenRequired
 	}
-	if cfg.HTTPClient == nil {
+	if config.HTTPClient == nil {
 		return nil, ErrHTTPRequired
 	}
-	base := cfg.BaseURL
+	base := config.BaseURL
 	if base == "" {
 		base = defaultBaseURL
 	}
 	return &Adapter{
-		att:     cfg.Attestor,
-		ts:      cfg.TokenSource,
-		http:    cfg.HTTPClient,
+		att:     config.Attestor,
+		ts:      config.TokenSource,
+		http:    config.HTTPClient,
 		baseURL: base,
-		m:       cfg.Metrics,
+		m:       config.Metrics,
 		watches: make(map[string]watch),
 	}, nil
 }

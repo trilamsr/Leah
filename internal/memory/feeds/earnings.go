@@ -58,28 +58,28 @@ type Earnings struct {
 	now     func() time.Time
 }
 
-func NewEarnings(cfg EarningsConfig) (*Earnings, error) {
-	if cfg.Attestor == nil {
+func NewEarnings(config EarningsConfig) (*Earnings, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("feeds.NewEarnings: Attestor required (operator-attestation gate)")
 	}
-	if cfg.HTTPClient == nil {
+	if config.HTTPClient == nil {
 		return nil, errors.New("feeds.NewEarnings: HTTPClient required")
 	}
-	if cfg.APIKey == "" {
+	if config.APIKey == "" {
 		return nil, errors.New("feeds.NewEarnings: APIKey required")
 	}
-	base := cfg.BaseURL
+	base := config.BaseURL
 	if base == "" {
 		base = defaultAlphaVantageBaseURL
 	}
-	now := cfg.Now
+	now := config.Now
 	if now == nil {
 		now = time.Now
 	}
 	return &Earnings{
-		att:     cfg.Attestor,
-		client:  cfg.HTTPClient,
-		apiKey:  cfg.APIKey,
+		att:     config.Attestor,
+		client:  config.HTTPClient,
+		apiKey:  config.APIKey,
 		baseURL: base,
 		now:     now,
 	}, nil

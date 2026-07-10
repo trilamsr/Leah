@@ -51,14 +51,14 @@ type Adapter struct {
 	dbPath string
 }
 
-func New(cfg Config) (*Adapter, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Adapter, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("contacts: Config.Attestor required")
 	}
-	if cfg.DBPath == "" {
+	if config.DBPath == "" {
 		return nil, errors.New("contacts: Config.DBPath required")
 	}
-	return &Adapter{att: cfg.Attestor, dbPath: cfg.DBPath}, nil
+	return &Adapter{att: config.Attestor, dbPath: config.DBPath}, nil
 }
 
 func (a *Adapter) Name() string { return "Contacts" }

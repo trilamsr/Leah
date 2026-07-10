@@ -58,28 +58,28 @@ type Weather struct {
 
 // NewWeather fails fast on a half-wired config; a missing Attestor would
 // silently bypass the operator-consent gate.
-func NewWeather(cfg WeatherConfig) (*Weather, error) {
-	if cfg.Attestor == nil {
+func NewWeather(config WeatherConfig) (*Weather, error) {
+	if config.Attestor == nil {
 		return nil, errors.New("feeds.NewWeather: Attestor required (operator-attestation gate)")
 	}
-	if cfg.HTTPClient == nil {
+	if config.HTTPClient == nil {
 		return nil, errors.New("feeds.NewWeather: HTTPClient required")
 	}
-	if cfg.APIKey == "" {
+	if config.APIKey == "" {
 		return nil, errors.New("feeds.NewWeather: APIKey required")
 	}
-	if cfg.Location == "" {
+	if config.Location == "" {
 		return nil, errors.New("feeds.NewWeather: Location required (no IP-geolocation fallback)")
 	}
-	base := cfg.BaseURL
+	base := config.BaseURL
 	if base == "" {
 		base = defaultOWMBaseURL
 	}
 	return &Weather{
-		att:     cfg.Attestor,
-		client:  cfg.HTTPClient,
-		apiKey:  cfg.APIKey,
-		loc:     cfg.Location,
+		att:     config.Attestor,
+		client:  config.HTTPClient,
+		apiKey:  config.APIKey,
+		loc:     config.Location,
 		baseURL: base,
 	}, nil
 }

@@ -13,8 +13,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/trilam/leah/internal/platform/contracts"
-	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
 	"github.com/trilam/leah/internal/platform/ratelimit"
+	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
 )
 
 const (
@@ -94,35 +94,35 @@ type Adapter struct {
 	limiter *ratelimit.Window
 }
 
-func New(cfg Config) (*Adapter, error) {
-	if cfg.Attestor == nil {
+func New(config Config) (*Adapter, error) {
+	if config.Attestor == nil {
 		return nil, ErrAttestorRequired
 	}
-	if cfg.TokenSource == nil {
+	if config.TokenSource == nil {
 		return nil, ErrTokenSrcRequired
 	}
-	hc := cfg.HTTPClient
+	hc := config.HTTPClient
 	if hc == nil {
 		hc = &http.Client{Timeout: 10 * time.Second}
 	}
-	base := cfg.BaseURL
+	base := config.BaseURL
 	if base == "" {
 		base = defaultBaseURL
 	}
-	now := cfg.Now
+	now := config.Now
 	if now == nil {
 		now = time.Now
 	}
 	return &Adapter{
-		att:            cfg.Attestor,
-		ts:             cfg.TokenSource,
+		att:            config.Attestor,
+		ts:             config.TokenSource,
 		http:           hc,
 		baseURL:        base,
-		guildAllowlist: cfg.GuildAllowlist,
-		audit:          cfg.Audit,
-		dialer:         cfg.WebSocketDialer,
-		gatewayURL:     cfg.GatewayURL,
-		m:              cfg.Metrics,
+		guildAllowlist: config.GuildAllowlist,
+		audit:          config.Audit,
+		dialer:         config.WebSocketDialer,
+		gatewayURL:     config.GatewayURL,
+		m:              config.Metrics,
 		limiter:        ratelimit.NewWindow(rateWindow, maxOutboundPerWindow, now),
 	}, nil
 }

@@ -55,23 +55,23 @@ type host struct {
 }
 
 // NewHost builds the daemon's plugin host. Verifier MUST be non-nil; unsigned bundles cannot be loaded otherwise (security ceiling §7.7).
-func NewHost(cfg HostConfig) (Host, error) {
-	if cfg.DB == nil {
+func NewHost(config HostConfig) (Host, error) {
+	if config.DB == nil {
 		return nil, errors.New("plugin: HostConfig.DB required")
 	}
-	if cfg.Verifier == nil {
+	if config.Verifier == nil {
 		return nil, errors.New("plugin: HostConfig.Verifier required")
 	}
-	if cfg.Sandbox == nil {
-		cfg.Sandbox = NewSandbox(nil)
+	if config.Sandbox == nil {
+		config.Sandbox = NewSandbox(nil)
 	}
-	if cfg.Quota == nil {
-		cfg.Quota = NewQuotaMeter(cfg.Clock)
+	if config.Quota == nil {
+		config.Quota = NewQuotaMeter(config.Clock)
 	}
-	if cfg.Clock == nil {
-		cfg.Clock = time.Now
+	if config.Clock == nil {
+		config.Clock = time.Now
 	}
-	return &host{cfg: cfg}, nil
+	return &host{cfg: config}, nil
 }
 
 // Install verifies + records a bundle. Returns the manifest id. Attest.Failed blocks the insert; Stale warns but proceeds (matches verifier semantics).

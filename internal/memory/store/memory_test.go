@@ -65,19 +65,19 @@ func TestAddContact_Roundtrip(t *testing.T) {
 	}
 }
 
-// TestGetContact asserts fetch-by-id returns the original row (#M2).
-func TestGetContact(t *testing.T) {
+// TestContact asserts fetch-by-id returns the original row (#M2).
+func TestContact(t *testing.T) {
 	s := newTestStore(t)
 	added, err := s.AddContact(Contact{Name: "Pat Singh"})
 	if err != nil {
 		t.Fatalf("AddContact: %v", err)
 	}
-	got, err := s.GetContact(added.ID)
+	got, err := s.Contact(added.ID)
 	if err != nil {
-		t.Fatalf("GetContact: %v", err)
+		t.Fatalf("Contact: %v", err)
 	}
 	if got.ID != added.ID || got.Name != "Pat Singh" {
-		t.Errorf("GetContact mismatch: %+v", got)
+		t.Errorf("Contact mismatch: %+v", got)
 	}
 }
 
@@ -136,9 +136,9 @@ func TestAddDecision_Roundtrip(t *testing.T) {
 	if out.ID == "" || out.CreatedAt == "" {
 		t.Fatal("AddDecision: empty id/created_at")
 	}
-	got, err := s.GetDecision(out.ID)
+	got, err := s.Decision(out.ID)
 	if err != nil {
-		t.Fatalf("GetDecision: %v", err)
+		t.Fatalf("Decision: %v", err)
 	}
 	if got.Topic != d.Topic || got.Choice != d.Choice || got.Rationale != d.Rationale {
 		t.Errorf("decision roundtrip mismatch: %+v vs %+v", got, d)
@@ -196,29 +196,29 @@ func TestSchemaIdempotent(t *testing.T) {
 	}
 }
 
-// TestGetProject_Roundtrip asserts AddProject → GetProject preserves all
+// TestProject_Roundtrip asserts AddProject → Project preserves all
 // fields including the default-active status assignment.
-func TestGetProject_Roundtrip(t *testing.T) {
+func TestProject_Roundtrip(t *testing.T) {
 	s := newTestStore(t)
 	added, err := s.AddProject(Project{Name: "leah", Notes: "self-host"})
 	if err != nil {
 		t.Fatalf("AddProject: %v", err)
 	}
-	got, err := s.GetProject(added.ID)
+	got, err := s.Project(added.ID)
 	if err != nil {
-		t.Fatalf("GetProject: %v", err)
+		t.Fatalf("Project: %v", err)
 	}
 	if got.ID != added.ID || got.Name != "leah" || got.Status != "active" || got.Notes != "self-host" {
-		t.Errorf("GetProject mismatch: %+v", got)
+		t.Errorf("Project mismatch: %+v", got)
 	}
 }
 
-// TestGetProject_NotFoundErrors asserts unknown ID returns an error rather
+// TestProject_NotFoundErrors asserts unknown ID returns an error rather
 // than a zero-value (which would silently swallow KB miss).
-func TestGetProject_NotFoundErrors(t *testing.T) {
+func TestProject_NotFoundErrors(t *testing.T) {
 	s := newTestStore(t)
-	if _, err := s.GetProject("nonexistent-id"); err == nil {
-		t.Fatal("GetProject accepted unknown id, want error")
+	if _, err := s.Project("nonexistent-id"); err == nil {
+		t.Fatal("Project accepted unknown id, want error")
 	}
 }
 

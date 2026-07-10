@@ -182,12 +182,12 @@ func runWorkspacePersona(args []string) int {
 // workspaceExists returns true when name has a row in the context table.
 // Soft-fail to false on any error path (caller emits a WARN).
 func workspaceExists(name string) bool {
-	mgr, err := openCtxManager()
+	manager, err := openCtxManager()
 	if err != nil {
 		return false
 	}
-	defer func() { _ = mgr.Close() }()
-	list, err := mgr.List()
+	defer func() { _ = manager.Close() }()
+	list, err := manager.List()
 	if err != nil {
 		return false
 	}
@@ -204,12 +204,12 @@ func workspaceExists(name string) bool {
 // so the only realistic error path is a corrupted DB — surfaced as WARN by
 // callers that care, default lets daily CLI invocations keep working).
 func activeWorkspace() string {
-	mgr, err := openCtxManager()
+	manager, err := openCtxManager()
 	if err != nil {
 		return "default"
 	}
-	defer func() { _ = mgr.Close() }()
-	c, err := mgr.Active()
+	defer func() { _ = manager.Close() }()
+	c, err := manager.Active()
 	if err != nil || c.Name == "" {
 		return "default"
 	}
