@@ -11,7 +11,7 @@ import (
 // RegisterMetrics no longer emits provider=cold series (F4): adapters
 // own the per-provider seed via connectadapter.Register.
 func TestRegisterMetrics_NoPhantomColdSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, k := range keys {
@@ -23,7 +23,7 @@ func TestRegisterMetrics_NoPhantomColdSeries(t *testing.T) {
 
 // TestEmitExchange_BumpsCounter pins the EmitExchange call-site contract.
 func TestEmitExchange_BumpsCounter(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	EmitExchange(r, "gmail", "ok")
 	want := "leah_connect_exchange_total|outcome=ok,provider=gmail"
 	if !obstest.ContainsExact(obstest.SnapshotKeys(t, r), want) {

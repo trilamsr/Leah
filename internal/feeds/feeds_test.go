@@ -11,8 +11,8 @@ import (
 // stubFeed asserts the Feed interface compiles with a minimal value-type.
 type stubFeed struct{}
 
-func (stubFeed) Name() string                                   { return "stub" }
-func (stubFeed) Fetch(_ context.Context) ([]feeds.Item, error)  { return nil, nil }
+func (stubFeed) Name() string                                  { return "stub" }
+func (stubFeed) Fetch(_ context.Context) ([]feeds.Item, error) { return nil, nil }
 
 // TestFeed_InterfaceSatisfied compile-time guard: a trivial implementor satisfies Feed.
 func TestFeed_InterfaceSatisfied(t *testing.T) {

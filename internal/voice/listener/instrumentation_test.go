@@ -13,7 +13,7 @@ import (
 // TestRegisterMetrics_AddsSeries pins the utterance→transcript histogram
 // surfaces pre-event so /metrics is non-empty before the first turn.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	listener.RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	if !obstest.ContainsPrefix(keys, "leah_voice_utterance_to_transcript_seconds") {
@@ -24,7 +24,7 @@ func TestRegisterMetrics_AddsSeries(t *testing.T) {
 // TestRecordFinal_ObservesDuration: a Final segment records FinishedAt-StartedAt
 // into the utterance→transcript histogram.
 func TestRecordFinal_ObservesDuration(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	instr := listener.NewInstrumentation(r)
 	start := time.Unix(0, 0)
 	instr.RecordFinal(listener.Segment{
@@ -42,7 +42,7 @@ func TestRecordFinal_ObservesDuration(t *testing.T) {
 // TestRecordFinal_IgnoresPartial: non-Final segments must not be observed —
 // the SLO targets end-of-utterance latency, not streaming partials.
 func TestRecordFinal_IgnoresPartial(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	instr := listener.NewInstrumentation(r)
 	start := time.Unix(0, 0)
 	instr.RecordFinal(listener.Segment{Final: false, StartedAt: start, FinishedAt: start.Add(time.Second)})
@@ -62,7 +62,7 @@ func TestRecordFinal_NilSafe(t *testing.T) {
 // TestFakeListener_EmitsHistogramOnFinal: an instrumented Fake records the
 // final-segment latency through the public Emit path — pins the seam wiring.
 func TestFakeListener_EmitsHistogramOnFinal(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	instr := listener.NewInstrumentation(r)
 	fl := listener.NewFake()
 	fl.WithInstrumentation(instr)

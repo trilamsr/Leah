@@ -13,9 +13,9 @@ import (
 // live SSE fan-out (the bus events_timeline.js subscribes to) receives an
 // audit.append frame — proving the dashboard subscription is no longer dead.
 func TestAppendEmitsAuditAppendToBroadcaster(t *testing.T) {
-	b := obs.NewBroadcaster()
-	obs.SetDefaultBroadcaster(b)
-	t.Cleanup(func() { obs.SetDefaultBroadcaster(nil) })
+	b := telemetry.NewBroadcaster()
+	telemetry.SetDefaultBroadcaster(b)
+	t.Cleanup(func() { telemetry.SetDefaultBroadcaster(nil) })
 	sub, err := b.Subscribe(context.Background(), []string{"audit.append"})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)

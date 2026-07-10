@@ -13,11 +13,11 @@ import (
 	"github.com/trilam/leah/internal/adapters/gcal"
 	"github.com/trilam/leah/internal/adapters/gmail"
 	"github.com/trilam/leah/internal/brief"
+	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/contracts"
 	"github.com/trilam/leah/internal/daemonloop"
 	"github.com/trilam/leah/internal/feeds"
-	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/keychain"
 )
 

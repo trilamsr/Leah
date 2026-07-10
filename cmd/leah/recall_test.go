@@ -117,4 +117,3 @@ func TestFilterResultsSince_EmptyInputReturnsEmpty(t *testing.T) {
 		t.Errorf("want empty, got %v", out)
 	}
 }
-

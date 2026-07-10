@@ -1,4 +1,4 @@
-package obs
+package telemetry
 
 import (
 	"context"
@@ -116,9 +116,9 @@ func TestCounterIncrement(t *testing.T) {
 	}
 	raw, _ := os.ReadFile(path)
 	var snap struct {
-		Counters   map[string]int64              `json:"counters"`
-		Gauges     map[string]float64            `json:"gauges"`
-		Histograms map[string]map[string]any     `json:"histograms"`
+		Counters   map[string]int64          `json:"counters"`
+		Gauges     map[string]float64        `json:"gauges"`
+		Histograms map[string]map[string]any `json:"histograms"`
 	}
 	if err := json.Unmarshal(raw, &snap); err != nil {
 		t.Fatalf("parse snapshot: %v\n%s", err, raw)

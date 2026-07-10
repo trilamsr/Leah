@@ -4,7 +4,7 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
-func EmitAttempt(registry *obs.Registry, scope, outcome string) {
+func EmitAttempt(registry *telemetry.Registry, scope, outcome string) {
 	if registry == nil {
 		return
 	}

@@ -25,7 +25,7 @@ import (
 // (time_of_day + cadence) running and degrades context_transition to zero —
 // the path leah-daemon ran on before #10 wired this up.
 type SwitchSource interface {
-	Since(time.Time) ([]ctxmgr.Switch, error)
+	Since(time.Time) ([]activectx.Switch, error)
 }
 
 // DefaultWindowDays bounds the audit slice read by Profile.Update.
@@ -113,7 +113,7 @@ func (p *Profile) Update(ctx context.Context, store *memory.Store, auditPath str
 	p.DaysObserved = daySpan(rows)
 	p.Ready = p.RowsObserved >= ColdStartMinRows && p.DaysObserved >= ColdStartMinDays
 
-	var switches []ctxmgr.Switch
+	var switches []activectx.Switch
 	if p.SwitchSource != nil {
 		s, err := p.SwitchSource.Since(since)
 		if err != nil {

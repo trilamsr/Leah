@@ -14,7 +14,7 @@ import (
 
 // SnapshotKeys writes r to a tempfile and returns the union of counter,
 // gauge, and histogram keys it contains.
-func SnapshotKeys(t *testing.T, r *obs.Registry) []string {
+func SnapshotKeys(t *testing.T, r *telemetry.Registry) []string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "m.json")
 	if err := r.Snapshot(path); err != nil {

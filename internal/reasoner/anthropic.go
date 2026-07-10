@@ -28,12 +28,12 @@ type pricePair struct {
 }
 
 var modelPrices = map[string]pricePair{
-	"claude-sonnet-4-6":  {3.0 / 1_000_000, 15.0 / 1_000_000},   // $3/$15 per M
-	"claude-haiku-4-5":   {1.0 / 1_000_000, 5.0 / 1_000_000},    // $1/$5 per M
-	"claude-opus-4":      {15.0 / 1_000_000, 75.0 / 1_000_000},  // $15/$75 per M
-	"claude-opus-4-7":    {15.0 / 1_000_000, 75.0 / 1_000_000},
-	"claude-opus-4-8":    {15.0 / 1_000_000, 75.0 / 1_000_000},
-	"claude-fable-5":     {3.0 / 1_000_000, 15.0 / 1_000_000},   // placeholder; default to Sonnet-tier
+	"claude-sonnet-4-6": {3.0 / 1_000_000, 15.0 / 1_000_000},  // $3/$15 per M
+	"claude-haiku-4-5":  {1.0 / 1_000_000, 5.0 / 1_000_000},   // $1/$5 per M
+	"claude-opus-4":     {15.0 / 1_000_000, 75.0 / 1_000_000}, // $15/$75 per M
+	"claude-opus-4-7":   {15.0 / 1_000_000, 75.0 / 1_000_000},
+	"claude-opus-4-8":   {15.0 / 1_000_000, 75.0 / 1_000_000},
+	"claude-fable-5":    {3.0 / 1_000_000, 15.0 / 1_000_000}, // placeholder; default to Sonnet-tier
 }
 
 // priceFor returns the per-token rates for model, defaulting to Sonnet
@@ -64,7 +64,7 @@ func priceFor(model string) pricePair {
 type AnthropicClient struct {
 	sdk      anthropic.Client
 	model    string
-	Registry *obs.Registry // nil-safe: cache metrics no-op when unset
+	Registry *telemetry.Registry // nil-safe: cache metrics no-op when unset
 }
 
 // NewAnthropicClient builds an AnthropicClient, returning an error when no

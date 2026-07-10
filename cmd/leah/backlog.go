@@ -18,10 +18,10 @@ const defaultBacklogRepo = "trilamsr/Leah"
 
 // backlogView is the JSON shape printed under --json.
 type backlogView struct {
-	Repo   string                   `json:"repo"`
-	Agents []regattaclient.Agent    `json:"agents"`
-	Issues []map[string]any         `json:"issues"`
-	PRs    []map[string]any         `json:"prs"`
+	Repo   string                `json:"repo"`
+	Agents []regattaclient.Agent `json:"agents"`
+	Issues []map[string]any      `json:"issues"`
+	PRs    []map[string]any      `json:"prs"`
 }
 
 // runBacklog aggregates active regatta agents, open ready-for-agent issues,

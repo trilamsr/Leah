@@ -405,7 +405,7 @@ func TestTruncateForTooltip_ExactMax(t *testing.T) {
 
 // auditParseErrorCount reads the counter value under the audit_jsonl source
 // label so tests can assert tailAudit's silent-failure replacement (BB-RETRO M2, #5).
-func auditParseErrorCount(t *testing.T, reg *obs.Registry) int64 {
+func auditParseErrorCount(t *testing.T, reg *telemetry.Registry) int64 {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "snap.json")
@@ -443,7 +443,7 @@ also bad
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write audit: %v", err)
 	}
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	s := &Server{AuditPath: path, Metrics: reg}
 	rows := s.tailAudit(20)
 	if len(rows) != 2 {
@@ -464,7 +464,7 @@ func TestTailAudit_CleanLogNoIncrement(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write audit: %v", err)
 	}
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	s := &Server{AuditPath: path, Metrics: reg}
 	rows := s.tailAudit(20)
 	if len(rows) != 2 {
@@ -487,7 +487,7 @@ more garbage
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write audit: %v", err)
 	}
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	s := &Server{AuditPath: path, Metrics: reg}
 	rows := s.tailAudit(20)
 	if len(rows) != 2 {

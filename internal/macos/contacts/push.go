@@ -15,7 +15,7 @@ import (
 // suppression window is wall-clock-independent in unit tests.
 type PushSource struct {
 	Source   osevent.Source
-	ObsEmit  func(obs.Event)
+	ObsEmit  func(telemetry.Event)
 	Debounce time.Duration
 	NowFn    func() time.Time
 }
@@ -52,11 +52,11 @@ func (p *PushSource) Run(ctx context.Context) error {
 			if debounce > 0 && !lastEmit.IsZero() && t.Sub(lastEmit) < debounce {
 				continue
 			}
-			p.ObsEmit(obs.Event{
+			p.ObsEmit(telemetry.Event{
 				Kind:    "contact_store_changed",
 				Actor:   "contacts",
 				Outcome: "ok",
-				Payload: obs.ContactStoreChangedEvent{},
+				Payload: telemetry.ContactStoreChangedEvent{},
 			})
 			// Stamp AFTER emit so a panicking ObsEmit cannot poison the next
 			// window with a half-applied timestamp.

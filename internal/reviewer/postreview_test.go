@@ -73,13 +73,13 @@ func TestPostReview_HexBoundary(t *testing.T) {
 // keeps the slug a stable downstream key.
 func TestPostReview_NamedTrailingHyphenRejected(t *testing.T) {
 	bad := []string{
-		"cavecrew-reviewer-foo-",  // trailing hyphen
-		"cavecrew-reviewer--foo",  // double hyphen
-		"cavecrew-reviewer-Foo",   // uppercase slug
-		"cavecrew-reviewer-foo!",  // illegal char
-		"cavecrew-reviewer-foo ",  // trailing space
-		" cavecrew-reviewer-foo",  // leading space
-		"cavecrew-Reviewer-foo",   // uppercase prefix
+		"cavecrew-reviewer-foo-", // trailing hyphen
+		"cavecrew-reviewer--foo", // double hyphen
+		"cavecrew-reviewer-Foo",  // uppercase slug
+		"cavecrew-reviewer-foo!", // illegal char
+		"cavecrew-reviewer-foo ", // trailing space
+		" cavecrew-reviewer-foo", // leading space
+		"cavecrew-Reviewer-foo",  // uppercase prefix
 	}
 	for _, id := range bad {
 		if err := ValidateAgentID(id); err == nil {

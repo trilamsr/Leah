@@ -13,7 +13,7 @@ import (
 // TestHTTP_HealthEndpoint_ReturnsJSON: /health returns the registry probe as JSON.
 func TestHTTP_HealthEndpoint_ReturnsJSON(t *testing.T) {
 	s := newTestServer(t)
-	s.Health = obs.NewHealthRegistry()
+	s.Health = telemetry.NewHealthRegistry()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 	s.mux().ServeHTTP(rec, req)
@@ -24,11 +24,11 @@ func TestHTTP_HealthEndpoint_ReturnsJSON(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("content-type: got %q, want application/json", ct)
 	}
-	var rep obs.HealthReport
+	var rep telemetry.HealthReport
 	if err := json.Unmarshal(rec.Body.Bytes(), &rep); err != nil {
 		t.Fatalf("decode: %v; body=%s", err, rec.Body.String())
 	}
-	if rep.Status != obs.HealthOK {
+	if rep.Status != telemetry.HealthOK {
 		t.Errorf("status: got %q, want ok", rep.Status)
 	}
 }
@@ -36,7 +36,7 @@ func TestHTTP_HealthEndpoint_ReturnsJSON(t *testing.T) {
 // TestHTTP_MetricsEndpoint_ReturnsPromFormat: /metrics returns Prometheus text.
 func TestHTTP_MetricsEndpoint_ReturnsPromFormat(t *testing.T) {
 	s := newTestServer(t)
-	s.Metrics = obs.NewRegistry()
+	s.Metrics = telemetry.NewRegistry()
 	s.Metrics.Counter("leah_test_total").Add(map[string]string{"k": "v"}, 4)
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)

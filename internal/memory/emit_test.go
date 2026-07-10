@@ -12,9 +12,9 @@ import (
 // live SSE fan-out receives a memory.upsert frame, proving the write hook now
 // feeds the dashboard subscription instead of only the metrics counter.
 func TestAddDecisionEmitsMemoryUpsert(t *testing.T) {
-	b := obs.NewBroadcaster()
-	obs.SetDefaultBroadcaster(b)
-	t.Cleanup(func() { obs.SetDefaultBroadcaster(nil) })
+	b := telemetry.NewBroadcaster()
+	telemetry.SetDefaultBroadcaster(b)
+	t.Cleanup(func() { telemetry.SetDefaultBroadcaster(nil) })
 	sub, err := b.Subscribe(context.Background(), []string{"memory.upsert"})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)

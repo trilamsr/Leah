@@ -7,6 +7,6 @@ import (
 
 const provider = "maps"
 
-func Metrics(r *obs.Registry) *connectadapter.Metrics { return connectadapter.For(provider, r) }
+func Metrics(r *telemetry.Registry) *connectadapter.Metrics { return connectadapter.For(provider, r) }
 
-func RegisterMetrics(r *obs.Registry) { Metrics(r).Register() }
+func RegisterMetrics(r *telemetry.Registry) { Metrics(r).Register() }

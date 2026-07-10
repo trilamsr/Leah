@@ -23,7 +23,7 @@ func readJSON(path string) (map[string]any, error) {
 
 // TestRegister_AllSeriesPresent asserts every spec §4.7 series surfaces.
 func TestRegister_AllSeriesPresent(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	For("slack", r).Register()
 	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
@@ -42,7 +42,7 @@ func TestRegister_AllSeriesPresent(t *testing.T) {
 // TestObserveAPI_DoesNotBumpExchange guards against a double-bump regression:
 // ObserveAPI must NOT touch exchange_total.
 func TestObserveAPI_DoesNotBumpExchange(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	For("slack", r).ObserveAPI("ListUnread", 0.1)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, k := range keys {
@@ -59,7 +59,7 @@ func TestObserveAPI_DoesNotBumpExchange(t *testing.T) {
 
 // TestObserveExchange_OnlyBumpsExchange asserts the converse split.
 func TestObserveExchange_OnlyBumpsExchange(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	For("slack", r).ObserveExchange("ok")
 	keys := obstest.SnapshotKeys(t, r)
 	for _, k := range keys {
@@ -76,7 +76,7 @@ func TestObserveExchange_OnlyBumpsExchange(t *testing.T) {
 // TestRegister_HistogramHasNoSample asserts Register cold-seeds the
 // histogram series with count=0/sum=0 — Observe(0) would skew p50.
 func TestRegister_HistogramHasNoSample(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	For("slack", r).Register()
 	// One real observation; if Register leaked a 0-sample, count would be 2.
 	r.Histogram("leah_connect_api_latency_seconds", latencyBuckets).

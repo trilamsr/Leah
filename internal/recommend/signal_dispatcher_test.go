@@ -111,7 +111,7 @@ func (c *captureEngine) OnSignal(ctx context.Context, sig Signal) ([]Recommendat
 func TestSignalDispatcher_TranslatesObsEventToSignal(t *testing.T) {
 	logger, _ := newAuditLogger(t)
 	cap := &captureEngine{MemoryEngine: NewMemoryEngine(logger)}
-	b := obs.NewBroadcaster()
+	b := telemetry.NewBroadcaster()
 
 	d := NewSignalDispatcher(cap, b, func() string { return "voice" })
 	ctx, cancel := context.WithCancel(context.Background())
@@ -121,7 +121,7 @@ func TestSignalDispatcher_TranslatesObsEventToSignal(t *testing.T) {
 	}
 	defer d.Stop()
 
-	b.Emit(obs.Event{Kind: "voice.speak", TS: time.Unix(1700000000, 0).UTC(), Detail: "wake"})
+	b.Emit(telemetry.Event{Kind: "voice.speak", TS: time.Unix(1700000000, 0).UTC(), Detail: "wake"})
 
 	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
 		cap.mu.Lock()
@@ -143,8 +143,8 @@ func TestSignalDispatcher_TranslatesObsEventToSignal(t *testing.T) {
 // DefaultSignalKinds entry exists in obs.KnownEventKinds. Without this gate
 // the dispatcher subscribes to phantom kinds — silent zero-match filter.
 func TestSignalDispatcher_DefaultKinds_MatchActualEmitters(t *testing.T) {
-	known := make(map[string]struct{}, len(obs.KnownEventKinds))
-	for _, k := range obs.KnownEventKinds {
+	known := make(map[string]struct{}, len(telemetry.KnownEventKinds))
+	for _, k := range telemetry.KnownEventKinds {
 		known[k] = struct{}{}
 	}
 	for _, k := range DefaultSignalKinds {
@@ -167,7 +167,7 @@ func TestSignalDispatcher_DefaultKinds_NoFeedbackLoop(t *testing.T) {
 func TestSignalDispatcher_WithKinds_RejectsFeedbackLoopKind(t *testing.T) {
 	logger, _ := newAuditLogger(t)
 	eng := NewMemoryEngine(logger)
-	b := obs.NewBroadcaster()
+	b := telemetry.NewBroadcaster()
 	d := NewSignalDispatcher(eng, b, nil)
 	if _, err := d.WithKinds([]string{"recommendation.propose"}); !errors.Is(err, ErrFeedbackLoopKind) {
 		t.Fatalf("want ErrFeedbackLoopKind, got %v", err)
@@ -186,8 +186,8 @@ func TestSignalDispatcher_DropMonitor_EmitsCounterDelta(t *testing.T) {
 		captureEngine: &captureEngine{MemoryEngine: NewMemoryEngine(logger)},
 		gate:          gate,
 	}
-	b := obs.NewBroadcaster()
-	reg := obs.NewRegistry()
+	b := telemetry.NewBroadcaster()
+	reg := telemetry.NewRegistry()
 	d := NewSignalDispatcher(cap, b, nil).WithRegistry(reg)
 	d.tick = 5 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
@@ -199,7 +199,7 @@ func TestSignalDispatcher_DropMonitor_EmitsCounterDelta(t *testing.T) {
 
 	// Saturate the 16-deep subscriber buffer with pump blocked → forced drops.
 	for i := 0; i < 64; i++ {
-		b.Emit(obs.Event{Kind: "voice.speak", TS: time.Now().UTC()})
+		b.Emit(telemetry.Event{Kind: "voice.speak", TS: time.Now().UTC()})
 	}
 	testutil.Eventually(t, 5*time.Second, time.Millisecond, func() bool {
 		return b.Dropped() > 0
@@ -230,7 +230,7 @@ func (e *blockingEngine) OnSignal(ctx context.Context, sig Signal) ([]Recommenda
 }
 
 // counterTotal sums all label-set values of name via Snapshot's JSON.
-func counterTotal(t *testing.T, reg *obs.Registry, name string) int64 {
+func counterTotal(t *testing.T, reg *telemetry.Registry, name string) int64 {
 	t.Helper()
 	path := t.TempDir() + "/snap.json"
 	if err := reg.Snapshot(path); err != nil {

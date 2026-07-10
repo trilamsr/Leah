@@ -8,12 +8,12 @@ import (
 
 // DiagStatePayload carries best-effort daemon state for debugging.
 type DiagStatePayload struct {
-	Clients       []string               `json:"clients"`
+	Clients       []string       `json:"clients"`
 	Conversation  map[string]any `json:"conversation"`
 	MemoryStats   map[string]any `json:"memory_stats"`
-	PendingTTS    bool                   `json:"pending_tts"`
-	DaemonUptimeS int64                  `json:"daemon_uptime_s"`
-	LastError     string                 `json:"last_error"`
+	PendingTTS    bool           `json:"pending_tts"`
+	DaemonUptimeS int64          `json:"daemon_uptime_s"`
+	LastError     string         `json:"last_error"`
 }
 
 // HandleState returns a single-frame channel containing a diag.state.response

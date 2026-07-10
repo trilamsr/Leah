@@ -10,7 +10,7 @@ import (
 )
 
 func TestStateInstrumentation_RecordsStateToWidgetLatency(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	m := NewMachine()
 	BindStateInstrumentation(m, NewStateInstrumentation(reg))
 
@@ -42,7 +42,7 @@ func TestStateInstrumentation_NilSafe(t *testing.T) {
 }
 
 func TestStateInstrumentation_RenderWithoutMarkIsNoOp(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	m := NewMachine()
 	BindStateInstrumentation(m, NewStateInstrumentation(reg))
 
@@ -64,7 +64,7 @@ func TestStateInstrumentation_UnboundMachineMarkRenderedDoesNotPanic(t *testing.
 }
 
 func TestStateInstrumentation_LatchReplacedByLaterTransition(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	m := NewMachine()
 	BindStateInstrumentation(m, NewStateInstrumentation(reg))
 
@@ -83,7 +83,7 @@ func TestStateInstrumentation_LatchReplacedByLaterTransition(t *testing.T) {
 
 // Redundant Dismiss on already-hidden Machine must not latch.
 func TestStateInstrumentation_RedundantDismissIsNoOp(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	m := NewMachine()
 	BindStateInstrumentation(m, NewStateInstrumentation(reg))
 
@@ -98,7 +98,7 @@ func TestStateInstrumentation_RedundantDismissIsNoOp(t *testing.T) {
 }
 
 func TestStateInstrumentation_OnIdleFocusToAmbient(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	m := NewMachine()
 	BindStateInstrumentation(m, NewStateInstrumentation(reg))
 

@@ -14,12 +14,12 @@ var latencyBuckets = []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5}
 // Metrics emits the shared leah_connect_* series for one provider.
 type Metrics struct {
 	provider string
-	reg      *obs.Registry
+	reg      *telemetry.Registry
 }
 
 // For returns a Metrics bound to provider. Nil registry is tolerated —
 // methods become no-ops, matching the existing adapter convention.
-func For(provider string, reg *obs.Registry) *Metrics {
+func For(provider string, reg *telemetry.Registry) *Metrics {
 	return &Metrics{provider: provider, reg: reg}
 }
 

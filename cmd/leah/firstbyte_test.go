@@ -19,7 +19,7 @@ func TestRunCommand_StatusEmitsFirstByteHistogram(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", tmp)
 
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	if code := runCommand(context.Background(), reg, []string{"status"}); code != 0 {
 		t.Fatalf("runCommand status = %d; want 0", code)
 	}
@@ -68,7 +68,7 @@ func TestRunCommand_AskPathDoesNotTripHistogram(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", tmp)
 
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	// Missing query arg returns 2 before any LLM call — fine for this test;
 	// what we're pinning is wiring, not ask's runtime behavior.
 	_ = runCommand(context.Background(), reg, []string{"ask"})

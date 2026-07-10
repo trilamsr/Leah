@@ -37,8 +37,8 @@ func (f *fakeSignalEngine) Apply(context.Context, recommend.Recommendation) erro
 
 func TestStartRecommendDispatcher_WiresToEngine(t *testing.T) {
 	lg := slog.New(slog.NewTextHandler(io.Discard, nil))
-	reg := obs.NewRegistry()
-	bus := obs.NewBroadcaster()
+	reg := telemetry.NewRegistry()
+	bus := telemetry.NewBroadcaster()
 	eng := &fakeSignalEngine{}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -50,7 +50,7 @@ func TestStartRecommendDispatcher_WiresToEngine(t *testing.T) {
 	}
 	defer stop()
 
-	bus.Emit(obs.Event{Kind: "voice.speak", TS: time.Unix(1700000000, 0).UTC(), Detail: "wake"})
+	bus.Emit(telemetry.Event{Kind: "voice.speak", TS: time.Unix(1700000000, 0).UTC(), Detail: "wake"})
 
 	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
 		eng.mu.Lock()
@@ -69,10 +69,10 @@ func TestStartRecommendDispatcher_WiresToEngine(t *testing.T) {
 // or obs.EmitEvent fans out to a broadcaster the dispatcher doesn't subscribe.
 func TestStartRecommendDispatcher_EmitEventReachesEngine(t *testing.T) {
 	lg := slog.New(slog.NewTextHandler(io.Discard, nil))
-	reg := obs.NewRegistry()
-	bus := obs.NewBroadcaster()
-	obs.SetDefaultBroadcaster(bus)
-	t.Cleanup(func() { obs.SetDefaultBroadcaster(nil) })
+	reg := telemetry.NewRegistry()
+	bus := telemetry.NewBroadcaster()
+	telemetry.SetDefaultBroadcaster(bus)
+	t.Cleanup(func() { telemetry.SetDefaultBroadcaster(nil) })
 
 	eng := &fakeSignalEngine{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -89,7 +89,7 @@ func TestStartRecommendDispatcher_EmitEventReachesEngine(t *testing.T) {
 		t.Fatalf("BuildMux: %v", err)
 	}
 
-	obs.EmitEvent(ctx, obs.Event{Kind: "voice.speak", Detail: "wake"})
+	telemetry.EmitEvent(ctx, telemetry.Event{Kind: "voice.speak", Detail: "wake"})
 
 	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
 		eng.mu.Lock()
@@ -103,10 +103,10 @@ func TestStartRecommendDispatcher_EmitEventReachesEngine(t *testing.T) {
 // matcher main.go registers.
 func TestStartRecommendDispatcher_EndToEnd_ProducesRecommendation(t *testing.T) {
 	lg := slog.New(slog.NewTextHandler(io.Discard, nil))
-	reg := obs.NewRegistry()
-	bus := obs.NewBroadcaster()
-	obs.SetDefaultBroadcaster(bus)
-	t.Cleanup(func() { obs.SetDefaultBroadcaster(nil) })
+	reg := telemetry.NewRegistry()
+	bus := telemetry.NewBroadcaster()
+	telemetry.SetDefaultBroadcaster(bus)
+	t.Cleanup(func() { telemetry.SetDefaultBroadcaster(nil) })
 
 	eng := recommend.NewMemoryEngine(nil)
 	eng.RegisterMatcher(identitySignalMatcher{})
@@ -119,7 +119,7 @@ func TestStartRecommendDispatcher_EndToEnd_ProducesRecommendation(t *testing.T) 
 	}
 	defer stop()
 
-	obs.EmitEvent(ctx, obs.Event{Kind: "voice.speak", Detail: "wake"})
+	telemetry.EmitEvent(ctx, telemetry.Event{Kind: "voice.speak", Detail: "wake"})
 
 	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
 		recs, _ := eng.Propose(ctx)
@@ -129,8 +129,8 @@ func TestStartRecommendDispatcher_EndToEnd_ProducesRecommendation(t *testing.T) 
 
 func TestStartRecommendDispatcher_CtxCancel_Stops(t *testing.T) {
 	lg := slog.New(slog.NewTextHandler(io.Discard, nil))
-	reg := obs.NewRegistry()
-	bus := obs.NewBroadcaster()
+	reg := telemetry.NewRegistry()
+	bus := telemetry.NewBroadcaster()
 	eng := &fakeSignalEngine{}
 
 	ctx, cancel := context.WithCancel(context.Background())

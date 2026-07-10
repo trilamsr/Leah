@@ -88,13 +88,13 @@ func (e *MemoryEngine) Seed(rec Recommendation) {
 	e.mu.Lock()
 	e.pending[rec.ID] = rec
 	e.mu.Unlock()
-	obs.Publish(obs.Event{
+	telemetry.Publish(telemetry.Event{
 		TS:      time.Now().UTC(),
 		Kind:    "recommendation.propose",
 		Actor:   "recommend.engine",
 		Outcome: "ok",
 		RefID:   rec.ID,
-		Detail:  obs.SafeDetail(rec.Pattern),
+		Detail:  telemetry.SafeDetail(rec.Pattern),
 		Payload: rec,
 	})
 }

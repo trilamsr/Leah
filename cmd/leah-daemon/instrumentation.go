@@ -14,20 +14,20 @@ import (
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/feeds"
 	"github.com/trilam/leah/internal/intent"
+	"github.com/trilam/leah/internal/learn"
 	"github.com/trilam/leah/internal/memory"
 	"github.com/trilam/leah/internal/obs"
 	"github.com/trilam/leah/internal/onboarding"
 	"github.com/trilam/leah/internal/operatormodel"
 	"github.com/trilam/leah/internal/recommend"
-	"github.com/trilam/leah/internal/learn"
 	"github.com/trilam/leah/internal/voice"
 	"github.com/trilam/leah/internal/voice/listener"
 	voiceloop "github.com/trilam/leah/internal/voice/loop"
 )
 
 func wireObs(
-	registry *obs.Registry,
-	health *obs.HealthRegistry,
+	registry *telemetry.Registry,
+	health *telemetry.HealthRegistry,
 	a *audit.Logger,
 	store *memory.Store,
 	loop *daemonloop.Loop,

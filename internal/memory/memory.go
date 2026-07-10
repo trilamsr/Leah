@@ -124,7 +124,7 @@ func (s *Store) fireWrite(table, id string) {
 	if s.OnWrite != nil {
 		s.OnWrite(table, id)
 	}
-	obs.Publish(obs.Event{
+	telemetry.Publish(telemetry.Event{
 		TS:      time.Now().UTC(),
 		Kind:    "memory.upsert",
 		Actor:   "memory",

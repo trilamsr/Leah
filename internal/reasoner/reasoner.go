@@ -145,7 +145,7 @@ func (r *Reasoner) AskStream(ctx context.Context, user string) (<-chan string, e
 // Ask sends user to Client.Complete + charges the returned cost. Budget
 // exceeded → returns *budget.ExceededError without surfacing partial text.
 func (r *Reasoner) Ask(ctx context.Context, user string) (string, error) {
-	lg := obs.LoggerFromCtx(ctx).With("package", "reasoner", "func", "Ask")
+	lg := telemetry.LoggerFromCtx(ctx).With("package", "reasoner", "func", "Ask")
 	lg.Debug("reasoner.call.start")
 
 	start := time.Now()

@@ -1,4 +1,4 @@
-package obs
+package telemetry
 
 import (
 	"os"
@@ -33,9 +33,9 @@ func TestDailyRotator_WriteRacesRotate(t *testing.T) {
 	// eliminates the prior busy-loop that under contended CI scheduling could
 	// fail to drain before close(stop), losing accounting in atomic.Int64.
 	const (
-		writers      = 8
-		writesPerGo  = 2000
-		closeCycles  = 500
+		writers     = 8
+		writesPerGo = 2000
+		closeCycles = 500
 	)
 	record := []byte("record\n")
 

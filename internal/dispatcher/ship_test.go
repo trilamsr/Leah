@@ -132,7 +132,7 @@ func TestShipDraftsBodyFilesIssueAuditsCorrectly(t *testing.T) {
 func TestShipEmitsObsLogsAt4Stages(t *testing.T) {
 	var buf bytes.Buffer
 	lg := slog.New(slog.NewJSONHandler(&buf, nil))
-	ctx := obs.WithLogger(context.Background(), lg)
+	ctx := telemetry.WithLogger(context.Background(), lg)
 
 	dir := t.TempDir()
 	ship := &Ship{
@@ -245,7 +245,7 @@ func TestShipWatcherMirrorsRegattaListErrorToObsLogger(t *testing.T) {
 
 	var logBuf bytes.Buffer
 	lg := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	ctx := obs.WithLogger(context.Background(), lg)
+	ctx := telemetry.WithLogger(context.Background(), lg)
 
 	rc := errRegatta{err: errSynthetic("regatta unreachable")}
 

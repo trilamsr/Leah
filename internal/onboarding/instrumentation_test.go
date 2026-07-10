@@ -14,7 +14,7 @@ import (
 
 // TestRegisterMetrics_AddsSeries — A9 series surfaces pre-event on /metrics.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	onboarding.RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	want := "leah_onboarding_install_to_first_reply_seconds"
@@ -26,7 +26,7 @@ func TestRegisterMetrics_AddsSeries(t *testing.T) {
 // TestRecordFirstReply_ObservesOnce — observer seals after first sample; A9 is once-per-install.
 func TestRecordFirstReply_ObservesOnce(t *testing.T) {
 	t.Parallel()
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	onboarding.RegisterMetrics(r)
 	obs1 := onboarding.NewFirstReplyObserver(r)
 
@@ -66,7 +66,7 @@ func TestFirstReplyBuckets_Sized_For_5min_SLA(t *testing.T) {
 func TestRecordFirstReplyIfNotYetRecorded_FullPath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	onboarding.RegisterMetrics(r)
 
 	t0 := time.Unix(1_700_000_000, 0).UTC()
@@ -106,7 +106,7 @@ func TestRecordFirstReplyIfNotYetRecorded_FullPath(t *testing.T) {
 func TestRecordFirstReplyIfNotYetRecorded_NoMarker_NoOp(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	onboarding.RegisterMetrics(r)
 	if onboarding.RecordFirstReplyIfNotYetRecorded(dir, r, time.Now()) {
 		t.Fatalf("RecordFirstReplyIfNotYetRecorded with no install marker returned true, want false")
@@ -121,7 +121,7 @@ func TestRecordFirstReplyIfNotYetRecorded_NegativeElapsed_DoesNotBurnSeal(t *tes
 	if err := onboarding.MarkInstalled(dir, t0); err != nil {
 		t.Fatalf("MarkInstalled: %v", err)
 	}
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	onboarding.RegisterMetrics(r)
 
 	if onboarding.RecordFirstReplyIfNotYetRecorded(dir, r, t0.Add(-1*time.Second)) {
@@ -142,7 +142,7 @@ func TestRecordFirstReplyIfNotYetRecorded_SealAcrossProcesses(t *testing.T) {
 		t.Fatalf("MarkInstalled: %v", err)
 	}
 
-	r1 := obs.NewRegistry()
+	r1 := telemetry.NewRegistry()
 	onboarding.RegisterMetrics(r1)
 	if !onboarding.RecordFirstReplyIfNotYetRecorded(dir, r1, t0.Add(5*time.Second)) {
 		t.Fatalf("first invocation returned false, want true")
@@ -150,7 +150,7 @@ func TestRecordFirstReplyIfNotYetRecorded_SealAcrossProcesses(t *testing.T) {
 
 	// Second "process" simulated as a fresh registry — only the on-disk seal
 	// can stop it; an in-memory atomic.Bool would not survive process exit.
-	r2 := obs.NewRegistry()
+	r2 := telemetry.NewRegistry()
 	onboarding.RegisterMetrics(r2)
 	if onboarding.RecordFirstReplyIfNotYetRecorded(dir, r2, t0.Add(20*time.Second)) {
 		t.Fatalf("second invocation across fresh registry returned true, want false (filesystem-sealed)")

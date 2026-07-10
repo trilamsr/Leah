@@ -20,8 +20,8 @@ const DefaultDebounce = 250 * time.Millisecond
 // pump stays a faithful mirror of NSWorkspace for other consumers.
 type PushSource struct {
 	Source   osevent.Source
-	ObsEmit  func(obs.Event)
-	Debounce time.Duration   // 0 disables; <0 treated as 0
+	ObsEmit  func(telemetry.Event)
+	Debounce time.Duration    // 0 disables; <0 treated as 0
 	NowFn    func() time.Time // injectable for hermetic tests
 }
 
@@ -73,11 +73,11 @@ func (p *PushSource) Run(ctx context.Context) error {
 				continue
 			}
 			name, _ := ev.Detail["name"].(string)
-			p.ObsEmit(obs.Event{
+			p.ObsEmit(telemetry.Event{
 				Kind:    "workspace.active_app_changed",
 				Actor:   "activeapp",
 				Outcome: "ok",
-				Payload: obs.WorkspaceActiveAppEvent{BundleID: bid, Name: name},
+				Payload: telemetry.WorkspaceActiveAppEvent{BundleID: bid, Name: name},
 			})
 			lastBundle = bid
 			lastEmit = t

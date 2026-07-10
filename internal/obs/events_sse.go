@@ -3,7 +3,7 @@
 // Canonical Event lives in events.go. Keep-alive comment every 15s; client
 // disconnect (ctx done) tears down the sub.
 
-package obs
+package telemetry
 
 import (
 	"context"

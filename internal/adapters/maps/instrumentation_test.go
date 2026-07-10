@@ -15,7 +15,7 @@ import (
 
 // TestRegisterMetrics_AddsSeries asserts the shared leah_connect_* series surface bound to maps.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
@@ -147,7 +147,7 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 				_, _ = w.Write([]byte(tc.body))
 			}))
 			defer srv.Close()
-			r := obs.NewRegistry()
+			r := telemetry.NewRegistry()
 			RegisterMetrics(r)
 			a, err := New(Config{
 				Attestor:   &fakeAttestor{},
@@ -205,7 +205,7 @@ func TestObserveAPI_CacheHitBypass(t *testing.T) {
 		t.Fatalf("OpenCache: %v", err)
 	}
 	defer func() { _ = cache.Close() }()
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	a, err := New(Config{
 		Attestor:   &fakeAttestor{},

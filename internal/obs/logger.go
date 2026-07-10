@@ -3,7 +3,7 @@
 // when leah-daemon hangs at 3am Leah cannot draft a regatta self-bug
 // issue ("here's the panic + last 10 log lines"); the audit log captures
 // user-facing actions, obs captures Leah's internal experience.
-package obs
+package telemetry
 
 import (
 	"context"

@@ -13,7 +13,7 @@ import (
 
 // driveProducersForTest exercises the wires so /metrics has live observations
 // on top of the cold-start zero seeds wireInstrumentation lays down.
-func driveProducersForTest(t *testing.T, registry *obs.Registry) {
+func driveProducersForTest(t *testing.T, registry *telemetry.Registry) {
 	t.Helper()
 	// Cold-start seeds in wireObs already emit every series; no-op here.
 	_ = registry
@@ -23,8 +23,8 @@ func driveProducersForTest(t *testing.T, registry *obs.Registry) {
 // passes nil for chain (voice off in unit tests) so the SelfChecker reports
 // "degraded" — still counted as a registered probe for the package_health test.
 func wireInstrumentation(
-	registry *obs.Registry,
-	health *obs.HealthRegistry,
+	registry *telemetry.Registry,
+	health *telemetry.HealthRegistry,
 	a *audit.Logger,
 	store *memory.Store,
 	loop *daemonloop.Loop,

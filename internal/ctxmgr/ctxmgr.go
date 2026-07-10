@@ -6,7 +6,7 @@
 //
 // Personal-use scope: zero concurrent contexts, no auto-infer, no
 // cross-context queries.
-package ctxmgr
+package activectx
 
 import (
 	"database/sql"
@@ -42,11 +42,11 @@ type Context struct {
 
 // Switch is one row of context_switch_log.
 type Switch struct {
-	ID          int64
-	From        string // empty on first switch
-	To          string
-	SwitchedAt  time.Time
-	Reason      string
+	ID         int64
+	From       string // empty on first switch
+	To         string
+	SwitchedAt time.Time
+	Reason     string
 }
 
 // Manager owns a *sql.DB handle pointing at the shared memory.db file.

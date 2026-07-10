@@ -9,10 +9,10 @@ import (
 
 func TestLoad(t *testing.T) {
 	tests := []struct {
-		name    string
-		write   string // content to write; "" = do not create the file
+		name     string
+		write    string // content to write; "" = do not create the file
 		wantBody string
-		wantErr error
+		wantErr  error
 	}{
 		{
 			name:     "file present returns full body verbatim",

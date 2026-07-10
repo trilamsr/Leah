@@ -8,8 +8,8 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/backup"
-	"github.com/trilam/leah/internal/daemonloop"
 	commsout "github.com/trilam/leah/internal/comms/out"
+	"github.com/trilam/leah/internal/daemonloop"
 )
 
 // buildBackupSnapshotTask returns the weekly restic-snapshot task. Iterates

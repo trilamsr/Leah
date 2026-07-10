@@ -103,7 +103,7 @@ func (l *Logger) Append(e Entry) (retErr error) {
 		return fmt.Errorf("write entry: %w", err)
 	}
 	l.fanout(e)
-	obs.Publish(obs.Event{
+	telemetry.Publish(telemetry.Event{
 		TS:      time.Now().UTC(),
 		Kind:    "audit.append",
 		Actor:   "audit",

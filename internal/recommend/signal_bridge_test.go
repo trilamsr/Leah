@@ -57,7 +57,7 @@ func waitN(t *testing.T, m *captureMatcher, want int, timeout time.Duration) {
 }
 
 func TestSignalBridge_AllowlistKindsReachEngine(t *testing.T) {
-	bus := obs.NewBroadcaster()
+	bus := telemetry.NewBroadcaster()
 	engine := recommend.NewMemoryEngine(nil)
 	m := newCaptureMatcher()
 	engine.RegisterMatcher(m)
@@ -74,8 +74,8 @@ func TestSignalBridge_AllowlistKindsReachEngine(t *testing.T) {
 	defer br.Stop()
 
 	fixedTS := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
-	bus.Emit(obs.Event{Kind: "safari.history_changed", Actor: "macos.safari", Detail: "hist", TS: fixedTS})
-	bus.Emit(obs.Event{Kind: "focus.state_changed", Actor: "macos.focus", Detail: "dnd"})
+	bus.Emit(telemetry.Event{Kind: "safari.history_changed", Actor: "macos.safari", Detail: "hist", TS: fixedTS})
+	bus.Emit(telemetry.Event{Kind: "focus.state_changed", Actor: "macos.focus", Detail: "dnd"})
 
 	waitN(t, m, 2, 2*time.Second)
 	got := m.snapshot()
@@ -101,7 +101,7 @@ func (m errMatcher) Match(context.Context, recommend.Signal) ([]recommend.Recomm
 }
 
 func TestSignalBridge_OnErrorReceivesEngineError(t *testing.T) {
-	bus := obs.NewBroadcaster()
+	bus := telemetry.NewBroadcaster()
 	engine := recommend.NewMemoryEngine(nil)
 	boom := errors.New("boom")
 	engine.RegisterMatcher(errMatcher{err: boom})
@@ -118,7 +118,7 @@ func TestSignalBridge_OnErrorReceivesEngineError(t *testing.T) {
 	}
 	defer br.Stop()
 
-	bus.Emit(obs.Event{Kind: "safari.history_changed"})
+	bus.Emit(telemetry.Event{Kind: "safari.history_changed"})
 	select {
 	case got := <-errs:
 		if !errors.Is(got, boom) {
@@ -130,7 +130,7 @@ func TestSignalBridge_OnErrorReceivesEngineError(t *testing.T) {
 }
 
 func TestSignalBridge_NonAllowlistKindFiltered(t *testing.T) {
-	bus := obs.NewBroadcaster()
+	bus := telemetry.NewBroadcaster()
 	engine := recommend.NewMemoryEngine(nil)
 	m := newCaptureMatcher()
 	engine.RegisterMatcher(m)
@@ -146,8 +146,8 @@ func TestSignalBridge_NonAllowlistKindFiltered(t *testing.T) {
 	}
 	defer br.Stop()
 
-	bus.Emit(obs.Event{Kind: "hud.state", Actor: "hud"})
-	bus.Emit(obs.Event{Kind: "safari.history_changed", Actor: "macos.safari"})
+	bus.Emit(telemetry.Event{Kind: "hud.state", Actor: "hud"})
+	bus.Emit(telemetry.Event{Kind: "safari.history_changed", Actor: "macos.safari"})
 
 	waitN(t, m, 1, 2*time.Second)
 	if got := m.snapshot(); len(got) != 1 || got[0].Kind != "safari.history_changed" {
@@ -156,7 +156,7 @@ func TestSignalBridge_NonAllowlistKindFiltered(t *testing.T) {
 }
 
 func TestSignalBridge_ContextCancelStops(t *testing.T) {
-	bus := obs.NewBroadcaster()
+	bus := telemetry.NewBroadcaster()
 	engine := recommend.NewMemoryEngine(nil)
 	m := newCaptureMatcher()
 	engine.RegisterMatcher(m)
@@ -174,7 +174,7 @@ func TestSignalBridge_ContextCancelStops(t *testing.T) {
 		t.Fatalf("Wait after cancel: %v", err)
 	}
 
-	bus.Emit(obs.Event{Kind: "safari.history_changed"})
+	bus.Emit(telemetry.Event{Kind: "safari.history_changed"})
 	// Bridge stopped — no signals should land. Short sleep then snapshot.
 	time.Sleep(50 * time.Millisecond)
 	if got := m.snapshot(); len(got) != 0 {
@@ -183,7 +183,7 @@ func TestSignalBridge_ContextCancelStops(t *testing.T) {
 }
 
 func TestSignalBridge_RequiresKinds(t *testing.T) {
-	bus := obs.NewBroadcaster()
+	bus := telemetry.NewBroadcaster()
 	engine := recommend.NewMemoryEngine(nil)
 	if _, err := recommend.StartSignalBridge(context.Background(), bus, engine, recommend.SignalBridgeOptions{}); err == nil {
 		t.Fatalf("expected error for empty Kinds")
@@ -191,7 +191,7 @@ func TestSignalBridge_RequiresKinds(t *testing.T) {
 }
 
 func TestSignalBridge_StopIsIdempotent(t *testing.T) {
-	bus := obs.NewBroadcaster()
+	bus := telemetry.NewBroadcaster()
 	engine := recommend.NewMemoryEngine(nil)
 	br, err := recommend.StartSignalBridge(context.Background(), bus, engine, recommend.SignalBridgeOptions{
 		Kinds: []string{"safari.history_changed"},

@@ -15,7 +15,7 @@ import (
 // TestRegisterMetrics_AddsSeries pins the intent→first-audio histogram surfaces
 // pre-event so /metrics is non-empty before the first turn.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	loop.RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	if !obstest.ContainsPrefix(keys, "leah_voice_intent_to_first_audio_seconds") {
@@ -26,7 +26,7 @@ func TestRegisterMetrics_AddsSeries(t *testing.T) {
 // TestTracker_ObservesIntentToFirstAudio: the two-call seam fires the histogram
 // exactly once between MarkIntentDone and MarkFirstAudio.
 func TestTracker_ObservesIntentToFirstAudio(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	tr := loop.NewIntentToFirstAudioTracker(r)
 	now := time.Unix(0, 0)
 	tr.MarkIntentDone(now)
@@ -49,7 +49,7 @@ func TestTracker_NilRegistry(t *testing.T) {
 // TestTracker_MissingIntentDone: MarkFirstAudio without a prior MarkIntentDone
 // is a no-op — the seam is two-call and out-of-order is misuse.
 func TestTracker_MissingIntentDone(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	tr := loop.NewIntentToFirstAudioTracker(r)
 	tr.MarkFirstAudio(time.Unix(0, 0).Add(500*time.Millisecond), "ok")
 	keys := obstest.SnapshotKeys(t, r)
@@ -61,7 +61,7 @@ func TestTracker_MissingIntentDone(t *testing.T) {
 // TestTracker_ResetsAfterObservation: a second MarkIntentDone after a fired
 // FirstAudio re-arms the tracker — supports back-to-back turns on one Loop.
 func TestTracker_ResetsAfterObservation(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	tr := loop.NewIntentToFirstAudioTracker(r)
 	now := time.Unix(0, 0)
 	tr.MarkIntentDone(now)
@@ -78,7 +78,7 @@ func TestTracker_ResetsAfterObservation(t *testing.T) {
 // Loop.Run: a real tracker handed to Config observes outcome=ok when the
 // reasoner branch reaches TTS.Speak.
 func TestLoop_IntentToFirstAudio_RecordsOnReasonerPath(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	tr := loop.NewIntentToFirstAudioTracker(r)
 	fl := newStartedListener()
 	tts := &fakeTTS{auto: true}

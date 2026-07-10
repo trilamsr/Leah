@@ -8,7 +8,7 @@ import (
 	"github.com/trilam/leah/internal/recommend"
 )
 
-func startRecommendDispatcher(ctx context.Context, lg *slog.Logger, registry *obs.Registry, bus *obs.Broadcaster, engine recommend.SignalEngine) (func(), error) {
+func startRecommendDispatcher(ctx context.Context, lg *slog.Logger, registry *telemetry.Registry, bus *telemetry.Broadcaster, engine recommend.SignalEngine) (func(), error) {
 	d := recommend.NewSignalDispatcher(engine, bus, nil).WithRegistry(registry)
 	if err := d.Start(ctx); err != nil {
 		lg.Warn("recommend dispatcher start failed", "err", err)

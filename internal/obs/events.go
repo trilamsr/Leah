@@ -1,4 +1,4 @@
-package obs
+package telemetry
 
 import (
 	"context"
@@ -411,10 +411,10 @@ func (s *SQLiteEventStore) Query(ctx context.Context, q EventQuery) ([]Event, er
 	var out []Event
 	for rows.Next() {
 		var (
-			tsNanos                       int64
-			kind, actor, outcome          string
-			target, scope, refID, detail  sql.NullString
-			latencyMS                     int64
+			tsNanos                      int64
+			kind, actor, outcome         string
+			target, scope, refID, detail sql.NullString
+			latencyMS                    int64
 		)
 		if err := rows.Scan(&tsNanos, &kind, &actor, &target, &scope, &latencyMS, &outcome, &refID, &detail); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)

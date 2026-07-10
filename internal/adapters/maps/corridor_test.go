@@ -74,7 +74,7 @@ func TestDetourCost_StraightThrough_Zero(t *testing.T) {
 func TestDetourCost_PerpendicularPOI_ApproxRoundTrip(t *testing.T) {
 	t.Parallel()
 	prev := latLng{0, 0.5}
-	next := latLng{0, 0.501} // ~111m east of prev
+	next := latLng{0, 0.501}    // ~111m east of prev
 	poi := latLng{0.00904, 0.5} // 1km north of prev
 	d := detourMeters(prev, poi, next)
 	if d < 1800 || d > 2200 {
@@ -206,4 +206,3 @@ func encodeTwoPoint(a, b latLng) string {
 	enc(a1, b1)
 	return sb.String()
 }
-

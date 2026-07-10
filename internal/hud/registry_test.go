@@ -47,4 +47,3 @@ func TestRegistry_RejectsMalformed(t *testing.T) {
 		t.Fatal("expected error on malformed JSON")
 	}
 }
-

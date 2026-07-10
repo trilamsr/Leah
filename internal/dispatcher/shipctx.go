@@ -189,4 +189,3 @@ func ComposeContext(prCtx, issueCtx, threadCtx string) string {
 	}
 	return strings.Join(parts, "\n\n") + "\n\n"
 }
-

@@ -17,13 +17,13 @@ var cliProgressBuckets = []float64{0.05, 0.1, 0.25, 0.5, 1, 2}
 // begins). Nil-safe at every level: a nil receiver, a nil registry, or a
 // command that never emits all collapse to no-op without per-call guards.
 type ProgressTimer struct {
-	hist    *obs.Histogram
+	hist    *telemetry.Histogram
 	command string
 	start   time.Time
 	once    sync.Once
 }
 
-func NewProgressTimer(reg *obs.Registry, command string) *ProgressTimer {
+func NewProgressTimer(reg *telemetry.Registry, command string) *ProgressTimer {
 	t := &ProgressTimer{command: command, start: time.Now()}
 	if reg != nil {
 		t.hist = reg.Histogram("leah_cli_dispatch_to_first_progress_seconds", cliProgressBuckets)

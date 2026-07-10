@@ -7,7 +7,7 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
-func MetricsMiddleware(registry *obs.Registry, h http.Handler) http.Handler {
+func MetricsMiddleware(registry *telemetry.Registry, h http.Handler) http.Handler {
 	if registry == nil {
 		return h
 	}

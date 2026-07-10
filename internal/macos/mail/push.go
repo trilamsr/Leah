@@ -14,7 +14,7 @@ import (
 // append events; the debounce collapses them into one downstream signal.
 type PushSource struct {
 	Watcher  sqliteopen.WALWatcher
-	ObsEmit  func(obs.Event)
+	ObsEmit  func(telemetry.Event)
 	Debounce time.Duration
 	NowFn    func() time.Time
 }
@@ -51,11 +51,11 @@ func (p *PushSource) Run(ctx context.Context) error {
 			if debounce > 0 && !lastEmit.IsZero() && t.Sub(lastEmit) < debounce {
 				continue
 			}
-			p.ObsEmit(obs.Event{
+			p.ObsEmit(telemetry.Event{
 				Kind:    "mail_changed",
 				Actor:   "mail",
 				Outcome: "ok",
-				Payload: obs.MailChangedEvent{},
+				Payload: telemetry.MailChangedEvent{},
 			})
 			// Stamp AFTER emit so a panicking ObsEmit cannot poison the next
 			// window with a half-applied timestamp.

@@ -135,4 +135,3 @@ func TestFakeListener_ConcurrentSafe(t *testing.T) {
 	}
 	wg.Wait()
 }
-

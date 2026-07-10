@@ -35,16 +35,16 @@ type Server struct {
 	// snapshot path — currently leah_audit_parse_errors_total (BB-RETRO M2, #5).
 	// nil is safe; production wires the daemon's shared registry. Also exposed
 	// at /metrics in Prometheus text format.
-	Metrics *obs.Registry
+	Metrics *telemetry.Registry
 
 	// Health, when non-nil, fans out registered SelfChecker probes for /health.
 	// nil is safe; /health returns 503 in that case.
-	Health *obs.HealthRegistry
+	Health *telemetry.HealthRegistry
 
 	// EventsSubscribe wires /events SSE streaming to an event source. nil is
 	// safe; /events returns 503 in that case. The daemon wires this to
 	// obs.EventStore.Subscribe.
-	EventsSubscribe obs.SSESubscribeFunc
+	EventsSubscribe telemetry.SSESubscribeFunc
 
 	// SpamStats, when non-nil, returns one row per connected adapter's
 	// outbound rate-limiter (sends + cumulative denials) for the dashboard
@@ -71,7 +71,7 @@ type Server struct {
 	cacheAt time.Time
 
 	bcastOnce sync.Once
-	bcast     *obs.Broadcaster
+	bcast     *telemetry.Broadcaster
 }
 
 // ensureBroadcaster wires the in-process pub-sub that backs /events SSE
@@ -80,11 +80,11 @@ type Server struct {
 // orphan that the dispatcher never sees.
 func (s *Server) ensureBroadcaster() {
 	s.bcastOnce.Do(func() {
-		if def := obs.DefaultBroadcaster(); def != nil {
+		if def := telemetry.DefaultBroadcaster(); def != nil {
 			s.bcast = def
 		} else {
-			s.bcast = obs.NewBroadcaster()
-			obs.SetDefaultBroadcaster(s.bcast)
+			s.bcast = telemetry.NewBroadcaster()
+			telemetry.SetDefaultBroadcaster(s.bcast)
 		}
 		if s.EventsSubscribe == nil {
 			s.EventsSubscribe = s.bcast.Subscribe
@@ -175,7 +175,7 @@ func (s *Server) buildMux() (*http.ServeMux, error) {
 	mux.HandleFunc("/api/state", s.handleState)
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/metrics", s.handleMetrics)
-	mux.Handle("/events", &obs.SSEHandler{Subscribe: s.EventsSubscribe})
+	mux.Handle("/events", &telemetry.SSEHandler{Subscribe: s.EventsSubscribe})
 	// /dashboard is a permanent redirect to the embed-FS path so the file
 	// server is the single serving path (kills handleDashboard's
 	// per-request ReadFile of the same bytes — wave2-5 retro M1, #4).

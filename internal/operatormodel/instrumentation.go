@@ -4,7 +4,7 @@ import "github.com/trilam/leah/internal/obs"
 
 var rpcLatencyBuckets = []float64{0.01, 0.05, 0.1, 0.5, 1, 5}
 
-func RegisterMetrics(registry *obs.Registry) {
+func RegisterMetrics(registry *telemetry.Registry) {
 	if registry == nil {
 		return
 	}
@@ -12,7 +12,7 @@ func RegisterMetrics(registry *obs.Registry) {
 	registry.Histogram("leah_operatormodel_rpc_latency_seconds", rpcLatencyBuckets).Declare(map[string]string{"method": "cold"})
 }
 
-func Observe(registry *obs.Registry, method, outcome string, latencySec float64) {
+func Observe(registry *telemetry.Registry, method, outcome string, latencySec float64) {
 	if registry == nil {
 		return
 	}

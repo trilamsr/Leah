@@ -1,4 +1,4 @@
-package obs_test
+package telemetry_test
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
-func newTestTracer(t *testing.T, rate float64) obs.Tracer {
+func newTestTracer(t *testing.T, rate float64) telemetry.Tracer {
 	t.Helper()
-	tr, err := obs.New(obs.Config{SampleRate: rate})
+	tr, err := telemetry.New(telemetry.Config{SampleRate: rate})
 	if err != nil {
 		t.Fatalf("obs.New: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestStartSpan_RecordsSpan(t *testing.T) {
 	tr := newTestTracer(t, 1.0)
 	ctx := context.Background()
 	sp, _ := tr.StartSpan(ctx, "unit.start")
-	sp.SetAttribute(obs.RefIDAttr, "ref-start")
+	sp.SetAttribute(telemetry.RefIDAttr, "ref-start")
 	sp.End()
 	if err := tr.Flush(ctx); err != nil {
 		t.Fatalf("flush: %v", err)
@@ -40,7 +40,7 @@ func TestSpan_SetAttribute_StoresKV(t *testing.T) {
 	tr := newTestTracer(t, 1.0)
 	ctx := context.Background()
 	sp, _ := tr.StartSpan(ctx, "unit.attr")
-	sp.SetAttribute(obs.RefIDAttr, "ref-attr")
+	sp.SetAttribute(telemetry.RefIDAttr, "ref-attr")
 	sp.SetAttribute("leah.outcome", "ok")
 	sp.SetAttribute("leah.count", 7)
 	sp.End()
@@ -61,7 +61,7 @@ func TestSpan_End_FlushesToCollector(t *testing.T) {
 	tr := newTestTracer(t, 1.0)
 	ctx := context.Background()
 	sp, _ := tr.StartSpan(ctx, "unit.flush")
-	sp.SetAttribute(obs.RefIDAttr, "ref-flush")
+	sp.SetAttribute(telemetry.RefIDAttr, "ref-flush")
 	if pre, _ := tr.Query(ctx, "ref-flush"); len(pre) != 0 {
 		t.Fatalf("collector saw span before End: %#v", pre)
 	}
@@ -77,7 +77,7 @@ func TestCollector_QueryByRefID_ReturnsSpanTree(t *testing.T) {
 	tr := newTestTracer(t, 1.0)
 	ctx := context.Background()
 	parent, childCtx := tr.StartSpan(ctx, "tree.parent")
-	parent.SetAttribute(obs.RefIDAttr, "ref-tree")
+	parent.SetAttribute(telemetry.RefIDAttr, "ref-tree")
 	child, grandCtx := tr.StartSpan(childCtx, "tree.child")
 	grand, _ := tr.StartSpan(grandCtx, "tree.grand")
 	grand.End()
@@ -110,7 +110,7 @@ func TestSpan_RecordError_SetsErrorStatus(t *testing.T) {
 	tr := newTestTracer(t, 1.0)
 	ctx := context.Background()
 	sp, _ := tr.StartSpan(ctx, "unit.err")
-	sp.SetAttribute(obs.RefIDAttr, "ref-err")
+	sp.SetAttribute(telemetry.RefIDAttr, "ref-err")
 	sp.RecordError(errors.New("boom"))
 	sp.End()
 	_ = tr.Flush(ctx)
@@ -128,7 +128,7 @@ func TestSampleRate_50pct_HalfSampled(t *testing.T) {
 	for i := 0; i < n; i++ {
 		sp, _ := tr.StartSpan(ctx, "unit.rate")
 		refID := refIDFor(i)
-		sp.SetAttribute(obs.RefIDAttr, refID)
+		sp.SetAttribute(telemetry.RefIDAttr, refID)
 		sp.End()
 		_ = tr.Flush(ctx)
 		if got, _ := tr.Query(ctx, refID); len(got) == 1 {
@@ -145,7 +145,7 @@ func TestSampleRate_0_NoSample(t *testing.T) {
 	ctx := context.Background()
 	for i := 0; i < 50; i++ {
 		sp, _ := tr.StartSpan(ctx, "unit.zero")
-		sp.SetAttribute(obs.RefIDAttr, "ref-zero")
+		sp.SetAttribute(telemetry.RefIDAttr, "ref-zero")
 		sp.End()
 	}
 	_ = tr.Flush(ctx)
@@ -155,16 +155,16 @@ func TestSampleRate_0_NoSample(t *testing.T) {
 }
 
 func TestNew_RejectsOutOfRangeRate(t *testing.T) {
-	if _, err := obs.New(obs.Config{SampleRate: -0.1}); err == nil {
+	if _, err := telemetry.New(telemetry.Config{SampleRate: -0.1}); err == nil {
 		t.Fatalf("want error for negative rate")
 	}
-	if _, err := obs.New(obs.Config{SampleRate: 1.5}); err == nil {
+	if _, err := telemetry.New(telemetry.Config{SampleRate: 1.5}); err == nil {
 		t.Fatalf("want error for rate > 1")
 	}
 }
 
 func TestCollector_MaxTraces_EvictsLRU(t *testing.T) {
-	tr, err := obs.New(obs.Config{SampleRate: 1.0, MaxTraces: 3})
+	tr, err := telemetry.New(telemetry.Config{SampleRate: 1.0, MaxTraces: 3})
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestCollector_MaxTraces_EvictsLRU(t *testing.T) {
 	ctx := context.Background()
 	for i := 0; i < 5; i++ {
 		sp, _ := tr.StartSpan(ctx, "lru")
-		sp.SetAttribute(obs.RefIDAttr, refIDFor(i))
+		sp.SetAttribute(telemetry.RefIDAttr, refIDFor(i))
 		sp.End()
 	}
 	_ = tr.Flush(ctx)

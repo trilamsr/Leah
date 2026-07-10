@@ -71,8 +71,8 @@ func TestLauncher_UnknownIntent_ReturnsErr(t *testing.T) {
 
 func TestLauncher_AliasResolves(t *testing.T) {
 	cases := []struct {
-		alias    string
-		wantSub  string // substring expected in arg
+		alias   string
+		wantSub string // substring expected in arg
 	}{
 		{"max", "max"},
 		{"fb", "facebook.com"},

@@ -12,7 +12,7 @@ func openTestStore(t *testing.T) *Store {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "memory.db")
 	// Bring the ctxmgr schema online so workspace_persona FK targets exist.
-	m, err := ctxmgr.Open(path)
+	m, err := activectx.Open(path)
 	if err != nil {
 		t.Fatalf("ctxmgr open: %v", err)
 	}

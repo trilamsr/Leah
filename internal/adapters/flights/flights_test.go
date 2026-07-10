@@ -142,9 +142,9 @@ func TestAirportInfo_HappyPath(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]any{{
-				"iataCode": "SFO",
-				"name":     "San Francisco Intl",
-				"address":  map[string]any{"cityName": "SAN FRANCISCO", "countryName": "UNITED STATES"},
+				"iataCode":       "SFO",
+				"name":           "San Francisco Intl",
+				"address":        map[string]any{"cityName": "SAN FRANCISCO", "countryName": "UNITED STATES"},
 				"timeZoneOffset": "-08:00",
 			}},
 		})

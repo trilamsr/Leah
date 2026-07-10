@@ -247,11 +247,11 @@ func TestParseResolvedKey_ShapeBoundaries(t *testing.T) {
 		wantKey string
 		wantOK  bool
 	}{
-		"":                                    {"", false},
-		"too short":                           {"", false},
-		"resolved ship,abc,2026-06-09T10:00:00Z -> ok":    {"ship,abc,2026-06-09T10:00:00Z", true},
-		"resolved ship,abc,ts":                {"", false}, // no " -" sentinel
-		"prefix-mismatch ship,abc,ts -> ok":   {"", false},
+		"":          {"", false},
+		"too short": {"", false},
+		"resolved ship,abc,2026-06-09T10:00:00Z -> ok": {"ship,abc,2026-06-09T10:00:00Z", true},
+		"resolved ship,abc,ts":                         {"", false}, // no " -" sentinel
+		"prefix-mismatch ship,abc,ts -> ok":            {"", false},
 	}
 	for in, want := range cases {
 		gotKey, gotOK := parseResolvedKey(in)

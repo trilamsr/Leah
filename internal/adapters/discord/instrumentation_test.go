@@ -13,7 +13,7 @@ import (
 
 // TestRegisterMetrics_AddsSeries asserts the shared leah_connect_* series surface bound to this provider.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
@@ -96,7 +96,7 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			r := obs.NewRegistry()
+			r := telemetry.NewRegistry()
 			RegisterMetrics(r)
 
 			cfg := Config{
@@ -130,7 +130,7 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 // TestObserveAPI_SubscribeDial asserts the gateway-dial RPC is observed on dial failure.
 func TestObserveAPI_SubscribeDial(t *testing.T) {
 	t.Parallel()
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	a, err := New(Config{
 		Attestor:        &fakeAttestor{},

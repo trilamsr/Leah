@@ -1,4 +1,4 @@
-package ctxmgr
+package activectx
 
 import (
 	"errors"

@@ -11,9 +11,9 @@ import (
 	"github.com/trilam/leah/internal/adapters/discord"
 	"github.com/trilam/leah/internal/attest"
 	"github.com/trilam/leah/internal/audit"
+	commsin "github.com/trilam/leah/internal/comms/in"
 	"github.com/trilam/leah/internal/connect"
 	"github.com/trilam/leah/internal/contracts"
-	commsin "github.com/trilam/leah/internal/comms/in"
 	"github.com/trilam/leah/internal/recommend"
 )
 

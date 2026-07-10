@@ -118,12 +118,12 @@ func TestConnectRegattaDocker_HappyPath(t *testing.T) {
 	}}
 	audit := &capturedAudit{}
 	p := &RegattaProvider{
-		Exec:        fx,
-		HealthzURL:  hz.URL + "/healthz",
-		HealthzPoll: 5 * time.Millisecond,
+		Exec:         fx,
+		HealthzURL:   hz.URL + "/healthz",
+		HealthzPoll:  5 * time.Millisecond,
 		HealthBudget: 500 * time.Millisecond,
-		Audit:       audit,
-		Now:         func() time.Time { return time.Unix(1717977600, 0).UTC() },
+		Audit:        audit,
+		Now:          func() time.Time { return time.Unix(1717977600, 0).UTC() },
 	}
 
 	if err := p.Connect(context.Background(), regattaFakeAttestor{allow: true}); err != nil {

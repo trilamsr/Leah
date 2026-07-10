@@ -63,9 +63,9 @@ func (s *httpService) ListToday(ctx context.Context, token string, now time.Time
 
 	var out struct {
 		Items []struct {
-			ID       string `json:"id"`
-			Summary  string `json:"summary"`
-			Location string `json:"location"`
+			ID       string    `json:"id"`
+			Summary  string    `json:"summary"`
+			Location string    `json:"location"`
 			Start    eventTime `json:"start"`
 			End      eventTime `json:"end"`
 		} `json:"items"`

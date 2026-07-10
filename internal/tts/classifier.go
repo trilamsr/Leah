@@ -34,7 +34,7 @@ func NewBlockwordClassifier() *BlockwordClassifier {
 		// Time pattern is either 12h with am/pm OR 24h HH:MM OR JP 14時.
 		calendarRe: regexp.MustCompile(`(?i)\b(meeting|call|standup|sync|1:1|interview|coffee|lunch|dinner|drinks|appointment|reservation|réunion|junta|termin|riunione|会議)\b|\b\d{1,2}:\d{2}\s*(am|pm)?\b|\b\d{1,2}\s*(am|pm)\b|\d{1,2}時`),
 		// Email cues incl. common greeting openings.
-		emailRe: regexp.MustCompile(`(?i)\b(re|fwd|fw):\s|sent from my|best regards|sincerely|^\s*(hi|hello|dear|hey)\s+\w+,`),
+		emailRe:     regexp.MustCompile(`(?i)\b(re|fwd|fw):\s|sent from my|best regards|sincerely|^\s*(hi|hello|dear|hey)\s+\w+,`),
 		emailAddrRe: regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`),
 		// Memory blockwords: finance + contact + auth-secrets + medical + IDs.
 		memoryWords: []string{

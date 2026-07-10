@@ -98,7 +98,7 @@ type enrichFn func(ctx context.Context, citationURL string) (*knowledge.Citation
 // constructor plus the dispatch seams for sync / recommend / plugin / a2a /
 // vision. Composition-root binds non-nil deps once their backing services
 // boot.
-func newIPCHandlerWithDeps(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *obs.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier, voiceSess duplex.DuplexSession, deps IPCDeps) ipc.Handler {
+func newIPCHandlerWithDeps(sonnet *reasoner.AnthropicClient, db *sql.DB, kg *knowledge.Graph, ring *telemetry.ErrorRing, ttsCloud, ttsLocal tts.Provider, ttsClass tts.Classifier, voiceSess duplex.DuplexSession, deps IPCDeps) ipc.Handler {
 	return newIPCHandlerWithClassifyEnrichDeps(db,
 		liveStreamFn(sonnet),
 		liveOpusStreamFn(sonnet),
@@ -144,7 +144,7 @@ func newIPCHandlerWithClassify(
 	ping pingFn,
 	fetch fetchFn,
 	startTime time.Time,
-	ring *obs.ErrorRing,
+	ring *telemetry.ErrorRing,
 	ttsCloud, ttsLocal tts.Provider,
 	ttsClass tts.Classifier,
 ) ipc.Handler {
@@ -162,7 +162,7 @@ func newIPCHandlerWithClassifyEnrich(
 	fetch fetchFn,
 	enrich enrichFn,
 	startTime time.Time,
-	ring *obs.ErrorRing,
+	ring *telemetry.ErrorRing,
 	ttsCloud, ttsLocal tts.Provider,
 	ttsClass tts.Classifier,
 	voiceSess duplex.DuplexSession,
@@ -181,7 +181,7 @@ func newIPCHandlerWithClassifyEnrichDeps(
 	fetch fetchFn,
 	enrich enrichFn,
 	startTime time.Time,
-	ring *obs.ErrorRing,
+	ring *telemetry.ErrorRing,
 	ttsCloud, ttsLocal tts.Provider,
 	ttsClass tts.Classifier,
 	voiceSess duplex.DuplexSession,

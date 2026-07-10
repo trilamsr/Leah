@@ -10,9 +10,9 @@ import (
 
 	"github.com/trilam/leah/internal/audit"
 	"github.com/trilam/leah/internal/budget"
+	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/dispatcher"
 	"github.com/trilam/leah/internal/ghclient"
-	commsout "github.com/trilam/leah/internal/comms/out"
 	"github.com/trilam/leah/internal/reasoner"
 	"github.com/trilam/leah/internal/regattaclient"
 	"github.com/trilam/leah/internal/watchdog"

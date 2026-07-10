@@ -17,7 +17,7 @@ import (
 // EventSubscriber is the slice of obs.Broadcaster the bridge needs. Narrow
 // surface keeps tests from constructing an SSE handler stack.
 type EventSubscriber interface {
-	Subscribe(ctx context.Context, kinds []string) (obs.SSESubscriber, error)
+	Subscribe(ctx context.Context, kinds []string) (telemetry.SSESubscriber, error)
 }
 
 // SignalBridgeOptions configures StartSignalBridge. Kinds is required — an
@@ -33,7 +33,7 @@ type SignalBridgeOptions struct {
 
 // SignalBridge is the running goroutine handle. Stop blocks until exit.
 type SignalBridge struct {
-	sub    obs.SSESubscriber
+	sub    telemetry.SSESubscriber
 	cancel context.CancelFunc
 	done   chan struct{}
 	once   sync.Once
@@ -59,7 +59,7 @@ func StartSignalBridge(ctx context.Context, bus EventSubscriber, engine *MemoryE
 		cancel: cancel,
 		done:   make(chan struct{}),
 	}
-	obs.SafeGo(nil, nil, "recommend-signal-bridge", func() { br.run(subCtx, engine, opts.OnError) })
+	telemetry.SafeGo(nil, nil, "recommend-signal-bridge", func() { br.run(subCtx, engine, opts.OnError) })
 	return br, nil
 }
 

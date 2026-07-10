@@ -91,4 +91,3 @@ func lookupByAlias(ctx context.Context, g *Graph, needle string) (*Entity, error
 	}
 	return nil, nil
 }
-

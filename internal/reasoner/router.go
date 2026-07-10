@@ -76,7 +76,7 @@ type Router struct {
 	DegradedModel string
 
 	// Registry, when non-nil, receives the degrade counter increment.
-	Registry *obs.Registry
+	Registry *telemetry.Registry
 }
 
 // Complete is the Router's analogue of Client.Complete; same signature

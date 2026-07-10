@@ -15,7 +15,7 @@ import (
 
 // TestRegisterMetrics_AddsSeries asserts the shared leah_connect_* series surface bound to flights.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
@@ -99,7 +99,7 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := httptest.NewServer(tc.handler)
 			t.Cleanup(srv.Close)
-			r := obs.NewRegistry()
+			r := telemetry.NewRegistry()
 			RegisterMetrics(r)
 			a, err := New(Config{
 				Attestor:    &fakeAttestor{},

@@ -21,7 +21,7 @@ import (
 // the live /metrics + /health surface. Production wires (counters, SelfCheckers)
 // must come from instrumentation.go in each package — empty body or empty
 // package_health signals the producer side is unwired.
-func bootObsServer(t *testing.T) (*httptest.Server, *obs.Registry) {
+func bootObsServer(t *testing.T) (*httptest.Server, *telemetry.Registry) {
 	t.Helper()
 	sd := t.TempDir()
 	auditPath := filepath.Join(sd, "audit.jsonl")
@@ -32,8 +32,8 @@ func bootObsServer(t *testing.T) (*httptest.Server, *obs.Registry) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	registry := obs.NewRegistry()
-	health := obs.NewHealthRegistry()
+	registry := telemetry.NewRegistry()
+	health := telemetry.NewHealthRegistry()
 
 	loop := daemonloop.New(stubRegatta{}, nil, nil, a, nopWriter{}, 30*time.Second)
 
@@ -83,7 +83,7 @@ func TestDaemon_Health_PackagesPopulated(t *testing.T) {
 	ts, _ := bootObsServer(t)
 
 	body := getBody(t, ts.URL+"/health")
-	var rep obs.HealthReport
+	var rep telemetry.HealthReport
 	if err := json.Unmarshal([]byte(body), &rep); err != nil {
 		t.Fatalf("decode: %v; body=%s", err, body)
 	}

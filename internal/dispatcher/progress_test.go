@@ -11,7 +11,7 @@ import (
 // TestProgressTimer_ObservesOnFirstEmit verifies the histogram fires once on
 // the FIRST Emit call and not on subsequent ticks.
 func TestProgressTimer_ObservesOnFirstEmit(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	timer := NewProgressTimer(reg, "ask")
 
 	timer.Emit()
@@ -30,7 +30,7 @@ func TestProgressTimer_ObservesOnFirstEmit(t *testing.T) {
 // TestProgressTimer_NoEmitNoObservation guarantees a command that finishes
 // before any progress signal does NOT pollute the histogram.
 func TestProgressTimer_NoEmitNoObservation(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	_ = NewProgressTimer(reg, "ship")
 
 	snap := snapshotHist(t, reg, "leah_cli_dispatch_to_first_progress_seconds")
@@ -57,7 +57,7 @@ func TestProgressTimer_NilReceiverNoOp(t *testing.T) {
 // TestProgressTimer_LatencyWithinBucketRange sanity-checks the recorded value
 // lands in a sane band when Emit fires shortly after NewProgressTimer.
 func TestProgressTimer_LatencyWithinBucketRange(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	timer := NewProgressTimer(reg, "brief")
 	time.Sleep(2 * time.Millisecond)
 	timer.Emit()

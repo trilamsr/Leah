@@ -188,7 +188,7 @@ func (l *Loop) Run(ctx context.Context) error {
 }
 
 func (l *Loop) tick(ctx context.Context) {
-	lg := obs.LoggerFromCtx(ctx).With("package", "daemonloop")
+	lg := telemetry.LoggerFromCtx(ctx).With("package", "daemonloop")
 	lg.Debug("daemon.tick")
 	// Record at entry — guarantees liveness signal even if Heartbeat.Ping
 	// or Regatta.List stalls on a slow network.
@@ -427,7 +427,7 @@ func (l *Loop) notifyTransition(ctx context.Context, id, from, to string, agents
 	}
 	title := "Leah"
 	body := fmt.Sprintf("agent %s: %s → %s (PR #%d)", id, from, to, pr)
-	obs.LoggerFromCtx(ctx).Info("daemon.transition",
+	telemetry.LoggerFromCtx(ctx).Info("daemon.transition",
 		"package", "daemonloop",
 		"agent_id", id,
 		"from", from,

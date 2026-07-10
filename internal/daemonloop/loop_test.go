@@ -70,7 +70,7 @@ func (f *fakeNf) Notify(ctx context.Context, title, body string) error {
 func TestTickEmitsObsLogOnTransition(t *testing.T) {
 	var buf bytes.Buffer
 	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	ctx := obs.WithLogger(context.Background(), lg)
+	ctx := telemetry.WithLogger(context.Background(), lg)
 
 	rc := &fakeRegatta{resps: [][]regattaclient.Agent{
 		{{ID: "a1", State: "running", PR: 0}},
@@ -627,7 +627,7 @@ func TestLoopContinuesWhenRegattaErrors(t *testing.T) {
 func TestRegattaPoll_FirstFailureLogged_RepeatsNot(t *testing.T) {
 	var buf bytes.Buffer
 	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	ctx := obs.WithLogger(context.Background(), lg)
+	ctx := telemetry.WithLogger(context.Background(), lg)
 
 	rc := &errRegatta{}
 	out := &bytes.Buffer{}
@@ -652,7 +652,7 @@ func TestRegattaPoll_FirstFailureLogged_RepeatsNot(t *testing.T) {
 func TestRegattaPoll_RecoveryLogged(t *testing.T) {
 	var buf bytes.Buffer
 	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	ctx := obs.WithLogger(context.Background(), lg)
+	ctx := telemetry.WithLogger(context.Background(), lg)
 
 	rc := &flipRegatta{}
 	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}

@@ -261,12 +261,12 @@ func TestHandlePluginLogs_HostError(t *testing.T) {
 func TestHandlePlugin_IDValidationRejectsInjection(t *testing.T) {
 	bad := []string{
 		"",
-		"a",                 // too short
-		"AB",                // uppercase
-		"../etc/passwd",     // traversal
-		"x/y",               // path sep
-		"x;DROP TABLE",      // sql
-		"x\nname",           // newline
+		"a",             // too short
+		"AB",            // uppercase
+		"../etc/passwd", // traversal
+		"x/y",           // path sep
+		"x;DROP TABLE",  // sql
+		"x\nname",       // newline
 		strings.Repeat("a", 65),
 	}
 	for _, id := range bad {

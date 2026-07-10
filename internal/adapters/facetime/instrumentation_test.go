@@ -11,7 +11,7 @@ import (
 
 // TestRegisterMetrics_AddsSeries asserts the shared leah_connect_* series surface bound to facetime.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
@@ -68,7 +68,7 @@ func TestObserveAPI_OnRPC(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := obs.NewRegistry()
+			r := telemetry.NewRegistry()
 			RegisterMetrics(r)
 			a, err := New(Config{
 				Attestor: &fakeAttestor{},

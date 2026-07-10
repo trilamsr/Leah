@@ -10,7 +10,7 @@ import (
 // TestRegisterMetrics_AddsSeries asserts operatormodel RPC series surface
 // pre-event.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
@@ -25,7 +25,7 @@ func TestRegisterMetrics_AddsSeries(t *testing.T) {
 
 // TestObserve_IncrementsCounter pins the call-site contract.
 func TestObserve_IncrementsCounter(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	Observe(r, "Plan", "ok", 0.1)
 	want := "leah_operatormodel_rpc_total|method=Plan,outcome=ok"
 	if !obstest.ContainsExact(obstest.SnapshotKeys(t, r), want) {

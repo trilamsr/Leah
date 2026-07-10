@@ -3,8 +3,8 @@ package contracts_test
 import (
 	"testing"
 
-	"github.com/trilam/leah/internal/contracts"
 	commsout "github.com/trilam/leah/internal/comms/out"
+	"github.com/trilam/leah/internal/contracts"
 )
 
 // Compile-time check that the interfaces have no surprise method changes.

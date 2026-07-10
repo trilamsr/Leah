@@ -67,7 +67,7 @@ func ObserveTimeOfDay(rows []audit.Entry, tz *time.Location) []Observation {
 // switches MUST be sorted by SwitchedAt ascending. Entries that predate
 // every switch (rare — only possible if audit started before ctxmgr)
 // are skipped silently.
-func ObserveContextTransitions(rows []audit.Entry, switches []ctxmgr.Switch) []Observation {
+func ObserveContextTransitions(rows []audit.Entry, switches []activectx.Switch) []Observation {
 	if len(switches) == 0 {
 		return nil
 	}
@@ -124,7 +124,7 @@ func ObserveCadence(rows []audit.Entry, tz *time.Location) []Observation {
 // activeAt returns the operator's active context at ts by walking
 // switches (sorted ascending). Linear scan is fine — switches/week is O(10s)
 // for a single operator.
-func activeAt(switches []ctxmgr.Switch, ts time.Time) string {
+func activeAt(switches []activectx.Switch, ts time.Time) string {
 	active := ""
 	for _, s := range switches {
 		if s.SwitchedAt.After(ts) {

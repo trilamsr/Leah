@@ -66,7 +66,7 @@ func TestAskCallsClientWithSystemAndUser(t *testing.T) {
 func TestAskEmitsObsLogOnSuccess(t *testing.T) {
 	var buf bytes.Buffer
 	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	ctx := obs.WithLogger(context.Background(), lg)
+	ctx := telemetry.WithLogger(context.Background(), lg)
 
 	c := &fakeClient{respText: "ok", respCostUSD: 0.005}
 	r := &Reasoner{Client: c, Budget: &budget.Budget{Ceiling: 1.0}, SystemPrompt: "x"}

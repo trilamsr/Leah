@@ -11,11 +11,11 @@ var intentToFirstAudioBuckets = []float64{0.1, 0.3, 0.5, 0.7, 1.0, 2.0}
 
 // IntentToFirstAudioTracker is not goroutine-safe — single-writer per turn.
 type IntentToFirstAudioTracker struct {
-	hist     *obs.Histogram
+	hist     *telemetry.Histogram
 	intentAt time.Time
 }
 
-func NewIntentToFirstAudioTracker(reg *obs.Registry) *IntentToFirstAudioTracker {
+func NewIntentToFirstAudioTracker(reg *telemetry.Registry) *IntentToFirstAudioTracker {
 	if reg == nil {
 		return nil
 	}
@@ -24,7 +24,7 @@ func NewIntentToFirstAudioTracker(reg *obs.Registry) *IntentToFirstAudioTracker 
 	}
 }
 
-func RegisterMetrics(reg *obs.Registry) {
+func RegisterMetrics(reg *telemetry.Registry) {
 	if reg == nil {
 		return
 	}

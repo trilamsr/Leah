@@ -18,12 +18,12 @@ var cliFirstByteBuckets = []float64{0.025, 0.05, 0.1, 0.2, 0.5, 1, 2, 5}
 // nil-safe: a nil registry produces a timer whose Wrap returns the underlying
 // writer untouched.
 type FirstByteTimer struct {
-	hist    *obs.Histogram
+	hist    *telemetry.Histogram
 	command string
 	start   time.Time
 }
 
-func NewFirstByteTimer(reg *obs.Registry, command string) *FirstByteTimer {
+func NewFirstByteTimer(reg *telemetry.Registry, command string) *FirstByteTimer {
 	t := &FirstByteTimer{command: command, start: time.Now()}
 	if reg != nil {
 		t.hist = reg.Histogram("leah_cli_dispatch_to_first_byte_seconds", cliFirstByteBuckets)

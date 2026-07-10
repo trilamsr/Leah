@@ -12,11 +12,11 @@ import (
 // stubProbes returns DetectOpts whose seams answer from in-memory state.
 // docker, socket, cloud each toggle individually so tests can assert priority.
 type stubState struct {
-	envMode      string
-	dockerUp     bool
-	socketPath   string // empty = no socket
-	cloudToken   bool
-	homeDir      string
+	envMode    string
+	dockerUp   bool
+	socketPath string // empty = no socket
+	cloudToken bool
+	homeDir    string
 }
 
 func optsFrom(s stubState) DetectOpts {
@@ -27,9 +27,9 @@ func optsFrom(s stubState) DetectOpts {
 			}
 			return ""
 		},
-		HomeDir:        func() (string, error) { return s.homeDir, nil },
-		DockerHealthy:  func(ctx context.Context) bool { return s.dockerUp },
-		SocketHealthy:  func(ctx context.Context, path string) bool { return s.socketPath != "" && path == s.socketPath },
+		HomeDir:       func() (string, error) { return s.homeDir, nil },
+		DockerHealthy: func(ctx context.Context) bool { return s.dockerUp },
+		SocketHealthy: func(ctx context.Context, path string) bool { return s.socketPath != "" && path == s.socketPath },
 		CloudTokenPath: func(home string) string {
 			p := filepath.Join(home, ".leah-state", "secrets", "regatta-token.json")
 			if s.cloudToken {

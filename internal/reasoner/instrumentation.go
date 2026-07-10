@@ -12,7 +12,7 @@ const (
 
 var cacheSavingsBuckets = []float64{128, 512, 1024, 2048, 4096, 8192, 16384}
 
-func BindInstrumentation(r *obs.Registry) {
+func BindInstrumentation(r *telemetry.Registry) {
 	if r == nil {
 		return
 	}
@@ -20,7 +20,7 @@ func BindInstrumentation(r *obs.Registry) {
 	_ = r.Histogram("leah_reasoner_cache_savings_tokens", cacheSavingsBuckets)
 }
 
-func RecordCacheOutcome(r *obs.Registry, outcome CacheOutcome, savedTokens int64) {
+func RecordCacheOutcome(r *telemetry.Registry, outcome CacheOutcome, savedTokens int64) {
 	if r == nil {
 		return
 	}

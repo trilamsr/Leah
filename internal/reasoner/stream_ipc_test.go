@@ -42,8 +42,8 @@ func (f *fakeStreamer) StreamChunks(ctx context.Context, system string, history 
 
 func TestStreamToIPCEmitsProseDeltas(t *testing.T) {
 	s := &fakeStreamer{chunks: []string{"hello ", "world"}}
-	long := strings.Repeat("x ", 600)          // ~1200 chars ⇒ ≥ 300 tokens; force cache off
-	system := strings.Repeat("system ", 2000)  // > 1024 token threshold ⇒ cache on
+	long := strings.Repeat("x ", 600)         // ~1200 chars ⇒ ≥ 300 tokens; force cache off
+	system := strings.Repeat("system ", 2000) // > 1024 token threshold ⇒ cache on
 	out, err := streamToIPCWith(context.Background(), s, "t1", system, nil, long)
 	if err != nil {
 		t.Fatalf("stream: %v", err)
@@ -58,7 +58,9 @@ func TestStreamToIPCEmitsProseDeltas(t *testing.T) {
 	if frames[0].Kind != "prose.delta" || frames[len(frames)-1].Kind != "turn.end" {
 		t.Fatalf("bad frame ordering: %+v", frames)
 	}
-	var p struct{ Text string `json:"text"` }
+	var p struct {
+		Text string `json:"text"`
+	}
 	_ = json.Unmarshal(frames[0].Payload, &p)
 	if p.Text != "hello " {
 		t.Fatalf("first chunk wrong: %q", p.Text)
@@ -255,7 +257,9 @@ func TestStreamIPC_FramePayloadOversize_SendsSplitFrames(t *testing.T) {
 		if len(body) > ipc.MaxFrameBytes {
 			t.Fatalf("split frame %d still oversize: %d > %d", f.Seq, len(body), ipc.MaxFrameBytes)
 		}
-		var p struct{ Text string `json:"text"` }
+		var p struct {
+			Text string `json:"text"`
+		}
 		if err := json.Unmarshal(f.Payload, &p); err != nil {
 			t.Fatalf("unmarshal payload: %v", err)
 		}

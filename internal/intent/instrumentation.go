@@ -14,7 +14,7 @@ var classifyBuckets = []float64{0.0001, 0.001, 0.01, 0.05}
 // ClassifyTimed wraps Classify with a wall-clock observation into
 // leah_intent_classify_seconds{kind=…}. Nil registry yields plain Classify so
 // callers can omit instrumentation without per-call guards.
-func ClassifyTimed(reg *obs.Registry, s string) Kind {
+func ClassifyTimed(reg *telemetry.Registry, s string) Kind {
 	if reg == nil {
 		return Classify(s)
 	}
@@ -27,7 +27,7 @@ func ClassifyTimed(reg *obs.Registry, s string) Kind {
 
 // RegisterMetrics cold-seeds leah_intent_classify_seconds so the series
 // surfaces on /metrics before the first utterance.
-func RegisterMetrics(reg *obs.Registry) {
+func RegisterMetrics(reg *telemetry.Registry) {
 	if reg == nil {
 		return
 	}

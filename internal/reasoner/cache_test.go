@@ -69,7 +69,7 @@ func TestAnthropicClient_OmitsCacheControlBlock_OnSmallPrompt(t *testing.T) {
 // disabled outcomes each increment the matching label, and the savings
 // histogram receives a token observation on hit.
 func TestReasonerInstrumentation_CacheHitMetric(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	BindInstrumentation(reg)
 
 	RecordCacheOutcome(reg, OutcomeHit, 1234)
@@ -94,7 +94,7 @@ func TestReasonerInstrumentation_CacheHitMetric(t *testing.T) {
 // readSnapshot returns the flat counter values and histogram counts from
 // the registry's JSON snapshot. Keeps this test self-contained — obstest
 // only exposes union-of-keys, not values.
-func readSnapshot(t *testing.T, r *obs.Registry) (map[string]int64, map[string]int64) {
+func readSnapshot(t *testing.T, r *telemetry.Registry) (map[string]int64, map[string]int64) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "m.json")
 	if err := r.Snapshot(path); err != nil {

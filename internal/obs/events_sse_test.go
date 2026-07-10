@@ -1,4 +1,4 @@
-package obs
+package telemetry
 
 import (
 	"bufio"
@@ -16,11 +16,11 @@ import (
 // fakeSubscriber feeds the handler a controllable event stream so the SSE
 // transport can be exercised without the SQLite EventStore.
 type fakeSubscriber struct {
-	mu        sync.Mutex
-	ch        chan Event
-	closed    bool
+	mu         sync.Mutex
+	ch         chan Event
+	closed     bool
 	closeCalls int
-	kinds     []string
+	kinds      []string
 }
 
 func newFakeSubscriber(kinds []string) *fakeSubscriber {

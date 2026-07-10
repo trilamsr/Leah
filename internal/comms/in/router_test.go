@@ -1,4 +1,4 @@
-package in
+package commsin
 
 import (
 	"context"
@@ -42,9 +42,9 @@ func (c *fakeClassifier) Classify(ctx context.Context, text string) (Intent, err
 }
 
 type fakeEngine struct {
-	acceptID, rejectID, applyID string
+	acceptID, rejectID, applyID          string
 	acceptCalls, rejectCalls, applyCalls int
-	acceptErr, applyErr error
+	acceptErr, applyErr                  error
 }
 
 func (e *fakeEngine) Accept(ctx context.Context, id string) error {

@@ -7,7 +7,7 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
-func EmitQuery(registry *obs.Registry, table string) {
+func EmitQuery(registry *telemetry.Registry, table string) {
 	if registry == nil {
 		return
 	}

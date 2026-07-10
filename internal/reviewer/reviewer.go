@@ -51,7 +51,7 @@ var (
 // gate would reject the verdict anyway, better to surface it here.
 func (r *Reviewer) Review(ctx context.Context, diff, linkedIssue string) (Verdict, error) {
 	input := "Linked issue body:\n" + linkedIssue + "\n\n---\n\nDiff:\n" + diff
-	obs.Publish(obs.Event{
+	telemetry.Publish(telemetry.Event{
 		TS:      time.Now().UTC(),
 		Kind:    "subagent.spawn",
 		Actor:   "reviewer",
@@ -84,7 +84,7 @@ func (r *Reviewer) Review(ctx context.Context, diff, linkedIssue string) (Verdic
 		return v, err
 	}
 
-	obs.Publish(obs.Event{
+	telemetry.Publish(telemetry.Event{
 		TS:      time.Now().UTC(),
 		Kind:    "subagent.complete",
 		Actor:   "reviewer",

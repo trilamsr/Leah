@@ -245,4 +245,3 @@ func newTestRegistry(stateDir string) *Registry {
 		&gcalProvider{tokenPath: filepath.Join(stateDir, "secrets", "gcal-token.json")},
 	})
 }
-

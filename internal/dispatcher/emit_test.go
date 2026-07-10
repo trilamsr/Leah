@@ -12,7 +12,7 @@ import (
 )
 
 // drainKinds collects every kind seen on sub until timeout or n distinct kinds.
-func drainKinds(t *testing.T, sub obs.SSESubscriber, want map[string]bool) {
+func drainKinds(t *testing.T, sub telemetry.SSESubscriber, want map[string]bool) {
 	t.Helper()
 	deadline := time.After(2 * time.Second)
 	for {
@@ -46,9 +46,9 @@ func drainKinds(t *testing.T, sub obs.SSESubscriber, want map[string]bool) {
 // dispatch.ship and dispatch.merge — the kinds events_timeline.js subscribes
 // to but production never emitted before this wiring.
 func TestShipEmitsDispatchShipAndMerge(t *testing.T) {
-	b := obs.NewBroadcaster()
-	obs.SetDefaultBroadcaster(b)
-	t.Cleanup(func() { obs.SetDefaultBroadcaster(nil) })
+	b := telemetry.NewBroadcaster()
+	telemetry.SetDefaultBroadcaster(b)
+	t.Cleanup(func() { telemetry.SetDefaultBroadcaster(nil) })
 	sub, err := b.Subscribe(context.Background(), []string{"dispatch.ship", "dispatch.merge"})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)

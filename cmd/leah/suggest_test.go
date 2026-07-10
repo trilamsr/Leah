@@ -12,7 +12,7 @@ import (
 // fakeStreamReasoner emits scripted deltas on AskStream; satisfies the
 // streamReasoner interface used by suggest's --llm path.
 type fakeStreamReasoner struct {
-	deltas []string
+	deltas  []string
 	gotUser string // last user prompt seen (for prompt-shape assertions)
 }
 

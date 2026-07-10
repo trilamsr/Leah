@@ -290,7 +290,6 @@ func parseBundleFlag(args []string) (bundle string, rest []string, err error) {
 	return bundle, rest, nil
 }
 
-
 func knownBundles() string {
 	names := bundleNames()
 	sort.Strings(names)

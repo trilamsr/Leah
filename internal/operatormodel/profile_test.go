@@ -15,11 +15,11 @@ import (
 
 // fakeSwitchSource feeds canned switches to Profile.Update without a real ctxmgr DB.
 type fakeSwitchSource struct {
-	switches []ctxmgr.Switch
+	switches []activectx.Switch
 	calls    int
 }
 
-func (f *fakeSwitchSource) Since(_ time.Time) ([]ctxmgr.Switch, error) {
+func (f *fakeSwitchSource) Since(_ time.Time) ([]activectx.Switch, error) {
 	f.calls++
 	return f.switches, nil
 }
@@ -297,7 +297,7 @@ func TestProfileUpdate_WithCtxSwitches_ObservesTransitions(t *testing.T) {
 	}
 	path := writeAudit(t, dir, entries)
 
-	src := &fakeSwitchSource{switches: []ctxmgr.Switch{
+	src := &fakeSwitchSource{switches: []activectx.Switch{
 		{From: "", To: "leah", SwitchedAt: base.Add(-1 * time.Hour)},
 		{From: "leah", To: "regatta", SwitchedAt: base.Add(50 * time.Hour)},
 		{From: "regatta", To: "leah", SwitchedAt: base.Add(120 * time.Hour)},

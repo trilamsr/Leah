@@ -17,10 +17,10 @@ type ContextProvider func() string
 
 type SignalDispatcher struct {
 	engine SignalEngine
-	bus    *obs.Broadcaster
+	bus    *telemetry.Broadcaster
 	ctxFn  ContextProvider
 	kinds  []string
-	reg    *obs.Registry
+	reg    *telemetry.Registry
 	tick   time.Duration
 
 	mu       sync.Mutex
@@ -44,7 +44,7 @@ const DropMonitorInterval = 10 * time.Second
 
 var ErrFeedbackLoopKind = errors.New("recommend: kind would feedback-loop into OnSignal")
 
-func NewSignalDispatcher(engine SignalEngine, bus *obs.Broadcaster, ctxFn ContextProvider) *SignalDispatcher {
+func NewSignalDispatcher(engine SignalEngine, bus *telemetry.Broadcaster, ctxFn ContextProvider) *SignalDispatcher {
 	return &SignalDispatcher{
 		engine: engine,
 		bus:    bus,
@@ -68,7 +68,7 @@ func (d *SignalDispatcher) WithKinds(kinds []string) (*SignalDispatcher, error) 
 	return d, nil
 }
 
-func (d *SignalDispatcher) WithRegistry(reg *obs.Registry) *SignalDispatcher {
+func (d *SignalDispatcher) WithRegistry(reg *telemetry.Registry) *SignalDispatcher {
 	d.reg = reg
 	return d
 }
@@ -86,14 +86,14 @@ func (d *SignalDispatcher) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	d.cancel = cancel
 	d.wg.Add(1)
-	obs.SafeGo(nil, d.reg, "recommend-pump", func() { d.pump(runCtx, sub) })
+	telemetry.SafeGo(nil, d.reg, "recommend-pump", func() { d.pump(runCtx, sub) })
 	if d.reg != nil {
 		d.wg.Add(1)
 		interval := d.tick
 		if interval <= 0 {
 			interval = DropMonitorInterval
 		}
-		obs.SafeGo(nil, d.reg, "recommend-drop-monitor", func() { d.monitorDrops(runCtx, interval) })
+		telemetry.SafeGo(nil, d.reg, "recommend-drop-monitor", func() { d.monitorDrops(runCtx, interval) })
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func (d *SignalDispatcher) Stop() {
 	}
 }
 
-func (d *SignalDispatcher) pump(ctx context.Context, sub obs.SSESubscriber) {
+func (d *SignalDispatcher) pump(ctx context.Context, sub telemetry.SSESubscriber) {
 	defer d.wg.Done()
 	defer func() { _ = sub.Close() }()
 	events := sub.Events()

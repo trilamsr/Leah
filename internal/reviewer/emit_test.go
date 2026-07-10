@@ -13,9 +13,9 @@ import (
 // (after a parsed verdict) — the kinds events_timeline.js subscribes to but
 // the review path never emitted before this wiring.
 func TestReviewEmitsSubagentSpawnAndComplete(t *testing.T) {
-	b := obs.NewBroadcaster()
-	obs.SetDefaultBroadcaster(b)
-	t.Cleanup(func() { obs.SetDefaultBroadcaster(nil) })
+	b := telemetry.NewBroadcaster()
+	telemetry.SetDefaultBroadcaster(b)
+	t.Cleanup(func() { telemetry.SetDefaultBroadcaster(nil) })
 	sub, err := b.Subscribe(context.Background(), []string{"subagent.spawn", "subagent.complete"})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)

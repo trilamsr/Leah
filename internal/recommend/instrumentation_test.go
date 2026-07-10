@@ -10,7 +10,7 @@ import (
 // TestRegisterMetrics_AddsSeries asserts recommendation-engine series
 // surface pre-event (spec §4.13).
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
@@ -27,7 +27,7 @@ func TestRegisterMetrics_AddsSeries(t *testing.T) {
 
 // TestEmitApplied_IncrementsCounter pins the call-site contract.
 func TestEmitApplied_IncrementsCounter(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	EmitApplied(r, "habit", "ok")
 	want := "leah_recommendation_applied_total|kind=habit,outcome=ok"
 	if !obstest.ContainsExact(obstest.SnapshotKeys(t, r), want) {

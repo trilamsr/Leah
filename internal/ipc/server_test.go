@@ -227,8 +227,8 @@ func (p *permListener) Accept() (net.Conn, error) {
 	}
 	return nil, errPermanent
 }
-func (p *permListener) Close() error                { p.closed.Store(true); return nil }
-func (p *permListener) Addr() net.Addr              { return &net.UnixAddr{Name: "perm", Net: "unix"} }
+func (p *permListener) Close() error   { p.closed.Store(true); return nil }
+func (p *permListener) Addr() net.Addr { return &net.UnixAddr{Name: "perm", Net: "unix"} }
 
 func TestServer_AcceptLoop_BreaksOnPermanentError(t *testing.T) {
 	s := NewServer("/tmp/unused.sock", func(ctx context.Context, req Frame) (<-chan Frame, error) { return nil, nil })

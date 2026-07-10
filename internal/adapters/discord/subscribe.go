@@ -94,8 +94,8 @@ func (a *Adapter) Subscribe(ctx context.Context, channelIDs []string, handler fu
 	}
 
 	queue := make(chan pendingMessage, inboundQueueDepth)
-	obs.SafeGo(nil, nil, "discord-dispatch", func() { a.dispatchLoop(ctx, queue, handler) })
-	obs.SafeGo(nil, nil, "discord-read", func() { a.readLoop(ctx, conn, wanted, queue) })
+	telemetry.SafeGo(nil, nil, "discord-dispatch", func() { a.dispatchLoop(ctx, queue, handler) })
+	telemetry.SafeGo(nil, nil, "discord-read", func() { a.readLoop(ctx, conn, wanted, queue) })
 
 	a.record(AuditRow{Kind: "discord_subscribe", Success: true})
 	return nil

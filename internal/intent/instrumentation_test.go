@@ -23,7 +23,7 @@ func TestClassifyTimedRecordsHistogram(t *testing.T) {
 		{"what does regatta currently support", KindAsk},
 	}
 	for _, c := range cases {
-		reg := obs.NewRegistry()
+		reg := telemetry.NewRegistry()
 		got := ClassifyTimed(reg, c.in)
 		if got != c.want {
 			t.Fatalf("ClassifyTimed(%q) = %v, want %v", c.in, got, c.want)
@@ -49,7 +49,7 @@ func TestClassifyTimedNilRegistryIsNoop(t *testing.T) {
 // SLO — the histogram's bound list must encode the SLO so /metrics alone proves
 // it.
 func TestClassifyTimedBucketsSubFiftyMs(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	_ = ClassifyTimed(reg, "review pr 1112")
 	s := histSeries(t, reg, "review")
 	for _, b := range []string{"0.0001", "0.001", "0.01", "0.05"} {
@@ -62,7 +62,7 @@ func TestClassifyTimedBucketsSubFiftyMs(t *testing.T) {
 // TestRegisterMetricsSeedsAllKinds guards the kindMax-bounded loop — if a new
 // verb lands but RegisterMetrics drifts, cold-seed coverage gaps surface here.
 func TestRegisterMetricsSeedsAllKinds(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	RegisterMetrics(reg)
 	for k := KindAsk; k < kindMax; k++ {
 		s := histSeries(t, reg, k.String())
@@ -78,7 +78,7 @@ type seriesView struct {
 	Buckets map[string]int64 `json:"buckets"`
 }
 
-func histSeries(t *testing.T, reg *obs.Registry, wantKind string) seriesView {
+func histSeries(t *testing.T, reg *telemetry.Registry, wantKind string) seriesView {
 	t.Helper()
 	dir := t.TempDir()
 	snap := filepath.Join(dir, "metrics.json")

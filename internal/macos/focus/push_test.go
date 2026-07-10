@@ -13,19 +13,19 @@ import (
 
 type recorder struct {
 	mu    sync.Mutex
-	calls []obs.Event
+	calls []telemetry.Event
 }
 
-func (r *recorder) emit(e obs.Event) {
+func (r *recorder) emit(e telemetry.Event) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls = append(r.calls, e)
 }
 
-func (r *recorder) snapshot() []obs.Event {
+func (r *recorder) snapshot() []telemetry.Event {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]obs.Event(nil), r.calls...)
+	return append([]telemetry.Event(nil), r.calls...)
 }
 
 type fakeClock struct {
@@ -72,7 +72,7 @@ func TestPushSource_Run_EmitsTypedPayload(t *testing.T) {
 	if got[0].Kind != "focus.state_changed" {
 		t.Fatalf("kind=%q want focus.state_changed", got[0].Kind)
 	}
-	if _, ok := got[0].Payload.(obs.FocusStateChangedEvent); !ok {
+	if _, ok := got[0].Payload.(telemetry.FocusStateChangedEvent); !ok {
 		t.Fatalf("payload=%T want obs.FocusStateChangedEvent", got[0].Payload)
 	}
 }
@@ -134,7 +134,7 @@ func TestPushSource_CtxCancel_StopsLoop(t *testing.T) {
 	t.Cleanup(func() { _ = src.Close() })
 
 	clk := &fakeClock{now: time.Unix(1_000_000, 0)}
-	p := &PushSource{Source: src, ObsEmit: func(obs.Event) {}, NowFn: clk.Now}
+	p := &PushSource{Source: src, ObsEmit: func(telemetry.Event) {}, NowFn: clk.Now}
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() { errCh <- p.Run(ctx) }()
@@ -152,7 +152,7 @@ func TestPushSource_CtxCancel_StopsLoop(t *testing.T) {
 
 func TestPushSource_Run_RequiresSource(t *testing.T) {
 	t.Parallel()
-	p := &PushSource{ObsEmit: func(obs.Event) {}}
+	p := &PushSource{ObsEmit: func(telemetry.Event) {}}
 	if err := p.Run(context.Background()); err == nil {
 		t.Fatal("Run with nil Source: want error")
 	}

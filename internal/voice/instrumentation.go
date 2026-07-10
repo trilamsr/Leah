@@ -9,7 +9,7 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
-func Bind(c *ChainTTS, registry *obs.Registry) {
+func Bind(c *ChainTTS, registry *telemetry.Registry) {
 	if registry == nil || c == nil {
 		return
 	}
@@ -19,7 +19,7 @@ func Bind(c *ChainTTS, registry *obs.Registry) {
 	}
 }
 
-func EmitSpeak(registry *obs.Registry, backend string) {
+func EmitSpeak(registry *telemetry.Registry, backend string) {
 	if registry == nil {
 		return
 	}
@@ -32,7 +32,7 @@ func EmitSpeak(registry *obs.Registry, backend string) {
 // operator can distinguish "model didn't invoke tools" from "tools invoked
 // but V10 silently dropped them". Returns nil when registry is nil so the
 // caller can leave the hook unset.
-func StreamToolUseSuppressedHook(registry *obs.Registry) func() {
+func StreamToolUseSuppressedHook(registry *telemetry.Registry) func() {
 	if registry == nil {
 		return nil
 	}
@@ -81,19 +81,19 @@ var BargeInCancelBuckets = []float64{0.01, 0.025, 0.05, 0.1, 0.2, 0.5, 1}
 // label ("local" | "cloud") on every turn + stage observation — V10 streaming
 // changes cloud latency, not local, so baselines must be partitioned.
 type TurnInstrumentation struct {
-	turnSeconds       *obs.Histogram
-	stageSeconds      *obs.Histogram
-	bargeInCancelSecs *obs.Histogram
-	turnTotal         *obs.Counter
-	bargeInTotal      *obs.Counter
-	wakeEvent         *obs.Counter
+	turnSeconds       *telemetry.Histogram
+	stageSeconds      *telemetry.Histogram
+	bargeInCancelSecs *telemetry.Histogram
+	turnTotal         *telemetry.Counter
+	bargeInTotal      *telemetry.Counter
+	wakeEvent         *telemetry.Counter
 	path              string
 }
 
 // NewTurnInstrumentation registers the V1 voice-path series. nil-safe: a nil
 // registry yields a nil receiver whose methods are no-ops, so production wiring
 // can omit the registry without per-call guards.
-func NewTurnInstrumentation(reg *obs.Registry, path string) *TurnInstrumentation {
+func NewTurnInstrumentation(reg *telemetry.Registry, path string) *TurnInstrumentation {
 	if reg == nil {
 		return nil
 	}
@@ -173,9 +173,9 @@ func (t *TurnInstrumentation) RecordWakeEvent(result string) {
 // goroutine (the loop), and reads only the atomic stage handle so no race
 // occurs with concurrent Mark* writes from the reply goroutine.
 type TurnTimer struct {
-	instr          *TurnInstrumentation
-	turnStart      time.Time
-	turnEnd        time.Time
+	instr                *TurnInstrumentation
+	turnStart            time.Time
+	turnEnd              time.Time
 	reasonerAskAt        time.Time
 	reasonerFirstTokenAt time.Time
 	reasonerDoneAt       time.Time

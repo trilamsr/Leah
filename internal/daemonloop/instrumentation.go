@@ -8,7 +8,7 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
-func Bind(l *Loop, registry *obs.Registry) {
+func Bind(l *Loop, registry *telemetry.Registry) {
 	if registry == nil || l == nil {
 		return
 	}

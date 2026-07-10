@@ -14,7 +14,7 @@ import (
 // TestFirstByteTimer_ObservesOnFirstWrite verifies the histogram fires once on
 // the FIRST Write to the wrapped writer and not on subsequent writes.
 func TestFirstByteTimer_ObservesOnFirstWrite(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	var buf bytes.Buffer
 
 	timer := NewFirstByteTimer(reg, "status")
@@ -43,7 +43,7 @@ func TestFirstByteTimer_ObservesOnFirstWrite(t *testing.T) {
 // TestFirstByteTimer_NoWriteNoObservation guarantees a CLI run that emits
 // nothing does NOT pollute the histogram.
 func TestFirstByteTimer_NoWriteNoObservation(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	var buf bytes.Buffer
 
 	timer := NewFirstByteTimer(reg, "ask")
@@ -73,7 +73,7 @@ func TestFirstByteTimer_NilRegistryNoOp(t *testing.T) {
 // lands in the first non-zero bucket when the wrapper fires immediately after
 // NewFirstByteTimer — guarding against time.Since clock-skew bugs.
 func TestFirstByteTimer_LatencyWithinBucketRange(t *testing.T) {
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	var buf bytes.Buffer
 
 	timer := NewFirstByteTimer(reg, "status")
@@ -95,7 +95,7 @@ type histSnap struct {
 	Sum       float64
 }
 
-func snapshotHist(t *testing.T, reg *obs.Registry, name string) histSnap {
+func snapshotHist(t *testing.T, reg *telemetry.Registry, name string) histSnap {
 	t.Helper()
 	path := t.TempDir() + "/snap.json"
 	if err := reg.Snapshot(path); err != nil {
@@ -121,4 +121,3 @@ func snapshotHist(t *testing.T, reg *obs.Registry, name string) histSnap {
 	}
 	return histSnap{}
 }
-

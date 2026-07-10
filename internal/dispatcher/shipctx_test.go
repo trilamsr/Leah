@@ -38,8 +38,8 @@ func (e *execErr) Error() string { return e.msg }
 
 func TestFetchPRContext_ReturnsFormatted(t *testing.T) {
 	fe := &fakeExec{respFor: map[string]string{
-		"gh pr view":  `{"title":"Add foo","body":"PR body line1\nline2","headRefName":"feat/foo"}`,
-		"gh pr diff":  "diff --git a/x b/x\n+added\n",
+		"gh pr view": `{"title":"Add foo","body":"PR body line1\nline2","headRefName":"feat/foo"}`,
+		"gh pr diff": "diff --git a/x b/x\n+added\n",
 	}}
 	got, err := FetchPRContext(context.Background(), fe, "trilam/leah", 42)
 	if err != nil {

@@ -40,13 +40,13 @@ func TestObserveContextTransitionsCounts(t *testing.T) {
 		}
 		return ts
 	}
-	switches := []ctxmgr.Switch{
+	switches := []activectx.Switch{
 		{From: "default", To: "leah", SwitchedAt: mustTS("2026-06-09T09:00:00Z")},
 		{From: "leah", To: "regatta", SwitchedAt: mustTS("2026-06-09T11:00:00Z")},
 	}
 	rows := []audit.Entry{
-		{Timestamp: "2026-06-09T09:30:00Z", Kind: "leah.ask"},   // after entering leah
-		{Timestamp: "2026-06-09T10:00:00Z", Kind: "leah.ship"},  // still in leah
+		{Timestamp: "2026-06-09T09:30:00Z", Kind: "leah.ask"},  // after entering leah
+		{Timestamp: "2026-06-09T10:00:00Z", Kind: "leah.ship"}, // still in leah
 		{Timestamp: "2026-06-09T11:15:00Z", Kind: "regatta.status"},
 	}
 	obs := ObserveContextTransitions(rows, switches)

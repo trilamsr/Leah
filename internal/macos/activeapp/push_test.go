@@ -13,19 +13,19 @@ import (
 
 type recorder struct {
 	mu    sync.Mutex
-	calls []obs.Event
+	calls []telemetry.Event
 }
 
-func (r *recorder) emit(e obs.Event) {
+func (r *recorder) emit(e telemetry.Event) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls = append(r.calls, e)
 }
 
-func (r *recorder) snapshot() []obs.Event {
+func (r *recorder) snapshot() []telemetry.Event {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]obs.Event(nil), r.calls...)
+	return append([]telemetry.Event(nil), r.calls...)
 }
 
 func runPush(t *testing.T, src osevent.Source, rec *recorder) (context.CancelFunc, <-chan error) {
@@ -58,7 +58,7 @@ func TestPushSource_Run_EmitsTypedPayload(t *testing.T) {
 	if got[0].Kind != "workspace.active_app_changed" {
 		t.Fatalf("kind=%q want workspace.active_app_changed", got[0].Kind)
 	}
-	p, ok := got[0].Payload.(obs.WorkspaceActiveAppEvent)
+	p, ok := got[0].Payload.(telemetry.WorkspaceActiveAppEvent)
 	if !ok {
 		t.Fatalf("payload=%T want obs.WorkspaceActiveAppEvent", got[0].Payload)
 	}
@@ -98,7 +98,7 @@ func TestPushSource_CtxCancel_StopsLoop(t *testing.T) {
 	src := osevent.NewFake(osevent.Config{})
 	t.Cleanup(func() { _ = src.Close() })
 
-	p := &PushSource{Source: src, ObsEmit: func(obs.Event) {}}
+	p := &PushSource{Source: src, ObsEmit: func(telemetry.Event) {}}
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() { errCh <- p.Run(ctx) }()
@@ -140,7 +140,7 @@ func TestPushSource_BlocklistedApp_NotEmitted(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("emits=%d want 1 (safari only): %+v", len(got), got)
 	}
-	p, _ := got[0].Payload.(obs.WorkspaceActiveAppEvent)
+	p, _ := got[0].Payload.(telemetry.WorkspaceActiveAppEvent)
 	if p.BundleID != "com.apple.Safari" {
 		t.Fatalf("emit=%+v want safari only", got[0])
 	}
@@ -148,7 +148,7 @@ func TestPushSource_BlocklistedApp_NotEmitted(t *testing.T) {
 
 func TestPushSource_Run_RequiresSource(t *testing.T) {
 	t.Parallel()
-	p := &PushSource{ObsEmit: func(obs.Event) {}}
+	p := &PushSource{ObsEmit: func(telemetry.Event) {}}
 	if err := p.Run(context.Background()); err == nil {
 		t.Fatal("Run with nil Source: want error")
 	}
@@ -205,7 +205,7 @@ func TestPushSource_Coalesce_DropsRepeatBundleID(t *testing.T) {
 	src.Inject(osevent.Event{Kind: osevent.WorkspaceActiveAppChanged, Detail: map[string]any{"bundle_id": "com.apple.Notes", "name": "Notes"}})
 	testutil.Eventually(t, time.Second, 5*time.Millisecond, func() bool {
 		for _, e := range rec.snapshot() {
-			if p, _ := e.Payload.(obs.WorkspaceActiveAppEvent); p.BundleID == "com.apple.Notes" {
+			if p, _ := e.Payload.(telemetry.WorkspaceActiveAppEvent); p.BundleID == "com.apple.Notes" {
 				return true
 			}
 		}
@@ -266,10 +266,10 @@ func TestPushSource_Debounce_SuppressesRapidSwitches(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("emits=%d want 2 (safari + notes only, storm debounced): %+v", len(got), got)
 	}
-	if p, _ := got[0].Payload.(obs.WorkspaceActiveAppEvent); p.BundleID != "com.apple.Safari" {
+	if p, _ := got[0].Payload.(telemetry.WorkspaceActiveAppEvent); p.BundleID != "com.apple.Safari" {
 		t.Fatalf("emit[0]=%+v want safari", got[0])
 	}
-	if p, _ := got[1].Payload.(obs.WorkspaceActiveAppEvent); p.BundleID != "com.apple.Notes" {
+	if p, _ := got[1].Payload.(telemetry.WorkspaceActiveAppEvent); p.BundleID != "com.apple.Notes" {
 		t.Fatalf("emit[1]=%+v want notes", got[1])
 	}
 }

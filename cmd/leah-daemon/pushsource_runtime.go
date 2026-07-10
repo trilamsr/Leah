@@ -24,7 +24,7 @@ import (
 
 // runPushSourcesFromChan is the test seam. Production runPushSources composes
 // each producer's ObsEmit into a buffered channel and forwards here.
-func runPushSourcesFromChan(ctx context.Context, in <-chan obs.Event, emit func(kind string, payload []byte)) {
+func runPushSourcesFromChan(ctx context.Context, in <-chan telemetry.Event, emit func(kind string, payload []byte)) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -67,12 +67,12 @@ func translatePushKind(obsKind string) string {
 // forwards through runPushSourcesFromChan → emit. Each producer that fails
 // to construct (e.g. focus on a non-darwin build, mail with no
 // Envelope Index) is logged and skipped; remaining sources keep running.
-func runPushSources(ctx context.Context, lg *slog.Logger, registry *obs.Registry, mailWatcher sqliteopen.WALWatcher, emit func(kind string, payload []byte)) {
+func runPushSources(ctx context.Context, lg *slog.Logger, registry *telemetry.Registry, mailWatcher sqliteopen.WALWatcher, emit func(kind string, payload []byte)) {
 	if emit == nil {
 		return
 	}
-	fan := make(chan obs.Event, 64)
-	obsEmit := func(e obs.Event) {
+	fan := make(chan telemetry.Event, 64)
+	obsEmit := func(e telemetry.Event) {
 		select {
 		case fan <- e:
 		case <-ctx.Done():
@@ -89,7 +89,7 @@ func runPushSources(ctx context.Context, lg *slog.Logger, registry *obs.Registry
 	if src, err := osevent.NewSource(osevent.Config{Blocklist: activeapp.DefaultBlocklist}); err == nil {
 		p := &activeapp.PushSource{Source: src, ObsEmit: obsEmit, Debounce: activeapp.DefaultDebounce}
 		wg.Add(1)
-		obs.SafeGo(lg, registry, "pushsource-activeapp", func() {
+		telemetry.SafeGo(lg, registry, "pushsource-activeapp", func() {
 			defer wg.Done()
 			if err := p.Run(ctx); err != nil && ctx.Err() == nil {
 				lg.Warn("activeapp push exit", "err", err)
@@ -103,7 +103,7 @@ func runPushSources(ctx context.Context, lg *slog.Logger, registry *obs.Registry
 	if src, err := osevent.NewSource(osevent.Config{}); err == nil {
 		p := &contacts.PushSource{Source: src, ObsEmit: obsEmit, Debounce: 250 * time.Millisecond}
 		wg.Add(1)
-		obs.SafeGo(lg, registry, "pushsource-contacts", func() {
+		telemetry.SafeGo(lg, registry, "pushsource-contacts", func() {
 			defer wg.Done()
 			if err := p.Run(ctx); err != nil && ctx.Err() == nil {
 				lg.Warn("contacts push exit", "err", err)
@@ -117,7 +117,7 @@ func runPushSources(ctx context.Context, lg *slog.Logger, registry *obs.Registry
 	if src, err := osevent.NewSource(osevent.Config{}); err == nil {
 		p := &focus.PushSource{Source: src, ObsEmit: obsEmit, Debounce: 250 * time.Millisecond}
 		wg.Add(1)
-		obs.SafeGo(lg, registry, "pushsource-focus", func() {
+		telemetry.SafeGo(lg, registry, "pushsource-focus", func() {
 			defer wg.Done()
 			if err := p.Run(ctx); err != nil && ctx.Err() == nil {
 				lg.Warn("focus push exit", "err", err)
@@ -131,7 +131,7 @@ func runPushSources(ctx context.Context, lg *slog.Logger, registry *obs.Registry
 	if mailWatcher != nil {
 		p := &mail.PushSource{Watcher: mailWatcher, ObsEmit: obsEmit, Debounce: 500 * time.Millisecond}
 		wg.Add(1)
-		obs.SafeGo(lg, registry, "pushsource-mail", func() {
+		telemetry.SafeGo(lg, registry, "pushsource-mail", func() {
 			defer wg.Done()
 			if err := p.Run(ctx); err != nil && ctx.Err() == nil {
 				lg.Warn("mail push exit", "err", err)

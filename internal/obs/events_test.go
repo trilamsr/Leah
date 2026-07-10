@@ -1,4 +1,4 @@
-package obs_test
+package telemetry_test
 
 import (
 	"context"
@@ -15,10 +15,10 @@ import (
 
 var osStat = os.Stat
 
-func newStore(t *testing.T) *obs.SQLiteEventStore {
+func newStore(t *testing.T) *telemetry.SQLiteEventStore {
 	t.Helper()
 	dir := t.TempDir()
-	s, err := obs.OpenEventStore(filepath.Join(dir, "events.db"), obs.EventStoreOptions{
+	s, err := telemetry.OpenEventStore(filepath.Join(dir, "events.db"), telemetry.EventStoreOptions{
 		BatchInterval: 5 * time.Millisecond,
 	})
 	if err != nil {
@@ -31,7 +31,7 @@ func newStore(t *testing.T) *obs.SQLiteEventStore {
 func TestEventStore_Emit_Persists(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
-	e := obs.Event{
+	e := telemetry.Event{
 		TS:        time.Now().UTC(),
 		Kind:      "dispatch.ship",
 		Actor:     "daemon",
@@ -44,7 +44,7 @@ func TestEventStore_Emit_Persists(t *testing.T) {
 	if err := s.Sync(ctx); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
-	rows, err := s.Query(ctx, obs.EventQuery{})
+	rows, err := s.Query(ctx, telemetry.EventQuery{})
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestEventStore_Query_ByKind(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
-	emits := []obs.Event{
+	emits := []telemetry.Event{
 		{TS: now, Kind: "dispatch.ship", Actor: "daemon", Outcome: "ok"},
 		{TS: now.Add(1 * time.Millisecond), Kind: "audit.append", Actor: "daemon", Outcome: "ok"},
 		{TS: now.Add(2 * time.Millisecond), Kind: "dispatch.ship", Actor: "daemon", Outcome: "ok"},
@@ -74,7 +74,7 @@ func TestEventStore_Query_ByKind(t *testing.T) {
 	if err := s.Sync(ctx); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
-	rows, err := s.Query(ctx, obs.EventQuery{Kinds: []string{"dispatch.ship"}})
+	rows, err := s.Query(ctx, telemetry.EventQuery{Kinds: []string{"dispatch.ship"}})
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -91,12 +91,12 @@ func TestEventStore_Query_ByKind(t *testing.T) {
 func TestEventStore_Query_ByRefID_TreeAssembly(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
-	refID := obs.NewRefID()
-	ctx = obs.WithRefID(ctx, refID)
-	otherID := obs.NewRefID()
+	refID := telemetry.NewRefID()
+	ctx = telemetry.WithRefID(ctx, refID)
+	otherID := telemetry.NewRefID()
 	now := time.Now().UTC()
 
-	chain := []obs.Event{
+	chain := []telemetry.Event{
 		{TS: now, Kind: "dispatch.ship", Actor: "daemon", Outcome: "begin"},
 		{TS: now.Add(1 * time.Millisecond), Kind: "attestation.attempt", Actor: "daemon", Outcome: "ok", Scope: "dispatcher.ship"},
 		{TS: now.Add(2 * time.Millisecond), Kind: "reasoner.call", Actor: "daemon", Outcome: "ok"},
@@ -111,7 +111,7 @@ func TestEventStore_Query_ByRefID_TreeAssembly(t *testing.T) {
 		}
 	}
 	// Unrelated event with a different RefID — must NOT appear in the query.
-	if err := s.Emit(obs.WithRefID(context.Background(), otherID), obs.Event{
+	if err := s.Emit(telemetry.WithRefID(context.Background(), otherID), telemetry.Event{
 		TS:      now.Add(6 * time.Millisecond),
 		Kind:    "voice.speak",
 		Actor:   "daemon",
@@ -123,7 +123,7 @@ func TestEventStore_Query_ByRefID_TreeAssembly(t *testing.T) {
 		t.Fatalf("Sync: %v", err)
 	}
 
-	rows, err := s.Query(ctx, obs.EventQuery{RefID: refID})
+	rows, err := s.Query(ctx, telemetry.EventQuery{RefID: refID})
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestEventStore_ConcurrentSafe(t *testing.T) {
 		go func(g int) {
 			defer wg.Done()
 			for i := 0; i < perGoroutine; i++ {
-				_ = s.Emit(ctx, obs.Event{
+				_ = s.Emit(ctx, telemetry.Event{
 					Kind:    "reasoner.call",
 					Actor:   "daemon",
 					Outcome: "ok",
@@ -165,7 +165,7 @@ func TestEventStore_ConcurrentSafe(t *testing.T) {
 	if err := s.Sync(ctx); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
-	rows, err := s.Query(ctx, obs.EventQuery{Limit: goroutines * perGoroutine * 2})
+	rows, err := s.Query(ctx, telemetry.EventQuery{Limit: goroutines * perGoroutine * 2})
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestEventStore_ConcurrentSafe(t *testing.T) {
 func TestEventStore_BufferFull_DropsLogged(t *testing.T) {
 	dir := t.TempDir()
 	// Tiny buffer + slow batch interval forces overflow on synchronous emits.
-	s, err := obs.OpenEventStore(filepath.Join(dir, "events.db"), obs.EventStoreOptions{
+	s, err := telemetry.OpenEventStore(filepath.Join(dir, "events.db"), telemetry.EventStoreOptions{
 		BufferSize:    2,
 		BatchInterval: 1 * time.Second,
 	})
@@ -196,7 +196,7 @@ func TestEventStore_BufferFull_DropsLogged(t *testing.T) {
 	const tries = 200
 	var dropErrs int
 	for i := 0; i < tries; i++ {
-		err := s.Emit(ctx, obs.Event{Kind: "memory.query", Actor: "daemon", Outcome: "ok"})
+		err := s.Emit(ctx, telemetry.Event{Kind: "memory.query", Actor: "daemon", Outcome: "ok"})
 		if err != nil {
 			dropErrs++
 		}
@@ -217,7 +217,7 @@ func TestEventStore_RetentionTrimsOlderThan30d(t *testing.T) {
 	recent := now.Add(-1 * time.Hour)
 
 	for _, ts := range []time.Time{old, old.Add(time.Second), recent} {
-		if err := s.Emit(ctx, obs.Event{TS: ts, Kind: "audit.append", Actor: "daemon", Outcome: "ok"}); err != nil {
+		if err := s.Emit(ctx, telemetry.Event{TS: ts, Kind: "audit.append", Actor: "daemon", Outcome: "ok"}); err != nil {
 			t.Fatalf("Emit: %v", err)
 		}
 	}
@@ -233,7 +233,7 @@ func TestEventStore_RetentionTrimsOlderThan30d(t *testing.T) {
 	if n != 2 {
 		t.Fatalf("pruned %d, want 2", n)
 	}
-	rows, err := s.Query(ctx, obs.EventQuery{})
+	rows, err := s.Query(ctx, telemetry.EventQuery{})
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestEventStore_RetentionTrimsOlderThan30d(t *testing.T) {
 func TestEventStore_0600Mode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.db")
-	s, err := obs.OpenEventStore(path, obs.EventStoreOptions{})
+	s, err := telemetry.OpenEventStore(path, telemetry.EventStoreOptions{})
 	if err != nil {
 		t.Fatalf("OpenEventStore: %v", err)
 	}
@@ -270,13 +270,13 @@ func TestEventStore_SchemaVersion_IntParse(t *testing.T) {
 	// MUST be parsed numerically.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.db")
-	s1, err := obs.OpenEventStore(path, obs.EventStoreOptions{})
+	s1, err := telemetry.OpenEventStore(path, telemetry.EventStoreOptions{})
 	if err != nil {
 		t.Fatalf("first open: %v", err)
 	}
 	_ = s1.Close()
 	// Second open must accept the existing stamp without error.
-	s2, err := obs.OpenEventStore(path, obs.EventStoreOptions{})
+	s2, err := telemetry.OpenEventStore(path, telemetry.EventStoreOptions{})
 	if err != nil {
 		t.Fatalf("second open: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestEvent_CanonicalSchemaShape(t *testing.T) {
 		{"Detail", "string", `json:"detail,omitempty"`},
 		{"Payload", "interface {}", `json:"payload,omitempty"`},
 	}
-	rt := reflect.TypeOf(obs.Event{})
+	rt := reflect.TypeOf(telemetry.Event{})
 	if rt.NumField() != len(want) {
 		t.Fatalf("Event fields: got %d, want %d", rt.NumField(), len(want))
 	}
@@ -353,15 +353,15 @@ func TestEventKinds_FrozenList(t *testing.T) {
 		"photos.library_changed",
 		"reminders.store_changed",
 	}
-	if !reflect.DeepEqual(obs.KnownEventKinds, want) {
+	if !reflect.DeepEqual(telemetry.KnownEventKinds, want) {
 		t.Fatalf("KnownEventKinds drifted from frozen list:\n got: %v\nwant: %v",
-			obs.KnownEventKinds, want)
+			telemetry.KnownEventKinds, want)
 	}
 }
 
 func TestSafeDetail_StripsPII(t *testing.T) {
 	in := "hello@example.com path with spaces and unicode é"
-	out := obs.SafeDetail(in)
+	out := telemetry.SafeDetail(in)
 	if containsSubstr(out, "@") {
 		t.Fatalf("SafeDetail kept @: %q", out)
 	}
@@ -371,8 +371,8 @@ func TestSafeDetail_StripsPII(t *testing.T) {
 }
 
 func TestSafeDetailHashed_Stable(t *testing.T) {
-	a := obs.SafeDetailHashed("operator-message-text")
-	b := obs.SafeDetailHashed("operator-message-text")
+	a := telemetry.SafeDetailHashed("operator-message-text")
+	b := telemetry.SafeDetailHashed("operator-message-text")
 	if a != b {
 		t.Fatalf("hash unstable: %q vs %q", a, b)
 	}
@@ -383,21 +383,21 @@ func TestSafeDetailHashed_Stable(t *testing.T) {
 
 func TestEmitEvent_NoStore_NoOp(t *testing.T) {
 	// Package-level EmitEvent must not panic when no default store is set.
-	obs.SetDefaultEventStore(nil)
-	obs.EmitEvent(context.Background(), obs.Event{Kind: "obs.selfcheck", Actor: "daemon", Outcome: "ok"})
+	telemetry.SetDefaultEventStore(nil)
+	telemetry.EmitEvent(context.Background(), telemetry.Event{Kind: "obs.selfcheck", Actor: "daemon", Outcome: "ok"})
 }
 
 func TestEmitEvent_WithDefaultStore_Persists(t *testing.T) {
 	s := newStore(t)
-	obs.SetDefaultEventStore(s)
-	t.Cleanup(func() { obs.SetDefaultEventStore(nil) })
+	telemetry.SetDefaultEventStore(s)
+	t.Cleanup(func() { telemetry.SetDefaultEventStore(nil) })
 
-	ctx := obs.WithRefID(context.Background(), obs.NewRefID())
-	obs.EmitEvent(ctx, obs.Event{Kind: "obs.selfcheck", Actor: "daemon", Outcome: "ok"})
+	ctx := telemetry.WithRefID(context.Background(), telemetry.NewRefID())
+	telemetry.EmitEvent(ctx, telemetry.Event{Kind: "obs.selfcheck", Actor: "daemon", Outcome: "ok"})
 	if err := s.Sync(ctx); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
-	rows, err := s.Query(ctx, obs.EventQuery{Kinds: []string{"obs.selfcheck"}})
+	rows, err := s.Query(ctx, telemetry.EventQuery{Kinds: []string{"obs.selfcheck"}})
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}

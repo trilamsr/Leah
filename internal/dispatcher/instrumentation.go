@@ -6,7 +6,7 @@ import (
 	"github.com/trilam/leah/internal/obs"
 )
 
-func Counter(registry *obs.Registry) func(string) {
+func Counter(registry *telemetry.Registry) func(string) {
 	if registry == nil {
 		return nil
 	}
@@ -33,7 +33,7 @@ func (c *SelfChecker) SelfCheck(ctx context.Context) error {
 	return err
 }
 
-func EmitShipCount(registry *obs.Registry, outcome string) {
+func EmitShipCount(registry *telemetry.Registry, outcome string) {
 	if registry == nil {
 		return
 	}

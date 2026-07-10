@@ -31,14 +31,14 @@ var ErrEmptyQueue = errors.New("strategist store: queue empty")
 // on write — a zero value is rejected so a struct literal that forgets
 // the field fails loudly instead of writing schema:0 to disk.
 type Item struct {
-	Schema   int       // mandatory; must equal SchemaCurrent
-	ID       string    // ULID, lexicographic + monotonic
-	Channel  string    // linkedin | instagram | facebook | tiktok
-	Slot     string    // commit | voice | news
-	Text     string    // post body
-	Origin   string    // git sha / voice path / news URL — traceability
-	ImageRef string    // absolute path; "" when image-less
-	ClipRef  string    // absolute path; "" when clip-less
+	Schema   int    // mandatory; must equal SchemaCurrent
+	ID       string // ULID, lexicographic + monotonic
+	Channel  string // linkedin | instagram | facebook | tiktok
+	Slot     string // commit | voice | news
+	Text     string // post body
+	Origin   string // git sha / voice path / news URL — traceability
+	ImageRef string // absolute path; "" when image-less
+	ClipRef  string // absolute path; "" when clip-less
 	Created  time.Time
 }
 

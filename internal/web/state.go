@@ -42,8 +42,8 @@ type SpamStat struct {
 // rolling 24h total + 7d total + the top-3 kinds over the 7d window. Full
 // historical breakdown lives behind `leah cost` CLI.
 type CostsView struct {
-	TodayUSD float64           `json:"today_usd"`
-	WeekUSD  float64           `json:"week_usd"`
+	TodayUSD float64       `json:"today_usd"`
+	WeekUSD  float64       `json:"week_usd"`
 	TopKinds []view.Bucket `json:"top_kinds"`
 }
 
@@ -161,20 +161,20 @@ func (s *Server) computeSnapshot(ctx context.Context) State {
 		SLA:     readSLA(s.MetricsPath),
 		Metrics: readMetrics(s.MetricsPath),
 	}
-	obs.Publish(computeHUDStateEvent("ambient", false, false))
+	telemetry.Publish(computeHUDStateEvent("ambient", false, false))
 	return out
 }
 
 // computeHUDStateEvent builds an obs.Event whose Payload matches the
 // ambient.js reader contract (value/listening/thinking). Extracted so the
 // payload shape is testable without standing up the full Snapshot path.
-func computeHUDStateEvent(value string, listening, thinking bool) obs.Event {
-	return obs.Event{
+func computeHUDStateEvent(value string, listening, thinking bool) telemetry.Event {
+	return telemetry.Event{
 		TS:      time.Now().UTC(),
 		Kind:    "hud.state",
 		Actor:   "web.snapshot",
 		Outcome: "ok",
-		Payload: obs.HUDStateEvent{Value: value, Listening: listening, Thinking: thinking},
+		Payload: telemetry.HUDStateEvent{Value: value, Listening: listening, Thinking: thinking},
 	}
 }
 

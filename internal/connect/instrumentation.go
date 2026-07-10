@@ -2,25 +2,25 @@ package connect
 
 import "github.com/trilam/leah/internal/obs"
 
-func RegisterMetrics(registry *obs.Registry) {
+func RegisterMetrics(registry *telemetry.Registry) {
 	_ = registry
 }
 
-func EmitExchange(registry *obs.Registry, provider, outcome string) {
+func EmitExchange(registry *telemetry.Registry, provider, outcome string) {
 	if registry == nil {
 		return
 	}
 	registry.Counter("leah_connect_exchange_total").Inc(map[string]string{"provider": provider, "outcome": outcome})
 }
 
-func EmitRefresh(registry *obs.Registry, provider, outcome string) {
+func EmitRefresh(registry *telemetry.Registry, provider, outcome string) {
 	if registry == nil {
 		return
 	}
 	registry.Counter("leah_connect_refresh_total").Inc(map[string]string{"provider": provider, "outcome": outcome})
 }
 
-func SetTokenAge(registry *obs.Registry, provider string, ageSec float64) {
+func SetTokenAge(registry *telemetry.Registry, provider string, ageSec float64) {
 	if registry == nil {
 		return
 	}

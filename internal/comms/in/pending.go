@@ -1,4 +1,4 @@
-package in
+package commsin
 
 import (
 	"sync"
@@ -21,8 +21,8 @@ type PendingStore interface {
 // MemoryPendingStore is the v1 in-memory store. A daemon restart drops state
 // by design — the next cron re-prompts (spec §3.2, no durability needed).
 type MemoryPendingStore struct {
-	mu  sync.Mutex
-	m   map[string]Pending
+	mu sync.Mutex
+	m  map[string]Pending
 }
 
 func NewMemoryPendingStore() *MemoryPendingStore {

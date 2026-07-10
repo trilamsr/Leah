@@ -92,4 +92,3 @@ func (f *Fake) Emit(s Segment) {
 	// observes — the final transcript handed off, not merely produced.
 	instr.RecordFinal(s)
 }
-

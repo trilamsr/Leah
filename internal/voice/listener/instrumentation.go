@@ -11,12 +11,12 @@ var utteranceBuckets = []float64{0.1, 0.3, 0.6, 1.2, 2.0}
 // receiver no-ops so the production listener can omit a registry without
 // per-call guards.
 type Instrumentation struct {
-	utterance *obs.Histogram
+	utterance *telemetry.Histogram
 }
 
 // NewInstrumentation registers the A2 histogram. Returns nil when reg is nil
 // so RecordFinal is a no-op.
-func NewInstrumentation(reg *obs.Registry) *Instrumentation {
+func NewInstrumentation(reg *telemetry.Registry) *Instrumentation {
 	if reg == nil {
 		return nil
 	}
@@ -26,7 +26,7 @@ func NewInstrumentation(reg *obs.Registry) *Instrumentation {
 }
 
 // RegisterMetrics cold-seeds the A2 series so /metrics surfaces it pre-event.
-func RegisterMetrics(reg *obs.Registry) {
+func RegisterMetrics(reg *telemetry.Registry) {
 	if reg == nil {
 		return
 	}

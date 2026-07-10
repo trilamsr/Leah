@@ -18,11 +18,11 @@ type Fake struct {
 }
 
 type fakeSub struct {
-	kind    Kind
-	ch      chan Event
-	ctx     context.Context
-	stop    func()
-	closed  bool // guarded by Fake.mu — single-shot channel-close
+	kind   Kind
+	ch     chan Event
+	ctx    context.Context
+	stop   func()
+	closed bool // guarded by Fake.mu — single-shot channel-close
 }
 
 // NewFake returns a hermetic Source carrying cfg.Blocklist. Tests use

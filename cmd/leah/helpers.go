@@ -28,8 +28,8 @@ func openMemoryStore() (*memory.Store, error) {
 
 // openCtxManager opens the ctxmgr handle against the same shared memory DB.
 // Callers MUST defer Close.
-func openCtxManager() (*ctxmgr.Manager, error) {
-	m, err := ctxmgr.Open(memoryPath())
+func openCtxManager() (*activectx.Manager, error) {
+	m, err := activectx.Open(memoryPath())
 	if err != nil {
 		return nil, fmt.Errorf("open ctxmgr: %w", err)
 	}

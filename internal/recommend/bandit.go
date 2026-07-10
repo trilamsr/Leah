@@ -276,4 +276,3 @@ func logBanditAudit(logger *audit.Logger, draws []banditDraw, seed int64) {
 		})
 	}
 }
-

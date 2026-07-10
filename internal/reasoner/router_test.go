@@ -124,7 +124,7 @@ func TestRouter_DeniesAt100pct(t *testing.T) {
 func TestRouter_DegradeEmitsCounter(t *testing.T) {
 	primary := &routerFake{model: "claude-sonnet-4-6"}
 	degraded := &routerFake{model: "claude-haiku-4-5"}
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	r := &Router{
 		Primary:       primary,
 		Degraded:      degraded,

@@ -90,7 +90,7 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		return fmt.Errorf("ulid: %w", err)
 	}
 	actionID := ulidVal.String()
-	lg := obs.LoggerFromCtx(ctx).With("package", "dispatcher", "action_id", actionID)
+	lg := telemetry.LoggerFromCtx(ctx).With("package", "dispatcher", "action_id", actionID)
 
 	lg.Info("dispatcher.draft.start")
 	prompt := s.Context + "Intent:\n" + intent + "\n\nDraft the regatta issue body per the template you were given."
@@ -151,7 +151,7 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 		return err
 	}
 	lg.Info("dispatcher.issue.created", "url", url, "title", title)
-	obs.Publish(obs.Event{
+	telemetry.Publish(telemetry.Event{
 		TS:      time.Now().UTC(),
 		Kind:    "dispatch.ship",
 		Actor:   "dispatcher",
@@ -192,7 +192,7 @@ func (s *Ship) Run(ctx context.Context, intent string) error {
 // kind=self-build.outcome row so the daemon can bind a later merge
 // transition back to this dispatch's ArgsHash.
 func (s *Ship) watch(ctx context.Context) (string, int) {
-	lg := obs.LoggerFromCtx(ctx).With("package", "dispatcher")
+	lg := telemetry.LoggerFromCtx(ctx).With("package", "dispatcher")
 	polls := 0
 	for {
 		if s.MaxPolls > 0 && polls >= s.MaxPolls {
@@ -213,7 +213,7 @@ func (s *Ship) watch(ctx context.Context) (string, int) {
 			for _, a := range agents {
 				if a.State == "merged" || a.State == "escalated" || a.State == "failed" {
 					if a.State == "merged" {
-						obs.Publish(obs.Event{
+						telemetry.Publish(telemetry.Event{
 							TS:      time.Now().UTC(),
 							Kind:    "dispatch.merge",
 							Actor:   "dispatcher",

@@ -1,4 +1,4 @@
-package obs
+package telemetry
 
 import (
 	"path/filepath"

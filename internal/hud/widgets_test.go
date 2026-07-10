@@ -183,8 +183,8 @@ func TestWidget_Market_HTMLEscaped(t *testing.T) {
 
 func TestWidgetRoutes_Registered(t *testing.T) {
 	upstream := daemonStub(t, map[string]string{
-		"/feeds/weather":          `{"location":"SF","condition":"Sunny","temp":"68F","high":"72F","low":"58F"}`,
-		"/feeds/market/AAPL":      `{"symbol":"AAPL","price":"1","change_pct":0.1}`,
+		"/feeds/weather":           `{"location":"SF","condition":"Sunny","temp":"68F","high":"72F","low":"58F"}`,
+		"/feeds/market/AAPL":       `{"symbol":"AAPL","price":"1","change_pct":0.1}`,
 		"/feeds/news":              `{"headline":"H","source":"S"}`,
 		"/dashboard/calendar/next": `{"time":"09:00","title":"T","location":"L"}`,
 	})

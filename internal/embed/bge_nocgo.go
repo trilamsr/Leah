@@ -18,6 +18,8 @@ func NewBGEGenerator(modelPath string) (*BGEGenerator, error) {
 	return nil, fmt.Errorf("embed: BGE requires cgo build (this binary was built CGO_ENABLED=0); rebuild with cgo or set LEAH_EMBED_BACKEND=hash|openai")
 }
 
-func (g *BGEGenerator) Name() string                                                    { return "bge-small-en-v1.5" }
-func (g *BGEGenerator) Dim() int                                                        { return 384 }
-func (g *BGEGenerator) Embed(_ context.Context, _ []string) ([][]float32, error)        { return nil, fmt.Errorf("embed: BGE unavailable without cgo") }
+func (g *BGEGenerator) Name() string { return "bge-small-en-v1.5" }
+func (g *BGEGenerator) Dim() int     { return 384 }
+func (g *BGEGenerator) Embed(_ context.Context, _ []string) ([][]float32, error) {
+	return nil, fmt.Errorf("embed: BGE unavailable without cgo")
+}

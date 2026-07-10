@@ -14,7 +14,7 @@ const degradedModel = "claude-haiku-4-5"
 // constructor so the four cmd/leah call-sites (ask, ship, recall, selfbuild)
 // pick up breaker + degrade + counter wiring in one line. Breaker may be nil
 // (older test paths); Router then no-ops the gate.
-func NewRoutedClient(kind string, b Breaker, processCap *budget.Budget, reg *obs.Registry) (*Router, error) {
+func NewRoutedClient(kind string, b Breaker, processCap *budget.Budget, reg *telemetry.Registry) (*Router, error) {
 	primary, err := NewAnthropicClient()
 	if err != nil {
 		return nil, err

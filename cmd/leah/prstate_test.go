@@ -41,16 +41,16 @@ func (f *fakeExec) Run(_ context.Context, args []string) (string, error) {
 func TestFormatPRLine(t *testing.T) {
 	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
 	pr := prSummary{
-		Number:            289,
-		Title:             "feat(cli): leah news --bundle ai|tech",
-		State:             "OPEN",
-		MergeStateStatus:  "CLEAN",
-		ReviewDecision:    "APPROVED",
-		ChecksConclusion:  "SUCCESS",
-		Author:            "trilam",
-		CreatedAt:         now.Add(-2 * time.Hour).Format(time.RFC3339),
-		IsDraft:           false,
-		Mergeable:         "MERGEABLE",
+		Number:           289,
+		Title:            "feat(cli): leah news --bundle ai|tech",
+		State:            "OPEN",
+		MergeStateStatus: "CLEAN",
+		ReviewDecision:   "APPROVED",
+		ChecksConclusion: "SUCCESS",
+		Author:           "trilam",
+		CreatedAt:        now.Add(-2 * time.Hour).Format(time.RFC3339),
+		IsDraft:          false,
+		Mergeable:        "MERGEABLE",
 	}
 	got := formatPRLine(pr, now)
 	// Required substrings — exact column widths can drift; what must NOT

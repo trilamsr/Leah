@@ -7,13 +7,13 @@ import (
 )
 
 type fakeTransport struct {
-	searchHits   []SearchHit
-	searchErr    error
-	provSet      ProviderSet
-	provErr      error
-	lastType     string
-	lastID       int
-	lastRegion   string
+	searchHits []SearchHit
+	searchErr  error
+	provSet    ProviderSet
+	provErr    error
+	lastType   string
+	lastID     int
+	lastRegion string
 }
 
 func (f *fakeTransport) Search(_ context.Context, _, _ string) ([]SearchHit, error) {

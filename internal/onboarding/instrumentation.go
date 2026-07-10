@@ -18,7 +18,7 @@ var FirstReplyBuckets = []float64{30, 60, 120, 300, 600, 1200}
 
 // RegisterMetrics declares the A9 install→first-reply series so /metrics
 // surfaces it pre-event.
-func RegisterMetrics(registry *obs.Registry) {
+func RegisterMetrics(registry *telemetry.Registry) {
 	if registry == nil {
 		return
 	}
@@ -29,13 +29,13 @@ func RegisterMetrics(registry *obs.Registry) {
 // once-per-install event — a second reply from the same install would skew
 // the histogram with a near-zero sample.
 type FirstReplyObserver struct {
-	hist *obs.Histogram
+	hist *telemetry.Histogram
 	done atomic.Bool
 }
 
 // NewFirstReplyObserver is nil-safe: a nil registry yields nil so the caller
 // can wire it unconditionally and let Record short-circuit.
-func NewFirstReplyObserver(registry *obs.Registry) *FirstReplyObserver {
+func NewFirstReplyObserver(registry *telemetry.Registry) *FirstReplyObserver {
 	if registry == nil {
 		return nil
 	}
@@ -68,7 +68,7 @@ func (o *FirstReplyObserver) Record(elapsed time.Duration) bool {
 // makes "once per install" hold across N independent CLI invocations.
 // No-op (returns false) when the install marker is missing — we cannot
 // compute elapsed and a daemon-side MarkInstalled has not run yet.
-func RecordFirstReplyIfNotYetRecorded(stateDir string, registry *obs.Registry, now time.Time) bool {
+func RecordFirstReplyIfNotYetRecorded(stateDir string, registry *telemetry.Registry, now time.Time) bool {
 	if stateDir == "" || registry == nil {
 		return false
 	}

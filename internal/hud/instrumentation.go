@@ -11,12 +11,12 @@ import (
 var stateToWidgetBuckets = []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2}
 
 type StateInstrumentation struct {
-	hist *obs.Histogram
+	hist *telemetry.Histogram
 	mu   sync.Mutex
 	mark map[State]time.Time
 }
 
-func NewStateInstrumentation(reg *obs.Registry) *StateInstrumentation {
+func NewStateInstrumentation(reg *telemetry.Registry) *StateInstrumentation {
 	if reg == nil {
 		return nil
 	}

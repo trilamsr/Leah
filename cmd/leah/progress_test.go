@@ -18,7 +18,7 @@ func TestRunCommand_LongRunningCommandsEmitProgress(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", tmp)
 
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	// Missing args returns 2 before any LLM call — fine; we're pinning the
 	// pre-dispatch progress emit, not subcommand behavior.
 	_ = runCommand(context.Background(), reg, []string{"ask"})
@@ -60,7 +60,7 @@ func TestRunCommand_ShortCommandsDoNotEmitProgress(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("LEAH_STATE_DIR", tmp)
 
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	_ = runCommand(context.Background(), reg, []string{"status"})
 
 	snapPath := filepath.Join(t.TempDir(), "snap.json")

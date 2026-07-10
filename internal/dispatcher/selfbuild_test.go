@@ -286,8 +286,8 @@ func TestSelfBuild_PopulatesArgsHash(t *testing.T) {
 	want := argsHash(intent)
 
 	cases := []struct {
-		name       string
-		setup      func(dir string) *SelfBuild
+		name        string
+		setup       func(dir string) *SelfBuild
 		wantOutcome string
 	}{
 		{

@@ -292,4 +292,3 @@ func readPosterior(t *testing.T, eng *SQLiteEngine, pattern string) (float64, fl
 func idOf(prefix string, i int) string {
 	return prefix + "-" + string(rune('a'+i%26)) + string(rune('a'+(i/26)%26))
 }
-

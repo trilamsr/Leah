@@ -10,7 +10,7 @@ import (
 // TestRegisterMetrics_AddsSeries asserts spec §4.9 resolve series surface
 // pre-event.
 func TestRegisterMetrics_AddsSeries(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	RegisterMetrics(r)
 	keys := obstest.SnapshotKeys(t, r)
 	for _, want := range []string{
@@ -25,7 +25,7 @@ func TestRegisterMetrics_AddsSeries(t *testing.T) {
 
 // TestEmitResolve_IncrementsCounter pins the call-site contract.
 func TestEmitResolve_IncrementsCounter(t *testing.T) {
-	r := obs.NewRegistry()
+	r := telemetry.NewRegistry()
 	EmitResolve(r, "ok", 0.1)
 	want := "leah_selflearn_resolve_total|outcome=ok"
 	if !obstest.ContainsExact(obstest.SnapshotKeys(t, r), want) {

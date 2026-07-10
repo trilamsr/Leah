@@ -22,7 +22,7 @@ type bootRegattaOpts struct {
 	Attestor contracts.Attestor
 	Audit    regattaclient.AuditSink
 	Logger   io.Writer
-	Registry *obs.Registry
+	Registry *telemetry.Registry
 }
 
 // bootRegatta: Detect → on ErrNoMode gauge=1 + (nil,nil) graceful skip
