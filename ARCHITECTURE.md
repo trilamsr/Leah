@@ -113,8 +113,8 @@ Every `internal/*` package, what it does, and what it depends on.
 | `patterns` | 3 | Audit clustering → `skill-candidates.md` for operator review | `audit` |
 | `operatormodel` | 3 | Time-of-day / cadence / context-transition observers + ranked recs | `audit`, `ctxmgr`, `memory` |
 | `dispatcher` | 4 | Orchestrations: `Ask` / `Ship` / `SelfBuild` / `Status` | `audit`, `budget`, `ghclient`, `regattaclient`, `obs` |
-| `reviewer` | 4 | Independent reviewer subagent + canonical agent-id gate | `budget`, Anthropic SDK |
-| `reasoner` | infra | Main reasoning surface (cloud LLM); charges budget per Ask | `budget`, `obs`, Anthropic SDK |
+| `reviewer` | 4 | Independent reviewer subagent + canonical agent-id gate | `budget`, cloud LLM SDK |
+| `reasoner` | infra | Main reasoning surface (cloud LLM); charges budget per Ask | `budget`, `obs`, cloud LLM SDK |
 | `ghclient` | infra | `gh` CLI wrapper (`CreateIssue` / `ViewPR` / `ListPRsForBranch`) | `os/exec` |
 | `regattaclient` | infra | `regatta agents list --json` wrapper | `os/exec` |
 | `notify` | infra | macOS osascript banner + Pushover phone push (both satisfy `Notifier`) | `os/exec`, `net/http` |
@@ -214,7 +214,7 @@ Daemon: `cmd/leah-daemon/main.go` runs the per-30s poll + (optional) `--dashboar
 End-to-end example showing every package the flow touches.
 
 1. **CLI entry** — `cmd/leah/main.go::main` dispatches `self-build` → `cmd/leah/selfbuild.go::runSelfBuild`.
-2. **Reasoner draft** — `dispatcher.SelfBuild.Run` calls `reasoner.Reasoner.Ask` with the self-build system prompt (`prompts/self-build-feature.md`). Anthropic SDK → text + dollar cost. `budget.Budget.Charge` enforces the per-process ceiling.
+2. **Reasoner draft** — `dispatcher.SelfBuild.Run` calls `reasoner.Reasoner.Ask` with the self-build system prompt (`prompts/self-build-feature.md`). Cloud LLM SDK returns text + dollar cost. `budget.Budget.Charge` enforces the per-process ceiling.
 3. **Clarify gate** — `selfbuild.isClarifyResponse` checks for `## Clarifying questions` without `## Title`; if hit, prints questions + writes `outcome=clarify` audit row + returns `ErrSelfBuildClarify` (no issue filed).
 4. **Attestation question** — `SelfBuild.pickAttestationQuestion` picks one line from `prompts/self-build-attestations.txt` and appends an "Operator merge attestation" footer naming the operator login that must answer in a PR comment.
 5. **Inner Ship** — `SelfBuild` constructs an inner `dispatcher.Ship` with `Repo=trilamsr/Leah`, the pre-drafted spec wrapped in a `passthrough` Reasoner (so Ship doesn't re-call the LLM), and forwards watcher fields.
