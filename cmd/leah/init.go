@@ -16,10 +16,8 @@ import (
 	"github.com/trilam/leah/internal/platform/keychain"
 )
 
-// anthropicKeyRE mirrors the phase-5 design regex
-// (docs/superpowers/designs/2026-06-23-leah-phase5-design.md:2391). Enforced
-// here so a typo answer to the wizard prompt (e.g. "y") can't get persisted
-// as the API key and silently break later `leah ask` invocations with a 401.
+// Reject typo answers (e.g. "y") from being persisted as the API key, which
+// would silently break later `leah ask` invocations with a 401.
 var anthropicKeyRE = regexp.MustCompile(`^sk-ant-[A-Za-z0-9\-_]{40,}$`)
 
 // plistTemplate mirrors scripts/leah.plist but with the canonical

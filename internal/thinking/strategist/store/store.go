@@ -176,9 +176,7 @@ func readDirSorted(dir string) ([]string, error) {
 	return out, nil
 }
 
-// serialize is the inverse of readItem. Schema 1 front-matter shape per
-// docs/superpowers/designs/2026-06-21-leah-social-strategist-design.md §
-// "Queue item markdown shape".
+// serialize is the inverse of readItem.
 func serialize(it Item) string {
 	var b strings.Builder
 	b.WriteString("---\n")

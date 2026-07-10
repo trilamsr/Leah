@@ -1,8 +1,7 @@
 name: release-attest
 
-# W135 / S10 / M6: reproducible build + SBOM (syft) + SLSA L2 provenance
+# Reproducible build + SBOM (syft) + SLSA L2 provenance
 # (slsa-github-generator) + cosign keyless sign-blob. Triggered on v* tag push.
-# Spec: docs/engineer/specs/2026-06-10-trust-moats.md §7
 # Operator doc: docs/operator/reproducible-build.md
 
 on:

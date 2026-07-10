@@ -70,7 +70,7 @@ phase2-smoke-stop:
 	@./scripts/smoke/phase2-e2e.sh --cleanup-only
 
 # Build leah+leah-daemon, symlink ~/bin/leah → ~/.leah-state/bin/leah-current.
-# Idempotent. See docs/engineer/specs/2026-06-10-local-self-update.md §3.
+# Idempotent.
 install:
 	@./scripts/upgrade.sh install
 

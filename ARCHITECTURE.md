@@ -272,6 +272,5 @@ Pre-push (composite):
 
 ## Cross-refs
 
-- Forward roadmap: [`docs/superpowers/plans/2026-06-23-leah-macos-native-phase5.md`](docs/superpowers/plans/2026-06-23-leah-macos-native-phase5.md)
 - Ship log: [`CHANGELOG.md`](CHANGELOG.md)
 - House rules for any agent (main + subagents): [`README.md` § House rules](README.md#house-rules).
