@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Phase 4 end-to-end smoke. Nine subsystems, single script, fails fast on
 # the first broken invariant so the operator never spelunks a 9-section
-# log. The Go-side orchestrator (internal/eval.RunPhase4Smoke) drives the
+# log. The Go-side orchestrator (internal/platform/eval.RunPhase4Smoke) drives the
 # subsystem walk; this shell adds platform/source-layer assertions so a
 # subsystem that compiles but lost its IPC kind or constructor cannot
 # claim pass.
 #
-# Invariants (mirror internal/eval.phase4Hooks order):
+# Invariants (mirror internal/platform/eval.phase4Hooks order):
 #   (1) voice-duplex   — voice/duplex.NewSession constructor reachable
 #   (2) vision-route   — vision/router.New + ReasonerEvent route present
 #   (3) learn-pass2    — learn.NewRecommender + AntiList + pacing cap
@@ -73,14 +73,14 @@ fi
 # -- Invariant 0: Go orchestrator passes (offline mode) ------------------
 # This is the load-bearing gate. RunPhase4Smoke walks every hook in the
 # canonical order and emits one evidence line per subsystem.
-if ! out="$(go test -C "$REPO" -count=1 -run 'TestPhase4Smoke' ./internal/eval/... 2>&1)"; then
+if ! out="$(go test -C "$REPO" -count=1 -run 'TestPhase4Smoke' ./internal/platform/eval/... 2>&1)"; then
   echo "$out" >>"$LOG"
   step_fail 0 "TestPhase4Smoke failed (see $LOG)"
 fi
 echo "phase4-e2e: (0) ok — Go orchestrator passes (offline mode)"
 
 # -- Invariant 0b: dispatch-template harness passes ----------------------
-if ! out="$(go test -C "$REPO" -count=1 -run 'TestDispatchTemplates' ./internal/eval/... 2>&1)"; then
+if ! out="$(go test -C "$REPO" -count=1 -run 'TestDispatchTemplates' ./internal/platform/eval/... 2>&1)"; then
   echo "$out" >>"$LOG"
   step_fail 0 "TestDispatchTemplates failed (see $LOG)"
 fi
@@ -97,43 +97,43 @@ if [ "$SKIP_PLATFORM_GREPS" = "1" ]; then
 fi
 
 # -- Invariant 1: voice-duplex constructor reachable ---------------------
-if ! grep -rq "func NewSession" "$REPO/internal/voice/duplex/" 2>/dev/null; then
+if ! grep -rq "func NewSession" "$REPO/internal/input/voice/duplex/" 2>/dev/null; then
   step_fail 1 "voice/duplex.NewSession constructor missing"
 fi
 echo "phase4-e2e: (1) ok — voice/duplex.NewSession present"
 
 # -- Invariant 2: vision-route + ReasonerEvent path ----------------------
-if ! grep -rq "func New" "$REPO/internal/vision/router/" 2>/dev/null; then
+if ! grep -rq "func New" "$REPO/internal/thinking/vision/router/" 2>/dev/null; then
   step_fail 2 "vision/router.New constructor missing"
 fi
 echo "phase4-e2e: (2) ok — vision/router.New present"
 
 # -- Invariant 3: learn pacing cap surface -------------------------------
-if ! grep -rq "func NewRecommender" "$REPO/internal/learn/" 2>/dev/null; then
+if ! grep -rq "func NewRecommender" "$REPO/internal/thinking/learn/" 2>/dev/null; then
   step_fail 3 "learn.NewRecommender constructor missing"
 fi
 echo "phase4-e2e: (3) ok — learn.NewRecommender present"
 
 # -- Invariant 4: budget ladder surface ----------------------------------
-if ! grep -rq "func New" "$REPO/internal/budget/" 2>/dev/null; then
+if ! grep -rq "func New" "$REPO/internal/platform/budget/" 2>/dev/null; then
   step_fail 4 "budget.New constructor missing"
 fi
 echo "phase4-e2e: (4) ok — budget.New present"
 
 # -- Invariant 5: sync Bonjour surface -----------------------------------
-if ! grep -rq "func New" "$REPO/internal/sync/" 2>/dev/null; then
+if ! grep -rq "func New" "$REPO/internal/platform/sync/" 2>/dev/null; then
   step_fail 5 "sync constructors missing"
 fi
 echo "phase4-e2e: (5) ok — sync constructors present"
 
 # -- Invariant 6: a2a CBOR frame surface ---------------------------------
-if ! grep -rq "func New" "$REPO/internal/a2a/" 2>/dev/null; then
+if ! grep -rq "func New" "$REPO/internal/platform/a2a/" 2>/dev/null; then
   step_fail 6 "a2a constructors missing"
 fi
 echo "phase4-e2e: (6) ok — a2a constructors present"
 
 # -- Invariant 7: plugin host surface ------------------------------------
-if ! grep -rq "func NewHost\\|func New" "$REPO/internal/plugin/" 2>/dev/null; then
+if ! grep -rq "func NewHost\\|func New" "$REPO/internal/platform/plugin/" 2>/dev/null; then
   step_fail 7 "plugin.NewHost constructor missing"
 fi
 echo "phase4-e2e: (7) ok — plugin host present"
@@ -150,7 +150,7 @@ fi
 echo "phase4-e2e: (8) ok — dashboard card surface present"
 
 # -- Invariant 9: supervisor restart + breaker --------------------------
-if ! grep -rq "func New" "$REPO/internal/supervisor/" 2>/dev/null; then
+if ! grep -rq "func New" "$REPO/internal/platform/supervisor/" 2>/dev/null; then
   step_fail 9 "supervisor.New constructor missing"
 fi
 echo "phase4-e2e: (9) ok — supervisor.New present"

@@ -9,7 +9,7 @@ if [ "$mode" = "1" ]; then
   smoke_log "PASS live"
   exit 0
 fi
-go test -count=1 -run 'TestListTodayTable' ./internal/adapters/gcal/... > /tmp/gcal-smoke.log 2>&1 || {
+go test -count=1 -run 'TestListTodayTable' ./internal/actions/adapters/gcal/... > /tmp/gcal-smoke.log 2>&1 || {
   smoke_log "FAIL mock"; cat /tmp/gcal-smoke.log; exit 1
 }
 smoke_log "PASS mock"

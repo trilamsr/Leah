@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/actions/regattaclient"
 )
 
 func resetRegattaLogOnce() { regattaLogOnce = &sync.Once{} }
@@ -36,7 +36,7 @@ func (s *stubAuditSink) Record(row regattaclient.AuditRow) {
 func TestBootRegatta_DetectSuccess_StoresGated(t *testing.T) {
 	resetRegattaLogOnce()
 	var buf bytes.Buffer
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	detect := func(context.Context, regattaclient.DetectOpts) (regattaclient.Mode, regattaclient.Config, error) {
 		return regattaclient.ModeDocker, regattaclient.Config{URL: "http://127.0.0.1:9090"}, nil
 	}
@@ -65,7 +65,7 @@ func TestBootRegatta_DetectSuccess_StoresGated(t *testing.T) {
 func TestBootRegatta_DetectNoMode_GracefulSkip(t *testing.T) {
 	resetRegattaLogOnce()
 	var buf bytes.Buffer
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	detect := func(context.Context, regattaclient.DetectOpts) (regattaclient.Mode, regattaclient.Config, error) {
 		return regattaclient.ModeNone, regattaclient.Config{}, regattaclient.ErrNoMode
 	}
@@ -95,7 +95,7 @@ func TestBootRegatta_DetectNoMode_GracefulSkip(t *testing.T) {
 func TestBootRegatta_DetectError_LogsOnce(t *testing.T) {
 	resetRegattaLogOnce()
 	var buf bytes.Buffer
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	probeErr := errors.New("docker probe blew up")
 	detect := func(context.Context, regattaclient.DetectOpts) (regattaclient.Mode, regattaclient.Config, error) {
 		return regattaclient.ModeNone, regattaclient.Config{}, probeErr
@@ -132,7 +132,7 @@ func TestBootRegatta_DetectError_LogsOnce(t *testing.T) {
 func TestBootRegatta_GatedWiredAsRegatta(t *testing.T) {
 	resetRegattaLogOnce()
 	var buf bytes.Buffer
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	denyErr := errors.New("operator said no")
 	sink := &stubAuditSink{}
 	detect := func(context.Context, regattaclient.DetectOpts) (regattaclient.Mode, regattaclient.Config, error) {
@@ -211,7 +211,7 @@ func TestDaemonRegattaInner_WritesRefuseUntilTransport(t *testing.T) {
 
 // readGauge snapshots the registry and pulls the named gauge's empty-label
 // value. Goes through Snapshot() to avoid touching unexported state.
-func readGauge(t *testing.T, r *obs.Registry, name string) float64 {
+func readGauge(t *testing.T, r *telemetry.Registry, name string) float64 {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "snap.json")
 	if err := r.Snapshot(path); err != nil {

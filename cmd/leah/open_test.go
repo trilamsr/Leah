@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/adapters/launcher"
+	"github.com/trilam/leah/internal/actions/adapters/launcher"
 )
 
 // fakeOpenExec captures `open` calls so the CLI test stays hermetic.

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/patterns"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/thinking/patterns"
 )
 
 // runPatterns renders skill-candidates markdown to stdout.

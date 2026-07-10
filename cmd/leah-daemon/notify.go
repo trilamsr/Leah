@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/trilam/leah/internal/contracts"
-	commsout "github.com/trilam/leah/internal/comms/out"
+	commsout "github.com/trilam/leah/internal/actions/commsout"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // buildNotifier returns the composition root for daemon notifications.

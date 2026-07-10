@@ -221,3 +221,5 @@ perspective.
 - OAuth 3LO mode.
 - Multi-workspace fan-out.
 - Full-body audit capture (operator-toggle deferred).
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

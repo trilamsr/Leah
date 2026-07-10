@@ -17,23 +17,23 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/budget/monthly"
-	"github.com/trilam/leah/internal/daemonloop"
-	"github.com/trilam/leah/internal/eval"
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/macos/activeapp"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/onboarding"
-	"github.com/trilam/leah/internal/reasoner"
-	"github.com/trilam/leah/internal/recommend"
-	"github.com/trilam/leah/internal/regattaclient"
-	"github.com/trilam/leah/internal/tts"
-	"github.com/trilam/leah/internal/tts/apple"
-	"github.com/trilam/leah/internal/tts/elevenlabs"
-	"github.com/trilam/leah/internal/voice"
-	"github.com/trilam/leah/internal/watchdog"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/budget/monthly"
+	"github.com/trilam/leah/internal/platform/daemonloop"
+	"github.com/trilam/leah/internal/platform/eval"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/platform/macos/activeapp"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/platform/onboarding"
+	"github.com/trilam/leah/internal/thinking/reasoner"
+	"github.com/trilam/leah/internal/thinking/recommend"
+	"github.com/trilam/leah/internal/actions/regattaclient"
+	"github.com/trilam/leah/internal/actions/tts"
+	"github.com/trilam/leah/internal/actions/tts/apple"
+	"github.com/trilam/leah/internal/actions/tts/elevenlabs"
+	"github.com/trilam/leah/internal/input/voice"
+	"github.com/trilam/leah/internal/platform/watchdog"
 )
 
 func main() {
@@ -68,15 +68,15 @@ func main() {
 	a := &audit.Logger{Path: auditPath}
 	rc := regattaclient.New()
 
-	errRing := obs.NewErrorRing(10)
-	lg, closeLog, err := obs.NewLoggerWithRing(errRing)
+	errRing := telemetry.NewErrorRing(10)
+	lg, closeLog, err := telemetry.NewLoggerWithRing(errRing)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: obs logger: %v\n", err)
 		os.Exit(1)
 	}
 	defer closeLog()
-	registry := obs.NewRegistry()
-	health := obs.NewHealthRegistry()
+	registry := telemetry.NewRegistry()
+	health := telemetry.NewHealthRegistry()
 	_ = os.MkdirAll(filepath.Join(sd, "panics"), 0o700)
 
 	// Voice opt-in: LEAH_VOICE_ENABLED=1 wires VoiceNotify alongside Desktop
@@ -150,12 +150,12 @@ func main() {
 	}
 
 	startActiveAppPush(ctx, lg, registry, activeapp.DefaultBlocklist)
-	obs.SafeGo(lg, registry, "pushsource-runtime", func() {
+	telemetry.SafeGo(lg, registry, "pushsource-runtime", func() {
 		runPushSources(ctx, lg, registry, nil, func(kind string, _ []byte) { lg.Debug("push frame", "kind", kind) })
 	})
 
-	bus := obs.NewBroadcaster()
-	obs.SetDefaultBroadcaster(bus)
+	bus := telemetry.NewBroadcaster()
+	telemetry.SetDefaultBroadcaster(bus)
 	engine := recommend.NewMemoryEngine(a)
 	engine.RegisterMatcher(identitySignalMatcher{})
 	stopRec, _ := startRecommendDispatcher(ctx, lg, registry, bus, engine)
@@ -183,7 +183,7 @@ func main() {
 		}
 	}
 	if cm, err := monthly.OpenAt(filepath.Join(sd, "cost-month.json"), cmCap, time.Now()); err == nil {
-		obs.SafeGo(lg, registry, "monthly-cost-rollover", func() {
+		telemetry.SafeGo(lg, registry, "monthly-cost-rollover", func() {
 			cm.RunRolloverLoop(ctx, time.Minute, func(err error) {
 				_, _ = fmt.Fprintf(os.Stderr, "leah-daemon: monthly-cost rollover: %v\n", err)
 			})
@@ -223,7 +223,7 @@ func main() {
 		A2A:  newA2AIPCAdapter(p4.A2A),
 		Sync: newSyncIPCAdapter(newDiscoveryEngine(p4.Discovery), store.DB()),
 	}
-	obs.SafeGo(lg, registry, "ipc-server", func() {
+	telemetry.SafeGo(lg, registry, "ipc-server", func() {
 		_ = ipc.NewServer(sockPath, newIPCHandlerWithDeps(sonnet, store.DB(), nil, errRing, ttsCloud, ttsLocal, ttsClass, nil, ipcDeps)).Serve(ctx)
 	})
 	startMCPPublish(ctx, lg, registry, os.Stderr)
@@ -249,7 +249,7 @@ func main() {
 				Store:       evalStore,
 				Interval:    evalInterval,
 			}
-			obs.SafeGo(lg, registry, "eval-scheduler", func() {
+			telemetry.SafeGo(lg, registry, "eval-scheduler", func() {
 				defer close(evalDone)
 				defer func() { _ = evalStore.Close() }()
 				sched.Run(ctx)

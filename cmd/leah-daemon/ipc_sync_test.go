@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/sqlstore"
-	"github.com/trilam/leah/internal/sync/discovery"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/memory/sqlstore"
+	"github.com/trilam/leah/internal/platform/sync/discovery"
 )
 
 type stubSyncEngine struct {

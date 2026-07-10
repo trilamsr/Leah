@@ -242,3 +242,5 @@ Failing-test-first per `README.md` § House rules. Tests live next to source:
 - **Operator-config feed schema churn.** `feeds.json` schema additions
   in W37 (operator-config) may break MVP config. Mitigation: schema
   version field + read-side migration.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

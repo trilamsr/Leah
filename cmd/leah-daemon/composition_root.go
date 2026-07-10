@@ -8,14 +8,14 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/trilam/leah/internal/a2a"
-	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/learn"
-	mcpInbound "github.com/trilam/leah/internal/mcp/inbound"
-	"github.com/trilam/leah/internal/plugin"
-	"github.com/trilam/leah/internal/supervisor"
-	"github.com/trilam/leah/internal/sync/discovery"
+	"github.com/trilam/leah/internal/platform/a2a"
+	"github.com/trilam/leah/internal/platform/attest"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/thinking/learn"
+	mcpInbound "github.com/trilam/leah/internal/platform/mcp/inbound"
+	"github.com/trilam/leah/internal/platform/plugin"
+	"github.com/trilam/leah/internal/platform/supervisor"
+	"github.com/trilam/leah/internal/platform/sync/discovery"
 )
 
 // phase4Producers holds the optional subsystems constructed at the daemon

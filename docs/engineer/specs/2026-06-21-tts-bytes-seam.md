@@ -106,3 +106,5 @@ synthesis already runs unlocked today; only `afplay` holds the device.
   `pickBackends`.
 - Wiring Synthesize into a notifier — that is roadmap wave F2
   (`2026-06-21-comms-notifier.md`).
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

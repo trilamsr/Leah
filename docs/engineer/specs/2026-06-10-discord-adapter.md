@@ -271,3 +271,5 @@ Audit row schema (consumed by `internal/audit`):
 - Operator-configurable rate limit (issue filed alongside this spec).
 - Recipient / channel allow-listing for outbound (operator addresses
   channels by ID; channel-level outbound allowlist deferred).
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

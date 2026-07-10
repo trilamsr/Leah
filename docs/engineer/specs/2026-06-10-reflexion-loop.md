@@ -398,3 +398,5 @@ All four = prior-art references only; no runtime dep, no NOTICE/LICENSE bundling
   template-rewrite, not metric suppression.
 - TDD: failing-test-first; meta-tests for scorecard schema land in
   W105 before any production scorecard write.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

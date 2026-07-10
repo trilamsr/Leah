@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/vision"
-	"github.com/trilam/leah/internal/vision/router"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/thinking/vision"
+	"github.com/trilam/leah/internal/thinking/vision/router"
 )
 
 // snapPayload is the KindVisionSnap wire format. ImageB64 is the rgba pixels

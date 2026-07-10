@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/learn"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/thinking/learn"
 )
 
 // defaultRecommendBatch caps NextBatch when the HUD omits maxN — keeps the wire

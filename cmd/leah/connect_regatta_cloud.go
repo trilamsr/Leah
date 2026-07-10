@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // cloudModeFile holds a path pointer to the token file — never the token bytes.

@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/trilam/leah/internal/adapters/launcher"
+	"github.com/trilam/leah/internal/actions/adapters/launcher"
 )
 
 // openExecFactory is the test seam — production gets nativeExec; tests swap

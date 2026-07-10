@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/a2a"
-	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/platform/a2a"
+	"github.com/trilam/leah/internal/platform/ipc"
 )
 
 type stubA2A struct {

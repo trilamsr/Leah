@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/voice/duplex"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/input/voice/duplex"
 )
 
 // fakeDuplex is a controllable DuplexSession for IPC handler tests. The events

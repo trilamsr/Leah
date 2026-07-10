@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/platform/ipc"
 )
 
 // TestIPCDiagStateResponds asserts that diag.state returns exactly one

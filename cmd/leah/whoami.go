@@ -15,8 +15,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/connect"
 )
 
 // whoamiSources is the closed set of persistent stores M1 enumerates.
@@ -37,11 +37,11 @@ var whoamiSources = []string{
 // downstream tooling pipes to jq and depends on the field set; spec §2.2
 // golden file gates schema drift.
 type whoamiRow struct {
-	Source       string          `json:"source"`
-	Rows         int64           `json:"rows"`
-	Path         string          `json:"path"`
-	LastModified string          `json:"last_modified,omitempty"`
-	Tables       []whoamiTable   `json:"tables,omitempty"`
+	Source       string        `json:"source"`
+	Rows         int64         `json:"rows"`
+	Path         string        `json:"path"`
+	LastModified string        `json:"last_modified,omitempty"`
+	Tables       []whoamiTable `json:"tables,omitempty"`
 }
 
 // whoamiTable disaggregates rows by table. Populated for sqlite sources with

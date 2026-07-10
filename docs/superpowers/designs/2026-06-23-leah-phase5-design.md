@@ -2982,3 +2982,5 @@ Phase 5 PRs that modify this spec must follow the same rules.
 ---
 
 End of `docs/superpowers/designs/2026-06-23-leah-phase5-design.md`.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

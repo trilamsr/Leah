@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/platform/ipc"
 )
 
 // BUG-9 regression: handleVerifyKey used `_ = json.Unmarshal(...)`, silently

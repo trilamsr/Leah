@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/hud"
+	"github.com/trilam/leah/internal/input/hud"
 )
 
 type App struct {

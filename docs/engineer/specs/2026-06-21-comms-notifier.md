@@ -104,3 +104,5 @@ func (w *WhatsAppNotify) Notify(ctx context.Context, title, body string) error
 - Slack/MSTeams notifiers — same pattern, deferred to demand.
 - Any change to brief composition (`internal/brief`) — this wave is pure
   delivery wiring.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

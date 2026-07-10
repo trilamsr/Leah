@@ -318,3 +318,5 @@ Wiring:
 
 Steps 1–4 are the shippable F3. Step 5 unblocks only when public-endpoint infra
 is explicitly authorized.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

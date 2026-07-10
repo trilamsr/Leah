@@ -245,3 +245,5 @@ abstracts the refresh.
 - Multi-tenant fan-out.
 - Operator-configurable rate limit.
 - Full-body audit capture.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

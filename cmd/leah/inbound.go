@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/attest"
-	"github.com/trilam/leah/internal/audit"
-	commsin "github.com/trilam/leah/internal/comms/in"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/attest"
+	"github.com/trilam/leah/internal/platform/audit"
+	commsin "github.com/trilam/leah/internal/input/commsin"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // runInbound dispatches `leah inbound <verb>`. Today only `enroll` is wired;

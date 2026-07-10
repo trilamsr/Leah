@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/thinking/reasoner"
 )
 
 // fakeAskStreamer scripts a delta channel for runAskWith — mirrors what

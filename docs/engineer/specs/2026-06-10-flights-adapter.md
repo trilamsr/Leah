@@ -303,3 +303,5 @@ Each reopens when a real caller files an issue citing the gap.
   exposed via `Segment.OperatedBy` separate from `Carrier`. Voice +
   brief synthesis must use the operating carrier for status lookups,
   not the marketing one. Documented; pinned in synth test fixture.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

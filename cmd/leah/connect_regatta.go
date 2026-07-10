@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/connect"
 )
 
 // runConnectRegatta is distinct from runConnect: regatta is a Docker container,

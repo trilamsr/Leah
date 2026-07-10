@@ -239,3 +239,5 @@ This is consistent with the wave-8 brief P0 sequencing — S2 LLM-dim observabil
 2. M6's slsa-github-generator reusable workflow API may drift. Mitigation: pin to a specific tag, not `@main`; rev-bump explicit.
 3. M7's category tagging being upstream-of-M7 means M7 ships dormant — operator sees no behavior change until tagging lands. Mitigation: ship M7 + tagging in the same wave-window (W136 + a follow-on) so the dormant period is <1 wave.
 4. M3 passphrase loss = data unrecoverable by design. Operator-facing doc MUST surface this; brew formula post-install message and `leah export --all` first-run prompt both print the warning.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

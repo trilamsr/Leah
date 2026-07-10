@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/actions/regattaclient"
 )
 
 // stubRegatta returns an empty agent list — keeps buildBriefTask off the

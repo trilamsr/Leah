@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/flights"
-	"github.com/trilam/leah/internal/adapters/maps"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/actions/adapters/flights"
+	"github.com/trilam/leah/internal/actions/adapters/maps"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // runTrip surfaces the maps+flights infra as one CLI verb.

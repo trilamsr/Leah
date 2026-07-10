@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/trilam/leah/internal/brief"
-	commsout "github.com/trilam/leah/internal/comms/out"
-	"github.com/trilam/leah/internal/regattaclient"
+	"github.com/trilam/leah/internal/actions/brief"
+	commsout "github.com/trilam/leah/internal/actions/commsout"
+	"github.com/trilam/leah/internal/actions/regattaclient"
 )
 
 // runBrief implements `leah brief [--voice] [--silent] [--since=<RFC3339>]`. Composes a terse

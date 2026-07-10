@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/connect"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/connect"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // ErrPurgeAttestationDenied fires when the operator declines the BR=4 prompt.

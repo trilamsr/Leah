@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/trilam/leah/internal/ghclient"
+	"github.com/trilam/leah/internal/actions/ghclient"
 )
 
 // URL is carried for --json consumers (leah brief) — text render omits it.

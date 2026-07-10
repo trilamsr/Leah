@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/testutil"
+	"github.com/trilam/leah/internal/platform/testutil"
 )
 
 // TestMCPPublishWired_GatedOn asserts startMCPPublishAt binds the publish

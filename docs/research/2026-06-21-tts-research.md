@@ -96,3 +96,5 @@ OpenAI Realtime (gpt-4o-realtime) and Gemini Live API both fuse LLM + TTS in one
 **Voice canon decision**: keep spec §2.7. Custom-cloned alto via ElevenLabs Pro Voice Clone is correct. Vendor-lock risk is real but mitigated by (a) keeping the source clone-audio file in repo so the same voice can be re-cloned on Cartesia/competitor if ElevenLabs price spikes, (b) Apple fallback already providing graceful degradation, (c) abstracting the TTS call behind `internal/tts/provider.go` interface — switching providers is a 1-day swap, not a rewrite.
 
 **6-month projected spend: $132 (ElevenLabs Creator, no promo) + $0 (Apple fallback) = $132. With promo: $66.**
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

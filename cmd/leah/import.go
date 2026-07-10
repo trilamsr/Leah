@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // importAttestPhrase is the BR=4 phrase the operator must type to authorize

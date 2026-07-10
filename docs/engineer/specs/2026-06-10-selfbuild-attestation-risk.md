@@ -494,3 +494,5 @@ where override silently loses the original-tier signal).
 - **Long-term**: closes the habituation loophole README.md flags as the
   attestation-failure mode. Sub-PR retro feeds S5 reflexion + tournament
   review with the per-role + per-kind degradation signals it needs.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/contracts"
-	"github.com/trilam/leah/internal/feeds"
+	"github.com/trilam/leah/internal/platform/contracts"
+	"github.com/trilam/leah/internal/memory/feeds"
 )
 
 // defaultNewsSources is the MVP source list per spec §2 — RSS-only, no keys.
@@ -289,7 +289,6 @@ func parseBundleFlag(args []string) (bundle string, rest []string, err error) {
 	}
 	return bundle, rest, nil
 }
-
 
 func knownBundles() string {
 	names := bundleNames()

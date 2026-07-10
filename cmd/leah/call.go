@@ -7,9 +7,9 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/trilam/leah/internal/adapters/facetime"
-	"github.com/trilam/leah/internal/adapters/imessage"
-	"github.com/trilam/leah/internal/contracts"
+	"github.com/trilam/leah/internal/actions/adapters/facetime"
+	"github.com/trilam/leah/internal/actions/adapters/imessage"
+	"github.com/trilam/leah/internal/platform/contracts"
 )
 
 // Distinct from the ship-tool scope so granted consent never cross-authorizes (anti-habituation).

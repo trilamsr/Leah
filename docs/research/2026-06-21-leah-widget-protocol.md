@@ -576,3 +576,5 @@ A `make check` rule asserts:
 - **One IPC channel with seq numbers** beats two channels (prose + widget) — interleaving is the product requirement, and ordering across channels is a known foot-gun.
 - **Closed registry, no plugins, v1** — review surface is bounded; one operator does not need third-party extensibility; protocol can evolve without semver-locking plugins.
 - **Cached-last-good with oxblood frame** matches design doc § 5.3 (states): degradation is visible, not silent.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

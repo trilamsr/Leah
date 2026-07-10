@@ -326,3 +326,5 @@ Audit row schema (consumed by `internal/audit`):
 - Token refresh / rotation automation (deferred to wiring wave;
   mirrors gmail's pattern).
 - Operator-configurable rate limit (issue filed alongside this spec).
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

@@ -198,3 +198,5 @@ Audit row schema (consumed by `internal/audit`):
 - Operator-configurable rate limit (issue filed alongside this spec).
 - Recipient allow-listing.
 - Full-body audit capture (operator-toggle deferred).
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

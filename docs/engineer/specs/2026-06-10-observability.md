@@ -551,3 +551,5 @@ Default-simpler:
 - pprof endpoint behind a build tag? Recommended `yes` for the prod
   binary to keep the attack surface minimal even on loopback. Decision
   deferred to implementation PR.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

@@ -7,13 +7,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/discord"
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/daemonloop"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/regattaclient"
-	"github.com/trilam/leah/internal/web"
+	"github.com/trilam/leah/internal/actions/adapters/discord"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/platform/daemonloop"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/actions/regattaclient"
+	"github.com/trilam/leah/internal/platform/web"
 )
 
 // startDashboard boots the JARVIS dashboard HTTP server in a goroutine and
@@ -21,7 +21,7 @@ import (
 // the memory SelfChecker registered at daemon boot). addr is the listen
 // address; auditPath + snapPath feed /api/state. 10s cache TTL absorbs the
 // dashboard's 3s poll cadence (H4 audit fix).
-func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, rc *regattaclient.Client, loop *daemonloop.Loop, registry *obs.Registry, health *obs.HealthRegistry, store *memory.Store, discordAdpt *discord.Adapter) (func(), error) {
+func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, rc *regattaclient.Client, loop *daemonloop.Loop, registry *telemetry.Registry, health *telemetry.HealthRegistry, store *memory.Store, discordAdpt *discord.Adapter) (func(), error) {
 	_ = sd
 	srv := &web.Server{
 		Addr:        addr,
@@ -50,7 +50,7 @@ func startDashboard(ctx context.Context, addr, sd, auditPath, snapPath string, r
 // /metrics records leah_web_requests_total per request. Server.Start owns
 // the listener; this helper reuses BuildMux + Server.StartHandler when
 // available, otherwise falls back to Start (no middleware).
-func startWithMiddleware(ctx context.Context, srv *web.Server, registry *obs.Registry) error {
+func startWithMiddleware(ctx context.Context, srv *web.Server, registry *telemetry.Registry) error {
 	if err := web.EnforceLoopback(srv.Addr); err != nil {
 		return err
 	}

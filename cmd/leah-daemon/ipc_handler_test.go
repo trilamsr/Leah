@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/knowledge"
-	"github.com/trilam/leah/internal/reasoner"
-	"github.com/trilam/leah/internal/sqlstore"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/thinking/knowledge"
+	"github.com/trilam/leah/internal/thinking/reasoner"
+	"github.com/trilam/leah/internal/memory/sqlstore"
 )
 
 // newTestTurnDB opens a WAL DB with only the conversation_turn table —

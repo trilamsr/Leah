@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/embed"
-	"github.com/trilam/leah/internal/hud"
-	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/platform/embed"
+	"github.com/trilam/leah/internal/input/hud"
+	"github.com/trilam/leah/internal/platform/ipc"
 )
 
 type frame struct {

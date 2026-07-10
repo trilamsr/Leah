@@ -1,0 +1,904 @@
+package daemonloop
+
+import (
+	"bytes"
+	"context"
+	"log/slog"
+	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"bufio"
+	"encoding/json"
+
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/actions/regattaclient"
+	"github.com/trilam/leah/internal/actions/selfbuildstatus"
+)
+
+func readAuditEntries(t *testing.T, path string) []audit.Entry {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	var out []audit.Entry
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		var e audit.Entry
+		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+type fakeRegatta struct {
+	resps [][]regattaclient.Agent
+	call  int
+}
+
+func (f *fakeRegatta) List(ctx context.Context) ([]regattaclient.Agent, error) {
+	if f.call >= len(f.resps) {
+		return f.resps[len(f.resps)-1], nil
+	}
+	r := f.resps[f.call]
+	f.call++
+	return r, nil
+}
+
+type fakeHb struct{ pings int }
+
+func (f *fakeHb) Ping(ctx context.Context) error { f.pings++; return nil }
+
+type fakeNf struct{ calls []string }
+
+func (f *fakeNf) Notify(ctx context.Context, title, body string) error {
+	f.calls = append(f.calls, title+":"+body)
+	return nil
+}
+
+// TestTickEmitsObsLogOnTransition asserts the daemonloop tick emits the
+// daemon.transition INFO event with agent_id / from / to / pr attrs
+// (Wave2-K obs instrumentation contract).
+func TestTickEmitsObsLogOnTransition(t *testing.T) {
+	var buf bytes.Buffer
+	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ctx := telemetry.WithLogger(context.Background(), lg)
+
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{
+		{{ID: "a1", State: "running", PR: 0}},
+		{{ID: "a1", State: "merged", PR: 42}},
+	}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	l.tick(ctx)
+	l.tick(ctx)
+
+	out := buf.String()
+	if !strings.Contains(out, `"msg":"daemon.tick"`) {
+		t.Errorf("missing daemon.tick: %s", out)
+	}
+	if !strings.Contains(out, `"msg":"daemon.transition"`) {
+		t.Errorf("missing daemon.transition: %s", out)
+	}
+	if !strings.Contains(out, `"to":"merged"`) {
+		t.Errorf("missing to=merged attr: %s", out)
+	}
+}
+
+func TestLoopColdStartDoesNotNotify(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{
+		{{ID: "a1", State: "merged", PR: 1}},
+	}}
+	hb := &fakeHb{}
+	nf := &fakeNf{}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+
+	l := New(rc, hb, nf, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.tick(context.Background())
+	if len(nf.calls) != 0 {
+		t.Errorf("cold start should not notify; got %v", nf.calls)
+	}
+	if hb.pings != 1 {
+		t.Errorf("heartbeat should fire on cold tick; got %d", hb.pings)
+	}
+}
+
+func TestLoopNotifiesOnTerminalTransition(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{
+		{{ID: "a1", State: "running", PR: 0}},
+		{{ID: "a1", State: "merged", PR: 1234}},
+	}}
+	dir := t.TempDir()
+	a := &audit.Logger{Path: dir + "/audit.jsonl"}
+	nf := &fakeNf{}
+
+	l := New(rc, &fakeHb{}, nf, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.tick(context.Background())
+	l.tick(context.Background())
+
+	if len(nf.calls) != 1 {
+		t.Fatalf("want 1 notify call, got %d: %v", len(nf.calls), nf.calls)
+	}
+	if !strings.Contains(nf.calls[0], "merged") || !strings.Contains(nf.calls[0], "PR #1234") {
+		t.Errorf("notify body: %v", nf.calls[0])
+	}
+
+	data, _ := os.ReadFile(dir + "/audit.jsonl")
+	if !strings.Contains(string(data), `"kind":"daemon.transition"`) {
+		t.Errorf("audit missing daemon.transition: %s", data)
+	}
+}
+
+// TestTransitionBindsOriginatingArgsHash asserts a merged daemon.transition
+// for an agent whose PR was recorded by a prior self-build dispatch row carries
+// that dispatch's ArgsHash so selfbuildstatus.Classify reaches CLOSED.
+func TestTransitionBindsOriginatingArgsHash(t *testing.T) {
+	dir := t.TempDir()
+	a := &audit.Logger{Path: dir + "/audit.jsonl"}
+	mustAppend(t, a, audit.Entry{Kind: "self-build", ArgsHash: "deadbeef", Outcome: "dispatched", Detail: "url=https://github.com/trilamsr/Leah/issues/9"})
+	mustAppend(t, a, audit.Entry{Kind: "ship", ArgsHash: "deadbeef", Outcome: "pending"})
+	mustAppend(t, a, audit.Entry{Kind: "self-build.outcome", ArgsHash: "deadbeef", Outcome: "MERGED", Detail: "state=MERGED pr=1234"})
+
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{
+		{{ID: "a1", State: "running", PR: 1234}},
+		{{ID: "a1", State: "merged", PR: 1234}},
+	}}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	l.tick(context.Background())
+	l.tick(context.Background())
+
+	entries := readAuditEntries(t, dir+"/audit.jsonl")
+	var tr *audit.Entry
+	for i := range entries {
+		if entries[i].Kind == "daemon.transition" {
+			tr = &entries[i]
+		}
+	}
+	if tr == nil {
+		t.Fatalf("no daemon.transition row written: %+v", entries)
+	}
+	if tr.ArgsHash != "deadbeef" {
+		t.Fatalf("daemon.transition ArgsHash = %q, want originating %q", tr.ArgsHash, "deadbeef")
+	}
+
+	loops := selfbuildstatus.Classify(entries)
+	if len(loops) != 1 || !loops[0].Closed {
+		t.Fatalf("classifier must reach CLOSED for the bound loop, got %+v", loops)
+	}
+}
+
+func mustAppend(t *testing.T, a *audit.Logger, e audit.Entry) {
+	t.Helper()
+	if err := a.Append(e); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoopIgnoresNonTerminalTransition(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{
+		{{ID: "a1", State: "running", PR: 0}},
+		{{ID: "a1", State: "spawning", PR: 0}},
+	}}
+	nf := &fakeNf{}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+
+	l := New(rc, &fakeHb{}, nf, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.tick(context.Background())
+	l.tick(context.Background())
+
+	if len(nf.calls) != 0 {
+		t.Errorf("non-terminal change should not notify; got %v", nf.calls)
+	}
+}
+
+func TestWeeklyTaskFiresAfter7Days(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt"
+
+	// Seed tracker to 8d ago so weekly should fire.
+	old := time.Now().Add(-8 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired int
+	var mu sync.Mutex
+	done := make(chan struct{}, 1)
+	weekly := func(ctx context.Context) {
+		mu.Lock()
+		fired++
+		mu.Unlock()
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{weekly}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("weekly task did not fire after 7d boundary")
+	}
+	mu.Lock()
+	if fired != 1 {
+		t.Errorf("want 1 weekly fire, got %d", fired)
+	}
+	mu.Unlock()
+
+	// Tracker file should be updated to ~now.
+	data, err := os.ReadFile(tracker)
+	if err != nil {
+		t.Fatalf("read tracker: %v", err)
+	}
+	ts, err := time.Parse(time.RFC3339, strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("parse tracker: %v", err)
+	}
+	if time.Since(ts) > time.Minute {
+		t.Errorf("tracker stale: %v", ts)
+	}
+}
+
+// TestWeeklyIntervalOverridePerLoop asserts each Loop carries its own
+// WeeklyInterval — no shared package-level mutable state. Catches the
+// race the audit's H6 flagged: parallel tests mutating a package var
+// while concurrent goroutines read it. Setting WeeklyInterval to a
+// short window on one Loop instance must not bleed into others.
+func TestWeeklyIntervalOverridePerLoop(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt"
+
+	// Seed tracker to 1h ago so the default-7d Loop would skip, but a
+	// 30-minute-interval Loop would fire.
+	old := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired atomic.Int32
+	done := make(chan struct{}, 1)
+	weekly := func(ctx context.Context) {
+		fired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	short := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	short.WeeklyTracker = tracker
+	short.Weekly = []WeeklyTask{weekly}
+	short.WeeklyInterval = 30 * time.Minute
+	short.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("short-interval weekly did not fire")
+	}
+	if got := fired.Load(); got != 1 {
+		t.Errorf("fired = %d, want 1", got)
+	}
+
+	// Build a second Loop with the default interval against the same
+	// tracker (which just got rewritten to "now") — it must NOT fire and
+	// must NOT see any state leaked from `short`.
+	def := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	def.WeeklyTracker = tracker
+	def.Weekly = []WeeklyTask{weekly}
+	def.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	if got := fired.Load(); got != 1 {
+		t.Errorf("default-interval Loop fired (leak): fired=%d, want 1", got)
+	}
+}
+
+func TestWeeklyTaskDoesNotFireWithin7Days(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt"
+
+	// Seed tracker to 1d ago — weekly should NOT fire.
+	recent := time.Now().Add(-24 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(recent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired int
+	var mu sync.Mutex
+	weekly := func(ctx context.Context) {
+		mu.Lock()
+		fired++
+		mu.Unlock()
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{weekly}
+	l.tick(context.Background())
+
+	// Allow any goroutine that would have fired to run.
+	time.Sleep(50 * time.Millisecond)
+	mu.Lock()
+	if fired != 0 {
+		t.Errorf("weekly should not fire within 7d; got %d", fired)
+	}
+	mu.Unlock()
+
+	// Tracker should be unchanged.
+	data, _ := os.ReadFile(tracker)
+	if strings.TrimSpace(string(data)) != recent {
+		t.Errorf("tracker changed unexpectedly: %s", data)
+	}
+}
+
+func TestWeeklyTaskFiresOnFirstRunWhenTrackerMissing(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt" // does not exist
+
+	done := make(chan struct{}, 1)
+	weekly := func(ctx context.Context) {
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{weekly}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("weekly task did not fire on first run (missing tracker)")
+	}
+	if _, err := os.Stat(tracker); err != nil {
+		t.Errorf("tracker should be created: %v", err)
+	}
+}
+
+// TestWeeklyTask_PanicDoesNotKillSubsequent asserts a panicking weekly task
+// is recovered + later tasks in the same tick still run (per-task recover).
+func TestWeeklyTask_PanicDoesNotKillSubsequent(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt" // missing → fires immediately
+
+	done := make(chan struct{}, 1)
+	var ranAfter atomic.Bool
+	panicker := func(ctx context.Context) { panic("synthetic weekly panic") }
+	survivor := func(ctx context.Context) {
+		ranAfter.Store(true)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	out := &bytes.Buffer{}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, out, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{panicker, survivor}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("survivor task did not run after panicker panicked")
+	}
+	if !ranAfter.Load() {
+		t.Error("survivor task did not run")
+	}
+	if !strings.Contains(out.String(), "weekly task panic") {
+		t.Errorf("output missing panic log: %q", out.String())
+	}
+}
+
+// TestWeeklyHourGate asserts WeeklyHour defers the weekly task when the
+// current hour is below the threshold (operator-quiet-hours guard).
+func TestWeeklyHourGate(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-weekly.txt" // missing → would normally fire
+
+	var fired atomic.Int32
+	weekly := func(ctx context.Context) { fired.Add(1) }
+	out := &bytes.Buffer{}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, out, 1*time.Millisecond)
+	l.WeeklyTracker = tracker
+	l.Weekly = []WeeklyTask{weekly}
+	// Hours go 0-23; 25 is unreachable so the gate must always defer.
+	l.WeeklyHour = 25
+	l.tick(context.Background())
+
+	if fired.Load() != 0 {
+		t.Errorf("WeeklyHour=25 should always defer; fired=%d", fired.Load())
+	}
+	if !strings.Contains(out.String(), "deferred") {
+		t.Errorf("output should mention deferred: %q", out.String())
+	}
+	if _, err := os.Stat(tracker); err == nil {
+		t.Errorf("tracker should NOT be written when weekly deferred")
+	}
+}
+
+// TestDailyTaskFiresAfter24Hours asserts the daily-tick cadence: when the
+// daily-tracker is older than 24h, the registered Daily tasks run.
+func TestDailyTaskFiresAfter24Hours(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-daily.txt"
+
+	// Seed 25h ago → must fire.
+	old := time.Now().Add(-25 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{}, 1)
+	var fired atomic.Int32
+	daily := func(ctx context.Context) {
+		fired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DailyTracker = tracker
+	l.Daily = []WeeklyTask{daily}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("daily task did not fire after 24h boundary")
+	}
+	if got := fired.Load(); got != 1 {
+		t.Errorf("fired = %d, want 1", got)
+	}
+}
+
+// TestDailyTaskDoesNotFireWithin24Hours asserts a tracker timestamp inside
+// the 24h window skips the daily tasks (no double-fire same day).
+func TestDailyTaskDoesNotFireWithin24Hours(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-daily.txt"
+
+	recent := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(recent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired atomic.Int32
+	daily := func(ctx context.Context) { fired.Add(1) }
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DailyTracker = tracker
+	l.Daily = []WeeklyTask{daily}
+	l.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+
+	if got := fired.Load(); got != 0 {
+		t.Errorf("daily should not fire within 24h; fired=%d", got)
+	}
+}
+
+// TestDailyHourGate asserts DailyHour=25 (unreachable) always defers the
+// daily task — operator quiet-hours guard mirrors WeeklyHour.
+func TestDailyHourGate(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-daily.txt" // missing → would normally fire
+
+	var fired atomic.Int32
+	daily := func(ctx context.Context) { fired.Add(1) }
+	out := &bytes.Buffer{}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, out, 1*time.Millisecond)
+	l.DailyTracker = tracker
+	l.Daily = []WeeklyTask{daily}
+	l.DailyHour = 25
+	l.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+
+	if fired.Load() != 0 {
+		t.Errorf("DailyHour=25 should always defer; fired=%d", fired.Load())
+	}
+	if !strings.Contains(out.String(), "deferred") {
+		t.Errorf("output should mention deferred: %q", out.String())
+	}
+	if _, err := os.Stat(tracker); err == nil {
+		t.Errorf("tracker should NOT be written when daily deferred")
+	}
+}
+
+// TestDailyAndWeeklyTracksAreIndependent asserts the daily tracker and the
+// weekly tracker do not bleed into each other — firing daily must not reset
+// the weekly tracker (and vice-versa).
+func TestDailyAndWeeklyTracksAreIndependent(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	weeklyTracker := dir + "/last-weekly.txt"
+	dailyTracker := dir + "/last-daily.txt"
+
+	// Weekly: seeded recent (1d ago) → must NOT fire.
+	// Daily: seeded 25h ago → must fire.
+	weeklySeed := time.Now().Add(-1 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	dailySeed := time.Now().Add(-25 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(weeklyTracker, []byte(weeklySeed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dailyTracker, []byte(dailySeed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var weeklyFired, dailyFired atomic.Int32
+	done := make(chan struct{}, 1)
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.WeeklyTracker = weeklyTracker
+	l.DailyTracker = dailyTracker
+	l.Weekly = []WeeklyTask{func(ctx context.Context) { weeklyFired.Add(1) }}
+	l.Daily = []WeeklyTask{func(ctx context.Context) {
+		dailyFired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("daily task did not fire")
+	}
+	if weeklyFired.Load() != 0 {
+		t.Errorf("weekly should not fire (recent); fired=%d", weeklyFired.Load())
+	}
+	if dailyFired.Load() != 1 {
+		t.Errorf("daily should fire once; fired=%d", dailyFired.Load())
+	}
+
+	// Weekly tracker must be untouched; daily tracker must be rewritten.
+	wraw, _ := os.ReadFile(weeklyTracker)
+	if strings.TrimSpace(string(wraw)) != weeklySeed {
+		t.Errorf("weekly tracker changed: %s", wraw)
+	}
+	draw, _ := os.ReadFile(dailyTracker)
+	if strings.TrimSpace(string(draw)) == dailySeed {
+		t.Errorf("daily tracker should be updated, still: %s", draw)
+	}
+}
+
+// TestLoopContinuesWhenRegattaErrors asserts a Regatta.List failure logs but
+// does not kill the tick — heartbeat must still run.
+func TestLoopContinuesWhenRegattaErrors(t *testing.T) {
+	rc := &errRegatta{}
+	hb := &fakeHb{}
+	out := &bytes.Buffer{}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+
+	l := New(rc, hb, &fakeNf{}, a, out, 1*time.Millisecond)
+	l.tick(context.Background())
+	if hb.pings != 1 {
+		t.Errorf("heartbeat should fire even when regatta errors; got %d", hb.pings)
+	}
+	if !strings.Contains(out.String(), "regatta list error") {
+		t.Errorf("output should surface regatta error: %q", out.String())
+	}
+}
+
+// TestRegattaPoll_FirstFailureLogged_RepeatsNot asserts the regatta-list ERROR
+// log fires exactly ONCE per failure streak — 10 consecutive failures with the
+// same error message produce a single ERROR line, not 10. The classic F3 spam.
+func TestRegattaPoll_FirstFailureLogged_RepeatsNot(t *testing.T) {
+	var buf bytes.Buffer
+	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ctx := telemetry.WithLogger(context.Background(), lg)
+
+	rc := &errRegatta{}
+	out := &bytes.Buffer{}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, out, time.Millisecond)
+	for i := 0; i < 10; i++ {
+		l.tick(ctx)
+	}
+
+	errCount := strings.Count(buf.String(), `"msg":"daemon.regatta.list_error"`)
+	if errCount != 1 {
+		t.Errorf("want exactly 1 ERROR log on 10 consecutive same-error ticks, got %d; log=%s", errCount, buf.String())
+	}
+	stdoutErrs := strings.Count(out.String(), "regatta list error")
+	if stdoutErrs != 1 {
+		t.Errorf("want exactly 1 stdout error line on 10 consecutive same-error ticks, got %d; out=%s", stdoutErrs, out.String())
+	}
+}
+
+// TestRegattaPoll_RecoveryLogged asserts after a failure streak, when regatta
+// returns success the loop emits a one-shot "regatta available" INFO log.
+func TestRegattaPoll_RecoveryLogged(t *testing.T) {
+	var buf bytes.Buffer
+	lg := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	ctx := telemetry.WithLogger(context.Background(), lg)
+
+	rc := &flipRegatta{}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, time.Millisecond)
+	// Fail twice, then succeed.
+	l.tick(ctx)
+	l.tick(ctx)
+	rc.ok = true
+	l.tick(ctx)
+
+	if !strings.Contains(buf.String(), `"msg":"daemon.regatta.available"`) {
+		t.Errorf("missing daemon.regatta.available recovery log: %s", buf.String())
+	}
+}
+
+// flipRegatta fails until ok=true is flipped, then returns empty agent list.
+type flipRegatta struct{ ok bool }
+
+func (f *flipRegatta) List(_ context.Context) ([]regattaclient.Agent, error) {
+	if f.ok {
+		return nil, nil
+	}
+	return nil, errString("synthetic regatta failure")
+}
+
+// errRegatta returns an error on every List call.
+type errRegatta struct{}
+
+func (errRegatta) List(_ context.Context) ([]regattaclient.Agent, error) {
+	return nil, errString("synthetic regatta failure")
+}
+
+type errString string
+
+func (e errString) Error() string { return string(e) }
+
+// TestLoop_LastTick_ZeroBeforeFirstTick: fresh Loop reports zero LastTick so dashboard renders "starting up", not a lie.
+func TestLoop_LastTick_ZeroBeforeFirstTick(t *testing.T) {
+	l := New(&fakeRegatta{resps: [][]regattaclient.Agent{{}}}, &fakeHb{}, &fakeNf{},
+		&audit.Logger{Path: t.TempDir() + "/audit.jsonl"}, &bytes.Buffer{}, time.Millisecond)
+	if got := l.LastTick(); !got.IsZero() {
+		t.Errorf("LastTick before first tick: want zero, got %v", got)
+	}
+}
+
+// TestLoop_LastTick_UpdatesPerTick: each tick advances LastTick monotonically — the value reflects real loop liveness.
+func TestLoop_LastTick_UpdatesPerTick(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}, {}}}
+	l := New(rc, &fakeHb{}, &fakeNf{}, &audit.Logger{Path: t.TempDir() + "/audit.jsonl"},
+		&bytes.Buffer{}, time.Millisecond)
+
+	before := time.Now()
+	l.tick(context.Background())
+	first := l.LastTick()
+	if first.Before(before) {
+		t.Fatalf("LastTick %v predates pre-tick instant %v", first, before)
+	}
+	time.Sleep(2 * time.Millisecond)
+	l.tick(context.Background())
+	second := l.LastTick()
+	if !second.After(first) {
+		t.Errorf("second LastTick %v should be after first %v", second, first)
+	}
+}
+
+// TestLoop_LastTick_RaceFree: concurrent LastTick reads against tick writes are race-detector clean.
+func TestLoop_LastTick_RaceFree(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	l := New(rc, &fakeHb{}, &fakeNf{}, &audit.Logger{Path: t.TempDir() + "/audit.jsonl"},
+		&bytes.Buffer{}, time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	ready := make(chan struct{}, 4)
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ready <- struct{}{}
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					_ = l.LastTick()
+				}
+			}
+		}()
+	}
+	for i := 0; i < 4; i++ {
+		<-ready
+	}
+	for i := 0; i < 200; i++ {
+		l.tick(context.Background())
+	}
+	cancel()
+	wg.Wait()
+}
+
+func TestLoopRespectsContextCancellation(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	l := New(rc, &fakeHb{}, &fakeNf{}, &audit.Logger{Path: t.TempDir() + "/audit.jsonl"},
+		&bytes.Buffer{}, 100*time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- l.Run(ctx) }()
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run returned error: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Run did not exit after cancel")
+	}
+}
+
+func TestDegradedTaskFiresAfterInterval(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-degraded.txt"
+
+	old := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{}, 1)
+	var fired atomic.Int32
+	task := func(ctx context.Context) {
+		fired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DegradedTracker = tracker
+	l.DegradedInterval = 5 * time.Minute
+	l.Degraded = []WeeklyTask{task}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("degraded task did not fire after its interval elapsed")
+	}
+	if got := fired.Load(); got != 1 {
+		t.Errorf("fired = %d, want 1", got)
+	}
+}
+
+func TestDegradedTaskDoesNotFireWithinInterval(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-degraded.txt"
+
+	recent := time.Now().Add(-30 * time.Second).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(recent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired atomic.Int32
+	task := func(ctx context.Context) { fired.Add(1) }
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DegradedTracker = tracker
+	l.DegradedInterval = 5 * time.Minute
+	l.Degraded = []WeeklyTask{task}
+	l.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+
+	if got := fired.Load(); got != 0 {
+		t.Errorf("degraded should not fire within interval; fired=%d", got)
+	}
+}
+
+// TestDegradedIntervalRespectsFloor pins the rate-limit guard: a sub-floor
+// configured interval is clamped up to degradedFloor so a misconfigured
+// DegradedInterval cannot hammer the provider API past its rate limit.
+func TestDegradedIntervalRespectsFloor(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-degraded.txt"
+
+	// Last ran 10s ago; configured interval 1ns would fire, but the floor
+	// (>10s) must clamp it so the task is skipped.
+	last := time.Now().Add(-10 * time.Second).UTC().Format(time.RFC3339)
+	if err := os.WriteFile(tracker, []byte(last), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var fired atomic.Int32
+	task := func(ctx context.Context) { fired.Add(1) }
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DegradedTracker = tracker
+	l.DegradedInterval = 1 * time.Nanosecond
+	l.Degraded = []WeeklyTask{task}
+	l.tick(context.Background())
+	time.Sleep(50 * time.Millisecond)
+
+	if got := fired.Load(); got != 0 {
+		t.Errorf("sub-floor interval must clamp to degradedFloor and skip; fired=%d", got)
+	}
+}
+
+// TestDegradedHasNoHourGate asserts degraded pull runs all day — unlike the
+// brief, a freshness refresh has no quiet-hours guard (no operator-facing
+// push, just a cache update). Missing tracker -> fire regardless of hour.
+func TestDegradedHasNoHourGate(t *testing.T) {
+	rc := &fakeRegatta{resps: [][]regattaclient.Agent{{}}}
+	a := &audit.Logger{Path: t.TempDir() + "/audit.jsonl"}
+	dir := t.TempDir()
+	tracker := dir + "/last-degraded.txt" // missing -> fire on first tick
+
+	done := make(chan struct{}, 1)
+	var fired atomic.Int32
+	task := func(ctx context.Context) {
+		fired.Add(1)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
+
+	l := New(rc, &fakeHb{}, &fakeNf{}, a, &bytes.Buffer{}, 1*time.Millisecond)
+	l.DegradedTracker = tracker
+	l.DegradedInterval = 5 * time.Minute
+	l.Degraded = []WeeklyTask{task}
+	l.tick(context.Background())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("degraded task did not fire on first tick (no hour gate expected)")
+	}
+	if got := fired.Load(); got != 1 {
+		t.Errorf("fired = %d, want 1", got)
+	}
+}

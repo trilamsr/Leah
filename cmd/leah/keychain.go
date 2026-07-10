@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/trilam/leah/internal/keychain"
+	"github.com/trilam/leah/internal/platform/keychain"
 )
 
 // runKeychain is `leah keychain <set|get|delete> <service>`. Reads the

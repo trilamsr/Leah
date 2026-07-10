@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/operatormodel"
+	"github.com/trilam/leah/internal/thinking/operatormodel"
 )
 
 // fakeStreamReasoner emits scripted deltas on AskStream; satisfies the
 // streamReasoner interface used by suggest's --llm path.
 type fakeStreamReasoner struct {
-	deltas []string
+	deltas  []string
 	gotUser string // last user prompt seen (for prompt-shape assertions)
 }
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/ipc"
-	plug "github.com/trilam/leah/internal/plugin"
+	"github.com/trilam/leah/internal/platform/ipc"
+	plug "github.com/trilam/leah/internal/platform/plugin"
 	"github.com/trilam/leah/pkg/leahplugin"
 )
 
@@ -261,12 +261,12 @@ func TestHandlePluginLogs_HostError(t *testing.T) {
 func TestHandlePlugin_IDValidationRejectsInjection(t *testing.T) {
 	bad := []string{
 		"",
-		"a",                 // too short
-		"AB",                // uppercase
-		"../etc/passwd",     // traversal
-		"x/y",               // path sep
-		"x;DROP TABLE",      // sql
-		"x\nname",           // newline
+		"a",             // too short
+		"AB",            // uppercase
+		"../etc/passwd", // traversal
+		"x/y",           // path sep
+		"x;DROP TABLE",  // sql
+		"x\nname",       // newline
 		strings.Repeat("a", 65),
 	}
 	for _, id := range bad {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/tts"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/actions/tts"
 )
 
 // ttsRegistry holds per-turn ctx.Cancel funcs so KindTTSCancel propagates

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/adapters/tmdb"
+	"github.com/trilam/leah/internal/actions/adapters/tmdb"
 )
 
 // tmdbTransportFactory is the test seam — overridden in find_test.go to point

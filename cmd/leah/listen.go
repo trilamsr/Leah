@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/dispatcher"
-	"github.com/trilam/leah/internal/intent"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/voice"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/actions/dispatcher"
+	"github.com/trilam/leah/internal/thinking/intent"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/input/voice"
 )
 
 // runListen records one push-to-talk utterance, transcribes it via
@@ -23,14 +23,14 @@ import (
 // Routing rules (mirror the intent package):
 //   - KindAsk    → runAsk(transcript)
 //   - KindShip   → print transcript + prompt operator for repo (no
-//                  auto-pick — every ship is a load-bearing irreversible
-//                  action)
+//     auto-pick — every ship is a load-bearing irreversible
+//     action)
 //   - KindReview → parse pr# from transcript + dispatch runReview
 //   - KindStatus → forward to runStatus equivalent (audit-log printout)
 //
 // One audit row per invocation: kind=voice.input, BR=0, detail=truncated
 // transcript + classified verb.
-func runListen(ctx context.Context, reg *obs.Registry, args []string) int {
+func runListen(ctx context.Context, reg *telemetry.Registry, args []string) int {
 	fs := flag.NewFlagSet("listen", flag.ContinueOnError)
 	duration := fs.Duration("duration", 0, "max recording length (e.g. 30s); 0 = silence-detector only")
 	model := fs.String("model", "ggml-large-v3-turbo-q5_0.bin", "whisper.cpp model filename in --model-dir")
@@ -141,4 +141,3 @@ func truncateTranscript(s string, n int) string {
 	}
 	return string(r[:n]) + "…"
 }
-

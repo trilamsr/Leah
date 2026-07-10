@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/daemonloop"
-	"github.com/trilam/leah/internal/memory"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/daemonloop"
+	"github.com/trilam/leah/internal/memory/store"
 )
 
 // TestConsolidation_BriefCoexistence_3am_vs_8am asserts wireConsolidation

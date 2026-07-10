@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/embed"
-	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/platform/embed"
+	"github.com/trilam/leah/internal/thinking/reasoner"
 )
 
 // recallResult is one hit from Tier 1 search. Source is a short tag

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/trilam/leah/internal/connect"
+	"github.com/trilam/leah/internal/actions/connect"
 )
 
 // noopAttestor satisfies each adapter's per-RPC gate; the CLI-level consent

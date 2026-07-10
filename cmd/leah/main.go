@@ -14,19 +14,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/budget/monthly"
-	"github.com/trilam/leah/internal/dispatcher"
-	"github.com/trilam/leah/internal/ghclient"
-	commsout "github.com/trilam/leah/internal/comms/out"
-	"github.com/trilam/leah/internal/obs"
-	"github.com/trilam/leah/internal/onboarding"
-	"github.com/trilam/leah/internal/persona"
-	"github.com/trilam/leah/internal/reasoner"
-	"github.com/trilam/leah/internal/regattaclient"
-	"github.com/trilam/leah/internal/reviewer"
-	"github.com/trilam/leah/internal/watchdog"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/platform/budget/monthly"
+	commsout "github.com/trilam/leah/internal/actions/commsout"
+	"github.com/trilam/leah/internal/actions/dispatcher"
+	"github.com/trilam/leah/internal/actions/ghclient"
+	"github.com/trilam/leah/internal/platform/telemetry"
+	"github.com/trilam/leah/internal/platform/onboarding"
+	"github.com/trilam/leah/internal/thinking/persona"
+	"github.com/trilam/leah/internal/thinking/reasoner"
+	"github.com/trilam/leah/internal/actions/regattaclient"
+	"github.com/trilam/leah/internal/thinking/reviewer"
+	"github.com/trilam/leah/internal/platform/watchdog"
 )
 
 const Version = "3.3.0"
@@ -58,7 +58,7 @@ func run() int {
 // drive the defer-flush path with a pre-canceled ctx without forking.
 func runAndFlush(ctx context.Context, auditPath string, args []string) int {
 	defer writeInterruptedAudit(ctx, auditPath)
-	reg := obs.NewRegistry()
+	reg := telemetry.NewRegistry()
 	defer snapshotCLIMetrics(reg)
 	return runCommand(ctx, reg, args)
 }
@@ -66,7 +66,7 @@ func runAndFlush(ctx context.Context, auditPath string, args []string) int {
 // snapshotCLIMetrics writes the CLI registry to <stateDir>/metrics/cli-latest.json.
 // Best-effort — a snapshot failure on the exit path can't surface as an error
 // because the program is already done.
-func snapshotCLIMetrics(reg *obs.Registry) {
+func snapshotCLIMetrics(reg *telemetry.Registry) {
 	if reg == nil {
 		return
 	}
@@ -89,7 +89,7 @@ func snapshotCLIMetrics(reg *obs.Registry) {
 // histogram and violate the "excl. LLM" contract. Result: ask/ship contribute
 // zero observations, which is the correct null for paths with no non-LLM
 // first byte to measure. A nil reg disables instrumentation (test paths).
-func runCommand(ctx context.Context, reg *obs.Registry, args []string) int {
+func runCommand(ctx context.Context, reg *telemetry.Registry, args []string) int {
 	if len(args) < 1 {
 		usage()
 		return 2
@@ -309,7 +309,7 @@ type askStreamer interface {
 	AskStream(ctx context.Context, user string) (<-chan string, error)
 }
 
-func runAsk(ctx context.Context, reg *obs.Registry, query string) int {
+func runAsk(ctx context.Context, reg *telemetry.Registry, query string) int {
 	systemPrompt, err := os.ReadFile(filepath.Join(promptDir(), "system.md"))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "read system prompt: %v\n", err)

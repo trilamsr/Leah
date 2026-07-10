@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trilam/leah/internal/ipc"
+	"github.com/trilam/leah/internal/platform/ipc"
 )
 
 // TestA2AAdapter_NilServerReturnsNil covers the guard that keeps IPCDeps.A2A

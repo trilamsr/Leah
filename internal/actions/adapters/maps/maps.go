@@ -1,0 +1,158 @@
+package maps
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/trilam/leah/internal/platform/contracts"
+	"github.com/trilam/leah/internal/platform/telemetry/connectadapter"
+)
+
+// Sentinel errors are exported so callers switch on failure mode instead of
+// string-matching wrapped messages.
+var (
+	ErrAttestationDenied = errors.New("maps: attestation denied")
+	ErrAttestorRequired  = errors.New("maps: Config.Attestor required (operator-attestation gate)")
+	ErrAPIKeyRequired    = errors.New("maps: Config.APIKey required")
+	ErrNoResults         = errors.New("maps: no results")
+	ErrNoRoute           = errors.New("maps: no route")
+	ErrAPIStatus         = errors.New("maps: api non-OK status")
+	ErrUnsupported       = errors.New("maps: RPC not served by this provider")
+)
+
+// Provider is the surface both *Adapter (Google) and *OSM share so operators
+// swap backends config-time.
+type Provider interface {
+	Geocode(ctx context.Context, address string) ([]Place, error)
+	ReverseGeocode(ctx context.Context, lat, lng float64) ([]Place, error)
+	Route(ctx context.Context, origin, dest string, mode TransportMode) (Route, error)
+	POINearby(ctx context.Context, center Place, radiusM int, category string) ([]Place, error)
+	POIAlongRoute(ctx context.Context, route Route, opts CorridorOpts) ([]Place, error)
+	TrafficETA(ctx context.Context, route Route, departAt time.Time) (ETA, error)
+}
+
+var _ Provider = (*Adapter)(nil)
+
+// Scopes the Attestor sees. Distinct per RPC so the operator-attestation log
+// attributes consent at the per-action grain (geocode vs. route vs. poi).
+const (
+	ScopeGeocode       = "maps:geocode"
+	ScopeRoute         = "maps:route"
+	ScopePOI           = "maps:poi"
+	ScopePOIAlongRoute = "maps:poi_along_route"
+	ScopeTraffic       = "maps:traffic"
+	ScopeDetails       = "maps:place_details"
+)
+
+// TransportMode is the Directions API mode parameter; constants below cover
+// the four MVP-supported modes.
+type TransportMode string
+
+const (
+	ModeDriving TransportMode = "driving"
+	ModeWalking TransportMode = "walking"
+	ModeTransit TransportMode = "transit"
+	ModeBiking  TransportMode = "bicycling"
+)
+
+// OpenHours is a placeholder for Places opening_hours; the wiring wave will
+// expand this when the morning brief consumes hours.
+type OpenHours struct {
+	OpenNow bool
+}
+
+// Place is the minimal place envelope the MVP cares about.
+type Place struct {
+	ID         string
+	Name       string
+	Lat        float64
+	Lng        float64
+	Categories []string
+	Hours      OpenHours
+	Rating     float32
+}
+
+// Step is one leg-step in a Route; HTML stripping deferred to wiring wave.
+type Step struct {
+	Instructions string
+	DistanceM    int
+	DurationS    int
+}
+
+// Toll is reserved for the Routes-API v2 toll surface; left empty.
+type Toll struct {
+	Currency string
+	Amount   float64
+}
+
+// Route is the directions envelope returned by Route().
+type Route struct {
+	Polyline  string
+	DistanceM int
+	DurationS int
+	Steps     []Step
+	Tolls     []Toll
+}
+
+// Config carries the adapter's collaborators. HTTPClient is injectable so
+// tests use httptest without hitting the real Google endpoints. BaseURL is
+// also injectable for tests; production callers leave it empty to use the
+// real Google Maps endpoints.
+type Config struct {
+	Attestor   contracts.Attestor
+	HTTPClient *http.Client
+	APIKey     string
+	BaseURL    string
+	// Cache is optional — nil disables persistence (each RPC hits the wire).
+	Cache *Cache
+	// Metrics is optional — nil is a no-op (connectadapter contract), so
+	// existing callers keep working without a registry.
+	Metrics *connectadapter.Metrics
+}
+
+// Adapter is the Maps adapter the rest of Leah depends on. No background
+// goroutines; lifecycle is owned by the caller.
+type Adapter struct {
+	att     contracts.Attestor
+	http    *http.Client
+	apiKey  string
+	baseURL string
+	cache   *Cache
+	m       *connectadapter.Metrics
+}
+
+// defaultBaseURL points at Google's Maps REST endpoints; tests override via
+// Config.BaseURL so httptest can stand in.
+const defaultBaseURL = "https://maps.googleapis.com/maps/api"
+
+// New validates the wiring contract and returns a ready Adapter; no I/O.
+func New(config Config) (*Adapter, error) {
+	if config.Attestor == nil {
+		return nil, ErrAttestorRequired
+	}
+	if config.APIKey == "" {
+		return nil, ErrAPIKeyRequired
+	}
+	hc := config.HTTPClient
+	if hc == nil {
+		hc = &http.Client{Timeout: 15 * time.Second}
+	}
+	base := config.BaseURL
+	if base == "" {
+		base = defaultBaseURL
+	}
+	return &Adapter{att: config.Attestor, http: hc, apiKey: config.APIKey, baseURL: base, cache: config.Cache, m: config.Metrics}, nil
+}
+
+// gate runs the attestation gate; only on consent does the caller issue HTTP.
+// Ordering matters — issuing the request before attestation would leak the
+// API key and operator intent into a wire trace on denial.
+func (a *Adapter) gate(ctx context.Context, scope string) error {
+	if err := a.att.Attest(ctx, scope); err != nil {
+		return fmt.Errorf("%w: %v", ErrAttestationDenied, err)
+	}
+	return nil
+}

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trilam/leah/internal/obs"
+	"github.com/trilam/leah/internal/platform/telemetry"
 )
 
 // TestRunPushSources_FansFocusEventToIPC: producer kind
@@ -22,7 +22,7 @@ func TestRunPushSources_FansFocusEventToIPC(t *testing.T) {
 		defer mu.Unlock()
 		gotKind = kind
 	}
-	source := make(chan obs.Event, 1)
+	source := make(chan telemetry.Event, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -32,7 +32,7 @@ func TestRunPushSources_FansFocusEventToIPC(t *testing.T) {
 		close(done)
 	}()
 
-	source <- obs.Event{Kind: "focus.state_changed"}
+	source <- telemetry.Event{Kind: "focus.state_changed"}
 
 	deadline := time.After(500 * time.Millisecond)
 	for {
@@ -78,7 +78,7 @@ func TestRunPushSources_TranslatesAllKinds(t *testing.T) {
 func TestRunPushSources_UnknownKindIgnored(t *testing.T) {
 	called := 0
 	emit := func(string, []byte) { called++ }
-	source := make(chan obs.Event, 1)
+	source := make(chan telemetry.Event, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -88,7 +88,7 @@ func TestRunPushSources_UnknownKindIgnored(t *testing.T) {
 		close(done)
 	}()
 
-	source <- obs.Event{Kind: "totally.unrelated.kind"}
+	source <- telemetry.Event{Kind: "totally.unrelated.kind"}
 	// Give the goroutine a tick to process before we conclude it did not emit.
 	time.Sleep(50 * time.Millisecond)
 	if called != 0 {
@@ -101,7 +101,7 @@ func TestRunPushSources_UnknownKindIgnored(t *testing.T) {
 // shutdown path leaks goroutines on every reload.
 func TestRunPushSources_CtxCancelStopsAllGoroutines(t *testing.T) {
 	before := runtime.NumGoroutine()
-	source := make(chan obs.Event)
+	source := make(chan telemetry.Event)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan struct{})
@@ -136,12 +136,12 @@ func TestRunPushSources_PayloadIsJSON(t *testing.T) {
 		defer mu.Unlock()
 		payload = p
 	}
-	source := make(chan obs.Event, 1)
+	source := make(chan telemetry.Event, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go runPushSourcesFromChan(ctx, source, emit)
 
-	source <- obs.Event{Kind: "mail_changed", Actor: "mail", Outcome: "ok"}
+	source <- telemetry.Event{Kind: "mail_changed", Actor: "mail", Outcome: "ok"}
 
 	deadline := time.After(500 * time.Millisecond)
 	for {

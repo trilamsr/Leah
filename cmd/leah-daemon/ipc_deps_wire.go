@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/sync/discovery"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/platform/sync/discovery"
 )
 
 type a2aIPCAdapter struct {

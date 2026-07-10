@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/trilam/leah/internal/ipc"
-	"github.com/trilam/leah/internal/voice/duplex"
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/input/voice/duplex"
 )
 
 // handleVoiceStart begins a duplex session; the HUD subscribes to the same

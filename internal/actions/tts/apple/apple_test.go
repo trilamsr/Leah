@@ -1,0 +1,99 @@
+package apple_test
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"testing"
+
+	"github.com/trilam/leah/internal/platform/ipc"
+	"github.com/trilam/leah/internal/actions/tts"
+	"github.com/trilam/leah/internal/actions/tts/apple"
+)
+
+// Name is the §2.7 voice-canon provider id; pinned so reasoner routing matches.
+func TestSynth_NameIsAppleAva(t *testing.T) {
+	s := apple.New(func(ipc.Frame) {})
+	if got := s.Name(); got != "apple-ava" {
+		t.Fatalf("name: %q", got)
+	}
+}
+
+// Speak emits tts.local{text,voice,turn_id}; no audio bytes traverse IPC.
+func TestSynth_SpeakEmitsLocalFrame(t *testing.T) {
+	var got ipc.Frame
+	emit := func(f ipc.Frame) { got = f }
+	s := apple.New(emit)
+	ctx := apple.WithTurnID(context.Background(), "turn-42")
+	stream, err := s.Speak(ctx, "your balance is $100", tts.DefaultVoice)
+	if err != nil {
+		t.Fatalf("speak: %v", err)
+	}
+	defer func() { _ = stream.Close() }()
+	if got.Kind != "tts.local" {
+		t.Fatalf("kind: %q", got.Kind)
+	}
+	if got.TurnID != "turn-42" {
+		t.Fatalf("turn_id: %q", got.TurnID)
+	}
+	var p struct {
+		Text  string `json:"text"`
+		Voice string `json:"voice"`
+	}
+	if err := json.Unmarshal(got.Payload, &p); err != nil {
+		t.Fatalf("payload: %v", err)
+	}
+	if p.Text != "your balance is $100" {
+		t.Fatalf("text: %q", p.Text)
+	}
+	if p.Voice != tts.DefaultVoice {
+		t.Fatalf("voice: %q", p.Voice)
+	}
+	out, _ := io.ReadAll(stream)
+	if len(out) != 0 {
+		t.Fatalf("audio bytes leaked daemon-side: %d", len(out))
+	}
+}
+
+// PreWarm emits tts.local.prewarm so the HUD pre-loads the Ava voice model.
+func TestSynth_PreWarmEmitsFrame(t *testing.T) {
+	var got ipc.Frame
+	emit := func(f ipc.Frame) { got = f }
+	s := apple.New(emit)
+	if err := s.PreWarm(context.Background()); err != nil {
+		t.Fatalf("prewarm: %v", err)
+	}
+	if got.Kind != "tts.local.prewarm" {
+		t.Fatalf("kind: %q", got.Kind)
+	}
+}
+
+// Cancel emits tts.cancel-local{turn_id} so the HUD stops the in-flight utterance.
+func TestSynth_CancelEmitsCancelFrame(t *testing.T) {
+	var got ipc.Frame
+	emit := func(f ipc.Frame) { got = f }
+	s := apple.New(emit)
+	if err := s.Cancel(context.Background(), "turn-42"); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	if got.Kind != "tts.cancel-local" {
+		t.Fatalf("kind: %q", got.Kind)
+	}
+	if got.TurnID != "turn-42" {
+		t.Fatalf("turn_id: %q", got.TurnID)
+	}
+}
+
+// Nil emit fails fast at every entry point — wiring bug cannot silently drop frames.
+func TestSynth_NilEmitRejected(t *testing.T) {
+	s := apple.New(nil)
+	if _, err := s.Speak(context.Background(), "hi", tts.DefaultVoice); err == nil {
+		t.Fatalf("expected error for nil emit")
+	}
+	if err := s.Cancel(context.Background(), "turn-1"); err == nil {
+		t.Fatalf("expected cancel error for nil emit")
+	}
+	if err := s.PreWarm(context.Background()); err == nil {
+		t.Fatalf("expected prewarm error for nil emit")
+	}
+}

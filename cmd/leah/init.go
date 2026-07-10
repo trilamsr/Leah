@@ -12,8 +12,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/trilam/leah/internal/connect"
-	"github.com/trilam/leah/internal/keychain"
+	"github.com/trilam/leah/internal/actions/connect"
+	"github.com/trilam/leah/internal/platform/keychain"
 )
 
 // anthropicKeyRE mirrors the phase-5 design regex

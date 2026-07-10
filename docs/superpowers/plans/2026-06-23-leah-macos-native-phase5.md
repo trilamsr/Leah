@@ -2620,3 +2620,5 @@ Phase 5 ship criterion met. Computer-use loop landed (sandboxed WKWebView + AXUI
 - **Phase-5 buckets on top of Phase-4 seven.** Privacy budget gains `computer_use`, `research_fanout`, `location_lookup` — total 10 buckets at v1.2 ship line. Update the budget pane labels in T18.
 - **macOS API surface load.** Phase 5 introduces five new cgo bridges (WKWebView, AXUIElement, CoreLocation, MusicKit, SFSpeakerRecognitionRequest). Stub-on-linux must compile cleanly for every one; CI lane needs a darwin-only build matrix.
 - **Touch ID gating.** Voice-ID enrollment is operator-only (Touch ID gate). Computer-use Halt is operator-only (no other process can publish `agent.halt`). Mobile-bridge pair is operator-only.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

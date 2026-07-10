@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/dispatcher"
-	"github.com/trilam/leah/internal/ghclient"
-	commsout "github.com/trilam/leah/internal/comms/out"
-	"github.com/trilam/leah/internal/reasoner"
-	"github.com/trilam/leah/internal/regattaclient"
-	"github.com/trilam/leah/internal/watchdog"
+	"github.com/trilam/leah/internal/platform/audit"
+	"github.com/trilam/leah/internal/platform/budget"
+	commsout "github.com/trilam/leah/internal/actions/commsout"
+	"github.com/trilam/leah/internal/actions/dispatcher"
+	"github.com/trilam/leah/internal/actions/ghclient"
+	"github.com/trilam/leah/internal/thinking/reasoner"
+	"github.com/trilam/leah/internal/actions/regattaclient"
+	"github.com/trilam/leah/internal/platform/watchdog"
 )
 
 // runSelfBuild wires SelfBuild against trilamsr/Leah (repo locked in

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trilam/leah/internal/attest"
-	commsin "github.com/trilam/leah/internal/comms/in"
+	"github.com/trilam/leah/internal/platform/attest"
+	commsin "github.com/trilam/leah/internal/input/commsin"
 )
 
 type fakeCLIAttestor struct {

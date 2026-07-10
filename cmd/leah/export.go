@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/audit"
+	"github.com/trilam/leah/internal/platform/audit"
 )
 
 // archiveHeader is the cleartext JSON prefix of every export. It carries the

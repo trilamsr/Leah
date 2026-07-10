@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trilam/leah/internal/budget"
-	"github.com/trilam/leah/internal/ctxmgr"
-	"github.com/trilam/leah/internal/memory"
-	"github.com/trilam/leah/internal/operatormodel"
-	"github.com/trilam/leah/internal/reasoner"
+	"github.com/trilam/leah/internal/platform/budget"
+	"github.com/trilam/leah/internal/platform/activectx"
+	"github.com/trilam/leah/internal/memory/store"
+	"github.com/trilam/leah/internal/thinking/operatormodel"
+	"github.com/trilam/leah/internal/thinking/reasoner"
 )
 
 // runSuggest implements `leah suggest [--context X] [--llm]`. Surfaces the
@@ -60,7 +60,7 @@ func runSuggest(ctx context.Context, args []string) int {
 	if activeContext == "" {
 		// ctxmgr opens its own *sql.DB on the same file; WAL mode + busy_timeout
 		// permit co-existence with memory.Store.
-		cm, err := ctxmgr.Open(memPath)
+		cm, err := activectx.Open(memPath)
 		if err == nil {
 			defer func() { _ = cm.Close() }()
 			if a, err := cm.Active(); err == nil {
@@ -261,4 +261,3 @@ func scanArchive(path string, since time.Time) int {
 	}
 	return n
 }
-
