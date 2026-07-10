@@ -159,7 +159,7 @@ func promptAnthropicKey(w io.Writer, r *bufio.Reader) {
 		return
 	}
 	if k, err := keychain.Load(keychain.AnthropicService, keychain.DefaultAccount); err == nil && k != "" {
-		_, _ = fmt.Fprintln(w, "  Anthropic key already in Keychain — skipping.")
+		_, _ = fmt.Fprintln(w, "  API key already in Keychain — skipping.")
 		return
 	}
 	if os.Getenv("LEAH_INIT_AUTO_ACCEPT") == "1" {
