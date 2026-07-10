@@ -2,10 +2,10 @@ import XCTest
 @testable import LeahUI
 
 final class MemoryPaneTests: XCTestCase {
-    func testMemoryShowsModelIdDim() {
+    func testMemoryShowsTierLabelAndDim() {
         let stats = MemoryStats(chunkCount: 1247, modelID: "voyage-3.5-lite", dim: 1024)
         XCTAssertEqual(stats.tableName, "embeddings_voyage_3_5_lite_1024")
-        XCTAssertEqual(stats.modelDimLabel, "voyage-3.5-lite · 1024d")
+        XCTAssertEqual(stats.modelDimLabel, "Standard · 1024d")
     }
 
     @MainActor

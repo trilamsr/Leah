@@ -17,7 +17,7 @@ public struct MemoryStats: Equatable {
         return "embeddings_\(safe)_\(dim)"
     }
 
-    public var modelDimLabel: String { "\(modelID) · \(dim)d" }
+    public var modelDimLabel: String { "Standard · \(dim)d" }
 }
 
 public enum PurgeOutcome: Equatable {
@@ -59,7 +59,7 @@ public struct MemoryPane: View {
     @State private var status = ""
     @State private var paneState: PaneState
 
-    public init(stats: MemoryStats = MemoryStats(chunkCount: 0, modelID: "voyage-3.5-lite", dim: 1024),
+    public init(stats: MemoryStats = MemoryStats(chunkCount: 0, modelID: "", dim: 1024),
                 gate: TouchIDGating = BiometricsGate(),
                 initialState: PaneState = .loaded) {
         _model = StateObject(wrappedValue: MemoryPaneModel(stats: stats, gate: gate))

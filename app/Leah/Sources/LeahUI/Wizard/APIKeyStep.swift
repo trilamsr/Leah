@@ -1,7 +1,7 @@
 import SwiftUI
 import LeahAuth
 
-// Step 2: BYOK Anthropic key — SecureField paste + Keychain write + optional
+// Step 2: BYOK API key — SecureField paste + Keychain write + optional
 // daemon verify-key ping (spec §13.15, §17.18, §14b). verifyFn is injected so
 // tests run without a live socket; daemon-offline degrades to a warning row so
 // first-launch never hangs on a deaf daemon.
@@ -27,7 +27,7 @@ public struct APIKeyStep: View {
       Text("Add your API key.")
         .font(.title2.weight(.medium))
         .foregroundColor(Color(red: 242/255, green: 237/255, blue: 224/255))
-      Text("Get one at console.anthropic.com → API Keys.")
+      Text("Get one from your API provider.")
         .font(.callout)
         .foregroundColor(Color(red: 184/255, green: 176/255, blue: 160/255))
       HStack {
@@ -76,7 +76,7 @@ public struct APIKeyStep: View {
       status = ""
       onContinue()
     case .rejected(let reason):
-      // Hard fail — Anthropic said no. Block continue so the user can fix the key.
+      // Hard fail — provider rejected the key. Block continue so the user can fix it.
       status = reason
     case .offline:
       // Daemon unreachable or timed out — degrade gracefully. Key is in
