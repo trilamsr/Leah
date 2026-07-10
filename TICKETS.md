@@ -1,0 +1,164 @@
+# Linear tickets — Leah project (snapshot 2026-07-09)
+
+Migrated from Linear (Maydow team / Leah project). Going forward, tracking lives in this doc.
+
+## Backlog
+
+- **[MAY-9]** [followup] kind:feat context_transition consolidation (W126) — W124 (PR #219) scopes consolidation to the two slot-derivable cell classes: time_of_day and cadence. Spec docs/engineer/specs/2026-06-10-memory-consolidation.md §3.4 also lists context_transition — de `labels: followup` `priority: 3`
+- **[MAY-11]** [SESSION-HANDOFF] 2026-06-10 — pick up here — Session 2026-06-10T17:00Z → 2026-06-10T23:56Z. 25 PRs merged. Issue #156 closed. `priority: 4`
+- **[MAY-14]** [SESSION-AUDIT] TDD-evidence missing PR bodies (#162 #199 #219) — Verify scripts/check-tdd-evidence.sh (PR #236) catches historical misses #162 #199 #219. Promote pr-gates to required check. `labels: audit` `priority: 3`
+- **[MAY-15]** [OPERATOR] enable pr-gates as required check on main branch protection — PR #236 added GHA pr-gates job invoking check-reviewer-verdict.sh + check-tdd-evidence.sh on pull_request. Not yet required — must promote via Settings → Branches → main → Require status checks. `labels: audit` `priority: 1`
+- **[MAY-17]** [SESSION-AUDIT] 0 feedback_*.md memory rules written despite 7+ recurring patterns — Audit-session Phase 7 detected recurring patterns but 0 feedback_*.md files written this session: `labels: audit` `priority: 4`
+- **[MAY-18]** [SESSION-AUDIT] wave-8 impl waves NOT YET shipped: W121 W122-W123 W125-W127 W133-W134 W136 W142-W143 — Wave-8 spec chain S1-S12 fully landed + impl waves W82/W92-W94/W100/W101/W109/W116/W120/W124/W130-W132/W135/W137-W139/W141 merged. Remaining impl waves from wave-8 specs (S4 S8 S9 S10 S12) not yet shi `labels: followup` `priority: 2`
+- **[MAY-105]** [AUTONOMY-LEVER] worktree-janitor doesn't unlock dead-pid locks — accumulates forever — 2026-06-10 session inherited *129 stale agent-* worktrees all locked by single dead pid 50819\*. Janitor never pruned them because lines 30-32 of scripts/leah-worktree-janitor.sh skip on git worktree  `priority: 3`
+- **[MAY-106]** V1 — voice instrumentation FIRST (voice_turn_seconds histogram + per-stage) — Wave-9a P0 V1 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 2`
+- **[MAY-109]** V4 — worktree janitor launchd plist + sweep script — Wave-9a P0 V4 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 3`
+- **[MAY-110]** V5 — pre-PR base-staleness gate + file-overlap detector — Wave-9a P0 V5 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 3`
+- **[MAY-112]** V7 — Anthropic prompt-cache (cache_control ephemeral on system block) — Wave-9a P0 V7 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 3`
+- **[MAY-115]** V10 — Streaming Reasoner → Streaming TTS (gated on V1 baseline) — Wave-9b P1 V10 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 3`
+- **[MAY-123]** O6 — audit.Logger.Subscribe(ch chan&lt;- audit.Event) push channel — Wave-10 O6 — audit log push channel `priority: 2`
+- **[MAY-124]** O7 — Regatta event-stream (gated on cross-repo API) — Wave-10 O7 — Regatta event-stream `priority: 4`
+- **[MAY-144]** W11 — voice listener + wake skeleton — Voice-comm Wave 11 — listener + wake skeleton `priority: 3`
+- **[MAY-145]** W12 — voice session state machine + barge-in TTS cancel — Voice-comm Wave 12 — session state machine + barge-in TTS cancel `priority: 3`
+
+## Done
+
+- **[MAY-5]** [UX-LATENCY] HUD widgets — no freshness label (Part 7 P3) — Source: docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md Part 7 P3. `labels: Improvement` `priority: 2`
+- **[MAY-6]** [UX-LATENCY] leah ask blocks on LLM — stream + cache_control (Part 7 P5) — Source: docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md Part 7 P5. `labels: Improvement` `priority: 2`
+- **[MAY-7]** [UX-LATENCY] leah review blocks on LLM — stream + cache_control (Part 7 P6) — Source: docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md Part 7 P6. `labels: Improvement` `priority: 3`
+- **[MAY-8]** [TRAP] internal/brief reporters orphaned — re-wire must fan-out via errgroup (Part 7 deferred) — Source: docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md Part 7 (deferred item). `labels: Improvement` `priority: 4`
+- **[MAY-10]** [UX-LATENCY] wire leah ask runAsk to AskStream channel (post-#217 follow-up to closed #230) — Source: PR #230 closed as superseded by merged #217. Follow-up to wire CLI streaming UX on the new channel-based interface. `labels: Improvement` `priority: 2`
+- **[MAY-12]** [SESSION-AUDIT] verify check-reviewer-verdict catches historical self-approve leaks (#184 #186 #187) — PR #236 landed [check-reviewer-verdict.sh](<http://check-reviewer-verdict.sh>) + [check-tdd-evidence.sh](<http://check-tdd-evidence.sh>) gates. Verify they would have caught historical leaks. `labels: audit` `priority: 3`
+- **[MAY-13]** [SESSION-AUDIT] self-approve-after-amend leaks (#144 #168 #189 #206) — #144 blocked=2 cleared=1 `labels: audit` `assignee: Tri Lam` `priority: 2`
+- **[MAY-16]** [OPERATOR] run make install-janitor to activate V4 worktree cleanup — PR #158 V4 janitor + plist landed but NOT installed. As of session end: 648MB / 188 worktrees in .claude/worktrees/. `labels: audit` `assignee: Tri Lam` `priority: 1`
+- **[MAY-19]** [SESSION-AUDIT] UX-audit ship-blockers B1 B5 NOT addressed this session — UX-audit ship-blockers (docs/engineer/briefs/2026-06-10-ux-audit-cross-surface.md) still 🔴: `labels: audit` `assignee: Tri Lam` `priority: 1`
+- **[MAY-104]** [FLAKY-TEST] TestDailyRotator_WriteRacesRotate + TestPushSource_CtxCancel_StopsLoop fail intermittently on main — Two race-condition tests fail intermittently on CI for any PR (including pure-docs PRs that touch zero Go code). Confirmed pre-existing on main during 2026-06-10 PM session: PRs #239 + #241 (both docs `labels: Bug` `assignee: Tri Lam` `priority: 2`
+- **[MAY-107]** V2 — HUD ambient SSE migration (drop /api/state + /hud/recommendations polls) — Wave-9a P0 V2 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 2`
+- **[MAY-108]** V3 — parallel check.sh post-build stages (vet/lint/comment-density/no-bare-sleep/doc-links) — Wave-9a P0 V3 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 3`
+- **[MAY-111]** V6 — placeholder-detection script for feat/ branches — Wave-9a P0 V6 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 3`
+- **[MAY-113]** V8 — Engine.OnSignal event-driven refactor + two-layer debounce — Wave-9b P1 V8 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 3`
+- **[MAY-114]** V9 — NSWorkspace push for activeapp (replace osascript pull) — Wave-9b P1 V9 from docs/engineer/briefs/2026-06-10-wave-9-velocity-responsiveness.md. `priority: 3`
+- **[MAY-117]** O1 — internal/osevent/ cgo package (foundation) — Wave-10 O1 — foundation package `priority: 2`
+- **[MAY-118]** O3 — Contacts push (CNContactStoreDidChangeNotification) — Wave-10 O3 — Contacts push `priority: 3`
+- **[MAY-120]** O4 — Messages / Mail / Notes push (FSEvents on SQLite WAL) — Wave-10 O4 — Messages / Mail / Notes push `priority: 3`
+- **[MAY-121]** O5 — internal/macos/activeapp/ push (NSWorkspace + coalesce + debounce) — Wave-10 O5 — activeapp push `priority: 3`
+- **[MAY-126]** O9 — Per-adapter pull-with-shorter-interval (degraded mode, no push) — Wave-10 O9 — degraded-mode pull-interval reduction `priority: 3`
+- **[MAY-128]** A1 — Wake → first earcon ≤150ms (leah_voice_wake_to_earcon_seconds histogram) — Pillar A criterion A1 — instrumentation only `priority: 3`
+- **[MAY-130]** A2 — Utterance end → transcript ≤600ms p50 ≤1.2s p95 (leah_voice_utterance_to_transcript_seconds) — Pillar A criterion A2 — instrumentation only `priority: 3`
+- **[MAY-131]** A3 — Transcript → intent classification ≤50ms (leah_intent_classify_seconds) — Pillar A criterion A3 — instrumentation only `priority: 4`
+- **[MAY-133]** A4 — Intent → first audio reply ≤700ms (leah_voice_intent_to_first_audio_seconds) — Pillar A criterion A4 — instrumentation only `priority: 3`
+- **[MAY-135]** A5 — HUD widget update ≤1s e2e (leah_hud_state_to_widget_seconds) — Pillar A criterion A5 — instrumentation only `priority: 3`
+- **[MAY-136]** A6 — CLI first byte stdout ≤200ms excl. LLM (leah_cli_dispatch_to_first_byte_seconds) — Pillar A criterion A6 — instrumentation only `priority: 3`
+- **[MAY-137]** A7 — CLI long-running progress ≤500ms (leah_cli_dispatch_to_first_progress_seconds) — Pillar A criterion A7 — instrumentation only `priority: 4`
+- **[MAY-138]** A8 — Barge-in TTS cuts off ≤200ms (leah_voice_barge_in_cancel_seconds) — Pillar A criterion A8 — instrumentation only `priority: 3`
+- **[MAY-141]** A9 — brew install → first useful reply ≤5min (leah_onboarding_install_to_first_reply_seconds) — Pillar A criterion A9 — onboarding e2e timer `priority: 4`
+- **[MAY-147]** W13 — wire voice Reasoner + audit row + transcript-toggle — Voice-comm Wave 13 — wire Reasoner + audit row `priority: 3`
+- **[MAY-149]** W14 — voice attestation gate + idle-timeout polish + secret redaction — Voice-comm Wave 14 — attestation gate + idle-timeout polish + secret redaction `priority: 3`
+- **[MAY-160]** W15 — recommend Engine skeleton + dashboard widget — Learn → recommend → apply Wave 15 — Engine skeleton + dashboard widget `priority: 3`
+- **[MAY-161]** W16 — recommend auto-tier Apply path (FormatOnSave + WipePIDFile) — Learn → recommend → apply Wave 16 — Auto-tier Apply path `priority: 3`
+- **[MAY-162]** W17 — recommend confirm-tier + morning brief integration — Learn → recommend → apply Wave 17 — Confirm-tier + morning brief `priority: 3`
+- **[MAY-163]** W18 — recommend feedback loop + leah forget CLI — Learn → recommend → apply Wave 18 — Feedback loop + leah forget `priority: 3`
+- **[MAY-164]** W19 — recommend voice surface (pull + proactive push) — Learn → recommend → apply Wave 19 — Voice surface `priority: 3`
+- **[MAY-165]** W20 — iMessage adapter scaffold — iMessage adapter Wave 20 — scaffold `priority: 4`
+- **[MAY-166]** W21 — FaceTime adapter scaffold — FaceTime adapter Wave 21 — scaffold `priority: 4`
+- **[MAY-167]** W22 — leah connect imessage + leah connect facetime CLI — Wave 22 — leah connect imessage + leah connect facetime `priority: 4`
+- **[MAY-168]** W23 — dispatcher wiring leah ship --imessage + leah call — Wave 23 — dispatcher wiring (leah ship --imessage, leah call) `priority: 4`
+- **[MAY-169]** W24 — shared rate-limit middleware + audit dashboard widget — Wave 24 — shared rate-limit middleware + audit dashboard widget `priority: 4`
+- **[MAY-170]** W25 — internal/macos/ skeleton + Calendar + Contacts + Reminders — macOS integration Wave 25 — package skeleton + 3 lowest-risk read adapters `priority: 3`
+- **[MAY-171]** W26 — macOS mirror-sync loop wired into daemon — macOS integration Wave 26 — mirror-sync loop wired into daemon `priority: 3`
+- **[MAY-172]** W27 — Notes + Mail + Messages read adapters (FDA-gated) — macOS integration Wave 27 — Notes + Mail + Messages read adapters `priority: 3`
+- **[MAY-173]** W28 — ambient signals: Spotlight + Focus + active-app + Bluetooth + Wi-Fi — macOS integration Wave 28 — ambient signals `priority: 3`
+- **[MAY-174]** W29 — Shortcuts.app integration — macOS integration Wave 29 — Shortcuts.app integration `priority: 3`
+- **[MAY-175]** W30 — knowledge graph package + first cross-app query (morning brief) — macOS integration Wave 30 — knowledge graph + morning-brief enrichment `priority: 3`
+- **[MAY-176]** W31a — leah init first-launch wizard (macos-integration) — macOS integration Wave 31 — leah init first-launch wizard `priority: 3`
+- **[MAY-177]** W31b — feeds skeleton + weather adapter + cache (hud-info) — HUD UI + info-feeds Wave 31 — feeds skeleton + weather adapter + cache `priority: 3`
+- **[MAY-178]** W32 — feeds news + market adapters + synthesizers + CLI subcommands — HUD UI + info-feeds Wave 32 — news + market adapters; synthesizers; CLI `priority: 3`
+- **[MAY-179]** W33 — morning brief integration (weather + headline + market) — HUD UI + info-feeds Wave 33 — morning brief integration `priority: 3`
+- **[MAY-180]** W34 — Wails cmd/leah-hud/ skeleton + ambient panel — HUD UI + info-feeds Wave 34 — Wails HUD skeleton + ambient panel `priority: 3`
+- **[MAY-181]** W35 — HUD focus panel + reasoner integration + voice-summon — HUD UI + info-feeds Wave 35 — focus panel + reasoner integration; voice-summon `priority: 3`
+- **[MAY-182]** W36 — HUD info-feed widgets (weather, market, headlines, calendar-next) — HUD UI + info-feeds Wave 36 — HUD info-feed widgets `priority: 3`
+- **[MAY-183]** W37 — HUD operator-config: hotkeys, accent color, source allowlist, blocklist words — HUD UI + info-feeds Wave 37 — operator-config `priority: 4`
+- **[MAY-184]** W38 — internal/regattaclient/ skeleton + Endpoint interface + Docker transport scaffolding — Regatta integration Wave 38 — skeleton + Endpoint + Docker transport scaffolding `priority: 3`
+- **[MAY-185]** W39 — leah connect regatta Docker branch (primary path) — Regatta integration Wave 39 — leah connect regatta Docker branch `priority: 3`
+- **[MAY-186]** W40 — regatta auto-detect at daemon boot — Regatta integration Wave 40 — auto-detect at daemon boot `priority: 3`
+- **[MAY-187]** W41 — regatta attestation gating + per-RPC audit rows — Regatta integration Wave 41 — attestation gating + per-RPC audit rows `priority: 3`
+- **[MAY-188]** W42 — leah disconnect regatta Docker teardown — Regatta integration Wave 42 — leah disconnect regatta Docker teardown `priority: 3`
+- **[MAY-189]** W43 — regatta cloud branch (DEFERRED — opt-in only) — Regatta integration Wave 43 — cloud branch (DEFERRED) `priority: 4`
+- **[MAY-190]** W44 — Confluence adapter scaffold + shared go-atlassian helpers — Work-tools Wave 44 — Confluence adapter scaffold + shared atlassian helpers `priority: 3`
+- **[MAY-191]** W45 — Jira adapter using shared atlassian module — Work-tools Wave 45 — Jira adapter using shared module `priority: 3`
+- **[MAY-192]** W46 — Slack adapter scaffold — Work-tools Wave 46 — Slack adapter scaffold `priority: 3`
+- **[MAY-193]** W47 — Notion adapter scaffold (direct HTTP) — Work-tools Wave 47 — Notion adapter scaffold `priority: 3`
+- **[MAY-194]** W48 — Linear adapter scaffold (genqlient) — Work-tools Wave 48 — Linear adapter scaffold (genqlient) `priority: 3`
+- **[MAY-195]** W49 — Microsoft Teams adapter scaffold (msgraph-sdk-go) — Work-tools Wave 49 — MS Teams adapter scaffold `priority: 3`
+- **[MAY-197]** W51 — leah connect &lt;tool&gt; integration (all 6 work tools) — Work-tools Wave 51 — leah connect <tool> integration (all 6) `priority: 3`
+- **[MAY-198]** W52 — leah disconnect &lt;tool&gt; integration (all 6 work tools) — Work-tools Wave 52 — leah disconnect <tool> integration (all 6) `priority: 3`
+- **[MAY-199]** W53 — work-tools morning brief enrichment (all 6 fan-in) — Work-tools Wave 53 — morning brief enrichment `priority: 3`
+- **[MAY-200]** W54 — dispatcher write-paths leah ship --&lt;tool&gt; (5 of 6) — Work-tools Wave 54 — dispatcher write-paths (leah ship --<tool>) `priority: 3`
+- **[MAY-201]** W55 — recommendation-engine work-tools sources (6 adapters) — Work-tools Wave 55 — recommendation-engine adapters `priority: 3`
+- **[MAY-202]** W56 — Maps adapter skeleton + connect (Geocode + Route) — Trip-planning Wave 56 — Maps adapter skeleton + connect `priority: 4`
+- **[MAY-203]** W57 — Maps POIAlongRoute corridor + ranking — Trip-planning Wave 57 — POIAlongRoute corridor + ranking `priority: 4`
+- **[MAY-204]** W58 — Maps TrafficETA + cache hardening — Trip-planning Wave 58 — TrafficETA + cache hardening `priority: 4`
+- **[MAY-205]** W59 — Flights adapter skeleton + watch loop — Trip-planning Wave 59 — Flights adapter skeleton + watch loop `priority: 4`
+- **[MAY-206]** W60 — Maps sovereign-fallback: OSM + OSRM adapter — Trip-planning Wave 60 — sovereign-fallback OSM + OSRM `priority: 4`
+- **[MAY-207]** W61 — tripplanner composition: OnTheWay + MeetInMiddle — Trip-planning Wave 61 — tripplanner OnTheWay + MeetInMiddle `priority: 4`
+- **[MAY-208]** W62 — tripplanner voice integration (OnTheWay + MeetInMiddle intents) — Trip-planning Wave 62 — voice integration `priority: 4`
+- **[MAY-209]** W63 — tripplanner HUD integration (map-preview panel) — Source: docs/engineer/briefs trip-planning §W63 — tripplanner HUD map-preview panel. `priority: 4`
+- **[MAY-210]** W64 — tripplanner recommendation-engine tie-in (cuisine + avoided patterns) — Trip-planning Wave 64 — recommendation engine tie-in `priority: 4`
+- **[MAY-211]** W65 — Discord adapter scaffold (PostMessage + ListChannels + connect) — Text-voice comms Wave 65 — Discord adapter scaffold `priority: 4`
+- **[MAY-212]** W66 — Discord Subscribe + reasoner routing (discordgo gateway) — Text-voice comms Wave 66 — Discord Subscribe + reasoner routing `priority: 4`
+- **[MAY-213]** W67 — Discord voice in/out — Text-voice comms Wave 67 — Discord voice in/out `priority: 4`
+- **[MAY-214]** W68 — WhatsApp adapter scaffold (SendText + SendTemplate + connect) — Text-voice comms Wave 68 — WhatsApp adapter scaffold `priority: 4`
+- **[MAY-215]** W69 — WhatsApp webhook receiver (verify + HMAC + dispatch) — Text-voice comms Wave 69 — WhatsApp webhook receiver `priority: 4`
+- **[MAY-216]** W70 — WhatsApp voice in/out (ogg/opus via ffmpeg) — Text-voice comms Wave 70 — WhatsApp voice in/out `priority: 4`
+- **[MAY-217]** W71 — multi-channel daily-brief push (gmail + slack + discord + whatsapp) — Text-voice comms Wave 71 — multi-channel daily-brief push `priority: 4`
+- **[MAY-218]** W72 — recommendation accept/reject via reply (text + voice classifier) — Text-voice comms Wave 72 — recommendation accept/reject via reply `priority: 4`
+- **[MAY-219]** W73 — health endpoint + per-package SelfCheck framework — Observability Wave 73 — health endpoint + SelfCheck framework `priority: 3`
+- **[MAY-220]** W74 — /metrics Prometheus endpoint — Observability Wave 74 — /metrics Prometheus endpoint `priority: 3`
+- **[MAY-221]** W75 — event timeline package (SQLite event store) — Observability Wave 75 — event timeline package `priority: 3`
+- **[MAY-222]** W76 — OpenTelemetry integration + in-process collector — Observability Wave 76 — OpenTelemetry integration + collector `priority: 3`
+- **[MAY-223]** W77 — /events SSE endpoint + dashboard timeline widget — Observability Wave 77 — /events SSE endpoint + dashboard timeline widget `priority: 3`
+- **[MAY-224]** W78 — HUD ambient telemetry tiles — Observability Wave 78 — HUD ambient telemetry tiles `priority: 3`
+- **[MAY-225]** W79 — Makefile feedback-loop targets (make dev, verify-pr, baseline) — Observability Wave 79 — Makefile feedback-loop targets `priority: 4`
+- **[MAY-226]** W80 — metric inventory backfill (~30 metrics) — Observability Wave 80 — metric inventory backfill `priority: 4`
+- **[MAY-227]** W81 — self-update Makefile targets + binary layout + lockfile — Local self-update Wave 81 — Makefile targets + binary layout + lockfile `priority: 3`
+- **[MAY-228]** W82 — version embedding + --version flag — Local self-update Wave 82 — version embedding + --version flag `priority: 3`
+- **[MAY-229]** W83 — leah self-upgrade CLI + attestation + audit row + restart hook — Local self-update Wave 83 — leah self-upgrade CLI + attestation + audit row + restart hook `priority: 3`
+- **[MAY-230]** W84 — brew tap repo + formula + rollback docs — Local self-update Wave 84 — brew tap + formula + rollback docs `priority: 4`
+- **[MAY-231]** W10-1 — wire gmail + gcal into morning brief — Source: docs/engineer/briefs/2026-06-10-next-wave.md §W10-1 — wire gmail + gcal into morning brief. `priority: 3`
+- **[MAY-232]** W10-2 — OAuth refresh-token rotation (gmail + gcal) — Next-wave W10-2 — OAuth refresh-token rotation `priority: 3`
+- **[MAY-233]** W10-3 — leah disconnect &lt;integration&gt; (gmail + gcal) — Next-wave W10-3 — leah disconnect <integration> `priority: 3`
+- **[MAY-234]** W10-4 — centralize operator-attestation question pool — Next-wave W10-4 — centralize operator-attestation question pool `priority: 3`
+- **[MAY-235]** W10-5 — audit log retention + rotation policy (gz threshold) — Next-wave W10-5 — audit log retention / rotation policy `priority: 3`
+- **[MAY-236]** W10-6 — self-learn ↔ operator-model feedback loop — Next-wave W10-6 — self-learn ↔ operator-model feedback loop `priority: 3`
+- **[MAY-237]** W10-7 — CI matrix live-gh job (closes GH #26) — Next-wave W10-7 — CI matrix live-gh (closes #26) `priority: 4`
+- **[MAY-238]** MVP5-T1 — repo skeleton + CLAUDE.md port — MVP-5 Task 1 — repo skeleton + CLAUDE.md port `priority: 4`
+- **[MAY-239]** MVP5-T2 — JSONL audit log (internal/audit) — MVP-5 Task 2 — JSONL audit log `priority: 4`
+- **[MAY-240]** MVP5-T3 — per-process budget ceiling (internal/budget) — MVP-5 Task 3 — per-process budget ceiling `priority: 4`
+- **[MAY-241]** MVP5-T4 — Anthropic SDK + Reasoner wrapper (Client interface) — MVP-5 Task 4 — Anthropic SDK + Reasoner wrapper `priority: 4`
+- **[MAY-242]** MVP5-T5 — Anthropic SDK live wiring (AnthropicClient) — MVP-5 Task 5 — Anthropic SDK live wiring `priority: 4`
+- **[MAY-243]** MVP5-T6 — intent classifier (regex) — MVP-5 Task 6 — intent classifier `priority: 4`
+- **[MAY-244]** MVP5-T7 — gh CLI wrapper (internal/ghclient) — MVP-5 Task 7 — gh CLI wrapper `priority: 4`
+- **[MAY-245]** MVP5-T8 — regatta CLI wrapper (internal/regattaclient) — MVP-5 Task 8 — regatta CLI wrapper `priority: 4`
+- **[MAY-246]** MVP5-T9 — desktop + Pushover notifier (internal/notify) — MVP-5 Task 9 — desktop + Pushover notifier `priority: 4`
+- **[MAY-247]** MVP5-T10 — leah ask flow (first user-facing command) — MVP-5 Task 10 — leah ask flow (end-to-end) `priority: 4`
+- **[MAY-248]** MVP5-T11 — leah ship regatta dispatcher — MVP-5 Task 11 — leah ship regatta dispatcher `priority: 4`
+- **[MAY-249]** MVP5-T12 — independent reviewer subagent (PostReview shape gate) — MVP-5 Task 12 — independent reviewer subagent `priority: 4`
+- **[MAY-250]** MVP5-T13 — leah review &lt;pr#&gt; wiring + Anthropic subagent — MVP-5 Task 13 — leah review <pr#> wiring `priority: 4`
+- **[MAY-251]** MVP5-T14 — leah status from JSONL audit — MVP-5 Task 14 — leah status from JSONL audit `priority: 4`
+- **[MAY-252]** MVP5-T15 — healthchecks.io heartbeat (M0 hardpoint #3) — MVP-5 Task 15 — [healthchecks.io](<http://healthchecks.io>) heartbeat `priority: 4`
+- **[MAY-253]** MVP5-T16 — launchd plist + healthcheck setup script — MVP-5 Task 16 — launchd plist + healthcheck setup script `priority: 4`
+- **[MAY-254]** MVP5-T17 — wire heartbeat into ship long-running watcher — MVP-5 Task 17 — wire heartbeat into ship long-running watcher `priority: 4`
+- **[MAY-255]** MVP5-T18 — golangci-lint config + CI sanity script — MVP-5 Task 18 — golangci-lint config + CI sanity script `priority: 4`
+- **[MAY-256]** MVP5-T19 — end-to-end manual smoke test — MVP-5 Task 19 — end-to-end manual smoke test `priority: 4`
+- **[MAY-257]** MVP5-T20 — wrap-up: final commit + tag v0.0.1-mvp5 — MVP-5 Task 20 — wrap-up + tag v0.0.1-mvp5 `priority: 4`
+- **[MAY-259]** De-time-bomb flaky timing tests (StuckReasoner, DropMonitor) under parallel CPU load — Two timing-sensitive tests flake under heavy concurrent CPU load (observed 2026-06-20 during 5-6 parallel build agents + check runs); both pass in isolation: `priority: 3`
+- **[MAY-262]** M2-V — closed-loop validation harness (self-build end-to-end) — Spec: docs/engineer/specs/2026-06-21-closed-loop-validation.md (merged fb642a4). `priority: 2`
+- **[MAY-263]** F1 — TTS bytes seam (synth returns audio bytes for remote voice-out) — Spec: docs/engineer/specs/2026-06-21-tts-bytes-seam.md (merged fb642a4). `priority: 3`
+- **[MAY-264]** F2 — comms Notifier: brief delivery to Discord/WhatsApp — Spec: docs/engineer/specs/2026-06-21-comms-notifier.md (merged fb642a4). `priority: 3`
+- **[MAY-265]** Add ArgsHash to daemon.transition audit rows (full closed-loop CLOSED detection) `priority: 3`
+- **[MAY-267]** F3 — remote recommendation accept/reject (BLOCKED: needs inbound-router + consent-contract spec) — F3 from forward-roadmap. BLOCKED on TWO spec-level prerequisites (producer-verified 2026-06-21, no code written — honest block over dead/unsafe code): `priority: 4`
+- **[MAY-268]** Release runbook: publish leah source tarball so brew formula url resolves — Disclosed dependency from <issue id="1ac874bf-1ee2-47d6-a34f-1f8c2929f002" href="https://linear.app/themaydow/issue/MAY-230/w84-brew-tap-repo-formula-rollback-docs">MAY-230</issue> (brew formula). For `assignee: Tri Lam` `priority: 4`
+
+## Canceled
+
+- **[MAY-196]** W50 — combined go.mod tidy (5 modules) — Work-tools Wave 50 — combined go.mod tidy `priority: 3`
