@@ -8,6 +8,15 @@ Personal chief-of-staff for macOS — ask questions, ship code, run adapters —
 - Phase plans: `docs/superpowers/plans/2026-06-22-leah-macos-native-phase{2,3,4}.md`
 - Work tracker: [Linear — Leah](https://linear.app/themaydow/project/leah-a8d553e8cc88)
 
+## What runs where
+
+| You interact with | It is | Runs |
+|---|---|---|
+| `leah` | CLI | on-demand |
+| Menubar app | Native macOS app | always |
+| `leah-daemon` | Background service | always |
+| HUD panel (⌥Space) | Ask/answer overlay | on-demand |
+
 ## Install
 
 ```sh

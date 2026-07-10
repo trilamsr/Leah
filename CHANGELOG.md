@@ -2,26 +2,25 @@
 
 ## v1.1 (Phase 4 — 2026-06-23)
 
-- Voice frontier runtime: Whisper-quality STT chain, BPE detokenizer, full-duplex coordinator, turn instrumentation. Answer-engine streams over voice without HUD focus.
-- Multi-device sync: Bonjour discovery + OTP pairing + mTLS transport (`sync.NewMTLSConfig` shared-key derive), CRDT peer coordinator, attempt-counter backoff. Settings → iCloud sync pane.
-- Recommend pass-2: signal dispatcher with voice announcer, SQLite engine, macOS mirror source, anti-list A/B pane.
-- Camera + vision: OCR engine with consent store, Swift HUD router.
-- Multi-agent A2A: inbound MCP token-scoped server + Connections pane. Leah-to-Leah client/server over ed25519 with consent + budget gating.
-- Continuous attestation verifier + scoped question pool wired against MCP inbound.
-- Plugin SDK: host + sandbox + quota meter. Weather plugin as reference.
-- Privacy budget runtime (`budget.NewRuntime`) — shared ledger debited by A2A, recommend, vision.
-- Watchdog supervisor: heartbeat + circuit breaker + leak detector.
+- Voice on macOS: wake with "Hey Leah", hear replies without opening the HUD.
+- Multi-device sync: pair Macs with a one-time code — memory and settings stay in sync, encrypted end to end.
+- Smarter recommendations: learns from your patterns; an anti-list pane in Settings lets you say "stop suggesting this".
+- Camera + vision: point a camera at a whiteboard or receipt; on-device OCR asks for consent before any read.
+- Peer agents: authorize other Leah instances (yours or a teammate's) to answer scoped questions, with per-question consent and a spending cap.
+- Plugin SDK: drop-in extensions run in a sandbox with their own budget. Ships with a weather plugin as a reference.
+- Spending guardrails: one shared ledger tracks what every feature costs; when the cap fires, everything stops together.
+- Watchdog: heartbeat + circuit breaker + memory-leak detector keep the background service healthy.
 
 ## v3.3.0 (2026-06-23)
 
-- TTS subsystem: ElevenLabs Flash v2.5 cloud primary + Apple Ava Premium local fallback, `tts.cloud.frame` + `tts.local` IPC fan-out, daemon-side privacy classifier.
-- Wake-word adapter: `wake-leah.mlmodel` bundled under `Resources/Models/`, VAD-gate + per-app suppression list ON by default.
-- Push-to-talk: Fn (internal), right-⌘ (external).
-- Minimal-mode runtime toggle (Settings → Appearance) — strips grain, italic, gold-accents.
-- Touch ID gate for memory purge + telemetry toggle per §17.13.
-- Push-source IPC fan-out complete — knowledge + memory + integrations push deltas to HUD.
-- KG-backed citations on the answer-engine streaming path.
-- MCP publish ships read-only (queries only, no mutations).
-- Sparkle auto-appcast generator: EdDSA verify + rollback channel. Appcast on GitHub Pages; signing-key custody per §17.19.
-- §4.7 dashboard surface: Memory + agenda + briefs + news + knowledge views over existing widget adapters.
-- §17.12 marketing-hero asset slots finalized — 4 hero PNGs + SVG/PDF mark.
+- Text-to-speech: cloud voice as primary (ElevenLabs Flash v2.5) with an on-device Apple voice as fallback; a classifier chooses which to use based on privacy.
+- Wake word: "Hey Leah" ships on-device, off by default. Per-app suppression list so it won't fire during a Zoom call.
+- Push-to-talk: Fn key (built-in keyboards), right-Command key (external keyboards).
+- Minimal mode: strips grain, italic, and gold accents from the UI (Settings → Appearance).
+- Touch ID gate on memory purge and telemetry toggles.
+- Live updates: knowledge, memory, and integrations push changes to the HUD as they happen — no polling.
+- Citations on streaming answers: sources link back to the exact file/line or Linear issue.
+- Peer agent read-only publish: other Leah instances can query your tools, never mutate them.
+- Auto-updater: signed appcast on GitHub Pages with a rollback channel toggle in Settings → Advanced.
+- Dashboard: unified surface for memory, agenda, briefs, news, and knowledge — reuses existing widget tiles.
+- Brand hero assets finalized: 4 hero PNGs plus SVG/PDF mark.
