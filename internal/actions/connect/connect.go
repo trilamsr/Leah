@@ -1,5 +1,4 @@
 // Package connect is the first-launch integration auth boundary.
-// See docs/engineer/briefs/2026-06-09-first-launch-connect.md.
 package connect
 
 import (

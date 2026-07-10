@@ -155,7 +155,7 @@ app-run: app-build
 
 # Sign + notarize + staple Leah.app for distribution.
 # ARGS controls the operation: --build-only | --sign | --notarize | --staple | --all
-# See scripts/sign-and-notarize.sh and docs/engineer/runbooks/signing-and-notarization.md.
+# See scripts/sign-and-notarize.sh and docs/runbooks/signing-and-notarization.md.
 sign-and-notarize:
 	@bash scripts/sign-and-notarize.sh $(ARGS)
 
