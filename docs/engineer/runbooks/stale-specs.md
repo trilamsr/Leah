@@ -69,3 +69,5 @@ Method: for each spec, derive expected package from filename + first `internal/`
 - **SHIPPED** → no action.
 
 Self-check: running `bash scripts/audit-stale-specs.sh | grep -c '^STALE'` MUST match the count in the STALE section header above. If not, runbook is drift; regenerate.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

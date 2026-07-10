@@ -831,3 +831,5 @@ have meaning), reinforcing serial order on its own.
 - root cause > symptom — eval failures investigated to the prompt or
   code edit that caused them; not papered over by retracing.
 - TDD: §12 meta-eval lands FIRST in W82, before any trace lands.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

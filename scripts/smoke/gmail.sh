@@ -17,7 +17,7 @@ if [ "$mode" = "1" ]; then
 fi
 
 # Mock mode: run hermetic gmail-adapter test as a smoke proxy
-go test -count=1 -run 'TestListUnread' ./internal/adapters/gmail/... > /tmp/gmail-smoke.log 2>&1 || {
+go test -count=1 -run 'TestListUnread' ./internal/actions/adapters/gmail/... > /tmp/gmail-smoke.log 2>&1 || {
   smoke_log "FAIL mock"; cat /tmp/gmail-smoke.log; exit 1
 }
 smoke_log "PASS mock"

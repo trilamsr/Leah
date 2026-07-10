@@ -302,3 +302,5 @@ Each reopens when a real caller files an issue citing the gap.
   is 500 anchors × 1 Places call × N matrix calls — easily $5. Mitigation:
   `SampleEveryM` defaults grow with route length (1 km < 50 km, 5 km <
   500 km, 25 km ≥ 500 km). Operator can override.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

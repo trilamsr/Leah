@@ -219,3 +219,5 @@ When to add: when you have ≥10 external testers AND ≥1 risky release/quarter
 - raycast.com/pro — incumbent BYOK pattern reference ("BYOK… OpenAI, Anthropic and Google")
 - granola.ai/security — incumbent backend-key-custody pattern reference
 - help.openai.com ChatGPT mac FAQ — incumbent OAuth-to-account pattern reference
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

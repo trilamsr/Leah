@@ -12,7 +12,7 @@
 #   (3)  push-source IPC frames push.{mail,contacts,focus,activeapp} reach
 #        the HUD (pushsource_runtime emits the four kinds)
 #   (4)  KG citation enrichment fills the source domain on citation widget
-#        mount (internal/knowledge.CitationEnrichment.Domain non-empty)
+#        mount (internal/thinking/knowledge.CitationEnrichment.Domain non-empty)
 #   (5)  MCP publish socket binds when LEAH_MCP_PUBLISH=1; default off when
 #        unset (ErrPublishDisabled in the off path)
 #   (6)  Minimal-mode toggle (UserDefaults leah.appearance.minimalMode=true)
@@ -140,20 +140,20 @@ if [ -n "${CI:-}" ] && [ -z "${LEAH_E2E_STUB:-}" ]; then
 fi
 
 # -- Invariant 1: TTS provider chain (classifier routing) ----------------
-if ! out="$(go test -C "$REPO" -count=1 -run 'TestBlockwordClassifier' ./internal/tts/ 2>&1)"; then
+if ! out="$(go test -C "$REPO" -count=1 -run 'TestBlockwordClassifier' ./internal/actions/tts/ 2>&1)"; then
   echo "$out" >>"$LOG"
   step_fail 1 "tts classifier route test failed (see $LOG)"
 fi
 echo "phase3-smoke: (1) ok — tts classifier routes public→ElevenLabs, sensitive→Apple Ava"
 
 # -- Invariant 2: tts.speak + tts.cancel IPC kinds wired -----------------
-if ! grep -q 'KindTTSSpeak[[:space:]]*=[[:space:]]*"tts.speak"' "$REPO/internal/ipc/frame.go"; then
-  step_fail 2 "KindTTSSpeak frame kind missing from internal/ipc/frame.go"
+if ! grep -q 'KindTTSSpeak[[:space:]]*=[[:space:]]*"tts.speak"' "$REPO/internal/platform/ipc/frame.go"; then
+  step_fail 2 "KindTTSSpeak frame kind missing from internal/platform/ipc/frame.go"
 fi
-if ! grep -q 'KindTTSCancel[[:space:]]*=[[:space:]]*"tts.cancel"' "$REPO/internal/ipc/frame.go"; then
-  step_fail 2 "KindTTSCancel frame kind missing from internal/ipc/frame.go"
+if ! grep -q 'KindTTSCancel[[:space:]]*=[[:space:]]*"tts.cancel"' "$REPO/internal/platform/ipc/frame.go"; then
+  step_fail 2 "KindTTSCancel frame kind missing from internal/platform/ipc/frame.go"
 fi
-if ! out="$(go test -C "$REPO" -count=1 -run 'TTS|Speak|Cancel' ./internal/tts/... 2>&1)"; then
+if ! out="$(go test -C "$REPO" -count=1 -run 'TTS|Speak|Cancel' ./internal/actions/tts/... 2>&1)"; then
   echo "$out" >>"$LOG"
   step_fail 2 "tts speak/cancel route test failed (see $LOG)"
 fi
@@ -168,7 +168,7 @@ for kind in push.mail push.contacts push.focus push.activeapp; do
 done
 # TestPushSource_* lives in the per-adapter packages; running ./... at the
 # parent dir picks up all four required adapters in one go.
-PUSH_PKGS="./internal/macos/mail/... ./internal/macos/contacts/... ./internal/macos/focus/... ./internal/macos/activeapp/..."
+PUSH_PKGS="./internal/platform/macos/mail/... ./internal/platform/macos/contacts/... ./internal/platform/macos/focus/... ./internal/platform/macos/activeapp/..."
 if ! out="$(go test -C "$REPO" -count=1 -run 'TestPushSource' $PUSH_PKGS 2>&1)"; then
   echo "$out" >>"$LOG"
   step_fail 3 "push-source runtime test failed (see $LOG)"
@@ -186,7 +186,7 @@ fi
 echo "phase3-smoke: (3) ok — push.{mail,contacts,focus,activeapp} frames reach the HUD"
 
 # -- Invariant 4: KG citation enrichment fills source domain -------------
-if ! out="$(go test -C "$REPO" -count=1 -run 'TestCitation|TestEnrich' ./internal/knowledge/ 2>&1)"; then
+if ! out="$(go test -C "$REPO" -count=1 -run 'TestCitation|TestEnrich' ./internal/thinking/knowledge/ 2>&1)"; then
   echo "$out" >>"$LOG"
   step_fail 4 "knowledge.CitationEnrichment test failed (see $LOG)"
 fi
@@ -195,7 +195,7 @@ echo "phase3-smoke: (4) ok — citation enrichment fills Domain on widget mount"
 # -- Invariant 5: MCP publish socket gates on LEAH_MCP_PUBLISH=1 ---------
 # TestPublish_GateOffByDefault asserts the unset-env branch refuses to bind;
 # TestPublish_InitializeRoundTrip asserts the LEAH_MCP_PUBLISH=1 branch binds.
-if ! out="$(LEAH_MCP_PUBLISH=  go test -C "$REPO" -count=1 -v -run 'TestPublish_GateOffByDefault|TestPublish_InitializeRoundTrip' ./internal/mcp/ 2>&1)"; then
+if ! out="$(LEAH_MCP_PUBLISH=  go test -C "$REPO" -count=1 -v -run 'TestPublish_GateOffByDefault|TestPublish_InitializeRoundTrip' ./internal/platform/mcp/ 2>&1)"; then
   echo "$out" >>"$LOG"
   step_fail 5 "mcp publish gate test failed (see $LOG)"
 fi

@@ -307,3 +307,5 @@ No existing surface gets larger except `cmd/leah/main.go` (+1 switch case) and `
 - [x] Per-subcommand exit-code contract spelled out.
 - [x] Failure modes are concrete (exit code OR queue-state-transition), not narrative.
 - [x] Deletion-default audit table accounts for every new surface.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

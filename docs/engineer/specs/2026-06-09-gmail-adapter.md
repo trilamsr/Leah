@@ -125,3 +125,5 @@ All tests are hermetic: no disk, no network, no real OAuth.
 - Threading, labels beyond UNREAD, search, attachments
 - Recipient allow-listing
 - Token refresh / rotation
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

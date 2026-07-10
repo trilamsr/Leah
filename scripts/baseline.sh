@@ -11,7 +11,7 @@ test_fail=$(grep -c '^FAIL' "$out.tests" 2>/dev/null || true)
 : "${test_pass:=0}"
 : "${test_fail:=0}"
 
-go test -bench=. -benchmem -count=1 ./internal/obs/... > "$out.bench" 2>&1 || true
+go test -bench=. -benchmem -count=1 ./internal/platform/telemetry/... > "$out.bench" 2>&1 || true
 allocs=$(awk '/^Benchmark/ {sum+=$5} END {print sum+0}' "$out.bench")
 ns_op=$(awk '/^Benchmark/ {sum+=$3} END {print int(sum)}' "$out.bench")
 : "${allocs:=0}"

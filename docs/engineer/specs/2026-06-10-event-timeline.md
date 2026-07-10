@@ -343,3 +343,5 @@ changes:
 
 `events.db` is diagnostic data — operator can delete it without data
 loss to durable state.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

@@ -231,3 +231,5 @@ Token refresh deferred (integration secrets do not expire).
 - Rich-text formatting in created pages.
 - Operator-configurable rate limit.
 - Full-content audit capture.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

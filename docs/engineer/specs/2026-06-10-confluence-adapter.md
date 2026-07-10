@@ -230,3 +230,5 @@ refresh logic on top of the bare disk read.
 - OAuth 3LO credential mode (API-token only MVP).
 - Threading across page-comment trees.
 - Full-body audit capture (operator-toggle deferred).
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.

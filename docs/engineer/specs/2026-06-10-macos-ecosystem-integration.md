@@ -291,3 +291,5 @@ metadata. Treat every adapter as a leak surface.
 
 Each of the above reopens when a real caller files an issue citing the
 gap, mirroring gmail/gcal MVP discipline.
+
+> All internal paths in this doc reflect the pre-2026-07-09 layout; current tree per `git ls-tree -d --name-only HEAD:internal/`.
