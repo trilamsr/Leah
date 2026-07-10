@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local self-update primitives per docs/engineer/specs/2026-06-10-local-self-update.md §3-§5.
+# Local self-update primitives.
 # Subcommands: install | upgrade | swap-symlink | rollback-symlink
 #
 # Trust boundary = operator's clone + their `go` toolchain (no remote fetch).
