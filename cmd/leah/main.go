@@ -647,6 +647,8 @@ func promptDir() string {
 func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "Leah — personal chief-of-staff (v"+Version+")")
 	_, _ = fmt.Fprintln(os.Stderr, "")
+	_, _ = fmt.Fprintln(os.Stderr, "Ask questions, ship code, and run adapters from your terminal or menubar.")
+	_, _ = fmt.Fprintln(os.Stderr, "")
 	_, _ = fmt.Fprintln(os.Stderr, "usage: leah <command> [args...]")
 	_, _ = fmt.Fprintln(os.Stderr, "")
 	_, _ = fmt.Fprintln(os.Stderr, "First-launch:")
