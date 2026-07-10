@@ -251,7 +251,7 @@ func TestRunInit_AnthropicKeyRejectsMalformed(t *testing.T) {
 			if code := runInit(context.Background(), nil, &buf, strings.NewReader(in+"\n"+strings.Repeat("\n", 20))); code != 0 {
 				t.Fatalf("exit %d", code)
 			}
-			if !strings.Contains(buf.String(), "does not look like an Anthropic API key") {
+			if !strings.Contains(buf.String(), "does not look like an API key") {
 				t.Fatalf("malformed-input guard not exercised: %s", buf.String())
 			}
 			if strings.Contains(buf.String(), "stored in Keychain.") {

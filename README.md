@@ -18,7 +18,7 @@ brew tap trilamsr/leah && brew install leah && leah init
 
 | Credential | Where to get |
 |---|---|
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com → API Keys |
+| `ANTHROPIC_API_KEY` | your API provider dashboard |
 | `LEAH_ELEVENLABS_API_KEY` | https://elevenlabs.io → API |
 | `LEAH_PUSHOVER_*` | https://pushover.net → register + app token |
 | `LEAH_HEALTHCHECK_URL` | https://healthchecks.io → run `scripts/healthcheck-setup.sh` |
