@@ -76,7 +76,7 @@ func runInit(ctx context.Context, args []string, w io.Writer, in io.Reader) int 
 
 	_, _ = fmt.Fprintln(w, "Welcome to Leah — personal chief-of-staff.")
 	_, _ = fmt.Fprintln(w, "")
-	_, _ = fmt.Fprintln(w, "Step 1: Anthropic API key")
+	_, _ = fmt.Fprintln(w, "Step 1: API key")
 	promptAnthropicKey(w, r)
 
 	_, _ = fmt.Fprintln(w, "")
@@ -157,7 +157,7 @@ func promptAnthropicKey(w io.Writer, r *bufio.Reader) {
 		return
 	}
 	if k, err := keychain.Load(keychain.AnthropicService, keychain.DefaultAccount); err == nil && k != "" {
-		_, _ = fmt.Fprintln(w, "  Anthropic key already in Keychain — skipping.")
+		_, _ = fmt.Fprintln(w, "  API key already in Keychain — skipping.")
 		return
 	}
 	if os.Getenv("LEAH_INIT_AUTO_ACCEPT") == "1" {
@@ -180,7 +180,7 @@ func promptAnthropicKey(w io.Writer, r *bufio.Reader) {
 		return
 	}
 	if !anthropicKeyRE.MatchString(key) {
-		_, _ = fmt.Fprintln(w, "  (input does not look like an Anthropic API key `sk-ant-…` — skipping)")
+		_, _ = fmt.Fprintln(w, "  (input does not look like an API key `sk-ant-…` — skipping)")
 		return
 	}
 	if err := keychain.Save(keychain.AnthropicService, keychain.DefaultAccount, key); err != nil {

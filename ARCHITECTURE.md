@@ -114,7 +114,7 @@ Every `internal/*` package, what it does, and what it depends on.
 | `operatormodel` | 3 | Time-of-day / cadence / context-transition observers + ranked recs | `audit`, `ctxmgr`, `memory` |
 | `dispatcher` | 4 | Orchestrations: `Ask` / `Ship` / `SelfBuild` / `Status` | `audit`, `budget`, `ghclient`, `regattaclient`, `obs` |
 | `reviewer` | 4 | Independent reviewer subagent + canonical agent-id gate | `budget`, Anthropic SDK |
-| `reasoner` | infra | Main Anthropic-backed LLM surface; charges budget per Ask | `budget`, `obs`, Anthropic SDK |
+| `reasoner` | infra | Main reasoning surface (cloud LLM); charges budget per Ask | `budget`, `obs`, Anthropic SDK |
 | `ghclient` | infra | `gh` CLI wrapper (`CreateIssue` / `ViewPR` / `ListPRsForBranch`) | `os/exec` |
 | `regattaclient` | infra | `regatta agents list --json` wrapper | `os/exec` |
 | `notify` | infra | macOS osascript banner + Pushover phone push (both satisfy `Notifier`) | `os/exec`, `net/http` |

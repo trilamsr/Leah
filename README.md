@@ -23,11 +23,11 @@ Personal chief-of-staff for macOS — ask questions, ship code, run adapters —
 brew tap trilamsr/leah && brew install leah && leah init
 ```
 
-`leah init` walks the first-launch wizard: prompts for `ANTHROPIC_API_KEY`, installs the launchd daemon plist, and offers to connect Gmail / Google Calendar.
+`leah init` walks the first-launch wizard: prompts for your API key, installs the launchd daemon plist, and offers to connect Gmail / Google Calendar.
 
 | Credential | Where to get |
 |---|---|
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com → API Keys |
+| `ANTHROPIC_API_KEY` | your API provider dashboard |
 | `LEAH_ELEVENLABS_API_KEY` | https://elevenlabs.io → API |
 | `LEAH_PUSHOVER_*` | https://pushover.net → register + app token |
 | `LEAH_HEALTHCHECK_URL` | https://healthchecks.io → run `scripts/healthcheck-setup.sh` |
@@ -42,7 +42,7 @@ Closed-loop core, observe → remember → decide → act, with a native macOS H
 - **Memory** — `contact`, `project`, `decision`, `mistake`. SQLite at `~/.leah-state/memory.db` (`internal/memory/`). Typed-attestation gate on `leah purge` CLI; Touch ID gate on Settings → Memory → Purge in the native app per §17.13.
 - **Context manager** — `leah ctx new/switch/show/history/list`; single-active-context; per-switch audit row.
 - **Self-build dispatcher** — `leah self-build "<intent>"` files a `[SELF-BUILD]` issue against `trilamsr/Leah` (repo hard-locked); regatta picks up → PR → `leah review` independent subagent verdict → operator merges. Automerge banned on self-build.
-- **Independent reviewer** — `leah review <repo> <pr#>` runs an Anthropic subagent with a separate prompt + model (`LEAH_REVIEWER_MODEL`); validates agent-id against the canonical allowlist.
+- **Independent reviewer** — `leah review <repo> <pr#>` runs an independent reviewer subagent with a separate prompt + model (`LEAH_REVIEWER_MODEL`); validates agent-id against the canonical allowlist.
 - **JARVIS dashboard (daemon)** — `leah-daemon --dashboard 127.0.0.1:8080` serves `/dashboard` HTML + `/api/state` JSON. Loopback-only. Distinct from the §4.7 SwiftUI dashboard inside the app.
 - **§4.7 dashboard surface (app)** — `app/Leah/Sources/LeahUI/Dashboard/` reuses Phase 2 widget adapters (memory + agenda + briefs + news + knowledge).
 - **Push-source substrate** — `internal/platform/macos/{mail,contacts,focus,activeapp}/push.go` plus knowledge/memory deltas fan out to HUD via IPC `push.*` frames.
