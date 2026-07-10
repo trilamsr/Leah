@@ -43,7 +43,7 @@ type Server struct {
 
 	// EventsSubscribe wires /events SSE streaming to an event source. nil is
 	// safe; /events returns 503 in that case. The daemon wires this to
-	// obs.EventStore.Subscribe.
+	// telemetry.EventStore.Subscribe.
 	EventsSubscribe telemetry.SSESubscribeFunc
 
 	// SpamStats, when non-nil, returns one row per connected adapter's

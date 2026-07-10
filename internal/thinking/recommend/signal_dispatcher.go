@@ -1,4 +1,4 @@
-// Package recommend's SignalDispatcher routes obs.Broadcaster events to
+// Package recommend's SignalDispatcher routes telemetry.Broadcaster events to
 // SignalEngine.OnSignal. Bus uses dotted KnownEventKinds; matcher classes
 // use underscore form and never appear on the bus. Engine's lastFiredAt
 // debounce state is in-memory only — restart resets the 30s window.

@@ -10,11 +10,11 @@ import (
 )
 
 // Push-source → SignalEngine.OnSignal bridge (MAY-V8). Replaces the 60s
-// daemon-tick poll: each whitelisted obs.Event becomes one OnSignal call so
+// daemon-tick poll: each whitelisted telemetry.Event becomes one OnSignal call so
 // recommendation latency tracks the underlying push (NSWorkspace, EventKit,
 // FSEvents) rather than the next tick boundary.
 
-// EventSubscriber is the slice of obs.Broadcaster the bridge needs. Narrow
+// EventSubscriber is the slice of telemetry.Broadcaster the bridge needs. Narrow
 // surface keeps tests from constructing an SSE handler stack.
 type EventSubscriber interface {
 	Subscribe(ctx context.Context, kinds []string) (telemetry.SSESubscriber, error)

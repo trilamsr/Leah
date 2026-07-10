@@ -165,7 +165,7 @@ func (s *Server) computeSnapshot(ctx context.Context) State {
 	return out
 }
 
-// computeHUDStateEvent builds an obs.Event whose Payload matches the
+// computeHUDStateEvent builds a telemetry.Event whose Payload matches the
 // ambient.js reader contract (value/listening/thinking). Extracted so the
 // payload shape is testable without standing up the full Snapshot path.
 func computeHUDStateEvent(value string, listening, thinking bool) telemetry.Event {

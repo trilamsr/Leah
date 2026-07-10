@@ -1,4 +1,4 @@
-// Package ctxmgr is the single-active-context manager.
+// Package activectx is the single-active-context manager.
 //
 // One row in operator_state identifies the operator's current context;
 // switches append to context_switch_log. Backed by the shared memory.db

@@ -1,8 +1,8 @@
-// Package obs is Leah's internal observability layer — structured logs,
+// Package telemetry is Leah's internal observability layer — structured logs,
 // in-process metrics, and panic-recovering goroutine wrappers. Without it,
 // when leah-daemon hangs at 3am Leah cannot draft a regatta self-bug
 // issue ("here's the panic + last 10 log lines"); the audit log captures
-// user-facing actions, obs captures Leah's internal experience.
+// user-facing actions, telemetry captures Leah's internal experience.
 package telemetry
 
 import (

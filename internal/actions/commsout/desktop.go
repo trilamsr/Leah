@@ -1,4 +1,4 @@
-// Package notify pushes terminal-state alerts. Desktop = macOS osascript
+// Package commsout pushes terminal-state alerts. Desktop = macOS osascript
 // banner; Pushover = phone push via the Pushover HTTP API. Both satisfy the
 // contracts.Notifier interface so callers can swap or fan-out.
 package commsout
